@@ -97,11 +97,8 @@ direction. Playful visuals, consistent component system, accessibility pass.
 - ✅ Phase 0 scaffold complete and committed.
 - ✅ **Phase 1 delivered:** three self-contained single-file prototypes +
   rationales in `concepts/` (stark-hud, jobs-apple, disney-pixar), each covering
-  the full core loop. All CSP-safe (no external resources), published as
-  Artifacts for side-by-side comparison:
-  - Stark HUD: https://claude.ai/code/artifact/15dcd39e-3031-47b9-9b9a-d59881c6daed
-  - Jobs/Apple: https://claude.ai/code/artifact/9ae6d9d1-0384-4d7d-a1ed-e98c9cbb553c
-  - Disney/Pixar: https://claude.ai/code/artifact/dcbe2dde-205f-47ab-800a-4d566d1c0288
+  the full core loop. Each is a plain local `.html` — open directly in a browser
+  (no external resources). Deliverables are local HTML files only (no Artifacts).
 - ⏭️ **Next (gate):** concept review with the user → pick a direction (or blend)
   → Phase 2 stack/architecture spike.
 
