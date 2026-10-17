@@ -95,8 +95,12 @@ direction. Playful visuals, consistent component system, accessibility pass.
 ## Status
 
 - ✅ Phase 0 scaffold complete and committed.
-- ⏭️ **Next:** Phase 1 — launch the three concept teams and deliver three
-  interactive prototypes for comparison.
+- 🏗️ **In progress:** Phase 1 — three UX teams launched in parallel (Stark HUD,
+  Jobs/Apple, Disney/Pixar), each building a self-contained single-file
+  interactive prototype of the full core loop + a one-page rationale, into
+  `concepts/`.
+- ⏭️ **After:** concept review with the user → pick a direction (or blend) →
+  Phase 2 stack/architecture spike.
 
 ## Decisions
 

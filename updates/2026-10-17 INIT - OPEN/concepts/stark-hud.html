@@ -1,0 +1,972 @@
+<title>AI Control — STARK HUD</title>
+<style>
+  :root{
+    --bg:#04070c;
+    --bg2:#070d16;
+    --panel:rgba(10,20,32,.72);
+    --panel-solid:#0a1420;
+    --line:rgba(80,200,240,.18);
+    --line-strong:rgba(90,210,250,.42);
+    --cyan:#49e3ff;
+    --cyan-dim:#2a94b0;
+    --gold:#ffc24a;
+    --gold-dim:#b9842a;
+    --txt:#cfe9f5;
+    --txt-dim:#6f93a6;
+    --txt-faint:#4a6678;
+    --good:#53f2b0;
+    --warn:#ffcf5c;
+    --bad:#ff6b6b;
+    --glow:0 0 22px rgba(73,227,255,.35);
+    --radius:4px;
+    --mono:"SF Mono",ui-monospace,"Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:
+      radial-gradient(1200px 700px at 72% -10%,rgba(73,227,255,.08),transparent 60%),
+      radial-gradient(900px 600px at 10% 110%,rgba(255,194,74,.05),transparent 55%),
+      var(--bg);
+    color:var(--txt);font-family:var(--sans);
+    font-size:14px;line-height:1.5;overflow:hidden;
+    letter-spacing:.2px;
+  }
+  /* animated scanline + grid overlay */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9000;
+    background:
+      repeating-linear-gradient(0deg,rgba(73,227,255,.025) 0 1px,transparent 1px 3px);
+    mix-blend-mode:screen;opacity:.5;
+  }
+  body::after{
+    content:"";position:fixed;left:0;right:0;height:140px;pointer-events:none;z-index:9001;
+    background:linear-gradient(180deg,rgba(73,227,255,.10),transparent);
+    animation:scan 7s linear infinite;opacity:.35;
+  }
+  @keyframes scan{0%{top:-140px}100%{top:100%}}
+  @media (prefers-reduced-motion:reduce){
+    body::after{animation:none;display:none}
+    *{animation-duration:.001s!important}
+  }
+  .hidden{display:none!important}
+  button{font-family:inherit;color:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:2px}
+  ::selection{background:rgba(73,227,255,.3);color:#fff}
+
+  /* ---------- App shell ---------- */
+  .app{display:grid;grid-template-rows:auto 1fr auto;height:100vh}
+
+  /* Top HUD bar */
+  .topbar{
+    display:flex;align-items:center;gap:18px;padding:10px 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(8,16,26,.9),rgba(6,12,20,.6));
+    backdrop-filter:blur(6px);position:relative;z-index:20;
+  }
+  .reactor{width:34px;height:34px;flex:0 0 auto;position:relative}
+  .reactor svg{display:block;filter:drop-shadow(0 0 6px rgba(73,227,255,.8))}
+  .brand{display:flex;flex-direction:column;line-height:1.05}
+  .brand b{font-size:15px;letter-spacing:3px;color:#eaf8ff;font-weight:700}
+  .brand span{font-size:9px;letter-spacing:4px;color:var(--cyan-dim);text-transform:uppercase}
+  .crumbs{display:flex;align-items:center;gap:8px;margin-left:8px;font-family:var(--mono);font-size:11px;color:var(--txt-dim)}
+  .crumbs b{color:var(--cyan);font-weight:600}
+  .crumbs .sep{color:var(--txt-faint)}
+  .topbar .spacer{flex:1}
+  .sys{display:flex;gap:16px;align-items:center;font-family:var(--mono);font-size:10px;color:var(--txt-dim)}
+  .sys .stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2}
+  .sys .stat b{color:var(--txt);font-size:11px;letter-spacing:1px}
+  .sys .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 8px var(--good);display:inline-block;margin-right:5px;animation:pulse 2.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--cyan);letter-spacing:1px;min-width:74px;text-align:right}
+
+  /* Left nav rail */
+  .main{display:grid;grid-template-columns:72px 1fr;min-height:0}
+  .rail{
+    border-right:1px solid var(--line);display:flex;flex-direction:column;
+    align-items:center;gap:6px;padding:14px 0;background:rgba(6,12,20,.5);z-index:10;
+  }
+  .rail button{
+    width:52px;height:52px;border:1px solid transparent;border-radius:var(--radius);
+    background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:4px;color:var(--txt-dim);transition:.18s;position:relative;
+  }
+  .rail button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .rail button .lbl{font-size:8px;letter-spacing:1px;text-transform:uppercase}
+  .rail button:hover{color:var(--cyan);border-color:var(--line);background:rgba(73,227,255,.05)}
+  .rail button.active{color:var(--cyan);border-color:var(--line-strong);background:rgba(73,227,255,.1);box-shadow:inset 0 0 14px rgba(73,227,255,.12)}
+  .rail button.active::before{content:"";position:absolute;left:-1px;top:8px;bottom:8px;width:2px;background:var(--cyan);box-shadow:var(--glow)}
+
+  .stage{position:relative;min-height:0;overflow:hidden}
+  .view{position:absolute;inset:0;overflow:auto;padding:22px 26px 26px;animation:fade .4s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .view::-webkit-scrollbar{width:9px;height:9px}
+  .view::-webkit-scrollbar-thumb{background:rgba(73,227,255,.2);border-radius:9px}
+
+  /* Section header */
+  .vh{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;gap:16px;flex-wrap:wrap}
+  .vh h1{margin:0;font-size:22px;font-weight:600;letter-spacing:2px;color:#eaf8ff;text-transform:uppercase;display:flex;align-items:center;gap:12px}
+  .vh h1 .tick{width:34px;height:2px;background:linear-gradient(90deg,var(--cyan),transparent)}
+  .vh .sub{font-family:var(--mono);font-size:11px;color:var(--txt-dim);margin-top:4px;letter-spacing:1px}
+
+  /* Panel primitive */
+  .panel{
+    border:1px solid var(--line);background:var(--panel);border-radius:var(--radius);
+    position:relative;backdrop-filter:blur(4px);
+  }
+  .panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;border:1px solid var(--line-strong);pointer-events:none}
+  .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  .panel>.ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--cyan-dim)}
+  .panel>.ph .d{width:6px;height:6px;background:var(--cyan);border-radius:50%;box-shadow:var(--glow)}
+  .panel>.ph .r{margin-left:auto;color:var(--txt-faint);font-size:9px}
+
+  .grid{display:grid;gap:16px}
+  .btn{
+    border:1px solid var(--line-strong);background:rgba(73,227,255,.07);color:var(--cyan);
+    padding:9px 16px;border-radius:var(--radius);font-family:var(--mono);font-size:11px;
+    letter-spacing:1.5px;text-transform:uppercase;transition:.16s;display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn:hover{background:rgba(73,227,255,.16);box-shadow:var(--glow)}
+  .btn.gold{border-color:var(--gold-dim);background:rgba(255,194,74,.08);color:var(--gold)}
+  .btn.gold:hover{background:rgba(255,194,74,.18);box-shadow:0 0 22px rgba(255,194,74,.3)}
+  .btn.ghost{border-color:var(--line);background:transparent;color:var(--txt-dim)}
+  .btn.ghost:hover{color:var(--cyan);border-color:var(--line-strong);box-shadow:none;background:rgba(73,227,255,.05)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7}
+
+  .tag{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;letter-spacing:1px;
+    text-transform:uppercase;padding:3px 8px;border-radius:20px;border:1px solid var(--line);color:var(--txt-dim)}
+  .tag.cyan{color:var(--cyan);border-color:var(--line-strong);background:rgba(73,227,255,.06)}
+  .tag.gold{color:var(--gold);border-color:var(--gold-dim);background:rgba(255,194,74,.06)}
+  .tag.good{color:var(--good);border-color:rgba(83,242,176,.4);background:rgba(83,242,176,.06)}
+  .tag.warn{color:var(--warn);border-color:rgba(255,207,92,.4);background:rgba(255,207,92,.06)}
+  .tag .k{width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+
+  /* radial gauge */
+  .gauge{position:relative;display:grid;place-items:center}
+  .gauge .num{position:absolute;font-family:var(--mono);font-weight:600;color:#eaf8ff;text-align:center;line-height:1}
+  .gauge .num small{display:block;font-size:8px;color:var(--txt-dim);letter-spacing:2px;margin-top:3px;font-weight:400}
+
+  /* progress bar */
+  .bar{height:6px;border-radius:6px;background:rgba(73,227,255,.1);overflow:hidden;position:relative}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan-dim),var(--cyan));box-shadow:var(--glow);border-radius:6px;transition:width .5s ease;position:relative}
+  .bar>i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);animation:sheen 2.2s infinite}
+  @keyframes sheen{0%{transform:translateX(-100%)}60%,100%{transform:translateX(220%)}}
+  .bar.gold>i{background:linear-gradient(90deg,var(--gold-dim),var(--gold));box-shadow:0 0 18px rgba(255,194,74,.4)}
+
+  /* ============ GLOBAL OVERVIEW ============ */
+  .ov{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+  .proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;padding:16px}
+  .proj{
+    border:1px solid var(--line);border-radius:var(--radius);padding:14px;background:rgba(8,16,26,.6);
+    cursor:pointer;transition:.18s;position:relative;overflow:hidden;
+  }
+  .proj:hover{border-color:var(--line-strong);background:rgba(73,227,255,.06);transform:translateY(-2px)}
+  .proj:hover .reticle{opacity:1}
+  .reticle{position:absolute;top:10px;right:10px;width:20px;height:20px;opacity:.3;transition:.2s}
+  .reticle svg{width:100%;height:100%;stroke:var(--cyan);fill:none;stroke-width:1}
+  .proj h3{margin:0 0 3px;font-size:14px;color:#eaf8ff;letter-spacing:.5px}
+  .proj .meta{font-family:var(--mono);font-size:9px;color:var(--txt-faint);letter-spacing:1px;margin-bottom:12px}
+  .proj .row{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--txt-dim);margin-top:6px}
+  .proj .row b{color:var(--cyan)}
+  .proj .agz{display:flex;gap:4px;margin-top:12px}
+  .proj .agz i{flex:1;height:3px;border-radius:3px;background:rgba(73,227,255,.15)}
+  .proj .agz i.on{background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+
+  .vault{padding:12px}
+  .cred{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;background:rgba(8,16,26,.5);transition:.15s}
+  .cred:hover{border-color:var(--line-strong)}
+  .cred .ic{width:30px;height:30px;flex:0 0 auto;border-radius:var(--radius);display:grid;place-items:center;border:1px solid var(--line);font-family:var(--mono);font-size:10px;color:var(--gold);background:rgba(255,194,74,.06)}
+  .cred .nm{flex:1;min-width:0}
+  .cred .nm b{display:block;font-size:12px;color:#eaf8ff}
+  .cred .nm .v{font-family:var(--mono);font-size:10px;color:var(--txt-faint);letter-spacing:1px}
+  .cred .scope{font-family:var(--mono);font-size:9px;color:var(--cyan-dim)}
+  .lock{width:13px;height:13px;stroke:var(--gold);fill:none;stroke-width:1.6}
+
+  /* ============ PROJECT / LAUNCH ============ */
+  .proj-detail{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+  .launch-pad{padding:28px;text-align:center;position:relative}
+  .orb-wrap{position:relative;width:260px;height:260px;margin:10px auto 18px}
+  .orb-wrap svg{position:absolute;inset:0;width:100%;height:100%}
+  .orb-core{position:absolute;inset:0;display:grid;place-items:center;flex-direction:column;text-align:center}
+  .orb-core .lead{font-family:var(--mono);font-size:10px;color:var(--cyan-dim);letter-spacing:3px;text-transform:uppercase}
+  .orb-core .big{font-size:40px;font-weight:700;color:#eaf8ff;line-height:1;margin:4px 0;text-shadow:var(--glow)}
+  .orchestrator-list{padding:14px}
+  .orc{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;background:rgba(8,16,26,.5)}
+  .orc .av{width:40px;height:40px;flex:0 0 auto;border-radius:50%;border:1px solid var(--line-strong);display:grid;place-items:center;background:radial-gradient(circle,rgba(73,227,255,.2),transparent);color:var(--cyan);font-family:var(--mono);font-weight:600}
+  .orc .info{flex:1}.orc .info b{color:#eaf8ff;font-size:13px}.orc .info div{font-family:var(--mono);font-size:10px;color:var(--txt-dim)}
+
+  /* ============ VOICE ============ */
+  .voice-wrap{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start;height:100%}
+  .conv{padding:0;display:flex;flex-direction:column;min-height:520px;max-height:calc(100vh - 200px)}
+  .conv-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .conv-head .who{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--cyan)}
+  .conv-log{flex:1;overflow:auto;padding:18px 16px;display:flex;flex-direction:column;gap:14px}
+  .msg{max-width:78%;animation:fade .35s}
+  .msg .lab{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:4px}
+  .msg .bub{padding:11px 14px;border-radius:var(--radius);font-size:13.5px;line-height:1.55}
+  .msg.user{align-self:flex-end;text-align:right}
+  .msg.user .bub{background:rgba(255,194,74,.1);border:1px solid var(--gold-dim);color:#fdeccb}
+  .msg.user .lab{color:var(--gold-dim)}
+  .msg.ai .bub{background:rgba(73,227,255,.08);border:1px solid var(--line-strong);color:var(--txt)}
+  .msg.ai .lab{color:var(--cyan-dim)}
+  .msg.ai .bub .cursor{display:inline-block;width:7px;height:14px;background:var(--cyan);margin-left:2px;animation:blink .8s steps(1) infinite;vertical-align:-2px}
+  @keyframes blink{50%{opacity:0}}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{border:1px solid var(--line);background:rgba(73,227,255,.05);color:var(--cyan);padding:6px 12px;border-radius:20px;font-size:12px;transition:.15s}
+  .chip:hover{border-color:var(--line-strong);background:rgba(73,227,255,.14)}
+
+  .mic-dock{padding:16px;border-top:1px solid var(--line);display:flex;align-items:center;gap:16px}
+  .mic-btn{width:62px;height:62px;flex:0 0 auto;border-radius:50%;border:1px solid var(--line-strong);background:radial-gradient(circle,rgba(73,227,255,.18),rgba(8,16,26,.6));display:grid;place-items:center;transition:.2s;position:relative}
+  .mic-btn svg{width:24px;height:24px;stroke:var(--cyan);fill:none;stroke-width:1.6}
+  .mic-btn:hover{box-shadow:var(--glow)}
+  .mic-btn.live{border-color:var(--gold);background:radial-gradient(circle,rgba(255,194,74,.25),rgba(8,16,26,.6))}
+  .mic-btn.live svg{stroke:var(--gold)}
+  .mic-btn.live::after{content:"";position:absolute;inset:-6px;border:1px solid var(--gold);border-radius:50%;animation:ring 1.4s ease-out infinite}
+  @keyframes ring{0%{transform:scale(.9);opacity:.8}100%{transform:scale(1.5);opacity:0}}
+  .wave{flex:1;height:48px;display:flex;align-items:center;gap:2px}
+  .wave i{flex:1;background:linear-gradient(180deg,var(--cyan),var(--cyan-dim));border-radius:2px;height:12%;transition:height .08s;opacity:.4}
+  .wave.live i{opacity:1}
+  .mic-hint{font-family:var(--mono);font-size:10px;color:var(--txt-faint);letter-spacing:1px;min-width:110px;text-align:right}
+
+  .intent-card{padding:16px}
+  .intent-card .field{margin-bottom:14px}
+  .intent-card .field .k{font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:5px}
+  .intent-card .field .v{font-size:13px;color:#eaf8ff;min-height:18px}
+  .intent-card .field .v.empty{color:var(--txt-faint);font-style:italic}
+  .intent-card .field .v.fill{animation:fillFlash .6s}
+  @keyframes fillFlash{0%{color:var(--gold);text-shadow:0 0 10px var(--gold)}100%{color:#eaf8ff}}
+
+  /* ============ AGENTS WATCH ============ */
+  .watch{display:grid;grid-template-columns:1fr;gap:16px}
+  .orch-banner{display:flex;align-items:center;gap:20px;padding:16px 20px}
+  .orch-banner .ring{width:70px;height:70px;flex:0 0 auto;position:relative}
+  .orch-banner . txt{flex:1}
+  .orch-banner .meta{flex:1}
+  .orch-banner h2{margin:0;font-size:18px;color:#eaf8ff;letter-spacing:1px}
+  .orch-banner .say{font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:4px}
+  .orch-stats{display:flex;gap:26px}
+  .orch-stats .s{text-align:center}
+  .orch-stats .s b{display:block;font-family:var(--mono);font-size:22px;color:#eaf8ff}
+  .orch-stats .s span{font-family:var(--mono);font-size:9px;letter-spacing:1px;color:var(--txt-faint);text-transform:uppercase}
+
+  .agents-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+  .agent{padding:14px;position:relative;overflow:hidden}
+  .agent .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .agent .top .badge{width:34px;height:34px;border-radius:var(--radius);display:grid;place-items:center;border:1px solid var(--line-strong);font-family:var(--mono);font-size:13px;flex:0 0 auto}
+  .agent .top .nm{flex:1;min-width:0}
+  .agent .top .nm b{display:block;font-size:13px;color:#eaf8ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .agent .top .nm .role{font-family:var(--mono);font-size:9px;color:var(--txt-dim);letter-spacing:1px;text-transform:uppercase}
+  .agent .task{font-size:12px;color:var(--txt-dim);min-height:34px;margin-bottom:10px;line-height:1.45}
+  .agent .task .tp{color:var(--cyan)}
+  .agent .pline{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;margin-bottom:5px;color:var(--txt-dim)}
+  .agent .pline b{color:#eaf8ff}
+  .agent .scope{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+  .agent .scope .lab{font-family:var(--mono);font-size:8px;letter-spacing:1.5px;color:var(--txt-faint);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+  .scope-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .sc{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:12px;border:1px solid var(--gold-dim);color:var(--gold);background:rgba(255,194,74,.06);display:inline-flex;align-items:center;gap:4px}
+  .sc.none{border-color:var(--line);color:var(--txt-faint);background:transparent}
+  .agent[data-state=done]{border-color:rgba(83,242,176,.3)}
+  .agent[data-state=blocked]{border-color:rgba(255,107,107,.35)}
+
+  /* ============ FACTORY ============ */
+  .factory{display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start}
+  .form{padding:18px}
+  .form label{display:block;font-family:var(--mono);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--txt-faint);margin:0 0 6px}
+  .form .fg{margin-bottom:16px}
+  .form input,.form textarea,.form select{
+    width:100%;background:rgba(4,8,14,.7);border:1px solid var(--line);border-radius:var(--radius);
+    color:#eaf8ff;font-family:var(--sans);font-size:13px;padding:10px 12px;transition:.15s;
+  }
+  .form input:focus,.form textarea:focus,.form select:focus{border-color:var(--line-strong);box-shadow:0 0 0 3px rgba(73,227,255,.1);outline:none}
+  .form textarea{resize:vertical;min-height:72px;font-family:var(--mono);font-size:12px;line-height:1.5}
+  .seg{display:flex;gap:8px;flex-wrap:wrap}
+  .seg button{flex:1;min-width:90px;border:1px solid var(--line);background:transparent;color:var(--txt-dim);padding:9px;border-radius:var(--radius);font-size:11px;letter-spacing:1px;transition:.15s}
+  .seg button.on{border-color:var(--line-strong);color:var(--cyan);background:rgba(73,227,255,.1)}
+  .cred-toggle{display:flex;align-items:center;gap:11px;padding:11px;border:1px solid var(--line);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;transition:.15s;background:rgba(8,16,26,.5)}
+  .cred-toggle:hover{border-color:var(--line-strong)}
+  .cred-toggle.on{border-color:var(--gold-dim);background:rgba(255,194,74,.06)}
+  .cred-toggle .sw{width:34px;height:18px;flex:0 0 auto;border-radius:12px;border:1px solid var(--line);background:rgba(4,8,14,.6);position:relative;transition:.2s}
+  .cred-toggle .sw::after{content:"";position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;background:var(--txt-faint);transition:.2s}
+  .cred-toggle.on .sw{border-color:var(--gold);background:rgba(255,194,74,.2)}
+  .cred-toggle.on .sw::after{left:17px;background:var(--gold);box-shadow:0 0 8px var(--gold)}
+  .cred-toggle .nm{flex:1}.cred-toggle .nm b{display:block;font-size:12px;color:#eaf8ff}.cred-toggle .nm span{font-family:var(--mono);font-size:9px;color:var(--txt-faint)}
+  .preview{padding:18px;position:sticky;top:0}
+  .preview .av{width:70px;height:70px;margin:4px auto 14px;border-radius:50%;border:1px solid var(--line-strong);display:grid;place-items:center;font-family:var(--mono);font-size:26px;color:var(--cyan);background:radial-gradient(circle,rgba(73,227,255,.2),transparent);transition:.3s}
+  .preview h3{text-align:center;margin:0 0 2px;font-size:16px;color:#eaf8ff}
+  .preview .prole{text-align:center;font-family:var(--mono);font-size:10px;color:var(--cyan-dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:16px}
+  .preview .prow{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px}
+  .preview .prow .k{color:var(--txt-faint)}.preview .prow .v{color:var(--txt)}
+
+  /* toast */
+  .toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(20px);z-index:9500;
+    border:1px solid var(--line-strong);background:rgba(8,16,26,.95);color:var(--cyan);
+    padding:12px 20px;border-radius:var(--radius);font-family:var(--mono);font-size:12px;letter-spacing:1px;
+    box-shadow:var(--glow);opacity:0;pointer-events:none;transition:.3s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* bottom ticker */
+  .ticker{border-top:1px solid var(--line);background:rgba(6,12,20,.8);overflow:hidden;white-space:nowrap;z-index:20}
+  .ticker .track{display:inline-block;padding:7px 0;font-family:var(--mono);font-size:10px;color:var(--txt-dim);letter-spacing:1px;animation:marq 42s linear infinite}
+  .ticker .track span{margin:0 28px}
+  .ticker .track b{color:var(--cyan)}
+  .ticker .track em{color:var(--gold);font-style:normal}
+  @keyframes marq{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+  @media (max-width:980px){
+    .ov,.proj-detail,.voice-wrap,.factory{grid-template-columns:1fr}
+    .rail .lbl{display:none}
+    .sys{display:none}
+  }
+</style>
+
+<div class="app">
+  <!-- ===== TOP HUD BAR ===== -->
+  <header class="topbar">
+    <div class="reactor" aria-hidden="true">
+      <svg viewBox="0 0 40 40">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="#2a94b0" stroke-width="1"/>
+        <circle cx="20" cy="20" r="13" fill="none" stroke="#49e3ff" stroke-width="1.4">
+          <animateTransform attributeName="transform" type="rotate" from="0 20 20" to="360 20 20" dur="18s" repeatCount="indefinite"/>
+        </circle>
+        <g stroke="#49e3ff" stroke-width="1.2">
+          <line x1="20" y1="9" x2="20" y2="14"/><line x1="20" y1="26" x2="20" y2="31"/>
+          <line x1="9" y1="20" x2="14" y2="20"/><line x1="26" y1="20" x2="31" y2="20"/>
+        </g>
+        <circle cx="20" cy="20" r="5" fill="#49e3ff"/>
+      </svg>
+    </div>
+    <div class="brand">
+      <b>AI&nbsp;CONTROL</b><span>studio command</span>
+    </div>
+    <nav class="crumbs" id="crumbs" aria-label="Breadcrumb">
+      <b>OVERVIEW</b>
+    </nav>
+    <div class="spacer"></div>
+    <div class="sys" aria-hidden="true">
+      <div class="stat"><span><span class="dot"></span>CORE ONLINE</span><b id="sysLoad">LOAD 42%</b></div>
+      <div class="stat"><span>AGENTS LIVE</span><b id="sysAgents">7</b></div>
+      <div class="stat"><span>VAULT</span><b id="sysVault">6 KEYS · SEALED</b></div>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+
+  <div class="main">
+    <!-- ===== NAV RAIL ===== -->
+    <nav class="rail" aria-label="Primary">
+      <button data-nav="overview" class="active" aria-current="page">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="lbl">Grid</span>
+      </button>
+      <button data-nav="project">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+        <span class="lbl">Launch</span>
+      </button>
+      <button data-nav="voice">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        <span class="lbl">Voice</span>
+      </button>
+      <button data-nav="watch">
+        <svg viewBox="0 0 24 24"><path d="M3 12h4l2 6 4-14 2 8h6"/></svg>
+        <span class="lbl">Watch</span>
+      </button>
+      <button data-nav="factory">
+        <svg viewBox="0 0 24 24"><path d="M4 20V9l5 3V9l5 3V6l6 3v11z"/><path d="M4 20h16"/></svg>
+        <span class="lbl">Factory</span>
+      </button>
+    </nav>
+
+    <!-- ===== STAGE ===== -->
+    <div class="stage" id="stage">
+
+      <!-- ========= VIEW: OVERVIEW ========= -->
+      <section class="view" data-view="overview">
+        <div class="vh">
+          <div>
+            <h1><span class="tick"></span>Global Overview</h1>
+            <div class="sub">ALL PROJECTS · ALL CREDENTIALS · GRANTED PER AGENT</div>
+          </div>
+          <button class="btn gold" data-nav="project"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Project</button>
+        </div>
+        <div class="ov">
+          <div class="panel">
+            <div class="ph"><span class="d"></span>Active Projects<span class="r" id="projCount">4 TRACKED</span></div>
+            <div class="proj-grid" id="projGrid"></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><span class="d"></span>Credential Vault<span class="r">VALUES SEALED</span></div>
+            <div class="vault" id="vault"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========= VIEW: PROJECT / LAUNCH ========= -->
+      <section class="view hidden" data-view="project">
+        <div class="vh">
+          <div>
+            <h1><span class="tick"></span><span id="projTitle">Aurora Mobile App</span></h1>
+            <div class="sub" id="projSub">PROJECT · 3 ORCHESTRATORS AVAILABLE · 12 AGENTS DESIGNED</div>
+          </div>
+          <button class="btn ghost" data-nav="overview"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>All Projects</button>
+        </div>
+        <div class="proj-detail">
+          <div class="panel launch-pad">
+            <div class="ph" style="position:absolute;top:0;left:0;right:0"><span class="d"></span>Orchestrator Launch Bay<span class="r">MANAGER ALTITUDE</span></div>
+            <div style="height:30px"></div>
+            <div class="orb-wrap" id="orbWrap">
+              <svg viewBox="0 0 260 260" aria-hidden="true">
+                <circle cx="130" cy="130" r="120" fill="none" stroke="rgba(80,200,240,.15)" stroke-width="1"/>
+                <circle cx="130" cy="130" r="120" fill="none" stroke="#49e3ff" stroke-width="1.5" stroke-dasharray="4 10" opacity=".6">
+                  <animateTransform attributeName="transform" type="rotate" from="0 130 130" to="360 130 130" dur="30s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="130" cy="130" r="92" fill="none" stroke="rgba(255,194,74,.2)" stroke-width="1" stroke-dasharray="2 6">
+                  <animateTransform attributeName="transform" type="rotate" from="360 130 130" to="0 130 130" dur="22s" repeatCount="indefinite"/>
+                </circle>
+                <circle cx="130" cy="130" r="64" fill="none" stroke="rgba(80,200,240,.25)" stroke-width="1"/>
+                <g stroke="#2a94b0" stroke-width="1">
+                  <line x1="130" y1="10" x2="130" y2="26"/><line x1="130" y1="234" x2="130" y2="250"/>
+                  <line x1="10" y1="130" x2="26" y2="130"/><line x1="234" y1="130" x2="250" y2="130"/>
+                </g>
+              </svg>
+              <div class="orb-core">
+                <div><div class="lead">Standby</div><div class="big" id="launchBig">IDLE</div><div class="lead" id="launchSub">press to spin up JARVIS-1</div></div>
+              </div>
+            </div>
+            <button class="btn gold" id="launchBtn" style="font-size:12px;padding:12px 26px"><svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z"/></svg>Launch Orchestrator</button>
+            <p style="font-family:var(--mono);font-size:10px;color:var(--txt-faint);margin-top:14px;letter-spacing:1px">ORCHESTRATOR SEES BIG PICTURE ONLY · SPINS UP &amp; COORDINATES TEAMS</p>
+          </div>
+          <div class="panel orchestrator-list">
+            <div class="ph"><span class="d"></span>Teams In This Project<span class="r">SCOPED CONTEXT</span></div>
+            <div class="orc"><div class="av">UX</div><div class="info"><b>Experience Team</b><div>3 agents · design + research</div></div><span class="tag cyan"><span class="k"></span>ready</span></div>
+            <div class="orc"><div class="av">EN</div><div class="info"><b>Engineering Team</b><div>5 agents · build + test</div></div><span class="tag cyan"><span class="k"></span>ready</span></div>
+            <div class="orc"><div class="av">QA</div><div class="info"><b>Quality Team</b><div>2 agents · verify + report</div></div><span class="tag warn"><span class="k"></span>idle</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========= VIEW: VOICE ========= -->
+      <section class="view hidden" data-view="voice">
+        <div class="vh">
+          <div>
+            <h1><span class="tick"></span>Voice Link</h1>
+            <div class="sub" id="voiceMode">CLARIFIER AGENT · SHAPING INTENT BEFORE WORK BEGINS</div>
+          </div>
+          <div class="seg" style="max-width:320px">
+            <button class="on" data-vmode="clarify">Clarifier</button>
+            <button data-vmode="orchestrator">Orchestrator</button>
+          </div>
+        </div>
+        <div class="voice-wrap">
+          <div class="panel conv">
+            <div class="conv-head">
+              <span class="tag cyan"><span class="k"></span><span id="convWho">CLARIFIER</span></span>
+              <span class="who" id="convStatus">listening for intent…</span>
+            </div>
+            <div class="conv-log" id="convLog"></div>
+            <div class="mic-dock">
+              <button class="mic-btn" id="micBtn" aria-label="Hold to speak">
+                <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></svg>
+              </button>
+              <div class="wave" id="wave" aria-hidden="true"></div>
+              <div class="mic-hint" id="micHint">TAP TO SPEAK</div>
+            </div>
+          </div>
+          <div class="panel intent-card">
+            <div class="ph" style="margin:-16px -16px 16px"><span class="d"></span>Intent Crystallizing<span class="r">LIVE</span></div>
+            <div class="field"><div class="k">Objective</div><div class="v empty" data-intent="objective">awaiting voice input…</div></div>
+            <div class="field"><div class="k">Surface</div><div class="v empty" data-intent="surface">—</div></div>
+            <div class="field"><div class="k">Constraints</div><div class="v empty" data-intent="constraints">—</div></div>
+            <div class="field"><div class="k">Teams Needed</div><div class="v empty" data-intent="teams">—</div></div>
+            <div class="field"><div class="k">Confidence</div>
+              <div class="bar gold" style="margin-top:4px"><i id="intentConf" style="width:8%"></i></div>
+            </div>
+            <button class="btn gold hidden" id="handoffBtn" style="width:100%;justify-content:center;margin-top:8px"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Hand off to Orchestrator</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========= VIEW: WATCH ========= -->
+      <section class="view hidden" data-view="watch">
+        <div class="vh">
+          <div>
+            <h1><span class="tick"></span>Live Operations</h1>
+            <div class="sub">ORCHESTRATOR ALTITUDE · WATCHING TEAMS AS STATE, NOT TERMINALS</div>
+          </div>
+          <button class="btn" id="watchToggle"><svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>Pause Feed</button>
+        </div>
+        <div class="watch">
+          <div class="panel orch-banner">
+            <div class="ring" aria-hidden="true">
+              <svg viewBox="0 0 70 70"><circle cx="35" cy="35" r="30" fill="none" stroke="rgba(80,200,240,.2)" stroke-width="3"/><circle id="orchRing" cx="35" cy="35" r="30" fill="none" stroke="#49e3ff" stroke-width="3" stroke-linecap="round" stroke-dasharray="188" stroke-dashoffset="80" transform="rotate(-90 35 35)" style="filter:drop-shadow(0 0 6px #49e3ff)"/></svg>
+            </div>
+            <div class="txt">
+              <h2>JARVIS-1 · Orchestrator</h2>
+              <div class="say" id="orchSay">Coordinating the Aurora onboarding redesign across 2 teams.</div>
+            </div>
+            <div class="orch-stats">
+              <div class="s"><b id="stAgents">4</b><span>Agents</span></div>
+              <div class="s"><b id="stProgress">57%</b><span>Mission</span></div>
+              <div class="s"><b id="stReach">5</b><span>Keys Reaching</span></div>
+            </div>
+          </div>
+          <div class="agents-grid" id="agentsGrid"></div>
+        </div>
+      </section>
+
+      <!-- ========= VIEW: FACTORY ========= -->
+      <section class="view hidden" data-view="factory">
+        <div class="vh">
+          <div>
+            <h1><span class="tick"></span>Agent Factory</h1>
+            <div class="sub">MINT AN AGENT · GIVE IT A ROLE, RULES, CONTEXT · GRANT ITS REACH</div>
+          </div>
+          <button class="btn ghost" data-nav="watch"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>Back to Ops</button>
+        </div>
+        <div class="factory">
+          <div class="panel form">
+            <div class="ph" style="margin:-18px -18px 18px"><span class="d"></span>Agent Blueprint<span class="r">DRAFT</span></div>
+            <div class="fg">
+              <label for="fName">Agent Name</label>
+              <input id="fName" value="Nebula" autocomplete="off">
+            </div>
+            <div class="fg">
+              <label>Role / Altitude</label>
+              <div class="seg" id="fRole">
+                <button class="on" data-role="Specialist">Specialist</button>
+                <button data-role="Team Lead">Team Lead</button>
+                <button data-role="Orchestrator">Orchestrator</button>
+              </div>
+            </div>
+            <div class="fg">
+              <label for="fTeam">Team</label>
+              <select id="fTeam"><option>Experience</option><option>Engineering</option><option>Quality</option><option>Research</option></select>
+            </div>
+            <div class="fg">
+              <label for="fRules">Operating Rules</label>
+              <textarea id="fRules">Ship only accessible, on-brand UI. Ask before touching data models. Report blockers immediately.</textarea>
+            </div>
+            <div class="fg">
+              <label for="fContext">Context Brief</label>
+              <textarea id="fContext">Aurora is a calm, voice-first finance companion. Audience skews 30-55, low-anxiety tone, Stark-grade polish.</textarea>
+            </div>
+            <div class="fg">
+              <label>Credential Access · what this agent can reach</label>
+              <div id="credToggles"></div>
+            </div>
+            <button class="btn gold" id="mintBtn" style="width:100%;justify-content:center;margin-top:4px"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 6.8L21 9.3l-5 4.6 1.5 7.1L12 17.6 6.5 21l1.5-7.1-5-4.6 6.6-.5z"/></svg>Mint Agent &amp; Deploy</button>
+          </div>
+          <div class="panel preview" id="previewPanel">
+            <div class="ph" style="margin:-18px -18px 18px"><span class="d"></span>Live Preview<span class="r">WYSIWYG</span></div>
+            <div class="av" id="pvAv">N</div>
+            <h3 id="pvName">Nebula</h3>
+            <div class="prole" id="pvRole">Specialist · Experience</div>
+            <div class="prow"><span class="k">ALTITUDE</span><span class="v" id="pvAlt">Specialist</span></div>
+            <div class="prow"><span class="k">CONTEXT SCOPE</span><span class="v" id="pvCtx">team-local</span></div>
+            <div class="prow"><span class="k">KEYS GRANTED</span><span class="v" id="pvKeys">0</span></div>
+            <div class="prow"><span class="k">CAN REACH</span><span class="v" id="pvReach" style="text-align:right;max-width:200px">nothing yet</span></div>
+            <div style="margin-top:16px">
+              <div class="k" style="font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--txt-faint);margin-bottom:6px">ACCESS MAP</div>
+              <div class="scope-chips" id="pvChips"><span class="sc none">no reach</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ===== TICKER ===== -->
+  <footer class="ticker" aria-hidden="true">
+    <div class="track">
+      <span><b>JARVIS-1</b> spun up Experience + Engineering teams</span>
+      <span><em>Atlas</em> requested access to <b>Figma API</b> — granted, scoped read</span>
+      <span>Clarifier resolved intent confidence to <b>94%</b></span>
+      <span><b>6 keys</b> sealed in vault · 0 values exposed</span>
+      <span><em>Orion</em> blocked — awaiting <b>Stripe (test)</b> grant</span>
+      <span>Mission <b>AURORA-ONBOARDING</b> · 57% · on altitude</span>
+      <span><b>JARVIS-1</b> spun up Experience + Engineering teams</span>
+      <span><em>Atlas</em> requested access to <b>Figma API</b> — granted, scoped read</span>
+      <span>Clarifier resolved intent confidence to <b>94%</b></span>
+      <span><b>6 keys</b> sealed in vault · 0 values exposed</span>
+      <span><em>Orion</em> blocked — awaiting <b>Stripe (test)</b> grant</span>
+      <span>Mission <b>AURORA-ONBOARDING</b> · 57% · on altitude</span>
+    </div>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  "use strict";
+  var $=function(s,r){return (r||document).querySelector(s)};
+  var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+  var reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+  /* ---------- DATA ---------- */
+  var CREDS=[
+    {id:"openai",  name:"OpenAI API",   kind:"LLM",   masked:"sk-••••••••••••7Q2a", scope:"4 agents"},
+    {id:"figma",   name:"Figma API",    kind:"DSGN",  masked:"figd_••••••••9kLm",   scope:"2 agents"},
+    {id:"github",  name:"GitHub Token", kind:"REPO",  masked:"ghp_•••••••••••x4F",  scope:"3 agents"},
+    {id:"stripe",  name:"Stripe (test)",kind:"PAY",   masked:"sk_test_•••••••Rb",   scope:"1 agent"},
+    {id:"supabase",name:"Supabase",     kind:"DATA",  masked:"eyJ••••••••••••a8",    scope:"2 agents"},
+    {id:"eleven",  name:"ElevenLabs",   kind:"VOX",   masked:"el_••••••••••••7m",    scope:"1 agent"}
+  ];
+  var PROJECTS=[
+    {id:"aurora", name:"Aurora Mobile App", code:"AURORA", orchestrators:3, agents:12, live:4, mission:57, teams:"UX · ENG · QA"},
+    {id:"helio",  name:"Helios Analytics",  code:"HELIO",  orchestrators:2, agents:8,  live:2, mission:81, teams:"DATA · ENG"},
+    {id:"vega",   name:"Vega Voice Store",  code:"VEGA",   orchestrators:1, agents:5,  live:0, mission:12, teams:"UX · ENG"},
+    {id:"nova",   name:"Nova Infra Mesh",   code:"NOVA",   orchestrators:2, agents:9,  live:1, mission:34, teams:"INFRA · QA"}
+  ];
+  var AGENTS=[
+    {name:"Atlas", role:"UX Lead",      team:"experience", prog:72, state:"run",     keys:["figma","openai"],
+     tasks:["Mapping onboarding flow states","Drafting empty-state copy","Testing contrast on dark surfaces","Syncing tokens to Figma library"]},
+    {name:"Iris",  role:"Research",     team:"experience", prog:95, state:"done",    keys:["openai"],
+     tasks:["Synthesizing 18 user interviews","Ranking top 5 friction points","Report ready for orchestrator"]},
+    {name:"Orion", role:"Backend",      team:"engineering",prog:40, state:"blocked", keys:[],
+     tasks:["Waiting on Stripe (test) grant","Payment webhook scaffold paused"]},
+    {name:"Vega",  role:"Frontend",     team:"engineering",prog:58, state:"run",     keys:["github","openai"],
+     tasks:["Wiring voice intent to UI state","Building waveform component","Hooking transcript stream","Committing to feature/onboarding"]},
+    {name:"Echo",  role:"QA",           team:"quality",    prog:21, state:"run",     keys:["github"],
+     tasks:["Generating a11y test matrix","Queuing keyboard-nav checks"]}
+  ];
+
+  /* ---------- NAV ---------- */
+  var crumbMap={overview:["OVERVIEW"],project:["OVERVIEW","AURORA"],voice:["OVERVIEW","AURORA","VOICE LINK"],watch:["OVERVIEW","AURORA","LIVE OPS"],factory:["OVERVIEW","AURORA","FACTORY"]};
+  function nav(v){
+    $$(".view").forEach(function(el){el.classList.toggle("hidden",el.dataset.view!==v)});
+    $$(".rail button").forEach(function(b){var on=b.dataset.nav===v;b.classList.toggle("active",on);if(on)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
+    var c=crumbMap[v]||["OVERVIEW"];
+    $("#crumbs").innerHTML=c.map(function(x,i){return (i?'<span class="sep">▸</span>':'')+(i===c.length-1?'<b>'+x+'</b>':x)}).join(' ');
+    if(v==="watch")startWatch();else stopWatch();
+    if(v==="voice")ensureVoiceIntro();
+    var view=$('.view[data-view="'+v+'"]');if(view)view.scrollTop=0;
+  }
+  document.addEventListener("click",function(e){
+    var t=e.target.closest("[data-nav]");if(t){nav(t.dataset.nav)}
+  });
+
+  /* ---------- CLOCK + SYS ---------- */
+  function tick(){
+    var d=new Date();
+    $("#clock").textContent=[d.getHours(),d.getMinutes(),d.getSeconds()].map(function(n){return (n<10?"0":"")+n}).join(":");
+  }
+  tick();setInterval(tick,1000);
+  if(!reduce)setInterval(function(){
+    $("#sysLoad").textContent="LOAD "+(38+Math.floor(Math.random()*18))+"%";
+  },2600);
+
+  /* ---------- TOAST ---------- */
+  var toastT;
+  function toast(msg){
+    var el=$("#toast");el.textContent=msg;el.classList.add("show");
+    clearTimeout(toastT);toastT=setTimeout(function(){el.classList.remove("show")},2600);
+  }
+
+  /* ---------- RADIAL GAUGE helper ---------- */
+  function gaugeSVG(pct,size,color){
+    color=color||"#49e3ff";var r=size/2-5,c=2*Math.PI*r,off=c*(1-pct/100);
+    return '<svg viewBox="0 0 '+size+' '+size+'" width="'+size+'" height="'+size+'">'+
+      '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="rgba(80,200,240,.15)" stroke-width="4"/>'+
+      '<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="4" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" transform="rotate(-90 '+size/2+' '+size/2+')" style="filter:drop-shadow(0 0 5px '+color+');transition:stroke-dashoffset .6s"/></svg>';
+  }
+
+  /* ---------- OVERVIEW RENDER ---------- */
+  function renderOverview(){
+    $("#projGrid").innerHTML=PROJECTS.map(function(p){
+      var bars="";for(var i=0;i<8;i++)bars+='<i class="'+(i<p.live?"on":"")+'"></i>';
+      return '<div class="proj" data-nav="project" tabindex="0" role="button" aria-label="Open '+p.name+'">'+
+        '<div class="reticle"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 1v3M10 16v3M1 10h3M16 10h3"/></svg></div>'+
+        '<h3>'+p.name+'</h3><div class="meta">'+p.code+' · '+p.teams+'</div>'+
+        '<div class="row"><span>ORCHESTRATORS</span><b>'+p.orchestrators+'</b></div>'+
+        '<div class="row"><span>AGENTS DESIGNED</span><b>'+p.agents+'</b></div>'+
+        '<div class="row"><span>MISSION</span><b>'+p.mission+'%</b></div>'+
+        '<div class="agz" title="'+p.live+' agents live">'+bars+'</div></div>';
+    }).join("");
+    $("#projCount").textContent=PROJECTS.length+" TRACKED";
+    $("#vault").innerHTML=CREDS.map(function(c){
+      return '<div class="cred"><div class="ic">'+c.kind+'</div>'+
+        '<div class="nm"><b>'+c.name+'</b><span class="v">'+c.masked+'</span></div>'+
+        '<div style="text-align:right"><div class="scope">'+c.scope+'</div>'+
+        '<svg class="lock" viewBox="0 0 24 24" style="margin-top:4px"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div></div>';
+    }).join("");
+    $("#sysVault").textContent=CREDS.length+" KEYS · SEALED";
+  }
+  // keyboard activate project cards
+  document.addEventListener("keydown",function(e){
+    if((e.key==="Enter"||e.key===" ")&&e.target.classList&&e.target.classList.contains("proj")){e.preventDefault();nav("project")}
+  });
+
+  /* ---------- PROJECT LAUNCH ---------- */
+  var launched=false;
+  $("#launchBtn").addEventListener("click",function(){
+    var btn=this,big=$("#launchBig"),sub=$("#launchSub");
+    if(launched){nav("watch");return}
+    btn.disabled=true;
+    var steps=[["SPIN","allocating compute…"],["WAKE","loading JARVIS-1 context…"],["SYNC","briefing manager altitude…"],["LIVE","orchestrator online"]];
+    var i=0;
+    (function step(){
+      big.textContent=steps[i][0];sub.textContent=steps[i][1];
+      $("#orbWrap").style.filter="drop-shadow(0 0 "+(8+i*6)+"px rgba(73,227,255,.6))";
+      i++;
+      if(i<steps.length){setTimeout(step,520)}
+      else{
+        launched=true;btn.disabled=false;
+        btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>Watch Operations';
+        toast("JARVIS-1 online · now coordinating 2 teams");
+        setTimeout(function(){nav("watch")},700);
+      }
+    })();
+  });
+
+  /* ---------- VOICE ---------- */
+  var voiceMode="clarify";
+  var scripts={
+    clarify:[
+      {s:"ai",  lab:"Clarifier",t:"I'm listening. What do you want to build or change?"},
+      {s:"user",lab:"You · voice",t:"I want to redo the onboarding for the Aurora app, make it calmer."},
+      {s:"ai",  lab:"Clarifier",t:"Calmer onboarding for Aurora — got it. Is this a visual redesign, a flow change, or both?",chips:["Both","Just the flow","Just the visuals"],intent:{objective:"Redesign Aurora onboarding",surface:"Mobile · onboarding flow"},conf:34},
+      {s:"user",lab:"You · voice",t:"Both. And it has to stay fully accessible."},
+      {s:"ai",  lab:"Clarifier",t:"Understood — both, accessibility is a hard constraint. Should I pull in the Experience and Engineering teams, or Experience only to start?",chips:["Experience + Engineering","Experience only","You decide"],intent:{constraints:"WCAG AA · calm tone · no new data models"},conf:68},
+      {s:"user",lab:"You · voice",t:"Both teams. Go."},
+      {s:"ai",  lab:"Clarifier",t:"Locked. Objective, constraints and teams are clear — confidence 94%. I'll brief JARVIS-1 and spin up both teams.",intent:{teams:"Experience + Engineering"},conf:94,handoff:true}
+    ],
+    orchestrator:[
+      {s:"ai",  lab:"JARVIS-1",t:"Aurora onboarding mission is live. 4 agents working, 1 blocked on a credential. What do you need?"},
+      {s:"user",lab:"You · voice",t:"Why is Orion blocked?"},
+      {s:"ai",  lab:"JARVIS-1",t:"Orion needs the Stripe test key to scaffold the payment webhook. It isn't in his access scope yet.",chips:["Grant Stripe (test)","Reassign the task","Leave it blocked"]},
+      {s:"user",lab:"You · voice",t:"Grant it, test key only."},
+      {s:"ai",  lab:"JARVIS-1",t:"Done — Orion now reaches Stripe (test), read + write to test mode only. He's resuming the webhook scaffold. Value never left the vault."}
+    ]
+  };
+  var vStep=0,vIntro=false;
+  function msgEl(m){
+    var d=document.createElement("div");d.className="msg "+(m.s==="user"?"user":"ai");
+    d.innerHTML='<div class="lab">'+m.lab+'</div><div class="bub"></div>';
+    return d;
+  }
+  function typeInto(bub,text,done){
+    if(reduce){bub.textContent=text;if(done)done();return}
+    bub.innerHTML='<span class="cursor"></span>';var i=0;
+    (function t(){
+      bub.textContent=text.slice(0,i);
+      var cur=document.createElement("span");cur.className="cursor";bub.appendChild(cur);
+      i++;
+      if(i<=text.length){setTimeout(t,16+Math.random()*22)}
+      else{bub.textContent=text;if(done)done()}
+    })();
+  }
+  function applyIntent(intent,conf){
+    if(intent)Object.keys(intent).forEach(function(k){
+      var el=$('[data-intent="'+k+'"]');if(el){el.textContent=intent[k];el.classList.remove("empty");el.classList.remove("fill");void el.offsetWidth;el.classList.add("fill")}
+    });
+    if(typeof conf==="number")$("#intentConf").style.width=conf+"%";
+  }
+  function pushChips(chips){
+    var log=$("#convLog");
+    var w=document.createElement("div");w.className="chips";
+    chips.forEach(function(c){
+      var b=document.createElement("button");b.className="chip";b.textContent=c;
+      b.addEventListener("click",function(){w.remove();advanceVoice(true)});
+      w.appendChild(b);
+    });
+    log.appendChild(w);log.scrollTop=log.scrollHeight;
+  }
+  function advanceVoice(fromChip){
+    var script=scripts[voiceMode];
+    if(vStep>=script.length){ $("#convStatus").textContent="awaiting your reply…"; return }
+    var m=script[vStep++];
+    var log=$("#convLog");
+    if(m.s==="user"){
+      // simulate the user speaking first
+      simulateSpeech(function(){
+        var el=msgEl(m);log.appendChild(el);log.scrollTop=log.scrollHeight;
+        typeInto($(".bub",el),m.t,function(){setTimeout(advanceVoice,350)});
+      });
+    }else{
+      $("#convStatus").textContent="speaking…";
+      var el=msgEl(m);log.appendChild(el);log.scrollTop=log.scrollHeight;
+      typeInto($(".bub",el),m.t,function(){
+        applyIntent(m.intent,m.conf);
+        if(m.handoff)$("#handoffBtn").classList.remove("hidden");
+        if(m.chips){pushChips(m.chips);$("#convStatus").textContent="awaiting your choice…"}
+        else{$("#convStatus").textContent="listening for intent…";
+          // auto-advance to next user line if present
+          if(script[vStep]&&script[vStep].s==="user"){/* wait for mic */ $("#micHint").textContent="TAP TO REPLY"}
+        }
+      });
+    }
+  }
+  function ensureVoiceIntro(){
+    if(vIntro)return;vIntro=true;advanceVoice();
+  }
+  // mic simulation
+  var speaking=false;
+  function simulateSpeech(done){
+    var mic=$("#micBtn"),wave=$("#wave");
+    mic.classList.add("live");wave.classList.add("live");$("#micHint").textContent="LISTENING…";$("#convStatus").textContent="hearing you…";
+    speaking=true;
+    var dur=reduce?300:1100;
+    setTimeout(function(){
+      mic.classList.remove("live");wave.classList.remove("live");$("#micHint").textContent="TAP TO SPEAK";speaking=false;
+      if(done)done();
+    },dur);
+  }
+  $("#micBtn").addEventListener("click",function(){
+    if(speaking)return;
+    var script=scripts[voiceMode];
+    // if next line is a user line, speaking advances it; else just show a listening pulse
+    if(script[vStep]&&script[vStep].s==="user"){advanceVoice()}
+    else{simulateSpeech()}
+  });
+  // waveform animation
+  (function(){
+    var wave=$("#wave");for(var i=0;i<28;i++)wave.appendChild(document.createElement("i"));
+    var bars=$$("#wave i");
+    if(reduce){bars.forEach(function(b){b.style.height="30%"});return}
+    setInterval(function(){
+      var live=wave.classList.contains("live");
+      bars.forEach(function(b,i){
+        var base=live?(25+Math.abs(Math.sin(Date.now()/160+i))*70):(8+Math.random()*10);
+        b.style.height=base+"%";
+      });
+    },70);
+  })();
+  $$("[data-vmode]").forEach(function(b){
+    b.addEventListener("click",function(){
+      $$("[data-vmode]").forEach(function(x){x.classList.remove("on")});b.classList.add("on");
+      voiceMode=b.dataset.vmode;vStep=0;vIntro=false;
+      $("#convLog").innerHTML="";$("#convWho").textContent=voiceMode==="clarify"?"CLARIFIER":"JARVIS-1";
+      $("#voiceMode").textContent=voiceMode==="clarify"?"CLARIFIER AGENT · SHAPING INTENT BEFORE WORK BEGINS":"ORCHESTRATOR LINK · TALK TO A RUNNING MISSION";
+      $("#handoffBtn").classList.add("hidden");
+      if(voiceMode==="clarify"){
+        $$('[data-intent]').forEach(function(el){el.textContent=el.dataset.intent==="objective"?"awaiting voice input…":"—";el.classList.add("empty")});
+        $("#intentConf").style.width="8%";
+      }
+      ensureVoiceIntro();
+    });
+  });
+  $("#handoffBtn").addEventListener("click",function(){toast("Intent briefed to JARVIS-1 · spinning up teams");setTimeout(function(){nav("watch")},700)});
+
+  /* ---------- WATCH ---------- */
+  var watchTimer=null,watchPaused=false;
+  function stateTag(s){
+    if(s==="done")return '<span class="tag good"><span class="k"></span>complete</span>';
+    if(s==="blocked")return '<span class="tag warn"><span class="k"></span>blocked</span>';
+    return '<span class="tag cyan"><span class="k"></span>working</span>';
+  }
+  function keyName(id){for(var i=0;i<CREDS.length;i++)if(CREDS[i].id===id)return CREDS[i].name;return id}
+  function renderAgents(){
+    $("#agentsGrid").innerHTML=AGENTS.map(function(a,idx){
+      var chips=a.keys.length?a.keys.map(function(k){return '<span class="sc" title="scoped access"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'+keyName(k)+'</span>'}).join("")
+        :'<span class="sc none">no external reach</span>';
+      var badgeColor=a.state==="done"?"var(--good)":a.state==="blocked"?"var(--bad)":"var(--cyan)";
+      return '<div class="panel agent" data-state="'+a.state+'" data-i="'+idx+'">'+
+        '<div class="top"><div class="badge" style="color:'+badgeColor+'">'+a.name[0]+'</div>'+
+        '<div class="nm"><b>'+a.name+'</b><span class="role">'+a.role+' · '+a.team+'</span></div>'+stateTag(a.state)+'</div>'+
+        '<div class="task"><span class="tp">▸</span> <span class="tasktext">'+a.tasks[0]+'</span></div>'+
+        '<div class="pline"><span>PROGRESS</span><b class="pv">'+a.prog+'%</b></div>'+
+        '<div class="bar'+(a.team==="experience"?"":" ")+'"><i class="pbar" style="width:'+a.prog+'%"></i></div>'+
+        '<div class="scope"><div class="lab"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>CAN REACH</div><div class="scope-chips">'+chips+'</div></div>'+
+        '</div>';
+    }).join("");
+  }
+  function startWatch(){
+    renderAgents();
+    $("#sysAgents").textContent=AGENTS.filter(function(a){return a.state!=="done"}).length;
+    if(watchTimer||reduce||watchPaused)return;
+    watchTimer=setInterval(function(){
+      var changed=false,totalReach={};
+      AGENTS.forEach(function(a,i){
+        a.keys.forEach(function(k){totalReach[k]=1});
+        if(a.state==="run"&&a.prog<99){
+          a.prog=Math.min(99,a.prog+Math.random()*4);
+          var card=$('.agent[data-i="'+i+'"]');
+          if(card){
+            $(".pbar",card).style.width=a.prog+"%";
+            $(".pv",card).textContent=Math.round(a.prog)+"%";
+            if(Math.random()<0.18){
+              var tt=a.tasks[Math.floor(Math.random()*a.tasks.length)];
+              $(".tasktext",card).textContent=tt;
+            }
+            if(a.prog>=99&&a.state==="run"){a.state="done";card.dataset.state="done";$(".tag",card).outerHTML=stateTag("done")}
+          }
+          changed=true;
+        }
+      });
+      var avg=Math.round(AGENTS.reduce(function(s,a){return s+a.prog},0)/AGENTS.length);
+      $("#stProgress").textContent=avg+"%";
+      $("#orchRing").setAttribute("stroke-dashoffset",188*(1-avg/100));
+      $("#stAgents").textContent=AGENTS.length;
+      $("#stReach").textContent=Object.keys(totalReach).length;
+    },900);
+  }
+  function stopWatch(){if(watchTimer){clearInterval(watchTimer);watchTimer=null}}
+  $("#watchToggle").addEventListener("click",function(){
+    watchPaused=!watchPaused;
+    if(watchPaused){stopWatch();this.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9z"/></svg>Resume Feed'}
+    else{this.innerHTML='<svg viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>Pause Feed';startWatch()}
+  });
+  // grant from orchestrator voice -> unblock Orion live
+  function grantStripeToOrion(){
+    var o=AGENTS.find(function(a){return a.name==="Orion"});
+    if(o){o.keys=["stripe"];o.state="run";o.prog=Math.max(o.prog,42);o.tasks=["Scaffolding payment webhook","Writing test-mode handlers"];if($('.view[data-view=watch]'))renderAgents()}
+  }
+
+  /* ---------- FACTORY ---------- */
+  var factory={name:"Nebula",role:"Specialist",team:"Experience",keys:{}};
+  function renderCredToggles(){
+    $("#credToggles").innerHTML=CREDS.map(function(c){
+      return '<div class="cred-toggle'+(factory.keys[c.id]?" on":"")+'" data-key="'+c.id+'" tabindex="0" role="switch" aria-checked="'+(!!factory.keys[c.id])+'" aria-label="Grant '+c.name+'">'+
+        '<div class="sw"></div><div class="nm"><b>'+c.name+'</b><span>'+c.kind+' · '+c.masked+'</span></div>'+
+        '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></div>';
+    }).join("");
+  }
+  function toggleKey(id){
+    factory.keys[id]=!factory.keys[id];renderCredToggles();updatePreview();
+  }
+  function updatePreview(){
+    $("#pvAv").textContent=(factory.name[0]||"?").toUpperCase();
+    $("#pvName").textContent=factory.name||"Unnamed";
+    $("#pvRole").textContent=factory.role+" · "+factory.team;
+    $("#pvAlt").textContent=factory.role;
+    $("#pvCtx").textContent=factory.role==="Orchestrator"?"big-picture only":factory.role==="Team Lead"?"team-wide":"team-local";
+    var granted=CREDS.filter(function(c){return factory.keys[c.id]});
+    $("#pvKeys").textContent=granted.length;
+    $("#pvReach").textContent=granted.length?granted.map(function(c){return c.name}).join(", "):"nothing yet";
+    $("#pvChips").innerHTML=granted.length?granted.map(function(c){return '<span class="sc">'+c.name+'</span>'}).join(""):'<span class="sc none">no reach</span>';
+    var alt=factory.role==="Orchestrator"?"#ffc24a":"#49e3ff";
+    $("#pvAv").style.color=alt;$("#pvAv").style.borderColor=factory.role==="Orchestrator"?"var(--gold-dim)":"var(--line-strong)";
+  }
+  $("#fName").addEventListener("input",function(){factory.name=this.value||"";updatePreview()});
+  $("#fTeam").addEventListener("change",function(){factory.team=this.value;updatePreview()});
+  $$("#fRole button").forEach(function(b){
+    b.addEventListener("click",function(){$$("#fRole button").forEach(function(x){x.classList.remove("on")});b.classList.add("on");factory.role=b.dataset.role;updatePreview()});
+  });
+  $("#credToggles").addEventListener("click",function(e){var t=e.target.closest("[data-key]");if(t)toggleKey(t.dataset.key)});
+  $("#credToggles").addEventListener("keydown",function(e){var t=e.target.closest("[data-key]");if(t&&(e.key==="Enter"||e.key===" ")){e.preventDefault();toggleKey(t.dataset.key)}});
+  $("#mintBtn").addEventListener("click",function(){
+    var granted=CREDS.filter(function(c){return factory.keys[c.id]}).length;
+    toast("Agent "+(factory.name||"Unnamed")+" minted · "+granted+" key"+(granted===1?"":"s")+" granted · deploying");
+    // add to live roster
+    AGENTS.push({name:factory.name||"Agent",role:factory.role,team:factory.team.toLowerCase(),prog:3,state:"run",
+      keys:Object.keys(factory.keys).filter(function(k){return factory.keys[k]}),
+      tasks:["Booting with fresh context","Reading team brief","Awaiting first assignment"]});
+    setTimeout(function(){nav("watch")},750);
+  });
+
+  /* ---------- INIT ---------- */
+  renderOverview();
+  renderCredToggles();
+  updatePreview();
+  nav("overview");
+
+  // expose for orchestrator-grant demo (chip in orchestrator script triggers it)
+  document.addEventListener("click",function(e){
+    var chip=e.target.closest(".chip");
+    if(chip&&chip.textContent.indexOf("Grant Stripe")>-1){grantStripeToOrion()}
+  });
+})();
+</script>

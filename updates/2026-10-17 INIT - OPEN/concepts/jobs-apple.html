@@ -1,0 +1,910 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AI Control</title>
+<style>
+  /* ---------- System ---------- */
+  :root{
+    --bg:#f5f5f7; --surface:#ffffff; --surface-2:#efeff2;
+    --text:#1d1d1f; --text-2:#6e6e73; --text-3:#a1a1a6;
+    --line:rgba(0,0,0,.08); --line-2:rgba(0,0,0,.12);
+    --accent:#0071e3; --accent-soft:rgba(0,113,227,.12);
+    --online:#30a46c; --warn:#c48a00; --idle:#b0b0b5;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 12px 32px rgba(0,0,0,.06);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.08), 0 24px 60px rgba(0,0,0,.14);
+    --r-s:12px; --r-m:18px; --r-l:26px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+    --ease-soft:cubic-bezier(.33,.9,.4,1);
+    --fs-mono:0;
+    --maxw:960px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#000000; --surface:#161618; --surface-2:#232326;
+      --text:#f5f5f7; --text-2:#98989d; --text-3:#636366;
+      --line:rgba(255,255,255,.1); --line-2:rgba(255,255,255,.16);
+      --accent:#0a84ff; --accent-soft:rgba(10,132,255,.18);
+      --online:#30d158; --warn:#ffd60a; --idle:#5a5a5e;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px rgba(0,0,0,.5);
+      --shadow-lift:0 2px 8px rgba(0,0,0,.5), 0 30px 70px rgba(0,0,0,.6);
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,Roboto,Helvetica,Arial,sans-serif;
+    font-size:17px; line-height:1.4; letter-spacing:-.01em;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+    transition:background .6s var(--ease);
+  }
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;letter-spacing:inherit}
+  :focus{outline:none}
+  :focus-visible{outline:2.5px solid var(--accent); outline-offset:3px; border-radius:6px}
+  ::selection{background:var(--accent-soft)}
+
+  /* ---------- Shell ---------- */
+  .app{min-height:100%; display:flex; flex-direction:column}
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; gap:16px;
+    padding:22px clamp(20px,5vw,56px) 16px;
+    backdrop-filter:saturate(180%) blur(20px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-weight:600; letter-spacing:-.02em; font-size:16px}
+  .brand .glyph{width:20px;height:20px}
+  .back{
+    display:none; align-items:center; gap:4px; color:var(--text-2);
+    font-size:15px; padding:6px 10px 6px 4px; border-radius:10px; transition:color .2s, background .2s;
+  }
+  .back:hover{color:var(--text)}
+  .back svg{width:16px;height:16px}
+  .app[data-view="workspace"] .back{display:inline-flex}
+  .app[data-view="workspace"] .brand{display:none}
+  .topbar-sp{flex:1}
+  .who{
+    width:30px;height:30px;border-radius:50%;
+    background:var(--surface-2); color:var(--text-2);
+    display:grid;place-items:center; font-size:13px; font-weight:600;
+    border:1px solid var(--line);
+  }
+
+  /* ---------- Stage / views ---------- */
+  .stage{position:relative; flex:1; width:100%;}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:clamp(14px,3vw,34px) clamp(20px,5vw,56px) 190px;}
+  .view{opacity:0; transform:translateY(12px); transition:opacity .5s var(--ease), transform .5s var(--ease)}
+  .view.in{opacity:1; transform:none}
+  .view.out{opacity:0; transform:translateY(-8px); transition:opacity .24s var(--ease), transform .24s var(--ease)}
+  [hidden]{display:none !important}
+
+  /* ---------- Overview ---------- */
+  .hello{font-size:clamp(28px,4.4vw,40px); font-weight:600; letter-spacing:-.03em; margin:6px 0 2px}
+  .subhead{color:var(--text-2); font-size:17px; margin-bottom:30px}
+  .seg{
+    display:inline-flex; background:var(--surface-2); border-radius:12px; padding:3px; margin-bottom:28px;
+    border:1px solid var(--line);
+  }
+  .seg button{
+    padding:7px 18px; border-radius:9px; font-size:14px; font-weight:500; color:var(--text-2);
+    transition:color .25s, background .25s, box-shadow .25s;
+  }
+  .seg button[aria-selected="true"]{background:var(--surface); color:var(--text); box-shadow:var(--shadow)}
+
+  .panel{}
+  .panel.fade{animation:fadein .45s var(--ease)}
+  @keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .projects{display:grid; gap:14px}
+  .project{
+    display:flex; align-items:center; gap:18px; width:100%; text-align:left;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m);
+    padding:22px 24px; box-shadow:var(--shadow);
+    transition:transform .4s var(--ease), box-shadow .4s var(--ease), border-color .3s;
+  }
+  .project:hover{transform:translateY(-2px); box-shadow:var(--shadow-lift)}
+  .project:active{transform:translateY(0) scale(.994)}
+  .p-name{font-size:21px; font-weight:600; letter-spacing:-.02em}
+  .p-note{color:var(--text-2); font-size:14.5px; margin-top:2px}
+  .p-main{flex:1; min-width:0}
+  .p-status{display:flex; align-items:center; gap:9px; color:var(--text-2); font-size:14px; white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%; background:var(--idle); flex:none}
+  .dot.online{background:var(--online); box-shadow:0 0 0 4px color-mix(in srgb,var(--online) 22%,transparent)}
+  .dot.warn{background:var(--warn)}
+  .p-go{color:var(--text-3); flex:none; transition:transform .3s var(--ease), color .3s}
+  .project:hover .p-go{transform:translateX(3px); color:var(--text-2)}
+  .p-go svg{width:18px;height:18px;display:block}
+
+  /* ---------- Vault ---------- */
+  .vault-note{
+    display:flex; gap:12px; align-items:flex-start; color:var(--text-2); font-size:14.5px;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m);
+    padding:16px 20px; margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  .vault-note svg{width:18px;height:18px;flex:none;margin-top:1px;color:var(--text-3)}
+  .creds{background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m); box-shadow:var(--shadow); overflow:hidden}
+  .cred{display:flex; align-items:center; gap:16px; padding:17px 22px; border-top:1px solid var(--line)}
+  .cred:first-child{border-top:none}
+  .mono{
+    width:38px;height:38px;border-radius:11px; background:var(--surface-2); color:var(--text-2);
+    display:grid;place-items:center; font-weight:600; font-size:16px; border:1px solid var(--line); flex:none;
+  }
+  .c-main{flex:1; min-width:0}
+  .c-name{font-weight:600; font-size:16px; letter-spacing:-.01em}
+  .c-scope{color:var(--text-2); font-size:13.5px; margin-top:1px}
+  .c-mask{
+    font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:13px; color:var(--text-2);
+    background:var(--surface-2); border-radius:8px; padding:5px 11px; letter-spacing:.06em; flex:none;
+  }
+  .c-added{color:var(--text-3); font-size:13px; flex:none; width:68px; text-align:right}
+
+  /* ---------- Workspace ---------- */
+  .ws-head{margin-bottom:8px}
+  .ws-title{font-size:clamp(26px,4vw,36px); font-weight:600; letter-spacing:-.03em}
+  .ws-sub{color:var(--text-2); font-size:16px; margin-top:2px}
+
+  .orbstage{display:flex; flex-direction:column; align-items:center; text-align:center; padding:26px 0 8px}
+  .orb{
+    position:relative; width:180px; height:180px; display:grid; place-items:center; margin-bottom:22px;
+  }
+  .orb .core{
+    position:absolute; inset:38px; border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, color-mix(in srgb,var(--accent) 70%,white), var(--accent) 60%, color-mix(in srgb,var(--accent) 60%,black) 100%);
+    opacity:.18; transform:scale(.6); filter:blur(2px);
+    transition:opacity 1.1s var(--ease), transform 1.1s var(--ease);
+  }
+  .orb .halo{
+    position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle, var(--accent-soft), transparent 68%);
+    opacity:0; transform:scale(.7); transition:opacity 1.1s var(--ease), transform 1.1s var(--ease);
+  }
+  .orb svg.ring{position:absolute; inset:0; width:100%;height:100%; transform:rotate(-90deg)}
+  .orb .ringbg{stroke:var(--line-2); fill:none; stroke-width:2}
+  .orb .ringfg{stroke:var(--accent); fill:none; stroke-width:2.5; stroke-linecap:round;
+    stroke-dasharray:534; stroke-dashoffset:534; transition:stroke-dashoffset 1.3s var(--ease)}
+  .orbstage.online .orb .core{opacity:1; transform:scale(1); animation:breathe 5.5s var(--ease) infinite}
+  .orbstage.online .orb .halo{opacity:1; transform:scale(1); animation:breathe 5.5s var(--ease) infinite}
+  .orbstage.online .orb .ringfg{stroke-dashoffset:0}
+  @keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+
+  .orb-label{font-size:14px; color:var(--text-2); letter-spacing:.02em; min-height:20px; transition:color .4s}
+  .orbstage.online .orb-label{color:var(--online)}
+
+  .launch{
+    margin-top:4px; background:var(--accent); color:#fff; font-weight:600; font-size:17px;
+    padding:14px 30px; border-radius:980px; box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 36%,transparent);
+    transition:transform .3s var(--ease), box-shadow .3s, filter .2s;
+  }
+  .launch:hover{transform:translateY(-1px); filter:brightness(1.05)}
+  .launch:active{transform:translateY(0) scale(.98)}
+
+  /* Brief card */
+  .brief{
+    max-width:520px; margin:8px auto 0; width:100%;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m);
+    box-shadow:var(--shadow); overflow:hidden; text-align:left;
+  }
+  .brief-h{display:flex; align-items:center; gap:10px; padding:16px 22px; border-bottom:1px solid var(--line); font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3); font-weight:600}
+  .brief-h .seal{margin-left:auto; color:var(--online); opacity:0; transform:scale(.6); transition:opacity .5s var(--ease), transform .5s var(--ease)}
+  .brief.sealed .seal{opacity:1; transform:scale(1)}
+  .brief.sealed{border-color:color-mix(in srgb,var(--online) 40%,var(--line))}
+  .brow{display:flex; gap:16px; padding:15px 22px; border-top:1px solid var(--line)}
+  .brow:first-of-type{border-top:none}
+  .brow .k{width:92px; flex:none; color:var(--text-3); font-size:14px}
+  .brow .v{color:var(--text); font-size:15.5px; transition:color .4s}
+  .brow .v.empty{color:var(--text-3)}
+  .brow.filled{animation:fillrow .6s var(--ease)}
+  @keyframes fillrow{0%{background:var(--accent-soft)}100%{background:transparent}}
+
+  /* Team / agents */
+  .mission{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m);
+    box-shadow:var(--shadow); padding:20px 24px; margin:6px 0 20px; display:flex; gap:20px; align-items:center;
+  }
+  .mi-orb{width:44px;height:44px;border-radius:50%; flex:none; position:relative;
+    background:radial-gradient(circle at 38% 32%, color-mix(in srgb,var(--accent) 70%,white), var(--accent) 70%);
+    animation:breathe 5.5s var(--ease) infinite; box-shadow:0 0 0 6px var(--accent-soft)}
+  .mi-main{flex:1; min-width:0}
+  .mi-kicker{font-size:12.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); font-weight:600}
+  .mi-goal{font-size:18px; font-weight:600; letter-spacing:-.02em; margin:2px 0 3px}
+  .mi-meta{color:var(--text-2); font-size:14px}
+  .mi-pct{font-size:30px; font-weight:600; letter-spacing:-.03em; font-variant-numeric:tabular-nums; flex:none}
+  .mi-alt{font-size:12.5px; color:var(--text-3); margin-top:2px; text-align:right}
+
+  .team-h{display:flex; align-items:center; margin:0 2px 14px}
+  .team-h h2{font-size:15px; font-weight:600; color:var(--text-2); letter-spacing:.01em}
+  .addagent{
+    margin-left:auto; display:inline-flex; align-items:center; gap:6px; color:var(--accent);
+    font-size:14px; font-weight:500; padding:6px 12px; border-radius:10px; transition:background .2s;
+  }
+  .addagent:hover{background:var(--accent-soft)}
+  .addagent svg{width:15px;height:15px}
+
+  .agents{display:grid; grid-template-columns:repeat(auto-fill,minmax(248px,1fr)); gap:14px}
+  .agent{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m);
+    box-shadow:var(--shadow); padding:18px 20px;
+    transition:transform .4s var(--ease), box-shadow .4s;
+  }
+  .agent.enter{animation:agentin .6s var(--ease)}
+  @keyframes agentin{from{opacity:0; transform:translateY(14px) scale(.97)}to{opacity:1; transform:none}}
+  .a-top{display:flex; align-items:center; gap:11px; margin-bottom:14px}
+  .a-badge{width:34px;height:34px;border-radius:10px; display:grid;place-items:center; font-size:15px; flex:none;
+    background:var(--surface-2); border:1px solid var(--line)}
+  .a-name{font-weight:600; font-size:16px; letter-spacing:-.01em}
+  .a-role{color:var(--text-3); font-size:13px}
+  .a-pulse{margin-left:auto; width:7px;height:7px;border-radius:50%; background:var(--online);
+    animation:pulse 1.8s var(--ease) infinite}
+  @keyframes pulse{0%,100%{opacity:.35; transform:scale(.85)}50%{opacity:1; transform:scale(1.15)}}
+  .a-status{color:var(--text-2); font-size:14px; min-height:20px; margin-bottom:11px; transition:opacity .35s}
+  .track{height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden}
+  .fill{height:100%; border-radius:3px; background:var(--accent); width:0; transition:width .9s var(--ease)}
+  .a-pct{font-size:12.5px; color:var(--text-3); margin-top:7px; font-variant-numeric:tabular-nums}
+  .a-access{display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; padding-top:13px; border-top:1px solid var(--line)}
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--text-2);
+    background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:4px 9px;
+    transition:transform .3s var(--ease), background .3s;
+  }
+  .chip svg{width:11px;height:11px; color:var(--text-3)}
+  .chip.granted{animation:grantin .7s var(--ease)}
+  @keyframes grantin{0%{transform:scale(.7); background:var(--accent-soft)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+  .a-accesslbl{font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); font-weight:600; width:100%; margin-bottom:-2px}
+
+  /* ---------- Dock (voice) ---------- */
+  .dock{
+    position:fixed; left:0; right:0; bottom:0; z-index:50;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    padding:0 20px 30px;
+    pointer-events:none;
+    background:linear-gradient(to top, var(--bg) 42%, color-mix(in srgb,var(--bg) 0%,transparent));
+  }
+  .dock > *{pointer-events:auto}
+  .vfeed{
+    width:100%; max-width:600px; min-height:0; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:7px;
+    transition:opacity .4s;
+  }
+  .vf-you{
+    font-size:clamp(19px,2.6vw,25px); font-weight:500; letter-spacing:-.02em; color:var(--text);
+    opacity:0; transform:translateY(6px); transition:opacity .4s var(--ease), transform .4s var(--ease);
+  }
+  .vf-you.show{opacity:1; transform:none}
+  .vf-sys{
+    display:flex; align-items:center; gap:10px; justify-content:center;
+    font-size:16px; color:var(--text-2); max-width:560px;
+    opacity:0; transform:translateY(6px); transition:opacity .4s var(--ease), transform .4s var(--ease);
+  }
+  .vf-sys.show{opacity:1; transform:none}
+  .wave{display:inline-flex; align-items:flex-end; gap:3px; height:16px; flex:none}
+  .wave i{width:3px; height:5px; border-radius:2px; background:var(--accent); opacity:.4; transition:opacity .3s}
+  .vf-sys.speaking .wave i{animation:eq .9s var(--ease-soft) infinite; opacity:1}
+  .wave i:nth-child(2){animation-delay:.12s} .wave i:nth-child(3){animation-delay:.24s} .wave i:nth-child(4){animation-delay:.36s}
+  @keyframes eq{0%,100%{height:5px}50%{height:15px}}
+
+  .mic-wrap{position:relative; display:grid; place-items:center}
+  .mic-ring{
+    position:absolute; width:76px;height:76px;border-radius:50%;
+    border:2px solid var(--accent); opacity:0; transform:scale(.8); pointer-events:none;
+  }
+  .listening .mic-ring{animation:ripple 1.6s var(--ease-soft) infinite}
+  .listening .mic-ring.r2{animation-delay:.5s}
+  @keyframes ripple{0%{opacity:.5; transform:scale(.85)}100%{opacity:0; transform:scale(1.9)}}
+  .mic{
+    position:relative; width:68px;height:68px;border-radius:50%;
+    background:var(--surface); border:1px solid var(--line-2); box-shadow:var(--shadow-lift);
+    display:grid; place-items:center; color:var(--text);
+    transition:transform .3s var(--ease), background .3s, color .3s, box-shadow .3s;
+    touch-action:none; user-select:none; -webkit-user-select:none;
+  }
+  .mic svg{width:26px;height:26px; transition:transform .3s}
+  .mic:hover{transform:translateY(-1px)}
+  .listening .mic{background:var(--accent); color:#fff; transform:scale(1.06);
+    box-shadow:0 10px 30px color-mix(in srgb,var(--accent) 40%,transparent)}
+  .speaking-busy .mic{opacity:.55; pointer-events:none}
+  .hint{font-size:13.5px; color:var(--text-3); min-height:18px; text-align:center; transition:opacity .3s}
+  .hint b{color:var(--text-2); font-weight:500}
+
+  /* ---------- Factory sheet ---------- */
+  .backdrop{
+    position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.28);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    opacity:0; transition:opacity .4s var(--ease);
+  }
+  .backdrop.show{opacity:1}
+  .sheet{
+    position:fixed; left:50%; bottom:0; transform:translate(-50%,102%);
+    z-index:61; width:min(560px,100%);
+    background:var(--surface); border:1px solid var(--line); border-bottom:none;
+    border-radius:var(--r-l) var(--r-l) 0 0; box-shadow:var(--shadow-lift);
+    padding:10px clamp(22px,4vw,34px) 34px;
+    transition:transform .55s var(--ease);
+    max-height:92vh; overflow-y:auto;
+  }
+  .sheet.show{transform:translate(-50%,0)}
+  .grip{width:38px;height:5px;border-radius:3px;background:var(--line-2);margin:8px auto 18px}
+  .sheet h2{font-size:24px; font-weight:600; letter-spacing:-.02em; margin-bottom:4px}
+  .sheet .lead{color:var(--text-2); font-size:15px; margin-bottom:24px}
+  .field{margin-bottom:22px}
+  .field > label{display:block; font-size:12.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--text-3); font-weight:600; margin-bottom:10px}
+  .txt{
+    width:100%; background:var(--surface-2); border:1px solid var(--line); border-radius:12px;
+    padding:13px 15px; font-size:16px; color:var(--text); transition:border-color .25s, background .25s;
+  }
+  .txt:focus{border-color:var(--accent); background:var(--surface)}
+  .roles{display:flex; flex-wrap:wrap; gap:8px}
+  .pill{
+    padding:9px 16px; border-radius:980px; font-size:14px; font-weight:500; color:var(--text-2);
+    background:var(--surface-2); border:1px solid var(--line); transition:all .25s var(--ease);
+  }
+  .pill[aria-pressed="true"]{background:var(--accent); color:#fff; border-color:transparent}
+  .toggles{display:flex; flex-direction:column; gap:2px}
+  .tog{display:flex; align-items:center; gap:12px; padding:11px 2px; border-top:1px solid var(--line); width:100%; text-align:left}
+  .tog:first-child{border-top:none}
+  .tog .tt{flex:1}
+  .tog .td{font-size:13px; color:var(--text-3)}
+  .switch{width:46px;height:28px;border-radius:980px;background:var(--line-2); position:relative; flex:none; transition:background .3s var(--ease)}
+  .switch::after{content:"";position:absolute; top:3px; left:3px; width:22px;height:22px;border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:transform .3s var(--ease)}
+  .tog[aria-pressed="true"] .switch{background:var(--online)}
+  .tog[aria-pressed="true"] .switch::after{transform:translateX(18px)}
+  .accgrid{display:flex; flex-wrap:wrap; gap:8px}
+  .acc{
+    display:inline-flex; align-items:center; gap:7px; padding:8px 13px; border-radius:11px; font-size:14px;
+    color:var(--text-2); background:var(--surface-2); border:1px solid var(--line); transition:all .25s var(--ease);
+  }
+  .acc .amono{width:18px;height:18px;border-radius:5px; display:grid;place-items:center; font-size:10px; font-weight:700; background:var(--surface); border:1px solid var(--line); color:var(--text-3)}
+  .acc[aria-pressed="true"]{color:var(--text); border-color:var(--accent); background:var(--accent-soft)}
+  .acc[aria-pressed="true"] .amono{color:var(--accent); border-color:transparent}
+  .create{
+    width:100%; margin-top:6px; background:var(--accent); color:#fff; font-weight:600; font-size:17px;
+    padding:15px; border-radius:14px; transition:transform .3s var(--ease), filter .2s;
+  }
+  .create:hover{filter:brightness(1.06)} .create:active{transform:scale(.99)}
+
+  @media (max-width:560px){
+    .c-added{display:none}
+    .mi-alt{display:none}
+    .agents{grid-template-columns:1fr}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.12s !important}
+  }
+</style>
+
+<div class="app" data-view="overview">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.5" fill="var(--accent)"/>
+        <circle cx="12" cy="12" r="9" stroke="var(--text-3)" stroke-width="1.3"/>
+      </svg>
+      AI&nbsp;Control
+    </div>
+    <button class="back" id="back">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      All projects
+    </button>
+    <div class="topbar-sp"></div>
+    <div class="who" title="Jakub">J</div>
+  </header>
+
+  <main class="stage">
+    <!-- OVERVIEW -->
+    <section class="view in" id="view-overview">
+      <div class="wrap">
+        <h1 class="hello">Good evening, Jakub.</h1>
+        <p class="subhead">Four projects. Everything saved, nothing exposed.</p>
+
+        <div class="seg" role="tablist" aria-label="Overview">
+          <button role="tab" id="seg-projects" aria-selected="true" aria-controls="panel-projects">Projects</button>
+          <button role="tab" id="seg-vault" aria-selected="false" aria-controls="panel-vault">Vault</button>
+        </div>
+
+        <div class="panel" id="panel-projects" role="tabpanel" aria-labelledby="seg-projects">
+          <div class="projects" id="projects"></div>
+        </div>
+
+        <div class="panel" id="panel-vault" role="tabpanel" aria-labelledby="seg-vault" hidden>
+          <div class="vault-note">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.6"/></svg>
+            <div>Saved once, globally. Granted to agents one at a time. The secret values themselves are never shown — not here, not to any agent.</div>
+          </div>
+          <div class="creds" id="creds"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- WORKSPACE -->
+    <section class="view" id="view-workspace" hidden>
+      <div class="wrap">
+        <div class="ws-head">
+          <div class="ws-title" id="ws-title">Northstar</div>
+          <div class="ws-sub" id="ws-sub">Consumer app · onboarding redesign</div>
+        </div>
+
+        <!-- Orchestrator orb (persists across stages) -->
+        <div class="orbstage" id="orbstage">
+          <div class="orb">
+            <div class="halo"></div>
+            <svg class="ring" viewBox="0 0 180 180" aria-hidden="true">
+              <circle class="ringbg" cx="90" cy="90" r="85"/>
+              <circle class="ringfg" cx="90" cy="90" r="85"/>
+            </svg>
+            <div class="core"></div>
+          </div>
+          <div class="orb-label" id="orb-label">Orchestrator ready</div>
+        </div>
+
+        <!-- stage body -->
+        <div id="ws-body"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- VOICE DOCK -->
+  <div class="dock" id="dock">
+    <div class="vfeed" id="vfeed">
+      <div class="vf-you" id="vf-you"></div>
+      <div class="vf-sys" id="vf-sys"><span class="wave"><i></i><i></i><i></i><i></i></span><span id="vf-sys-text"></span></div>
+    </div>
+    <div class="mic-wrap">
+      <span class="mic-ring r1"></span><span class="mic-ring r2"></span>
+      <button class="mic" id="mic" aria-label="Hold to talk">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+          <path d="M6 11a6 6 0 0012 0M12 17v4M9 21h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <!-- FACTORY -->
+  <div class="backdrop" id="backdrop" hidden></div>
+  <aside class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-label="New agent" hidden>
+    <div class="grip"></div>
+    <h2>New agent</h2>
+    <p class="lead">One screen. Give it a role, its rules, and exactly what it can reach.</p>
+
+    <div class="field">
+      <label for="f-name">Name</label>
+      <input class="txt" id="f-name" value="Probe" autocomplete="off" />
+    </div>
+
+    <div class="field">
+      <label>Role</label>
+      <div class="roles" id="f-roles"></div>
+    </div>
+
+    <div class="field">
+      <label>Rules</label>
+      <div class="toggles" id="f-rules"></div>
+    </div>
+
+    <div class="field">
+      <label>Can reach</label>
+      <div class="accgrid" id="f-access"></div>
+    </div>
+
+    <button class="create" id="f-create">Create agent</button>
+  </aside>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const app = $('.app');
+
+  /* ---------- Data ---------- */
+  const PROJECTS = [
+    {id:'northstar', name:'Northstar', note:'Consumer app · onboarding redesign', status:'Ready', dot:'idle'},
+    {id:'atlas', name:'Atlas', note:'Internal analytics platform', status:'2 agents · on track', dot:'online'},
+    {id:'lumen', name:'Lumen', note:'Marketing site refresh', status:'In review', dot:'warn'},
+    {id:'harbor', name:'Harbor', note:'Mobile banking app', status:'Paused', dot:'idle'},
+  ];
+  const CREDS = [
+    {p:'Anthropic', kind:'API key', mask:'••••7Q2A', scope:'Model access · used by 4 agents', added:'Mar ’26'},
+    {p:'OpenAI', kind:'API key', mask:'••••11F8', scope:'Model access · used by 1 agent', added:'Mar ’26'},
+    {p:'ElevenLabs', kind:'API key', mask:'••••9K3C', scope:'Voice out · system', added:'Feb ’26'},
+    {p:'Deepgram', kind:'API key', mask:'••••4T0N', scope:'Voice in · system', added:'Feb ’26'},
+    {p:'GitHub', kind:'Token', mask:'••••_2b', scope:'Repo read · used by 2 agents', added:'Jan ’26'},
+  ];
+  const ROLE_STATUS = {
+    Research:['Gathering references','Synthesizing patterns','Writing up insights'],
+    Design:['Exploring layouts','Refining the flow','Prototyping screens'],
+    Copy:['Drafting onboarding copy','Tightening the voice','Reviewing with design'],
+    Engineering:['Reading the codebase','Sketching the approach','Wiring the prototype'],
+    QA:['Mapping the cases','Running checks','Logging findings'],
+  };
+  const ROLE_BADGE = {Research:'🔭', Design:'◑', Copy:'✎', Engineering:'⚙', QA:'✓'};
+  const ROLE_TARGET = {Research:93, Design:66, Copy:52, Engineering:40, QA:34};
+
+  let team = [];
+  let current = 'overview';
+  let project = PROJECTS[0];
+  let liveTimer = null;
+
+  /* ---------- Render: overview ---------- */
+  function iconGo(){ return '<span class="p-go"><svg viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'; }
+
+  function renderProjects(){
+    $('#projects').innerHTML = PROJECTS.map(p=>`
+      <button class="project" data-id="${p.id}">
+        <div class="p-main">
+          <div class="p-name">${p.name}</div>
+          <div class="p-note">${p.note}</div>
+        </div>
+        <div class="p-status"><span class="dot ${p.dot}"></span>${p.status}</div>
+        ${iconGo()}
+      </button>`).join('');
+    document.querySelectorAll('.project').forEach(el=>{
+      el.addEventListener('click', ()=> openProject(el.dataset.id));
+    });
+  }
+  function renderCreds(){
+    $('#creds').innerHTML = CREDS.map(c=>`
+      <div class="cred">
+        <div class="mono">${c.p[0]}</div>
+        <div class="c-main">
+          <div class="c-name">${c.p}</div>
+          <div class="c-scope">${c.kind} · ${c.scope}</div>
+        </div>
+        <div class="c-mask">${c.mask}</div>
+        <div class="c-added">${c.added}</div>
+      </div>`).join('');
+  }
+
+  /* segmented */
+  $('#seg-projects').addEventListener('click', ()=> setSeg('projects'));
+  $('#seg-vault').addEventListener('click', ()=> setSeg('vault'));
+  function setSeg(which){
+    const proj = which==='projects';
+    $('#seg-projects').setAttribute('aria-selected', proj);
+    $('#seg-vault').setAttribute('aria-selected', !proj);
+    $('#panel-projects').hidden = !proj;
+    $('#panel-vault').hidden = proj;
+    const panel = proj ? $('#panel-projects') : $('#panel-vault');
+    panel.classList.remove('fade'); void panel.offsetWidth; panel.classList.add('fade');
+  }
+
+  /* ---------- View transitions ---------- */
+  const views = {overview: $('#view-overview'), workspace: $('#view-workspace')};
+  function go(view){
+    if(view===current) return;
+    const cur = views[current], nxt = views[view];
+    cur.classList.add('out'); cur.classList.remove('in');
+    setTimeout(()=>{
+      cur.hidden = true; cur.classList.remove('out');
+      nxt.hidden = false; void nxt.offsetWidth; nxt.classList.add('in');
+      current = view; app.dataset.view = view;
+      window.scrollTo({top:0, behavior:'instant'});
+      updateHint();
+    }, 240);
+  }
+  $('#back').addEventListener('click', ()=> { stopLive(); go('overview'); });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){
+      if($('#sheet').classList.contains('show')) closeFactory();
+      else if(current==='workspace'){ stopLive(); go('overview'); }
+    }
+  });
+
+  /* ---------- Workspace stages ---------- */
+  let stage = 'idle';
+  const brief = {goal:null, platform:null, success:null};
+
+  function openProject(id){
+    project = PROJECTS.find(p=>p.id===id) || PROJECTS[0];
+    $('#ws-title').textContent = project.name;
+    $('#ws-sub').textContent = project.note;
+    resetWorkspace();
+    go('workspace');
+  }
+  function resetWorkspace(){
+    stage='idle'; team=[]; brief.goal=brief.platform=brief.success=null;
+    scenePtr={};
+    const os = $('#orbstage'); os.classList.remove('online');
+    $('#orb-label').textContent = 'Orchestrator ready';
+    $('#ws-body').innerHTML = `
+      <div style="text-align:center">
+        <button class="launch" id="launch">Launch orchestrator</button>
+      </div>`;
+    $('#launch').addEventListener('click', launchOrchestrator);
+    stopLive();
+  }
+
+  function launchOrchestrator(){
+    if(stage!=='idle') return;
+    $('#orbstage').classList.add('online');
+    $('#orb-label').textContent = 'Orchestrator online';
+    const b = $('#launch'); if(b){ b.style.transition='opacity .3s, transform .3s'; b.style.opacity='0'; b.style.transform='scale(.9)'; }
+    stage='clarify';
+    setTimeout(()=>{
+      renderBrief();
+      // clarifier greets by voice (auto)
+      systemSpeak('What should we work on?', null, true);
+      updateHint();
+    }, 900);
+  }
+
+  function renderBrief(){
+    $('#ws-body').innerHTML = `
+      <div class="brief" id="brief">
+        <div class="brief-h">Clarifier
+          <span class="seal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M5 13l4 4 10-11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </div>
+        <div class="brow"><div class="k">Goal</div><div class="v empty" data-k="goal">Listening…</div></div>
+        <div class="brow"><div class="k">Platform</div><div class="v empty" data-k="platform">—</div></div>
+        <div class="brow"><div class="k">Done when</div><div class="v empty" data-k="success">—</div></div>
+      </div>`;
+  }
+  function setBrief(obj){
+    Object.keys(obj).forEach(k=>{
+      brief[k]=obj[k];
+      const el = document.querySelector(`.v[data-k="${k}"]`);
+      if(el){ el.textContent = obj[k]; el.classList.remove('empty');
+        const row = el.closest('.brow'); row.classList.remove('filled'); void row.offsetWidth; row.classList.add('filled'); }
+    });
+  }
+
+  function beginWork(){
+    const bEl = $('#brief'); if(bEl) bEl.classList.add('sealed');
+    stage='running';
+    team = [
+      {id:'scout', name:'Scout', role:'Research', progress:6, target:93, access:['Anthropic'], si:0},
+      {id:'studio', name:'Studio', role:'Design', progress:3, target:66, access:['Anthropic'], si:0},
+      {id:'quill', name:'Quill', role:'Copy', progress:2, target:52, access:['Anthropic','OpenAI'], si:0},
+    ];
+    setTimeout(renderRunning, 650);
+    updateHint();
+  }
+
+  function accChip(name){
+    return `<span class="chip" data-tok="${name}"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V8a4 4 0 018 0v2" stroke="currentColor" stroke-width="1.8"/></svg>${name}</span>`;
+  }
+  function agentCardHTML(a){
+    return `<div class="agent enter" id="agent-${a.id}">
+      <div class="a-top">
+        <div class="a-badge">${ROLE_BADGE[a.role]||'•'}</div>
+        <div><div class="a-name">${a.name}</div><div class="a-role">${a.role}</div></div>
+        <span class="a-pulse"></span>
+      </div>
+      <div class="a-status">${(ROLE_STATUS[a.role]||['Working'])[0]}…</div>
+      <div class="track"><div class="fill" style="width:0%"></div></div>
+      <div class="a-pct">0%</div>
+      <div class="a-access">
+        <span class="a-accesslbl">Can reach</span>
+        ${a.access.map(accChip).join('')}
+      </div>
+    </div>`;
+  }
+  function renderRunning(){
+    $('#orbstage').style.display='none'; // mission card carries the orchestrator presence
+    $('#ws-body').innerHTML = `
+      <div class="mission" id="mission">
+        <div class="mi-orb"></div>
+        <div class="mi-main">
+          <div class="mi-kicker">Orchestrator</div>
+          <div class="mi-goal" id="mi-goal">${brief.goal||'Coordinating the team'}</div>
+          <div class="mi-meta" id="mi-meta">Coordinating 3 agents · no blockers</div>
+        </div>
+        <div style="text-align:right">
+          <div class="mi-pct" id="mi-pct">0%</div>
+          <div class="mi-alt">big picture only</div>
+        </div>
+      </div>
+      <div class="team-h">
+        <h2>Team</h2>
+        <button class="addagent" id="addagent"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>New agent</button>
+      </div>
+      <div class="agents" id="agents">${team.map(agentCardHTML).join('')}</div>`;
+    $('#addagent').addEventListener('click', openFactory);
+    setTimeout(()=>{ team.forEach(a=> setFill(a)); updateMission(); }, 80);
+    startLive();
+  }
+  function setFill(a){
+    const card = $('#agent-'+a.id); if(!card) return;
+    card.querySelector('.fill').style.width = a.progress+'%';
+    card.querySelector('.a-pct').textContent = Math.round(a.progress)+'%';
+  }
+  function updateMission(){
+    const el = $('#mi-pct'); if(!el || !team.length) return;
+    const avg = team.reduce((s,a)=>s+a.progress,0)/team.length;
+    el.textContent = Math.round(avg)+'%';
+    const m = $('#mi-meta'); if(m) m.textContent = `Coordinating ${team.length} agent${team.length>1?'s':''} · no blockers`;
+  }
+  function startLive(){
+    stopLive();
+    liveTimer = setInterval(()=>{
+      team.forEach(a=>{
+        if(a.progress < a.target){
+          a.progress = Math.min(a.target, a.progress + Math.random()*4 + 0.6);
+          setFill(a);
+        } else if(Math.random()<0.25){
+          a.progress = Math.min(99, a.progress + Math.random()*0.8);
+          setFill(a);
+        }
+        if(Math.random()<0.22){ // rotate status
+          const list = ROLE_STATUS[a.role]||['Working'];
+          a.si = (a.si+1)%list.length;
+          const s = $('#agent-'+a.id+' .a-status');
+          if(s){ s.style.opacity='0'; setTimeout(()=>{ s.textContent = list[a.si]+'…'; s.style.opacity='1'; },300); }
+        }
+      });
+      updateMission();
+    }, 1600);
+  }
+  function stopLive(){ if(liveTimer){ clearInterval(liveTimer); liveTimer=null; } $('#orbstage').style.display=''; }
+
+  function grantAccess(id, tok){
+    const a = team.find(x=>x.id===id); if(!a) return;
+    if(!a.access.includes(tok)) a.access.push(tok);
+    const box = $('#agent-'+id+' .a-access'); if(!box) return;
+    box.insertAdjacentHTML('beforeend', accChip(tok));
+    const chip = box.lastElementChild; chip.classList.add('granted');
+  }
+
+  /* ---------- Factory ---------- */
+  const RULES = [
+    {t:'Stays in scope', d:'Won’t wander beyond the brief'},
+    {t:'Reports to orchestrator', d:'No direct detail to you'},
+    {t:'Asks before spending', d:'Confirms paid API calls'},
+  ];
+  let factoryRole='QA';
+  function renderFactory(){
+    $('#f-roles').innerHTML = Object.keys(ROLE_TARGET).map(r=>
+      `<button class="pill" data-role="${r}" aria-pressed="${r===factoryRole}">${r}</button>`).join('');
+    $('#f-roles').querySelectorAll('.pill').forEach(b=> b.addEventListener('click', ()=>{
+      factoryRole=b.dataset.role;
+      $('#f-roles').querySelectorAll('.pill').forEach(x=>x.setAttribute('aria-pressed', x.dataset.role===factoryRole));
+    }));
+    $('#f-rules').innerHTML = RULES.map((r,i)=>
+      `<button class="tog" data-i="${i}" aria-pressed="true"><span class="tt"><span>${r.t}</span><div class="td">${r.d}</div></span><span class="switch"></span></button>`).join('');
+    $('#f-rules').querySelectorAll('.tog').forEach(b=> b.addEventListener('click', ()=>{
+      b.setAttribute('aria-pressed', b.getAttribute('aria-pressed')!=='true');
+    }));
+    $('#f-access').innerHTML = CREDS.map(c=>
+      `<button class="acc" data-tok="${c.p}" aria-pressed="${c.p==='Anthropic'}"><span class="amono">${c.p[0]}</span>${c.p}</button>`).join('');
+    $('#f-access').querySelectorAll('.acc').forEach(b=> b.addEventListener('click', ()=>{
+      b.setAttribute('aria-pressed', b.getAttribute('aria-pressed')!=='true');
+    }));
+  }
+  let factoryReady=false;
+  function openFactory(){
+    if(stage!=='running') return;
+    if(!factoryReady){ renderFactory(); factoryReady=true; }
+    const name = ['Probe','Echo','Vane','Flint'][team.length % 4] || 'Probe';
+    $('#f-name').value = name;
+    $('#sheet').hidden=false; $('#backdrop').hidden=false;
+    requestAnimationFrame(()=>{ $('#backdrop').classList.add('show'); $('#sheet').classList.add('show'); $('#sheet').setAttribute('aria-hidden','false'); updateHint(); });
+  }
+  function closeFactory(){
+    $('#backdrop').classList.remove('show'); $('#sheet').classList.remove('show'); $('#sheet').setAttribute('aria-hidden','true');
+    setTimeout(()=>{ $('#sheet').hidden=true; $('#backdrop').hidden=true; updateHint(); }, 500);
+  }
+  $('#backdrop').addEventListener('click', closeFactory);
+  $('#f-create').addEventListener('click', ()=>{
+    const name = ($('#f-name').value||'Agent').trim();
+    const access = Array.from($('#f-access').querySelectorAll('.acc[aria-pressed="true"]')).map(b=>b.dataset.tok);
+    if(!access.length) access.push('Anthropic');
+    const a = {id:'a'+Date.now(), name, role:factoryRole, progress:0, target:ROLE_TARGET[factoryRole]||40, access, si:0};
+    team.push(a);
+    $('#agents').insertAdjacentHTML('beforeend', agentCardHTML(a));
+    setTimeout(()=>setFill(a), 120);
+    updateMission();
+    closeFactory();
+    systemSpeak(`${name} joined the team as ${factoryRole}.`, null, true);
+  });
+
+  /* ---------- Voice engine ---------- */
+  const dock = $('#dock');
+  const vfYou = $('#vf-you'), vfSys = $('#vf-sys'), vfSysText = $('#vf-sys-text');
+  let listening=false, busy=false, scenePtr={};
+
+  const SCRIPTS = {
+    overview: [
+      {you:'Open Northstar.', sys:'Opening Northstar.', after:()=> openProject('northstar')},
+      {you:'Show me the vault.', sys:'Here are your saved credentials. Values stay hidden.', after:()=> setSeg('vault')},
+    ],
+    'ws-idle': [
+      {you:'Launch the orchestrator.', sys:'Bringing the orchestrator online.', after:launchOrchestrator},
+    ],
+    'ws-clarify': [
+      {you:'Redesign onboarding so new users reach value faster.',
+       sys:'Got it. Two things — which platform comes first, and what does “value” mean here?',
+       after:()=> setBrief({goal:'Reach first value faster in onboarding'})},
+      {you:'Mobile first. Value is completing their first project.',
+       sys:'Clear. I’ll brief a small team — research, design, and copy. Say “begin” when you’re ready.',
+       after:()=> setBrief({platform:'Mobile first', success:'First project completed'})},
+      {you:'Begin.', sys:'Assembling the team.', after:beginWork},
+    ],
+    'ws-running': [
+      {you:'How’s it going?', sys:'On track. Research is wrapping up, design is mid-flow. No blockers — about eight minutes out.', after:null},
+      {you:'Give the design agent access to GitHub.', sys:'Done — Studio can now read from GitHub.', after:()=> grantAccess('studio','GitHub')},
+      {you:'Add a QA agent.', sys:'Opening the factory.', after:()=>{ factoryRole='QA'; openFactory(); if(factoryReady){ $('#f-roles').querySelectorAll('.pill').forEach(x=>x.setAttribute('aria-pressed', x.dataset.role==='QA')); } }},
+      {you:'Status?', sys:'Steady. Everything’s moving. I’ll surface anything that needs you.', after:null},
+    ],
+  };
+  function getScene(){
+    if($('#sheet').classList.contains('show')) return null;
+    if(current==='overview') return 'overview';
+    if(current==='workspace') return 'ws-'+stage;
+    return null;
+  }
+  function nextTurn(scene){
+    const list = SCRIPTS[scene]; if(!list) return null;
+    const i = scenePtr[scene]||0;
+    const turn = list[Math.min(i, list.length-1)];
+    scenePtr[scene] = i+1;
+    return turn;
+  }
+
+  const HINTS = {
+    overview:'Hold to speak — try <b>“Open Northstar”</b>',
+    'ws-idle':'Hold to speak — <b>“Launch the orchestrator”</b>',
+    'ws-clarify':'Hold to speak — describe what you want',
+    'ws-running':'Hold to speak — ask for status, or <b>“add a QA agent”</b>',
+  };
+  function updateHint(){
+    const scene = getScene();
+    if($('#sheet').classList.contains('show')){ $('#hint').innerHTML='Finish in the panel, or press Esc'; return; }
+    $('#hint').innerHTML = HINTS[scene] || 'Hold to speak';
+  }
+
+  function typeWriter(el, text, done){
+    el.textContent=''; let i=0;
+    const speed = text.length>60 ? 14 : 22;
+    (function tick(){
+      if(i<=text.length){ el.textContent = text.slice(0,i); i++; setTimeout(tick, speed); }
+      else if(done) done();
+    })();
+  }
+  function systemSpeak(text, done, standalone){
+    busy=true; dock.classList.add('speaking-busy');
+    if(standalone){ vfYou.textContent=''; vfYou.classList.remove('show'); }
+    vfSys.classList.add('show','speaking');
+    typeWriter(vfSysText, text, ()=>{
+      setTimeout(()=>{
+        vfSys.classList.remove('speaking');
+        busy=false; dock.classList.remove('speaking-busy');
+        if(done) done();
+      }, 450);
+    });
+  }
+
+  function process(){
+    const scene = getScene();
+    const turn = scene && nextTurn(scene);
+    if(!turn){ busy=false; dock.classList.remove('speaking-busy'); return; }
+    vfYou.classList.remove('show'); vfSys.classList.remove('show','speaking'); vfSysText.textContent='';
+    typeWriter(vfYou, turn.you, null); vfYou.classList.add('show');
+    setTimeout(()=>{
+      systemSpeak(turn.sys, ()=> { if(turn.after) turn.after(); updateHint(); });
+    }, Math.min(turn.you.length*22 + 220, 1400));
+  }
+
+  function micDown(){
+    if(busy || listening) return;
+    if(!getScene()) return;
+    listening=true; dock.classList.add('listening');
+    vfSys.classList.remove('show','speaking'); vfSysText.textContent='';
+    vfYou.textContent='Listening…'; vfYou.classList.add('show');
+  }
+  function micUp(){
+    if(!listening) return;
+    listening=false; dock.classList.remove('listening');
+    busy=true; dock.classList.add('speaking-busy');
+    setTimeout(process, 260);
+  }
+  const mic = $('#mic');
+  mic.addEventListener('pointerdown', e=>{ e.preventDefault(); micDown(); });
+  window.addEventListener('pointerup', ()=> micUp());
+  mic.addEventListener('pointercancel', ()=> micUp());
+  mic.addEventListener('keydown', e=>{ if((e.key===' '||e.key==='Enter') && !e.repeat){ e.preventDefault(); micDown(); } });
+  mic.addEventListener('keyup', e=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); micUp(); } });
+
+  /* ---------- Boot ---------- */
+  renderProjects(); renderCreds(); updateHint();
+})();
+</script>
