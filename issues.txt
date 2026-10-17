@@ -4,6 +4,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- [ ] Disney v2 prototype — user likes it but has IMPROVEMENTS to specify next session. Collect the list, then refine concepts/disney-v2/ai-control-disney-v2.html.
 - [ ] Lock the stack (Tauri+React vs. web-only) — decide during the INIT update after reviewing UI concepts.
 - [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
 - [ ] Voice in/out provider choice not finalized (Deepgram vs. Whisper for STT; ElevenLabs for TTS) — validate in a research spike.
