@@ -1,0 +1,1827 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Control — Studio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+/* ============================================================
+   AI CONTROL — Disney / Pixar v2 (single self-contained file)
+   Agents are cast members with faces & moods. The orchestrator
+   is the director. Warm, rounded, story-driven, high-signal.
+   All CSS / SVG / JS inline. No external resources.
+   Extends concepts/disney-pixar.html (cast SVG, palette, moods,
+   confetti, toast, motes, bubble/streaming, switch, keytag).
+   ============================================================ */
+:root{
+  --bg-0:#1a1430; --bg-1:#241a44; --bg-2:#2e2156;
+  --panel:#ffffff; --ink:#241a44; --ink-soft:#5b5280; --cream:#fff6e9;
+  --sun:#ffc24b; --sun-deep:#ff9b3d; --coral:#ff6f73; --teal:#2fd3c3;
+  --sky:#4ea8ff; --grape:#9b6cff; --mint:#8be88b; --rose:#ff9ecf;
+  --line:rgba(36,26,68,.1);
+  --shadow:0 18px 40px -18px rgba(20,10,45,.55);
+  --shadow-sm:0 8px 20px -10px rgba(20,10,45,.45);
+  --r-lg:26px; --r-md:18px; --r-sm:12px;
+  --stage-pad:clamp(16px,3vw,40px);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"Apple Color Emoji",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --cast-xs:34px; --cast-sm:58px; --cast-md:86px; --cast-lg:112px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font-family:var(--font);color:var(--ink);
+  background:
+    radial-gradient(1200px 600px at 15% -5%, #3a2a6e 0%, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #6b3b7a 0%, transparent 55%),
+    linear-gradient(160deg,var(--bg-0),var(--bg-1) 60%,#15102a 100%);
+  overflow:hidden;
+}
+.sky-motes{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.mote{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(255,224,160,.9),rgba(255,224,160,0));opacity:.5;animation:drift linear infinite}
+@keyframes drift{0%{transform:translateY(20px)}100%{transform:translateY(-120vh)}}
+
+/* ---------- App frame ---------- */
+#studio{position:relative;z-index:1;height:100%;display:flex;flex-direction:column}
+#studio[hidden]{display:none}
+header.topbar{display:flex;align-items:center;gap:14px;padding:14px var(--stage-pad);color:var(--cream)}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}
+.brand .logo{width:42px;height:42px;border-radius:14px;
+  background:conic-gradient(from 210deg,var(--sun),var(--coral),var(--grape),var(--teal),var(--sun));
+  box-shadow:0 0 0 3px rgba(255,255,255,.12),0 10px 24px -8px var(--sun-deep);
+  display:grid;place-items:center;animation:spinSlow 18s linear infinite;flex:none}
+.brand .logo svg{width:24px;height:24px}
+@keyframes spinSlow{to{transform:rotate(360deg)}}
+.brand b{font-size:17px}
+.brand span{display:block;font-size:11px;font-weight:600;color:rgba(255,246,233,.6);letter-spacing:.14em;text-transform:uppercase}
+nav.stages{margin-left:auto;display:flex;gap:6px;background:rgba(255,255,255,.07);padding:6px;border-radius:999px;backdrop-filter:blur(8px)}
+nav.stages button{appearance:none;border:0;background:transparent;color:rgba(255,246,233,.7);
+  font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;padding:9px 15px;border-radius:999px;
+  display:flex;align-items:center;gap:8px;transition:.2s}
+nav.stages button:hover{color:var(--cream);background:rgba(255,255,255,.08)}
+nav.stages button[aria-current="true"]{background:var(--cream);color:var(--ink)}
+nav.stages button:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+
+main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);position:relative}
+.scene{position:absolute;inset:0 var(--stage-pad) var(--stage-pad);display:none;
+  animation:sceneIn .5s cubic-bezier(.22,1,.36,1);overflow:auto;border-radius:var(--r-lg)}
+.scene.active{display:block}
+@keyframes sceneIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.panel{background:linear-gradient(180deg,#ffffff,#fff9f0);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:clamp(18px,2.4vw,30px)}
+.scene-head{display:flex;align-items:flex-end;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.scene-head h1{margin:0;font-size:clamp(22px,2.6vw,30px);letter-spacing:-.02em;color:var(--cream)}
+.scene-head p{margin:4px 0 0;color:rgba(255,246,233,.72);font-weight:600;max-width:64ch}
+.kicker{font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--sun)}
+.spacer{flex:1}
+
+/* ---------- Buttons ---------- */
+.btn{appearance:none;font-family:inherit;font-weight:800;cursor:pointer;border:0;border-radius:999px;
+  padding:13px 22px;font-size:15px;display:inline-flex;align-items:center;gap:10px;
+  transition:transform .15s cubic-bezier(.34,1.56,.64,1),box-shadow .2s,filter .2s}
+.btn:active{transform:scale(.95)}
+.btn:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.btn-hero{background:linear-gradient(180deg,var(--sun),var(--sun-deep));color:#4a2600;box-shadow:0 12px 26px -10px var(--sun-deep)}
+.btn-hero:hover{transform:translateY(-2px);filter:brightness(1.03)}
+.btn-ghost{background:rgba(36,26,68,.06);color:var(--ink)}
+.btn-ghost:hover{background:rgba(36,26,68,.11)}
+.btn-ghost.on-dark{background:rgba(255,255,255,.1);color:var(--cream)}
+.btn-ghost.on-dark:hover{background:rgba(255,255,255,.18)}
+.btn-dark{background:var(--ink);color:var(--cream)}
+.btn-sm{padding:8px 14px;font-size:13px}
+.section-title{font-size:13px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 12px;display:flex;align-items:center;gap:8px}
+.hint{font-size:12px;color:var(--ink-soft);font-weight:600}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.stack{display:flex;flex-direction:column;gap:14px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+/* ============================================================ CAST ============ */
+.cast{--size:66px;width:var(--size);height:var(--size);position:relative;flex:none}
+.cast svg{width:100%;height:100%;overflow:visible}
+.cast .body{transform-origin:50% 72%;animation:breathe 3.6s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scaleY(1) scaleX(1)}50%{transform:scaleY(1.04) scaleX(.97)}}
+.cast .arm{transform-origin:72% 56%}
+.cast .pupil{transition:transform .25s}
+.cast .brow{transition:transform .25s}
+.cast .mouth{transition:d .25s,transform .25s}
+.cast .lid{transform:scaleY(0);transform-origin:center;animation:blink 5.2s infinite}
+@keyframes blink{0%,96%,100%{transform:scaleY(0)}98%{transform:scaleY(1)}}
+.cast.mood-neutral .body{animation:breathe 4.2s ease-in-out infinite}
+.cast.mood-working .body{animation:workbob 1.1s ease-in-out infinite}
+@keyframes workbob{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(-2px) scaleY(1.02)}}
+.cast.mood-working .pupil{transform:translateY(2px)}
+.cast.mood-blocked .arm{animation:raise 1.2s ease-in-out infinite}
+@keyframes raise{0%,100%{transform:rotate(0)}50%{transform:rotate(-54deg)}}
+.cast.mood-blocked .brow{transform:translateY(-3px)}
+.cast.mood-blocked .body{animation:worry 1.6s ease-in-out infinite}
+@keyframes worry{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+.cast.mood-celebrate .body{animation:jump .62s cubic-bezier(.34,1.56,.64,1) infinite}
+@keyframes jump{0%{transform:translateY(0) scaleY(1)}30%{transform:translateY(0) scaleY(.82) scaleX(1.12)}60%{transform:translateY(-16px) scaleY(1.12) scaleX(.9)}100%{transform:translateY(0) scaleY(1)}}
+.cast.mood-idle .body{animation:breathe 4.8s ease-in-out infinite;opacity:.85}
+.cast.director{--size:var(--cast-lg)}
+
+/* static-blocked arm pose (so raised hand reads even when frozen) */
+.cast.mood-blocked.frozen-arm .arm{transform:rotate(-50deg)}
+
+/* ============================================================ confetti / toast == */
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:120;overflow:hidden}
+.confetti i{position:absolute;top:-20px;width:9px;height:14px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(120px);z-index:130;
+  background:var(--ink);color:var(--cream);font-weight:800;padding:14px 22px;border-radius:999px;
+  box-shadow:var(--shadow);display:flex;gap:10px;align-items:center;transition:transform .4s cubic-bezier(.34,1.56,.64,1);max-width:min(90vw,460px)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ============================================================ shared chips ===== */
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px}
+.pill.live{background:rgba(47,211,195,.18);color:#0b7d72}
+.pill.idle{background:rgba(91,82,128,.12);color:var(--ink-soft)}
+.pill.needs{background:rgba(255,111,115,.18);color:#c03540}
+.pill.draft{background:rgba(155,108,255,.16);color:#6a3fd0}
+.pill.archived{background:rgba(91,82,128,.12);color:var(--ink-soft)}
+.pill.public{background:rgba(78,168,255,.16);color:#1e6fd0}
+.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.chip{appearance:none;font-family:inherit;border:2px solid var(--line);background:#fff;color:var(--ink);
+  font-weight:700;font-size:13px;padding:9px 14px;border-radius:999px;cursor:pointer;transition:.15s}
+.chip:hover{border-color:var(--sun-deep);background:var(--cream);transform:translateY(-1px)}
+.chip:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.keytag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:4px 9px;border-radius:8px;background:var(--cream);color:var(--ink);border:1px solid var(--line)}
+.keytag .d{width:14px;height:14px;border-radius:4px;display:grid;place-items:center;font-size:9px;color:#2a1a10;font-weight:900}
+.keytag.locked{opacity:.45}
+.statuschip{font-size:11px;font-weight:800;padding:4px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+.statuschip.working{background:rgba(78,168,255,.16);color:#1e6fd0}
+.statuschip.blocked{background:rgba(255,111,115,.18);color:#c03540}
+.statuschip.celebrate{background:rgba(139,232,139,.22);color:#2b8a3e}
+.statuschip.idle{background:rgba(91,82,128,.12);color:var(--ink-soft)}
+.statuschip.neutral{background:rgba(91,82,128,.1);color:var(--ink-soft)}
+
+/* progress */
+.progress{height:12px;border-radius:999px;background:rgba(36,26,68,.1);overflow:hidden;position:relative}
+.progress .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--teal),var(--sky));transition:width .5s cubic-bezier(.22,1,.36,1);position:relative}
+.progress .fill::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);background-size:40px 100%;animation:sheen 1.2s linear infinite}
+@keyframes sheen{to{background-position:40px 0}}
+.progress.mint .fill{background:linear-gradient(90deg,var(--mint),var(--teal))}
+.progress.coral .fill{background:linear-gradient(90deg,var(--coral),var(--sun-deep))}
+.progress.sm{height:8px}
+
+/* switch (reused) */
+.switch{width:46px;height:27px;border-radius:999px;background:rgba(36,26,68,.18);position:relative;transition:.2s;flex:none;border:0;cursor:pointer;padding:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 2px 5px rgba(0,0,0,.2)}
+.switch[aria-checked="true"]{background:var(--teal)}
+.switch[aria-checked="true"]::after{transform:translateX(19px)}
+.switch:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+
+/* ============================================================ PROJECTS HOME ==== */
+.search-wrap{position:relative;flex:1;min-width:220px;max-width:560px}
+.search-wrap svg{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:var(--ink-soft);pointer-events:none}
+.search-wrap input{width:100%;font-family:inherit;font-size:16px;font-weight:600;color:var(--ink);
+  border:0;border-radius:999px;padding:14px 18px 14px 46px;background:rgba(255,255,255,.95);box-shadow:var(--shadow-sm)}
+.search-wrap input:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.result-count{color:rgba(255,246,233,.7);font-weight:700;font-size:13px}
+.shelf{margin-bottom:26px}
+.shelf-head{display:flex;align-items:baseline;gap:12px;margin:0 0 4px;color:var(--cream)}
+.shelf-head h2{margin:0;font-size:18px;letter-spacing:-.01em}
+.shelf-head .cnt{font-size:12px;font-weight:800;color:rgba(255,246,233,.55);letter-spacing:.08em;text-transform:uppercase}
+.shelf-hr{height:1px;background:rgba(255,255,255,.12);margin:8px 0 16px}
+.shelf.active-shelf{background:linear-gradient(180deg,rgba(255,246,233,.06),transparent);border-radius:var(--r-lg);padding:14px;margin:-14px -14px 26px}
+.shelf-grid{display:grid;gap:16px}
+.shelf.active-shelf .shelf-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.shelf.db-shelf .shelf-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.logo-tile{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;flex:none;box-shadow:var(--shadow-sm)}
+.logo-tile.sm{width:40px;height:40px;border-radius:12px}
+.logo-tile svg{width:60%;height:60%}
+.pcard{background:var(--cream);border-radius:var(--r-md);padding:18px;cursor:pointer;text-align:left;font-family:inherit;
+  border:2px solid transparent;box-shadow:var(--shadow-sm);transition:transform .18s,border-color .18s;position:relative;width:100%}
+.pcard:hover{transform:translateY(-4px)}
+.pcard:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.pcard.live{border-color:var(--teal)}
+.pcard.needs{border-color:var(--coral)}
+.pcard h3{margin:0 0 2px;font-size:17px}
+.pcard .note{font-size:13px;color:var(--ink);font-weight:600;margin-top:4px}
+.pcard .mini-cast{display:flex;margin:12px 0 10px;min-height:34px}
+.pcard .mini-cast .cast{--size:var(--cast-xs);margin-left:-8px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.12))}
+.pcard .mini-cast .cast:first-child{margin-left:0}
+.plus-chip{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#fff;border:2px dashed var(--line);font-size:11px;font-weight:900;color:var(--ink-soft);margin-left:-8px}
+.micro-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.micro-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:var(--ink-soft);background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.pcard-db{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.9);border-radius:var(--r-md);padding:12px 14px;cursor:pointer;text-align:left;font-family:inherit;border:2px solid transparent;box-shadow:var(--shadow-sm);transition:transform .15s,border-color .15s;width:100%}
+.pcard-db:hover{transform:translateY(-3px)}
+.pcard-db:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.pcard-db h3{margin:0;font-size:15px}
+.pcard-db .sub{font-size:12px;color:var(--ink-soft);font-weight:700}
+.empty-state{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:30px;color:rgba(255,246,233,.85)}
+
+/* ============================================================ CAST LIBRARY ===== */
+.lib-tabs{display:inline-flex;gap:4px;background:rgba(255,255,255,.08);padding:5px;border-radius:999px}
+.lib-tabs button{appearance:none;border:0;background:transparent;color:rgba(255,246,233,.7);font-family:inherit;font-weight:800;font-size:13px;padding:8px 16px;border-radius:999px;cursor:pointer;transition:.15s}
+.lib-tabs button[aria-selected="true"]{background:var(--cream);color:var(--ink)}
+.lib-tabs button:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.def-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.defcard{background:var(--cream);border-radius:var(--r-md);padding:16px;text-align:left;font-family:inherit;border:2px solid transparent;box-shadow:var(--shadow-sm);transition:transform .18s,border-color .18s;cursor:pointer;width:100%;position:relative}
+.defcard:hover{transform:translateY(-4px);border-color:var(--sun)}
+.defcard:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.defcard .dhead{display:flex;gap:12px;align-items:center}
+.defcard .dhead .cast{--size:var(--cast-sm)}
+.defcard .nm{font-weight:800;font-size:16px}
+.defcard .rl{font-size:12px;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.defcard .logline{font-size:13px;font-weight:600;margin:10px 0;min-height:36px}
+.defcard .prompt{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 11px;line-height:1.4;max-height:3.6em;overflow:hidden}
+.defcard .meta-line{font-size:11px;font-weight:700;color:var(--ink-soft);margin-top:9px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.defcard .summon{font-size:11px;font-weight:800;color:#2b8a3e;margin-top:6px}
+.teamcard{background:var(--cream);border-radius:var(--r-md);padding:18px;text-align:left;font-family:inherit;border:2px solid transparent;box-shadow:var(--shadow-sm);transition:transform .18s,border-color .18s;cursor:pointer;width:100%;display:flex;gap:16px;align-items:flex-start}
+.teamcard:hover{transform:translateY(-4px);border-color:var(--sun)}
+.teamcard:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+
+/* troupe badge */
+.troupe{position:relative;border-radius:18px;background:#fff;box-shadow:var(--shadow-sm);padding:10px;flex:none}
+.troupe .ring{position:absolute;inset:0;border-radius:18px;border:3px solid var(--sun);pointer-events:none}
+.troupe .faces{display:flex;justify-content:center;align-items:flex-end}
+.troupe .faces .cast{--size:var(--cast-xs);margin-left:-8px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.12))}
+.troupe .faces .cast:first-child{margin-left:0}
+.troupe .emblem{position:absolute;top:-8px;left:-8px;width:26px;height:26px;border-radius:9px;background:#fff;box-shadow:var(--shadow-sm);display:grid;place-items:center;font-size:14px}
+.troupe .count{position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 5px;border-radius:999px;background:var(--ink);color:var(--cream);font-size:11px;font-weight:900;display:grid;place-items:center}
+
+/* ============================================================ FACTORY ========== */
+.factory-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:20px;align-items:start}
+@media (max-width:980px){.factory-grid{grid-template-columns:1fr}}
+.preview-stage{background:linear-gradient(180deg,#2a1f52,#1d1540);border-radius:var(--r-lg);color:var(--cream);padding:26px;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:6px;position:sticky;top:0}
+.belt{display:flex;align-items:center;gap:8px;margin:14px 0;color:rgba(255,246,233,.5);font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;width:100%}
+.belt .track{flex:1;height:3px;border-radius:3px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.2) 0 10px,transparent 10px 20px);background-size:200% 100%;animation:belt 2s linear infinite}
+@keyframes belt{to{background-position:40px 0}}
+.preview-name{font-size:22px;font-weight:800;letter-spacing:-.01em}
+.preview-role{color:var(--sun);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.form{display:flex;flex-direction:column;gap:18px}
+.field label{display:block;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px}
+.field input,.field textarea,.field select{width:100%;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);
+  border:2px solid var(--line);border-radius:14px;padding:13px 15px;background:#fff;transition:.15s;resize:vertical}
+.field textarea.mono{font-family:var(--mono);font-size:13px}
+.field input:focus,.field textarea:focus,.field select:focus{outline:0;border-color:var(--sun-deep);box-shadow:0 0 0 4px rgba(255,155,61,.16)}
+.name-row{display:flex;gap:8px}
+.name-row input{flex:1}
+.dice{appearance:none;border:2px solid var(--line);background:#fff;border-radius:14px;width:52px;cursor:pointer;font-size:20px}
+.dice:hover{border-color:var(--sun-deep);background:var(--cream)}
+.dice:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatch{width:40px;height:40px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:.15s;position:relative}
+.swatch:hover{transform:scale(1.1)}
+.swatch[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 3px #fff inset}
+.swatch:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.chip-row{display:flex;gap:8px;flex-wrap:wrap}
+.achip{appearance:none;font-family:inherit;border:2px solid var(--line);background:#fff;color:var(--ink);font-weight:700;font-size:12px;padding:7px 12px;border-radius:999px;cursor:pointer;transition:.15s}
+.achip:hover{border-color:var(--sun-deep)}
+.achip[aria-pressed="true"]{border-color:var(--ink);background:var(--cream)}
+.achip:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.tmpl-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.member-row{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.member-row .mhead{display:flex;align-items:center;gap:10px}
+.member-row .mhead .cast{--size:44px}
+.member-row .mhead b{font-size:14px}
+.member-row .mhead .rl{font-size:11px;color:var(--ink-soft);font-weight:800;text-transform:uppercase}
+.member-row textarea{width:100%;margin-top:8px;font-family:inherit;font-size:13px;font-weight:600;border:2px solid var(--line);border-radius:10px;padding:9px 11px;resize:vertical}
+.ctx-glyph{font-size:11px;color:var(--ink-soft);font-weight:800;cursor:help}
+.recap{background:var(--cream);border:1px dashed var(--line);border-radius:12px;padding:12px 14px;font-size:13px;font-weight:600;color:var(--ink)}
+.emoji-row{display:flex;gap:6px;flex-wrap:wrap}
+.emoji-pick{appearance:none;border:2px solid var(--line);background:#fff;border-radius:12px;width:42px;height:42px;font-size:20px;cursor:pointer}
+.emoji-pick[aria-pressed="true"]{border-color:var(--ink);background:var(--cream)}
+.emoji-pick:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+
+/* ============================================================ ACCESS =========== */
+.vault{background:linear-gradient(180deg,#2a1f52,#211840);color:var(--cream);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow)}
+.vault h2{margin:0 0 2px;font-size:19px;display:flex;align-items:center;gap:10px}
+.vault .sub{color:rgba(255,246,233,.6);font-size:13px;font-weight:600;margin:0 0 16px}
+.access-entry{display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:14px;background:rgba(255,255,255,.055);margin-bottom:10px;transition:.18s}
+.access-entry:hover{background:rgba(255,255,255,.1)}
+.access-entry .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:none;font-weight:900;font-size:15px;color:#2a1a10}
+.access-entry .body{flex:1;min-width:0}
+.access-entry b{font-size:15px}
+.access-entry .val{font-family:var(--mono);font-size:12px;color:rgba(255,246,233,.6);letter-spacing:1px;margin-left:8px}
+.access-entry .serves{font-size:13px;color:rgba(255,246,233,.75);font-weight:600;margin-top:3px}
+.access-entry .afford{display:flex;gap:12px;margin-top:9px;flex-wrap:wrap}
+.access-entry .afford button,.access-entry .afford a{appearance:none;background:transparent;border:0;color:var(--sun);font-family:inherit;font-weight:800;font-size:12px;cursor:pointer;text-decoration:none;padding:2px}
+.access-entry .afford button:focus-visible,.access-entry .afford a:focus-visible{outline:2px solid var(--sun);outline-offset:2px;border-radius:4px}
+.access-entry .expand{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);font-size:13px;color:rgba(255,246,233,.8);font-weight:600}
+.masklock{font-size:12px;color:rgba(255,246,233,.55);display:inline-flex;gap:6px;align-items:center;margin-top:6px}
+.toggle-row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;background:var(--cream);border:2px solid var(--line);margin-bottom:9px}
+.toggle-row .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none;font-weight:900;color:#2a1a10}
+.toggle-row .t{flex:1;min-width:0}
+.toggle-row .t b{font-size:14px}
+.toggle-row .t .sv{font-size:12px;color:var(--ink-soft);font-weight:700}
+.toggle-row .t .vl{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.toggle-row .state{font-size:11px;font-weight:800;color:var(--ink-soft)}
+.toggle-row.on .state{color:#0b7d72}
+.newdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--sun-deep);margin-left:6px}
+
+/* ============================================================ BLUEPRINT ======== */
+.bp-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start}
+@media (max-width:980px){.bp-grid{grid-template-columns:1fr}}
+.tree{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:13px}
+.tree li{padding:4px 0}
+.tree .node{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;transition:.12s}
+.tree .node:hover{background:var(--cream)}
+.tree .glyph{flex:none}
+.tree .path{font-weight:800;color:var(--ink)}
+.tree .desc{color:var(--ink-soft);font-family:var(--font);font-weight:600;font-size:12.5px;background:transparent;border:1px solid transparent;border-radius:8px;padding:3px 6px;cursor:text;flex:1;min-width:120px}
+.tree .desc:hover{border-color:var(--line)}
+.tree .desc:focus{outline:0;border-color:var(--sun-deep);background:#fff}
+.tree ul{list-style:none;margin:0;padding-left:22px;border-left:1px dashed var(--line)}
+.principle-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.principle-card{background:var(--cream);border-radius:14px;padding:14px;box-shadow:var(--shadow-sm)}
+.principle-card .tag{font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;display:inline-block;margin-bottom:8px}
+.principle-card p{margin:0;font-size:13px;font-weight:600}
+.fresh-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--cream);box-shadow:var(--shadow-sm);margin-bottom:10px}
+.fresh-row .st{margin-left:auto;font-size:12px;font-weight:800;display:flex;align-items:center;gap:6px}
+.fresh-row .st.ok{color:#2b8a3e}
+.fresh-row .st.stale{color:#c03540}
+
+/* ============================================================ WORKSPACE ======== */
+#workspace{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;color:var(--cream)}
+#workspace[hidden]{display:none}
+.ws-topbar{display:flex;align-items:center;gap:12px;padding:12px var(--stage-pad);flex-wrap:wrap}
+.ws-topbar .logo-tile{width:40px;height:40px;border-radius:12px}
+.ws-title{font-weight:800;font-size:17px;color:var(--cream)}
+.ws-chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.1);color:var(--cream);border:0;font-family:inherit;cursor:pointer;transition:.15s;text-decoration:none}
+.ws-chip:hover{background:rgba(255,255,255,.18)}
+.ws-chip:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.ws-chip .ok{color:var(--teal)}
+.ws-chip.live-dot::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 1.4s infinite}
+.ws-chip .bell-badge{background:var(--coral);color:#fff;border-radius:999px;min-width:18px;height:18px;padding:0 4px;font-size:11px;display:grid;place-items:center}
+.ws-main{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);display:grid;grid-template-columns:1.35fr 1fr;gap:18px;align-items:stretch;overflow:auto}
+@media (max-width:1100px){.ws-main{grid-template-columns:1fr}}
+
+/* hand-raise banner */
+.handraise{margin:0 var(--stage-pad) 14px;background:linear-gradient(100deg,var(--sun),var(--coral));color:#4a2600;
+  border-radius:var(--r-md);padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow);
+  animation:slideDown .4s cubic-bezier(.22,1,.36,1)}
+@keyframes slideDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+.handraise .cast{--size:52px}
+.handraise .msg{flex:1;min-width:160px}
+.handraise .msg b{font-size:15px;display:block}
+.handraise .msg span{font-weight:700;font-size:13px}
+.handraise .waiting{background:rgba(74,38,0,.18);border-radius:999px;padding:5px 11px;font-weight:900;font-size:12px}
+.handraise.resolving{filter:saturate(.4);opacity:.6;transition:.5s}
+
+/* director hero */
+.director-hero{background:linear-gradient(180deg,#ffffff,#fff9f0);border-radius:var(--r-lg);box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:0;overflow:hidden;color:var(--ink)}
+.dh-head{display:flex;align-items:center;gap:14px;padding:16px 20px;background:linear-gradient(180deg,#2a1f52,#241a44);color:var(--cream);position:relative;overflow:hidden}
+.dh-head .spot{position:absolute;top:-40%;left:20px;width:160px;height:200px;background:radial-gradient(ellipse at top,rgba(255,224,160,.35),transparent 60%);pointer-events:none}
+.dh-head .cast{--size:72px;z-index:1}
+.dh-head .who b{font-size:17px}
+.dh-head .who .role{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sun);font-weight:800}
+.dh-head .altitude{margin-left:auto;background:rgba(255,194,75,.18);color:var(--sun);font-weight:800;font-size:11px;padding:6px 12px;border-radius:999px;z-index:1}
+.presence{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:rgba(255,246,233,.7)}
+.presence .dot{width:7px;height:7px;border-radius:50%;background:var(--mint);animation:pulse 1.8s infinite}
+.chatlog{flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:18px 20px}
+.bubble{max-width:84%;padding:12px 15px;border-radius:16px;font-weight:600;font-size:14.5px;line-height:1.45;animation:pop .35s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+.bubble.me{align-self:flex-end;background:linear-gradient(180deg,var(--sun),var(--sun-deep));color:#4a2600;border-bottom-right-radius:5px}
+.bubble.them{align-self:flex-start;background:var(--cream);color:var(--ink);border-bottom-left-radius:5px;box-shadow:var(--shadow-sm)}
+.bubble .who{display:block;font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;opacity:.6;margin-bottom:3px}
+.bubble.streaming .t::after{content:"▍";animation:caret .8s steps(1) infinite;color:var(--sun-deep)}
+@keyframes caret{50%{opacity:0}}
+.casting{align-self:stretch;border-left:3px solid var(--grape);background:rgba(155,108,255,.08);color:#5b4a8a;font-weight:700;font-size:13px;padding:8px 14px;border-radius:0 12px 12px 0;animation:pop .35s cubic-bezier(.34,1.56,.64,1)}
+.typing{display:inline-flex;gap:4px;padding:4px 0}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--ink-soft);animation:typ 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes typ{0%,60%,100%{opacity:.25;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.quick-replies{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 8px}
+.composer{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--line);background:#fff}
+.composer input{flex:1;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);border:2px solid var(--line);border-radius:999px;padding:12px 16px}
+.composer input:focus-visible{outline:0;border-color:var(--sun-deep);box-shadow:0 0 0 4px rgba(255,155,61,.16)}
+.mic-btn{position:relative;width:48px;height:48px;border-radius:50%;border:0;cursor:pointer;flex:none;
+  background:radial-gradient(circle at 50% 35%,#fff,#ffd98a 55%,var(--sun-deep));
+  box-shadow:0 8px 20px -8px var(--sun-deep);display:grid;place-items:center;transition:transform .2s;color:#5a2d00}
+.mic-btn:hover{transform:scale(1.06)}
+.mic-btn:focus-visible{outline:3px solid var(--grape);outline-offset:3px}
+.mic-btn svg{width:22px;height:22px}
+.mic-btn .ring{position:absolute;inset:-5px;border-radius:50%;border:3px solid rgba(255,194,75,.6);opacity:0}
+.mic-btn[aria-pressed="true"]{background:radial-gradient(circle at 50% 35%,#fff,#ff9ecf 55%,var(--coral))}
+.mic-btn[aria-pressed="true"] .ring{animation:ring 1.6s ease-out infinite}
+@keyframes ring{0%{opacity:.7;transform:scale(1)}100%{opacity:0;transform:scale(1.5)}}
+.mic-btn.err{animation:shake .4s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.wave{display:none;align-items:center;gap:3px;height:28px}
+.wave.live{display:flex}
+.wave i{width:4px;border-radius:3px;background:linear-gradient(180deg,var(--sun),var(--coral));height:6px;animation:bars .9s ease-in-out infinite}
+.wave i:nth-child(odd){animation-delay:.15s}.wave i:nth-child(3n){animation-delay:.3s}
+@keyframes bars{0%,100%{height:6px}50%{height:var(--h,22px)}}
+
+/* set rail */
+.set-rail{display:flex;flex-direction:column;gap:14px;min-height:0}
+.set-card{background:var(--cream);border-radius:var(--r-md);box-shadow:var(--shadow-sm);color:var(--ink);overflow:hidden}
+.set-card__head{width:100%;display:flex;align-items:center;gap:12px;padding:15px 18px;background:transparent;border:0;font-family:inherit;cursor:pointer;text-align:left}
+.set-card__head:focus-visible{outline:3px solid var(--grape);outline-offset:-3px}
+.set-card__head .lbl{font-size:12px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.set-card__head .glance{margin-left:auto;font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px}
+.set-card__head .chev{transition:transform .2s;color:var(--ink-soft)}
+.set-card[data-open="true"] .chev{transform:rotate(90deg)}
+.set-card__body{padding:0 18px 18px}
+.set-card:not([data-open="true"]) .set-card__body{display:none}
+
+.pulse-ring{display:flex;align-items:center;gap:16px;margin-bottom:12px}
+.pulse-ring .big{font-size:34px;font-weight:900;letter-spacing:-.02em}
+.pulse-ring .lbl{font-size:13px;font-weight:700;color:var(--ink-soft)}
+.feat-line{margin-top:10px}
+.feat-line .top{display:flex;justify-content:space-between;font-size:12px;font-weight:800;margin-bottom:4px}
+.feat-line .top .who{color:var(--ink-soft);font-weight:700}
+
+.grade{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:900;padding:5px 10px;border-radius:10px}
+.grade.A{background:rgba(139,232,139,.22);color:#2b8a3e}
+.grade.B{background:rgba(255,194,75,.22);color:#9a6a00}
+.grade.C{background:rgba(255,111,115,.18);color:#c03540}
+.vital{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);cursor:pointer}
+.vital:first-child{border-top:0}
+.vital .vn{font-weight:800;font-size:13px}
+.set-card__body .note{font-size:12.5px;font-weight:600;color:var(--ink-soft);padding:2px 0 10px}
+.set-card__body .note[hidden]{display:none}
+
+.team-block{border-left:4px solid var(--sun);border-radius:10px;background:#fff;padding:12px;margin-bottom:12px;box-shadow:var(--shadow-sm)}
+.team-block.blocked{border-left-color:var(--coral)}
+.team-block .th{display:flex;align-items:center;gap:10px}
+.team-block .th .emblem{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-size:15px;background:var(--cream)}
+.team-block .th b{font-size:14px}
+.team-block .th .bld{font-size:11px;color:var(--ink-soft);font-weight:700}
+.members{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.member{display:flex;align-items:center;gap:10px;padding:7px;border-radius:10px;cursor:pointer;transition:.12s;width:100%;text-align:left;background:transparent;border:0;font-family:inherit}
+.member:hover{background:var(--cream)}
+.member:focus-visible{outline:3px solid var(--grape);outline-offset:-2px}
+.member .cast{--size:40px}
+.member .mn{font-weight:800;font-size:13px}
+.member .mj{font-size:11px;color:var(--ink-soft);font-weight:700}
+.member .handup{color:var(--coral);font-weight:900;margin-left:auto;font-size:16px}
+.member-detail{font-size:12.5px;font-weight:600;color:var(--ink-soft);padding:4px 10px 8px 58px}
+.member-detail .keys{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+
+.shot-tally{display:flex;gap:14px;font-size:12px;font-weight:800;margin-bottom:10px;flex-wrap:wrap}
+.shot-tally b{color:var(--ink)}
+.shot{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;margin-bottom:7px;font-size:13px;font-weight:700}
+.shot.now{background:#fff;border-left:4px solid var(--sun);box-shadow:var(--shadow-sm)}
+.shot.shipped{background:rgba(139,232,139,.12);color:#2b7d3e}
+.shot.planned{background:#fff;border:1px dashed var(--line);color:var(--ink-soft)}
+.shot .ico{flex:none;width:20px;text-align:center}
+.shot .nm{flex:1}
+.shot .pct{font-size:12px;font-weight:900;color:var(--ink-soft)}
+.shot.planned .start{appearance:none;border:0;background:var(--ink);color:var(--cream);font-family:inherit;font-weight:800;font-size:11px;padding:5px 10px;border-radius:999px;cursor:pointer}
+.shot.planned .start:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+
+/* dialog / sheet */
+.scrim{position:fixed;inset:0;z-index:100;background:rgba(20,10,45,.5);backdrop-filter:blur(3px);display:grid;place-items:center;padding:20px;animation:fadeIn .2s}
+.scrim[hidden]{display:none}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.sheet{background:linear-gradient(180deg,#ffffff,#fff9f0);color:var(--ink);border-radius:var(--r-lg);box-shadow:var(--shadow);
+  max-width:min(94vw,540px);width:100%;max-height:90vh;overflow:auto;padding:24px;animation:pop .35s cubic-bezier(.34,1.56,.64,1)}
+.sheet.wide{max-width:min(94vw,640px)}
+.sheet h2{margin:0 0 4px;font-size:21px;letter-spacing:-.01em}
+.sheet .close{position:absolute;top:14px;right:16px}
+.greenroom-head{display:flex;gap:16px;align-items:center;margin-bottom:14px}
+.greenroom-head .cast{--size:var(--cast-md)}
+.ask-q{font-size:16px;font-weight:700;line-height:1.4;margin:10px 0}
+.ask-ctx{font-size:12px;font-weight:800;color:var(--coral);margin-bottom:14px}
+.next-ask{font-size:12px;font-weight:700;color:var(--ink-soft);margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+
+/* ============================================================ reduced motion === */
+@media (prefers-reduced-motion:reduce){
+  .cast .body,.cast .arm,.cast .lid,.mote,.brand .logo,
+  .belt .track,.progress .fill::after,.wave i,.pill .dot,.presence .dot,
+  .mic-btn .ring,.ws-chip.live-dot::after,.pcard,.scene,.bubble,.casting,.handraise,.sheet,.toast,.typing i{animation:none!important}
+  .cast.mood-blocked .arm{transform:rotate(-50deg)}
+  .scene{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="sky-motes" id="motes" aria-hidden="true"></div>
+
+<div id="studio">
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" fill="#fff"/><circle cx="12" cy="12" r="8.5" stroke="#fff" stroke-width="1.6" opacity=".7"/></svg></span>
+      <div><b>AI Control</b><span>The Studio</span></div>
+    </div>
+    <nav class="stages" aria-label="Studio sections" id="nav"></nav>
+  </header>
+  <main class="stage" id="stage">
+    <section class="scene" id="scene-projects" tabindex="-1"></section>
+    <section class="scene" id="scene-cast" tabindex="-1"></section>
+    <section class="scene" id="scene-access" tabindex="-1"></section>
+    <section class="scene" id="scene-blueprint" tabindex="-1"></section>
+  </main>
+</div>
+
+<div id="workspace" hidden aria-label="Project workspace"></div>
+
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr-only" id="live" role="status" aria-live="polite"></div>
+<div class="sr-only" id="alertlive" role="alert" aria-live="assertive"></div>
+<div class="scrim" id="scrim" hidden></div>
+
+<script>
+"use strict";
+/* ============================================================
+   PALETTE + helpers (reused & extended from v1)
+   ============================================================ */
+const PALETTE={sun:'#ffc24b','sun-deep':'#ff9b3d',coral:'#ff6f73',teal:'#2fd3c3',sky:'#4ea8ff',grape:'#9b6cff',mint:'#8be88b',rose:'#ff9ecf'};
+const COLOR_NAMES={sun:'Amber',coral:'Coral',teal:'Teal',sky:'Sky',grape:'Grape',mint:'Mint',rose:'Rose'};
+function shade(hex,amt){
+  let n=parseInt(hex.slice(1),16);
+  let r=Math.max(0,Math.min(255,(n>>16)+amt));
+  let g=Math.max(0,Math.min(255,(n>>8&255)+amt));
+  let b=Math.max(0,Math.min(255,(n&255)+amt));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+/* ---- trait (crown-zone accessory) SVG snippets ---- */
+function traitSVG(name,dark,light){
+  const S=PALETTE.sun, SD=PALETTE['sun-deep'];
+  switch(name){
+    case 'beret': return `<path d="M18 20 Q33 8 48 20 Q46 24 33 23 Q20 24 18 20Z" fill="${dark}"/><circle cx="33" cy="9.5" r="2.4" fill="${S}"/>`;
+    case 'sailor-cap': return `<path d="M19 21 Q33 9 47 21 Q47 24 33 23 Q19 24 19 21Z" fill="#f2f4f8"/><rect x="19" y="20.5" width="28" height="4" rx="2" fill="${PALETTE.sky}"/>`;
+    case 'beanie': return `<path d="M18 22 Q18 10 33 10 Q48 10 48 22 Z" fill="${dark}"/><rect x="17" y="20.5" width="32" height="5" rx="2.5" fill="${light}"/><circle cx="33" cy="8.5" r="2.6" fill="${S}"/>`;
+    case 'mortarboard': return `<rect x="26" y="14" width="14" height="6.5" rx="2" fill="${dark}"/><path d="M15 14 L33 8 L51 14 L33 20 Z" fill="${dark}"/><circle cx="33" cy="12" r="1.5" fill="${S}"/><line x1="33" y1="12" x2="45" y2="14" stroke="${S}" stroke-width="1.4"/><circle cx="45" cy="15" r="1.7" fill="${S}"/>`;
+    case 'top-hat': return `<rect x="24" y="5" width="18" height="15" rx="2" fill="${dark}"/><rect x="18" y="19" width="30" height="4" rx="2" fill="${dark}"/><rect x="24" y="14" width="18" height="4" fill="${S}"/>`;
+    case 'glasses': return `<circle cx="24" cy="37" r="7" fill="none" stroke="${dark}" stroke-width="2"/><circle cx="42" cy="37" r="7" fill="none" stroke="${dark}" stroke-width="2"/><line x1="31" y1="37" x2="35" y2="37" stroke="${dark}" stroke-width="2"/>`;
+    case 'monocle': return `<circle cx="42" cy="37" r="7.5" fill="none" stroke="${dark}" stroke-width="2"/><line x1="42" y1="44.5" x2="39" y2="53" stroke="${dark}" stroke-width="1.5"/>`;
+    case 'deerstalker': return `<ellipse cx="33" cy="22" rx="18" ry="4.4" fill="${shade(dark,16)}"/><path d="M17 22 Q33 8 49 22 Q49 25 33 24 Q17 25 17 22Z" fill="${dark}"/><rect x="13" y="19" width="6" height="8" rx="3" fill="${dark}"/><rect x="47" y="19" width="6" height="8" rx="3" fill="${dark}"/><rect x="24" y="12" width="18" height="3" rx="1.5" fill="${S}" opacity=".7"/>`;
+    case 'propeller': return `<path d="M20 22 Q20 12 33 12 Q46 12 46 22Z" fill="${dark}"/><path d="M21 22 Q21 13 33 13 L33 22Z" fill="${S}"/><line x1="33" y1="12" x2="33" y2="6.5" stroke="${dark}" stroke-width="1.6"/><rect x="24" y="5" width="18" height="2.6" rx="1.3" fill="${PALETTE.coral}"/><circle cx="33" cy="6" r="1.7" fill="${dark}"/>`;
+    case 'hard-hat': return `<path d="M18 22 Q18 11 33 11 Q48 11 48 22 Z" fill="${S}"/><rect x="14" y="20.5" width="38" height="4" rx="2" fill="${SD}"/><rect x="31" y="11" width="4" height="9" fill="${SD}"/>`;
+    case 'bow': return `<path d="M33 15 L25 10 L25 20 Z" fill="${dark}"/><path d="M33 15 L41 10 L41 20 Z" fill="${dark}"/><circle cx="33" cy="15" r="2.6" fill="${S}"/>`;
+    case 'headphones': return `<path d="M16 38 Q16 15 33 15 Q50 15 50 38" fill="none" stroke="${dark}" stroke-width="2.6"/><rect x="12" y="33" width="7" height="13" rx="3.5" fill="${dark}"/><rect x="47" y="33" width="7" height="13" rx="3.5" fill="${dark}"/>`;
+    default: return '';
+  }
+}
+/* ---- prop (left-hand) SVG snippets ---- */
+function propSVG(name,dark){
+  const S=PALETTE.sun;
+  switch(name){
+    case 'wrench': return `<g transform="rotate(-24 13 36)"><rect x="11.5" y="30" width="3.4" height="15" rx="1.5" fill="${dark}"/><circle cx="13" cy="29" r="3.6" fill="none" stroke="${dark}" stroke-width="2.4"/></g>`;
+    case 'magnifier': return `<circle cx="11" cy="32" r="4.6" fill="none" stroke="${dark}" stroke-width="2.4"/><line x1="14.2" y1="35.3" x2="19" y2="40" stroke="${dark}" stroke-width="2.6" stroke-linecap="round"/>`;
+    case 'quill': return `<path d="M8 43 Q17 30 20 23 Q13 27 9 36 Z" fill="${S}"/><line x1="8" y1="43" x2="12" y2="37" stroke="${dark}" stroke-width="1.4"/>`;
+    case 'paint-brush': return `<g transform="rotate(-18 14 34)"><rect x="12.6" y="25" width="2.8" height="13" rx="1.4" fill="${dark}"/><path d="M11 37 Q14 39 17 37 L15.5 43 Q13.5 44 12 42 Z" fill="${PALETTE.coral}"/></g>`;
+    case 'clipboard': return `<rect x="5" y="30" width="13" height="16" rx="2" fill="#fff" stroke="${dark}" stroke-width="1.4"/><rect x="8" y="28" width="7" height="4" rx="1.5" fill="${dark}"/><line x1="7.5" y1="36" x2="15.5" y2="36" stroke="${dark}" stroke-width="1"/><line x1="7.5" y1="40" x2="15.5" y2="40" stroke="${dark}" stroke-width="1"/>`;
+    case 'flag': return `<line x1="9" y1="26" x2="9" y2="47" stroke="${dark}" stroke-width="2" stroke-linecap="round"/><path d="M9 27 L20 30.5 L9 34 Z" fill="${PALETTE.coral}"/>`;
+    case 'megaphone': return `<path d="M6 34 L17 29 L17 45 L6 40 Z" fill="${S}"/><rect x="3" y="34" width="4" height="6" rx="1" fill="${dark}"/><path d="M19 32 Q23 37 19 42" fill="none" stroke="${S}" stroke-width="1.6"/>`;
+    default: return '';
+  }
+}
+
+/* ---- cast SVG (extends v1 with trait + prop layers) ---- */
+function castSVG(color,mood,opts={}){
+  const c=PALETTE[color]||color;
+  const dark=shade(c,-26), light=shade(c,22);
+  const mouths={neutral:'M26 44 Q33 50 40 44',working:'M26 44 Q33 48 40 44',blocked:'M27 46 Q33 42 39 46',celebrate:'M25 42 Q33 54 41 42',idle:'M28 45 L38 45',happy:'M26 44 Q33 50 40 44'};
+  const mouth=mouths[mood]||mouths.neutral;
+  const director=opts.director;
+  const hat=director?`<g transform="translate(0,-2)">
+      <path d="M14 20 Q33 6 52 20 L50 24 Q33 14 16 24 Z" fill="${dark}"/>
+      <rect x="22" y="8" width="22" height="12" rx="5" fill="${shade(c,-38)}"/>
+      <rect x="22" y="17" width="22" height="4" rx="2" fill="${PALETTE.sun}"/>
+    </g>`:(opts.trait?`<g class="trait">${traitSVG(opts.trait,dark,light)}</g>`:'');
+  const prop=opts.prop?`<g class="prop">${propSVG(opts.prop,dark)}</g>`:'';
+  return `<svg viewBox="0 0 66 72" role="img" aria-hidden="true">
+    <ellipse cx="33" cy="67" rx="18" ry="4" fill="rgba(0,0,0,.18)"/>
+    <g class="body">
+      <g class="arm"><rect x="46" y="40" width="9" height="20" rx="4.5" fill="${dark}"/><circle cx="50.5" cy="40" r="5.5" fill="${light}"/></g>
+      <path d="M33 16 C14 16 11 34 13 48 C14.5 60 24 66 33 66 C42 66 51.5 60 53 48 C55 34 52 16 33 16Z" fill="${c}"/>
+      <path d="M33 16 C20 16 15 28 14 40 C22 34 44 34 52 40 C51 28 46 16 33 16Z" fill="${light}" opacity=".5"/>
+      <rect x="11" y="40" width="9" height="18" rx="4.5" fill="${dark}"/><circle cx="15.5" cy="40" r="5.5" fill="${light}"/>
+      ${prop}
+      <g>
+        <ellipse class="brow" cx="24" cy="31" rx="5" ry="1.8" fill="${dark}"/>
+        <ellipse class="brow" cx="42" cy="31" rx="5" ry="1.8" fill="${dark}"/>
+        <circle cx="24" cy="37" r="6.5" fill="#fff"/><circle cx="42" cy="37" r="6.5" fill="#fff"/>
+        <circle class="pupil" cx="24" cy="37" r="3" fill="#241a44"/><circle class="pupil" cx="42" cy="37" r="3" fill="#241a44"/>
+        <circle cx="22.6" cy="35.6" r="1" fill="#fff"/><circle cx="40.6" cy="35.6" r="1" fill="#fff"/>
+        <rect class="lid" x="17" y="31" width="14" height="13" rx="6.5" fill="${c}"/>
+        <rect class="lid" x="35" y="31" width="14" height="13" rx="6.5" fill="${c}"/>
+        <ellipse cx="19" cy="44" rx="3.5" ry="2.2" fill="${PALETTE.rose}" opacity=".5"/>
+        <ellipse cx="47" cy="44" rx="3.5" ry="2.2" fill="${PALETTE.rose}" opacity=".5"/>
+        <path class="mouth" d="${mouth}" stroke="#241a44" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+      </g>
+      ${hat}
+    </g>
+  </svg>`;
+}
+function cast(color,mood,opts={}){
+  const el=document.createElement('div');
+  el.className='cast mood-'+mood+(opts.director?' director':'')+(mood==='blocked'?' frozen-arm':'');
+  if(opts.size) el.style.setProperty('--size',opts.size);
+  el.innerHTML=castSVG(color,mood,opts);
+  return el;
+}
+/* cast from an agent definition object */
+function castOf(agent,mood,size){
+  return cast(agent.hue,mood||'neutral',{trait:agent.trait,prop:agent.prop,size:size});
+}
+/* troupe badge */
+function troupe(team,size){
+  const el=document.createElement('div');
+  el.className='troupe';
+  const px=size||104;
+  el.style.width=px+'px';
+  const ring=document.createElement('div');ring.className='ring';
+  ring.style.borderColor=PALETTE[team.color]||team.color;
+  if(team.mood==='blocked') ring.style.borderColor=PALETTE.coral;
+  const faces=document.createElement('div');faces.className='faces';
+  team.members.slice(0,4).forEach(id=>{const a=agentById(id);if(a)faces.appendChild(castOf(a,'neutral',(px*0.34)+'px'));});
+  el.appendChild(ring);el.appendChild(faces);
+  el.insertAdjacentHTML('beforeend',`<div class="emblem" aria-hidden="true">${team.emblem}</div><div class="count" aria-hidden="true">${team.members.length}</div>`);
+  return el;
+}
+function keytag(c,locked){
+  const s=document.createElement('span');s.className='keytag'+(locked?' locked':'');
+  s.innerHTML=`<span class="d" style="background:${c.color}">${c.mark}</span>${c.name}${locked?' 🔒':''}`;
+  return s;
+}
+
+/* ============================================================
+   DATA — one reconciled roster used across every screen
+   ============================================================ */
+const CREDENTIALS=[
+  {id:'gh',     name:'GitHub',    mark:'GH', color:PALETTE.grape, val:'ghp_••••7Qx2',  serves:'Clone, commit, push, open PRs',        docs:true,  instr:'Use the ai-control bot account; never force-push main.', used:4},
+  {id:'oai',    name:'OpenAI',    mark:'AI', color:PALETTE.teal,  val:'sk-••••a91',    serves:'LLM calls for agents & clarifier',     docs:true,  instr:'', used:5},
+  {id:'anthropic',name:'Anthropic',mark:'✳', color:PALETTE.sun,  val:'sk-ant-••••9f', serves:'Claude models for orchestrator + agents',docs:true, instr:'', used:5},
+  {id:'stripe', name:'Stripe',    mark:'S',  color:PALETTE.sky,   val:'sk_live_••••42',serves:'Payments: checkout, refunds',          docs:true,  instr:'Test key only outside production.', used:1},
+  {id:'figma',  name:'Figma',     mark:'Fi', color:PALETTE.coral, val:'figd_••••cz',   serves:'Read design files & export assets',    docs:true,  instr:'', used:2},
+  {id:'pg',     name:'Postgres',  mark:'DB', color:PALETTE['sun-deep'], val:'postgres://••••', serves:'Primary app database',           docs:false, instr:'Read-replica for analytics agents.', used:2},
+  {id:'vercel', name:'Vercel',    mark:'▲',  color:PALETTE.rose,  val:'••••rllm',      serves:'Deploy previews & production',         docs:true,  instr:'', used:2},
+  {id:'resend', name:'Resend',    mark:'@',  color:PALETTE.mint,  val:'re_••••8k',     serves:'Transactional email',                  docs:true,  instr:'', used:0},
+];
+const credById=id=>CREDENTIALS.find(c=>c.id===id);
+
+/* Canonical agent roster (spec-factory §4.1). Funny names used everywhere. */
+const AGENTS=[
+  {id:'a-semic',  name:'Captain Semicolon', role:'Backend',  hue:'sky',  trait:'sailor-cap',  prop:'wrench',     logline:'Ships tidy APIs; never leaves a promise dangling.', prompt:'You are a senior backend engineer. Write tests first, always. Ship typed, documented endpoints. Flag anything that needs a secret key — never guess credentials.'},
+  {id:'a-lint',   name:'Sir Lint-a-lot',    role:'Quality',  hue:'mint', trait:'monocle',     prop:'magnifier',  logline:'Hunts dead code and stray styles. Leaves every file nicer than found.', prompt:'You are a meticulous code-quality agent. Hunt dead code, stray styles, and duplication. Propose extractions only when there is a real second caller.'},
+  {id:'a-merge',  name:'Madame Mergeworthy',role:'Release',  hue:'grape',trait:'top-hat',     prop:'flag',       logline:'Owns branches & releases. Keeps main green; squashes with grace.', prompt:'You own branches and releases. Keep main green at all times. Squash with grace, release behind flags, roll back calmly.'},
+  {id:'a-pete',   name:'Pixel Pete',        role:'Frontend', hue:'teal', trait:'beanie',      prop:'paint-brush',logline:'Pixel-perfect UI. Lives in the component library, hates magic numbers.', prompt:'You are a frontend engineer. Pixel-perfect UI, reuse the component library, no magic numbers. Mock the API until the real endpoint lands.'},
+  {id:'a-doc',    name:'Doc Hollywood',     role:'Writer',   hue:'sun',  trait:'glasses',     prop:'quill',      logline:'Turns features into docs people actually read. Updates the README.', prompt:'You are a technical writer. Turn shipped features into docs people actually read. Keep the README and MD descriptions current.'},
+  {id:'a-scar',   name:'Scarlett Scenario', role:'QA',       hue:'coral',trait:'deerstalker', prop:'clipboard',  logline:'Writes the test plan first. Will happily block a red merge.', prompt:'You are a QA engineer. Write the test plan before code lands. Block the merge if the suite is red. Sign off the demo.'},
+  {id:'a-baron',  name:'Baron von Backup',  role:'DevOps',   hue:'rose', trait:'hard-hat',    prop:'wrench',     logline:'Infra, deploys, backups. Measures twice, ships once, rolls back calmly.', prompt:'You are a DevOps engineer. Own infra, deploys, and backups. Measure twice, ship once, keep a rollback ready.'},
+  {id:'a-query',  name:'Querious',          role:'Data',     hue:'sky',  trait:'propeller',   prop:'magnifier',  logline:'Speaks fluent SQL. Asks "what are we actually measuring?" first.', prompt:'You are a data analyst. Speak fluent SQL. Start every task by asking what we are actually measuring and why.'},
+  {id:'a-prof',   name:'Professor Prompt',  role:'Research', hue:'grape',trait:'mortarboard', prop:'quill',      logline:'Clarifies the ask, cites sources, hands a crisp brief to the director.', prompt:'You are a research agent. Clarify the ask, cite sources, and hand a crisp brief to the director. Stay at research altitude.'},
+  {id:'a-twinkle',name:'Twinkle',           role:'Design',   hue:'rose', trait:'beret',       prop:'paint-brush',logline:'Spacing, contrast, delight. Removes anything that doesn\'t earn its place.', prompt:'You are a UX designer. Obsess over spacing, contrast, and delight. Remove anything that does not earn its place.'},
+];
+const agentById=id=>AGENTS.find(a=>a.id===id);
+const DIRECTOR={name:'Pixel',hue:'sun'};
+
+/* Teams — identity (color + emblem) stays identical wherever shown */
+const TEAMS=[
+  {id:'ship-it',name:'The Ship-It Squad',color:'sun',emblem:'🚀',
+   instr:'Ship the feature behind a flag. Keep main green at all times. One person demos at the end. No scope creep — park extras in issues.txt.',
+   members:['a-pete','a-semic','a-scar'],
+   perMember:{'a-pete':'Own the storefront UI and the voice-search bar. Mock the API until Captain\'s endpoint lands. Match the component library.','a-semic':'Build /search + /checkout endpoints. Hand Pixel a typed stub on day one. Flag anything that needs a key.','a-scar':'Write the test plan before code lands. Block the merge if the payment suite is red. Sign off the demo.'}},
+  {id:'polish',name:'The Polish Patrol',color:'mint',emblem:'🧹',
+   instr:'No new features. Reduce, de-dupe, document. Every change is a small focused commit. Leave the health ratings better than you found them.',
+   members:['a-lint','a-doc','a-twinkle'],
+   perMember:{'a-lint':'Sweep for dead code and style drift. Propose extractions where you see a second caller — never over-generalize.','a-doc':'Update README + the MD file descriptions to match what shipped. Note lessons in the update\'s wiki.md.','a-twinkle':'Tighten spacing and contrast on changed screens only. Cut any element that doesn\'t earn its place.'}},
+];
+const teamById=id=>TEAMS.find(t=>t.id===id);
+
+/* Projects (spec-global §1) — a distinct gradient logo tile per project */
+function tileGlyph(kind){
+  const g={
+    bag:'<path d="M7 9h10l-1 11a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2L7 9Z" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0" fill="none" stroke="#fff" stroke-width="1.8"/>',
+    chart:'<circle cx="7" cy="17" r="1.6" fill="#fff"/><circle cx="12" cy="11" r="1.6" fill="#fff"/><circle cx="17" cy="14" r="1.6" fill="#fff"/><path d="M7 17 12 11 17 14" stroke="#fff" stroke-width="1.4" fill="none"/>',
+    leaf:'<path d="M12 6c5 1 6 7 2 10-4 3-8-1-6-6" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M12 6c-4 2-4 8 0 10" stroke="#fff" stroke-width="1.6" fill="none"/>',
+    quill:'<path d="M17 7C11 8 8 13 8 17l2-1c0-3 3-7 7-9Z" fill="#fff"/><path d="M8 17l-1 1" stroke="#fff" stroke-width="1.6"/>',
+    tree:'<path d="M12 6v12" stroke="#fff" stroke-width="1.8"/><path d="M12 10c-3 0-4-2-4-2m4 2c3 0 4-2 4-2M12 14c-3 0-4-2-4-2m4 2c3 0 4-2 4-2" stroke="#fff" stroke-width="1.6" fill="none"/>',
+    pebbles:'<ellipse cx="12" cy="17" rx="6" ry="2.4" fill="#fff" opacity=".9"/><ellipse cx="11" cy="13" rx="4" ry="2" fill="#fff" opacity=".7"/><ellipse cx="13" cy="9.5" rx="2.6" ry="1.5" fill="#fff"/>',
+    cloud:'<path d="M8 16a3 3 0 0 1 .4-6A4 4 0 0 1 16 10a3 3 0 0 1 0 6Z" fill="#fff"/>',
+    fern:'<path d="M12 18c0-6 3-9 6-10-1 4-3 6-6 6 0-4 2-6 2-6" stroke="#fff" stroke-width="1.5" fill="none"/>',
+    satellite:'<rect x="10" y="10" width="4" height="4" rx="1" fill="#fff"/><path d="M7 7l3 3M14 14l3 3M6 12h2M16 12h2" stroke="#fff" stroke-width="1.6"/>'
+  };
+  return g[kind]||g.bag;
+}
+const PROJECTS=[
+  {id:'aurora',name:'Aurora Storefront',group:'active',g1:'#ff6f73',g2:'#ffc24b',glyph:'bag',status:'live',agents:4,pct:62,github:true,private:true,note:'Rebuilding checkout + voice search',cast:['coral','sun','teal','sky'],openable:true},
+  {id:'atlas', name:'Atlas Analytics', group:'active',g1:'#2e3a66',g2:'#4ea8ff',glyph:'chart',status:'live',agents:3,pct:48,github:true,private:true,note:'Nightly data pipeline & dashboards',cast:['sky','mint','sun']},
+  {id:'lumi',  name:'Lumi Health',     group:'active',g1:'#2fd3c3',g2:'#8be88b',glyph:'leaf',status:'needs',agents:2,pct:30,github:true,private:true,note:'QA is waiting on a test account',cast:['grape','rose']},
+  {id:'muse',  name:'Muse Docs AI',    group:'db',g1:'#9b6cff',g2:'#4ea8ff',glyph:'quill',tag:'Draft',edited:'edited 2d ago'},
+  {id:'orchard',name:'Orchard CRM',    group:'db',g1:'#ff9b3d',g2:'#ffc24b',glyph:'tree',tag:'Idle',edited:'edited 9d ago',public:true},
+  {id:'pebble',name:'Pebble Notes',    group:'db',g1:'#4ea8ff',g2:'#2fd3c3',glyph:'pebbles',tag:'Archived',edited:'edited 3w ago'},
+  {id:'nimbus',name:'Nimbus Deploy',   group:'db',g1:'#5b5280',g2:'#9b6cff',glyph:'cloud',tag:'Idle',edited:'edited 5w ago'},
+  {id:'fern',  name:'Fern CMS',        group:'db',g1:'#2b8a3e',g2:'#8be88b',glyph:'fern',tag:'Archived',edited:'edited 2mo ago',public:true},
+  {id:'tycho', name:'Tycho Telemetry', group:'db',g1:'#6a3fd0',g2:'#ff9ecf',glyph:'satellite',tag:'Archived',edited:'edited 3mo ago'},
+];
+const projById=id=>PROJECTS.find(p=>p.id===id);
+
+/* Blueprint data */
+const BLUEPRINT_TREE=[
+  {path:'my-project/',glyph:'📁',desc:'The production itself — born from this starter kit',children:[
+    {path:'.project',glyph:'📄',desc:'Project marker — modules used, secrets, generated flag'},
+    {path:'CLAUDE.md',glyph:'📘',desc:'Compiled rulebook, built from the global modules',md:true},
+    {path:'.gitignore',glyph:'📄',desc:'Always covers .env'},
+    {path:'.env',glyph:'🔑',desc:'This project\'s secrets — never committed'},
+    {path:'issues.txt',glyph:'📄',desc:'Running list of known issues & TODOs'},
+    {path:'updates/',glyph:'📁',desc:'One folder per update',children:[
+      {path:'2026-10-17 NAME - OPEN/',glyph:'📁',desc:'An in-progress update',children:[
+        {path:'update v1.md',glyph:'📘',desc:'The version plan — goal, phased roadmap, live status',md:true},
+        {path:'wiki.md',glyph:'📘',desc:'Durable decisions & lessons this update taught',md:true},
+      ]},
+    ]},
+    {path:'src/',glyph:'📁',desc:'Source — per-ecosystem layout'},
+  ]},
+];
+const PRINCIPLES=[
+  {mod:'Structure',color:'teal',text:'Modular by default: any piece understandable & fixable in isolation.'},
+  {mod:'Coding',color:'sky',text:'Keep it minimal — build only what\'s truly needed.'},
+  {mod:'Coding',color:'sky',text:'Test what matters; lock each phase with tests.'},
+  {mod:'UX',color:'rose',text:'Cut everything unnecessary — does this earn its place?'},
+  {mod:'UX',color:'rose',text:'Minimal visual system: one or two fonts, a small deliberate scale.'},
+  {mod:'Workflow',color:'grape',text:'Commit AND push after every change.'},
+  {mod:'Workflow',color:'grape',text:'Act as an orchestrator — decompose, fan out, synthesize.'},
+  {mod:'Project',color:'sun',text:'Voice-first. Show programs, not terminals. Secrets always masked.'},
+];
+const FRESHNESS=[
+  {id:'aurora',ok:true,note:'rebuilt 2d ago'},
+  {id:'atlas',ok:true,note:'rebuilt 5d ago'},
+  {id:'lumi',ok:false,note:'UX module changed since last compile'},
+  {id:'muse',ok:false,note:'3 principles drifted'},
+  {id:'orchard',ok:true,note:'rebuilt 3w ago'},
+];
+
+/* ---- Live workspace state (Aurora) — the simulated set ---- */
+const WS={
+  overall:64, target:'v1.0 launch',
+  grants:{gh:true,oai:true,anthropic:true,stripe:false,figma:true,vercel:true,pg:false,resend:false},
+  checkup:{when:'2h ago',vitals:{Modular:'B',Clean:'A',Reuse:'C'},
+    notes:{Modular:'A couple of modules are doing two jobs — worth splitting.',Clean:'No lint debt, tests green. Nothing to do here.',Reuse:'Three card components are near-duplicates — they could share one.'}},
+  features:{
+    now:[{id:'voice',name:'Voice search',who:'Pixel Pete',pct:62},
+         {id:'checkout',name:'Checkout + payments',who:'Ship-It Squad',pct:48,blocked:true}],
+    shipped:[{name:'Product grid',star:true},{name:'Cart',star:true},{name:'Search filters'},{name:'Auth / login'},{name:'Image CDN'},{name:'Wishlist'},{name:'Order history'}],
+    planned:[{id:'recs',name:'Recommendations'},{id:'reviews',name:'Reviews'},{id:'multicur',name:'Multi-currency'},{id:'receipts',name:'Email receipts'}],
+  },
+  teams:[
+    {id:'ship-it',building:'Voice search + Checkout',members:[
+      {id:'a-pete',mood:'working',pct:62,task:'Wiring the voice-search bar into the header',reach:['gh','figma','vercel']},
+      {id:'a-semic',mood:'working',pct:48,task:'Building /checkout API + payment intents',reach:['gh','pg']},
+      {id:'a-scar',mood:'working',pct:30,task:'Drafting the payment test plan',reach:['gh'],locked:['stripe']},
+    ]},
+    {id:'polish',building:'Cleanup pass',members:[
+      {id:'a-twinkle',mood:'celebrate',pct:100,task:'Shipped the cart component — review passed!',reach:['figma']},
+      {id:'a-lint',mood:'working',pct:55,task:'Sweeping dead code & style drift',reach:['gh']},
+      {id:'a-doc',mood:'idle',pct:0,task:'Standing by to update the README',reach:['gh']},
+    ]},
+  ],
+  solo:[{id:'a-query',mood:'idle',pct:0,task:'Standing by for analytics wiring',reach:['pg']}],
+  pending:[
+    {id:'ask-twinkle',agentId:'a-twinkle',team:'The Polish Patrol',type:'decision',
+     q:'Cart button copy — which reads better?',ctx:'Blocking: nothing — a quick call',options:['Add to bag','Add to cart']},
+  ],
+};
+
+/* ============================================================
+   STUDIO NAV / ROUTER
+   ============================================================ */
+const STAGES=[{id:'projects',label:'Projects'},{id:'cast',label:'Cast'},{id:'access',label:'Access'},{id:'blueprint',label:'Blueprint'}];
+let current='projects';
+const nav=document.getElementById('nav');
+STAGES.forEach(s=>{
+  const b=document.createElement('button');
+  b.textContent=s.label;b.dataset.stage=s.id;b.onclick=()=>go(s.id);
+  nav.appendChild(b);
+});
+function go(id){
+  current=id;
+  document.querySelectorAll('#stage .scene').forEach(s=>s.classList.toggle('active',s.id==='scene-'+id));
+  nav.querySelectorAll('button').forEach(b=>b.setAttribute('aria-current',b.dataset.stage===id?'true':'false'));
+  if(id==='projects')renderProjects();
+  if(id==='cast')renderCast();
+  if(id==='access')renderAccess();
+  if(id==='blueprint')renderBlueprint();
+}
+
+/* ============================================================
+   SCREEN — PROJECTS HOME
+   ============================================================ */
+let projQuery='';
+function logoTile(p,sm){
+  return `<span class="logo-tile${sm?' sm':''}" aria-hidden="true" style="background:linear-gradient(145deg,${p.g1},${p.g2})"><svg viewBox="0 0 24 24">${tileGlyph(p.glyph)}</svg></span>`;
+}
+function renderProjects(){
+  const el=document.getElementById('scene-projects');
+  const active=PROJECTS.filter(p=>p.group==='active');
+  const db=PROJECTS.filter(p=>p.group==='db');
+  const q=projQuery.trim().toLowerCase();
+  const match=p=>!q||p.name.toLowerCase().includes(q)||(p.note||'').toLowerCase().includes(q);
+  const fa=active.filter(match), fdb=db.filter(match);
+  el.innerHTML=`
+    <div class="scene-head">
+      <div>
+        <div class="kicker">The Studio Lot</div>
+        <h1>Every production, at a glance</h1>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-hero" id="newProj">＋ New project</button>
+    </div>
+    <div class="row" style="margin-bottom:18px;gap:16px">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="projSearch" type="search" placeholder="Search projects…  (press /)" aria-label="Search projects" value="${projQuery}">
+      </div>
+      <div class="result-count" id="resCount" aria-live="polite"></div>
+    </div>
+    <div id="shelves"></div>`;
+  el.querySelector('#newProj').onclick=openNewProject;
+  const search=el.querySelector('#projSearch');
+  search.oninput=e=>{projQuery=e.target.value;renderShelves();};
+  search.onkeydown=e=>{if(e.key==='Escape'){projQuery='';search.value='';renderShelves();}};
+  renderShelves();
+  function renderShelves(){
+    const q2=projQuery.trim().toLowerCase();
+    const m=p=>!q2||p.name.toLowerCase().includes(q2)||(p.note||'').toLowerCase().includes(q2);
+    const a=active.filter(m), d=db.filter(m);
+    el.querySelector('#resCount').textContent=`${a.length} on set · ${d.length} in the back lot`;
+    const sh=el.querySelector('#shelves');
+    if(a.length===0&&d.length===0){
+      sh.innerHTML='';
+      const es=document.createElement('div');es.className='empty-state';
+      es.appendChild(cast('rose','blocked',{size:'86px'}));
+      es.insertAdjacentHTML('beforeend','<h2>No production by that name</h2><p style="color:rgba(255,246,233,.7);font-weight:600">Start a new one?</p>');
+      const b=document.createElement('button');b.className='btn btn-hero';b.textContent='＋ New project';b.onclick=openNewProject;
+      es.appendChild(b);sh.appendChild(es);return;
+    }
+    sh.innerHTML=`
+      <section class="shelf active-shelf">
+        <div class="shelf-head"><h2>On set today</h2><span class="cnt">${a.length} active</span></div>
+        <div class="shelf-hr"></div>
+        <div class="shelf-grid" id="activeGrid"></div>
+      </section>
+      <section class="shelf db-shelf">
+        <div class="shelf-head"><h2>The back lot</h2><span class="cnt">${d.length} saved</span></div>
+        <div class="shelf-hr"></div>
+        <div class="shelf-grid" id="dbGrid"></div>
+      </section>`;
+    const ag=sh.querySelector('#activeGrid');
+    a.forEach(p=>ag.appendChild(activeCard(p)));
+    if(!a.length)ag.innerHTML='<p class="hint" style="color:rgba(255,246,233,.6)">Nothing on set matches.</p>';
+    const dg=sh.querySelector('#dbGrid');
+    d.forEach(p=>dg.appendChild(dbCard(p)));
+    if(!d.length)dg.innerHTML='<p class="hint" style="color:rgba(255,246,233,.6)">Nothing in the back lot matches.</p>';
+  }
+}
+function activeCard(p){
+  const b=document.createElement('button');
+  b.className='pcard'+(p.status==='live'?' live':'')+(p.status==='needs'?' needs':'');
+  const pill=p.status==='live'?'<span class="pill live"><span class="dot"></span>Live</span>':p.status==='needs'?'<span class="pill needs">✋ Needs input</span>':'<span class="pill idle">Idle</span>';
+  b.innerHTML=`
+    <div class="row" style="gap:12px;align-items:flex-start">
+      ${logoTile(p)}
+      <div style="flex:1;min-width:0">
+        <div class="row" style="justify-content:space-between;gap:8px"><h3>${p.name}</h3>${pill}</div>
+        <div class="hint">${p.agents} agents on set</div>
+      </div>
+    </div>
+    <div class="mini-cast" aria-hidden="true"></div>
+    <div class="progress sm"><div class="fill" style="width:${p.pct}%"></div></div>
+    <div class="hint" style="margin-top:5px;font-weight:800">${p.pct}% to launch</div>
+    <div class="note">${p.note}</div>
+    <div class="micro-row">
+      <span class="micro-badge">${p.github?'✓ GitHub':'Connect GitHub'}</span>
+      <span class="micro-badge">${p.private?'🔒 Private':'🌐 Public'}</span>
+    </div>`;
+  const mc=b.querySelector('.mini-cast');
+  (p.cast||[]).slice(0,4).forEach((c,i)=>mc.appendChild(cast(c,i===0?'celebrate':'working',{size:'34px'})));
+  if((p.agents||0)>4)mc.insertAdjacentHTML('beforeend',`<span class="plus-chip">+${p.agents-4}</span>`);
+  b.onclick=()=>openProject(p);
+  return b;
+}
+function dbCard(p){
+  const b=document.createElement('button');b.className='pcard-db';
+  const tagcls=p.tag==='Draft'?'draft':p.tag==='Archived'?'archived':'idle';
+  b.innerHTML=`${logoTile(p,true)}
+    <div style="flex:1;min-width:0"><h3>${p.name}</h3><div class="sub">${p.edited}${p.public?' · Public':''}</div></div>
+    <span class="pill ${tagcls}">${p.tag}</span>`;
+  b.onclick=()=>openProject(p);
+  return b;
+}
+function openProject(p){
+  if(p.openable){openWorkspace(p);}
+  else toast(`“${p.name}” is a sketch — only Aurora is wired up in this prototype.`);
+}
+function openNewProject(){
+  const body=document.createElement('div');
+  body.innerHTML=`<h2>Start a new production</h2>
+    <p class="hint" style="margin-bottom:16px">Name it and drop a logo. We scaffold it from the Blueprint and open the workspace.</p>
+    <div class="field" style="margin-bottom:14px"><label for="npName">Project name</label><input id="npName" placeholder="e.g. Nimbus Deploy" autocomplete="off"></div>
+    <div class="field" style="margin-bottom:18px"><label>Logo</label><div class="row"><span class="logo-tile" aria-hidden="true" style="background:linear-gradient(145deg,#9b6cff,#4ea8ff)"><svg viewBox="0 0 24 24">${tileGlyph('cloud')}</svg></span><button class="btn btn-ghost btn-sm" type="button">⬆ Drop an image…</button></div></div>
+    <button class="btn btn-hero" id="npCreate">Create & open →</button>`;
+  const dlg=openSheet(body,'Start a new production');
+  body.querySelector('#npCreate').onclick=()=>{closeSheet();toast('✨ New production scaffolded from the Blueprint');};
+  setTimeout(()=>body.querySelector('#npName').focus(),60);
+}
+
+/* ============================================================
+   SCREEN — ACCESS (global Key Cabinet)
+   ============================================================ */
+let expandedCred=null;
+function renderAccess(){
+  const el=document.getElementById('scene-access');
+  el.innerHTML=`
+    <div class="scene-head">
+      <div><div class="kicker">The Key Cabinet</div><h1>Saved once — granted per project</h1>
+      <p>An access entry is a key, what it serves, and how to use it. Agents hold nothing by default; a project grants reach, and values stay masked everywhere.</p></div>
+      <div class="spacer"></div>
+      <button class="btn btn-hero" id="addAccess">＋ Add access</button>
+    </div>
+    <div class="vault">
+      <h2>🔐 Access entries</h2>
+      <p class="sub">You see where a key goes — never the key itself.</p>
+      <div id="accessList"></div>
+      <div class="masklock">🔒 Values are masked everywhere in AI Control, including logs.</div>
+    </div>`;
+  el.querySelector('#addAccess').onclick=()=>openAccessForm(null);
+  const list=el.querySelector('#accessList');
+  CREDENTIALS.forEach(c=>{
+    const row=document.createElement('div');row.className='access-entry';
+    row.innerHTML=`
+      <div class="ic" style="background:${c.color}">${c.mark}</div>
+      <div class="body">
+        <div class="row" style="gap:0"><b>${c.name}</b><span class="val">${c.val}</span></div>
+        <div class="serves">${c.serves}</div>
+        <div class="afford">
+          ${c.docs?'<a href="#" onclick="return false" aria-label="Open '+c.name+' docs">Docs ↗</a>':''}
+          <button data-expand="${c.id}" aria-expanded="${expandedCred===c.id}">${c.instr||c.used?'Details ▾':'Details ▾'}</button>
+          <button data-replace="${c.id}">Replace key</button>
+          <button data-edit="${c.id}">Edit</button>
+          <span style="color:rgba(255,246,233,.5);font-weight:700;font-size:12px">Used by ${c.used} project${c.used===1?'':'s'}</span>
+        </div>
+        ${expandedCred===c.id?`<div class="expand">${c.instr?('<b>Instructions:</b> '+c.instr+'<br>'):''}Masked value ends in <code>${c.val.slice(-4)}</code>. The real value never enters the DOM, clipboard, or logs.</div>`:''}
+      </div>`;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-expand]').forEach(b=>b.onclick=()=>{expandedCred=expandedCred===b.dataset.expand?null:b.dataset.expand;renderAccess();});
+  list.querySelectorAll('[data-replace]').forEach(b=>b.onclick=()=>openAccessForm(credById(b.dataset.replace),true));
+  list.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openAccessForm(credById(b.dataset.edit)));
+}
+function openAccessForm(cred,replaceOnly){
+  const body=document.createElement('div');
+  const title=replaceOnly?'Replace key':cred?'Edit access':'Add access';
+  body.innerHTML=`<h2>${title}</h2>
+    <div class="stack" style="margin-top:14px">
+      <div class="field"><label>Name</label><input id="afName" value="${cred?cred.name:''}" ${replaceOnly?'disabled':''} placeholder="e.g. Stripe"></div>
+      <div class="field"><label>${replaceOnly?'New key (write-only)':'Key (write-only, stored masked)'}</label><input id="afKey" type="password" placeholder="Paste the secret — we only keep the last 4"></div>
+      <div class="field"><label>What it serves</label><input id="afServes" value="${cred?cred.serves:''}" ${replaceOnly?'disabled':''} placeholder="One line"></div>
+      <div class="field"><label>Docs link (optional)</label><input id="afDocs" ${replaceOnly?'disabled':''} placeholder="paste a docs link…"></div>
+      <div class="field"><label>Extra instructions (optional)</label><textarea rows="2" ${replaceOnly?'disabled':''} placeholder="e.g. Test key only outside production.">${cred?cred.instr:''}</textarea></div>
+      <button class="btn btn-hero" id="afSave">Save to cabinet</button>
+      <span class="masklock" style="color:var(--ink-soft)">🔒 The previous value is never shown — you can only paste a new one.</span>
+    </div>`;
+  openSheet(body,title);
+  body.querySelector('#afSave').onclick=()=>{closeSheet();toast(replaceOnly?'🔑 Key replaced — still masked':'🔑 Saved to the Key Cabinet');};
+  setTimeout(()=>body.querySelector(replaceOnly?'#afKey':'#afName').focus(),60);
+}
+
+/* ============================================================
+   SCREEN — BLUEPRINT
+   ============================================================ */
+let bpTab='kit';
+function renderBlueprint(){
+  const el=document.getElementById('scene-blueprint');
+  el.innerHTML=`
+    <div class="scene-head">
+      <div class="row" style="gap:12px">
+        <div id="qm" aria-hidden="true"></div>
+        <div><div class="kicker">The Starter Kit</div><h1>What every new project is born with</h1></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="lib-tabs" role="tablist" aria-label="Blueprint sections">
+        <button role="tab" data-tab="kit" aria-selected="${bpTab==='kit'}">Starter Kit</button>
+        <button role="tab" data-tab="pri" aria-selected="${bpTab==='pri'}">Principles</button>
+      </div>
+    </div>
+    <div id="bpBody"></div>`;
+  el.querySelector('#qm').appendChild(cast('teal','neutral',{trait:'hard-hat',prop:'clipboard',size:'64px'}));
+  el.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{bpTab=b.dataset.tab;renderBlueprint();});
+  const body=el.querySelector('#bpBody');
+  if(bpTab==='kit'){
+    body.innerHTML=`<div class="panel"><p class="section-title">📁 Default files & folder structure</p>
+      <p class="hint" style="margin:-6px 0 14px">Every new project is born from this kit. Click any description to edit it — changes auto-save.</p>
+      <ul class="tree" role="tree" id="tree"></ul></div>`;
+    renderTree(body.querySelector('#tree'),BLUEPRINT_TREE);
+  } else {
+    body.innerHTML=`
+      <div class="bp-grid">
+        <div class="panel"><p class="section-title">📐 Principles projects follow</p><div class="principle-grid" id="priGrid"></div></div>
+        <div class="panel">
+          <div class="row" style="justify-content:space-between"><p class="section-title" style="margin:0">🩺 Per-project freshness</p><button class="btn btn-hero btn-sm" id="rebuildAll">Rebuild outdated</button></div>
+          <div style="margin-top:14px" id="freshList"></div>
+        </div>
+      </div>`;
+    const pg=body.querySelector('#priGrid');
+    PRINCIPLES.forEach(p=>{
+      const c=document.createElement('div');c.className='principle-card';
+      c.innerHTML=`<span class="tag" style="background:${hexTint(p.color)};color:${shade(PALETTE[p.color],-70)}">${p.mod}</span><p>${p.text}</p>`;
+      pg.appendChild(c);
+    });
+    const fl=body.querySelector('#freshList');
+    renderFreshness(fl);
+    body.querySelector('#rebuildAll').onclick=()=>{
+      FRESHNESS.forEach(f=>{if(!f.ok){f.ok=true;f.note='rebuilt just now';}});
+      fireConfetti();toast('✨ All projects back in sync');renderFreshness(fl);
+    };
+  }
+}
+function renderFreshness(fl){
+  fl.innerHTML='';
+  FRESHNESS.forEach(f=>{
+    const p=projById(f.id);
+    const row=document.createElement('div');row.className='fresh-row';
+    row.innerHTML=`${logoTile(p,true)}<div><b style="font-size:14px">${p.name}</b></div>
+      <div class="st ${f.ok?'ok':'stale'}">${f.ok?'✓ Up to date · '+f.note:'⚠ Needs rebuild — '+f.note}</div>`;
+    if(!f.ok){
+      const b=document.createElement('button');b.className='btn btn-ghost btn-sm';b.textContent='Rebuild';b.style.marginLeft='10px';
+      b.onclick=()=>{f.ok=true;f.note='rebuilt just now';fireConfetti();toast(`✨ ${p.name} is back in sync`);renderFreshness(fl);};
+      row.appendChild(b);
+    }
+    fl.appendChild(row);
+  });
+}
+function renderTree(ul,nodes){
+  nodes.forEach(n=>{
+    const li=document.createElement('li');li.setAttribute('role','treeitem');
+    const node=document.createElement('div');node.className='node';
+    node.innerHTML=`<span class="glyph" aria-hidden="true">${n.glyph}</span><span class="path">${n.path}</span>
+      <span class="desc" contenteditable="true" role="textbox" aria-label="Description for ${n.path}">${n.desc}</span>`;
+    const d=node.querySelector('.desc');
+    d.addEventListener('blur',()=>{if(d.textContent!==n.desc){n.desc=d.textContent;toast('📘 Blueprint updated');}});
+    d.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();d.blur();}});
+    li.appendChild(node);
+    if(n.children){const sub=document.createElement('ul');sub.setAttribute('role','group');renderTree(sub,n.children);li.appendChild(sub);}
+    ul.appendChild(li);
+  });
+}
+function hexTint(key){const c=PALETTE[key];const n=parseInt(c.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},.2)`;}
+
+/* ============================================================
+   WORKSPACE — the heart (Aurora)
+   ============================================================ */
+const wsEl=document.getElementById('workspace');
+let openCards={pulse:true,checkup:false,onset:true,shotlist:false};
+let expandedMember=null;
+let wsTimer=null, raiseTimer=null, demoFired=false;
+
+function openWorkspace(p){
+  document.getElementById('studio').hidden=true;
+  wsEl.hidden=false;
+  renderWorkspace(p);
+  startSimLoop();
+  // fire Scarlett's hand-raise on a short delay to demo the input flow end-to-end
+  demoFired=false;
+  raiseTimer=setTimeout(()=>{
+    const scar=findMember('a-scar');
+    if(scar&&scar.mood!=='blocked'){
+      scar.mood='blocked';scar.task='Needs the Stripe test key to run the payment suite';
+      WS.pending.unshift({id:'ask-scar',agentId:'a-scar',team:'The Ship-It Squad',type:'access',want:'stripe',
+        q:'I need the Stripe <b>test</b> key to run the payment suite. Without it I can\'t verify checkout.',ctx:'Blocking: Checkout feature · 48%'});
+      demoFired=true;
+      renderSet();renderBanner();
+      announce('Scarlett Scenario raised a hand — she needs the Stripe test key.',true);
+    }
+  },4500);
+}
+function closeWorkspace(){
+  stopSimLoop();clearTimeout(raiseTimer);
+  wsEl.hidden=true;document.getElementById('studio').hidden=false;
+  go('projects');
+}
+function findMember(aid){
+  for(const t of WS.teams){const m=t.members.find(x=>x.id===aid);if(m)return m;}
+  return WS.solo.find(x=>x.id===aid);
+}
+
+function renderWorkspace(p){
+  const bell=WS.pending.length;
+  wsEl.innerHTML=`
+    <div class="ws-topbar">
+      ${logoTile(p,true)}
+      <span class="ws-title">${p.name}</span>
+      <button class="ws-chip" id="backAll">← All projects</button>
+      <div class="spacer"></div>
+      <a class="ws-chip" href="#" onclick="return false" title="Pushed 4 min ago · branch voice-search"><span class="ok">●</span> GitHub ✓</a>
+      <button class="ws-chip" id="privacyChip">🔒 Private</button>
+      <a class="ws-chip live-dot" id="testChip" href="#" onclick="return false" title="Preview is fresh">Test ↗ aurora-preview.studio.app</a>
+      <button class="ws-chip" id="accessChip">🔑 Access</button>
+      <button class="ws-chip" id="bellChip" aria-label="${bell} input request${bell===1?'':'s'} pending">🔔 ${bell?`<span class="bell-badge">${bell}</span>`:''}</button>
+    </div>
+    <div id="bannerSlot"></div>
+    <div class="ws-main">
+      <div class="director-hero" id="directorHero"></div>
+      <div class="set-rail" id="setRail"></div>
+    </div>`;
+  wsEl.querySelector('#backAll').onclick=closeWorkspace;
+  wsEl.querySelector('#bellChip').onclick=()=>{if(WS.pending.length)openGreenRoom(0);};
+  wsEl.querySelector('#accessChip').onclick=openProjectAccess;
+  wsEl.querySelector('#privacyChip').onclick=()=>{
+    const body=document.createElement('div');
+    body.innerHTML='<h2>Make Aurora public?</h2><p class="hint" style="margin:10px 0 16px">This changes repo & preview visibility only — never a secret value.</p>';
+    const r=document.createElement('div');r.className='row';
+    const y=document.createElement('button');y.className='btn btn-hero';y.textContent='Keep it private';y.onclick=closeSheet;
+    const n=document.createElement('button');n.className='btn btn-ghost';n.textContent='Switch to public';n.onclick=()=>{closeSheet();toast('🌐 Aurora is now public');};
+    r.appendChild(y);r.appendChild(n);body.appendChild(r);
+    openSheet(body,'Privacy');
+  };
+  renderDirector();renderBanner();renderSet();
+}
+
+/* ---- Director hero + chat ---- */
+function renderDirector(){
+  const h=document.getElementById('directorHero');
+  h.innerHTML=`
+    <div class="dh-head">
+      <div class="spot"></div>
+      <div id="dirCast"></div>
+      <div class="who"><div class="role">Your manager · big picture only</div><b>${DIRECTOR.name}</b><div class="presence"><span class="dot"></span>Always here</div></div>
+      <span class="altitude">▲ Manager view</span>
+    </div>
+    <div class="chatlog" id="chatlog" aria-live="polite" aria-label="Conversation with Pixel"></div>
+    <div class="quick-replies" id="quick"></div>
+    <div class="composer">
+      <button class="mic-btn" id="micBtn" aria-pressed="false" aria-label="Press to talk to Pixel">
+        <span class="ring"></span>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="18" x2="12" y2="21" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+      <div class="wave" id="wave" aria-hidden="true">${Array.from({length:14}).map(()=>`<i style="--h:${10+Math.random()*16}px"></i>`).join('')}</div>
+      <input id="composerInput" placeholder="Talk or type to Pixel…" aria-label="Message Pixel">
+      <button class="btn btn-hero btn-sm" id="sendBtn">Send</button>
+    </div>`;
+  h.querySelector('#dirCast').appendChild(cast(DIRECTOR.hue,'working',{director:true,prop:'megaphone',size:'72px'}));
+  h.querySelector('#micBtn').onclick=toggleMic;
+  h.querySelector('#sendBtn').onclick=()=>sendTyped();
+  const inp=h.querySelector('#composerInput');
+  inp.onkeydown=e=>{if(e.key==='Enter')sendTyped();};
+  // seed greeting
+  addBubble('them','Pixel','Morning! Aurora is 64% to v1.0. The Ship-It Squad is on voice search and checkout. Anything you want me to steer?');
+}
+function chatlog(){return document.getElementById('chatlog');}
+function addBubble(who,label,html){
+  const b=document.createElement('div');b.className='bubble '+who;
+  b.innerHTML=`<span class="who">${label}</span>${html}`;
+  chatlog().appendChild(b);chatlog().scrollTop=chatlog().scrollHeight;return b;
+}
+function addCasting(text){
+  const c=document.createElement('div');c.className='casting';c.textContent='🎬 '+text;
+  chatlog().appendChild(c);chatlog().scrollTop=chatlog().scrollHeight;
+}
+function streamBubble(who,label,text,done){
+  const b=document.createElement('div');b.className='bubble '+who+' streaming';
+  b.innerHTML=`<span class="who">${label}</span><span class="t"></span>`;
+  chatlog().appendChild(b);const t=b.querySelector('.t');let i=0;
+  const rm=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(rm){t.textContent=text;b.classList.remove('streaming');done&&done();return;}
+  const iv=setInterval(()=>{t.textContent=text.slice(0,++i);chatlog().scrollTop=chatlog().scrollHeight;
+    if(i>=text.length){clearInterval(iv);b.classList.remove('streaming');done&&done();}},16);
+}
+function showTyping(done){
+  const b=document.createElement('div');b.className='bubble them';
+  b.innerHTML='<span class="who">Pixel</span><span class="typing"><i></i><i></i><i></i></span>';
+  chatlog().appendChild(b);chatlog().scrollTop=chatlog().scrollHeight;
+  setTimeout(()=>{b.remove();done&&done();},900);
+}
+function renderQuick(options){
+  const q=document.getElementById('quick');q.innerHTML='';
+  options.forEach(o=>{
+    const b=document.createElement('button');b.className='chip';b.textContent=o.label;
+    b.onclick=()=>{q.innerHTML='';addBubble('me','You',o.label);showTyping(()=>{streamBubble('them','Pixel',o.reply,o.after);});};
+    q.appendChild(b);
+  });
+}
+
+/* one-press simulated voice */
+let voiceState='idle', listenTimer=null;
+const VOICE_SAID="Let's get multi-currency started after checkout.";
+function toggleMic(){
+  const mb=document.getElementById('micBtn'),wave=document.getElementById('wave'),dc=document.querySelector('#dirCast .cast');
+  if(voiceState==='idle'){
+    voiceState='listening';
+    mb.setAttribute('aria-pressed','true');mb.setAttribute('aria-label','Listening — press to stop');
+    wave.classList.add('live');document.getElementById('composerInput').placeholder='Listening… press to stop';
+    if(dc)dc.className='cast mood-working director';
+    announce('Listening.');
+    // simulated: auto-stop after a beat so a single press demos the whole loop
+    listenTimer=setTimeout(()=>{if(voiceState==='listening')stopListening();},2600);
+  } else if(voiceState==='listening'){
+    stopListening();
+  }
+}
+function stopListening(){
+  clearTimeout(listenTimer);
+  const mb=document.getElementById('micBtn'),wave=document.getElementById('wave');
+  voiceState='thinking';
+  mb.setAttribute('aria-pressed','false');mb.setAttribute('aria-label','Press to talk to Pixel');
+  wave.classList.remove('live');document.getElementById('composerInput').placeholder='Got it — thinking…';
+  announce('Got it — thinking.');
+  // the heard speech streams in as a "me" bubble (trust)
+  streamBubble('me','You (voice)',VOICE_SAID,()=>{
+    showTyping(()=>{
+      streamBubble('them','Pixel','Good call. I\'ll queue multi-currency right behind checkout and brief the Ship-It Squad.',()=>{
+        addCasting('Pixel cast the Ship-It Squad on Multi-currency');
+        startPlanned('multicur');
+        document.getElementById('composerInput').placeholder='Talk or type to Pixel…';
+        voiceState='idle';
+        renderQuick([
+          {label:'Start it now',reply:'On it — Multi-currency is now in progress. I\'ll keep checkout as the priority.'},
+          {label:'Wait for checkout',reply:'Sensible. I\'ll hold Multi-currency until checkout ships, then kick it off automatically.'},
+          {label:'Show me the plan',reply:'Opening the Shot list — Multi-currency sits right after checkout and reviews.',after:()=>{openCards.shotlist=true;renderSet();}},
+        ]);
+      });
+    });
+  });
+}
+function sendTyped(){
+  const inp=document.getElementById('composerInput');const v=(inp.value||'').trim();
+  if(!v){const mb=document.getElementById('micBtn');mb.classList.add('err');setTimeout(()=>mb.classList.remove('err'),400);return;}
+  inp.value='';document.getElementById('quick').innerHTML='';
+  addBubble('me','You',escapeHtml(v));
+  showTyping(()=>{
+    if(/currenc/i.test(v)){streamBubble('them','Pixel','On it — I\'ll brief the Ship-It Squad on multi-currency.',()=>{addCasting('Pixel cast the Ship-It Squad on Multi-currency');startPlanned('multicur');});}
+    else streamBubble('them','Pixel','Got it — I\'ll take that to the crew and keep you posted here. The log stays the source of truth.');
+  });
+}
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---- Set rail (one .set-card primitive) ---- */
+function renderBanner(){
+  const slot=document.getElementById('bannerSlot');if(!slot)return;
+  const bellEl=document.querySelector('#bellChip');
+  if(bellEl){const n=WS.pending.length;bellEl.innerHTML=`🔔 ${n?`<span class="bell-badge">${n}</span>`:''}`;bellEl.setAttribute('aria-label',`${n} input request${n===1?'':'s'} pending`);}
+  if(!WS.pending.length){slot.innerHTML='';return;}
+  const ask=WS.pending[0];const a=agentById(ask.agentId);
+  slot.innerHTML='';
+  const banner=document.createElement('div');banner.className='handraise';banner.setAttribute('role','alert');
+  banner.appendChild(castOf(a,'blocked','52px'));
+  const msg=document.createElement('div');msg.className='msg';
+  msg.innerHTML=`<b>${a.name} · ${ask.team}</b><span>${ask.type==='access'?'needs the Stripe test key to run the payment suite.':ask.q}</span>`;
+  banner.appendChild(msg);
+  const go2=document.createElement('button');go2.className='btn btn-dark btn-sm';go2.textContent='Open the ask →';go2.onclick=()=>openGreenRoom(0);
+  banner.appendChild(go2);
+  if(WS.pending.length>1)banner.insertAdjacentHTML('beforeend',`<span class="waiting">${WS.pending.length} waiting</span>`);
+  slot.appendChild(banner);
+}
+function setCard(key,label,glance,bodyBuilder){
+  const card=document.createElement('div');card.className='set-card';card.dataset.open=openCards[key];
+  const head=document.createElement('button');head.className='set-card__head';head.setAttribute('aria-expanded',openCards[key]);
+  head.innerHTML=`<span class="lbl">${label}</span><span class="glance">${glance}<span class="chev" aria-hidden="true">▸</span></span>`;
+  head.onclick=()=>{openCards[key]=!openCards[key];renderSet();};
+  const body=document.createElement('div');body.className='set-card__body';bodyBuilder(body);
+  card.appendChild(head);card.appendChild(body);return card;
+}
+function renderSet(){
+  const rail=document.getElementById('setRail');if(!rail)return;
+  rail.innerHTML='';
+  // PULSE
+  rail.appendChild(setCard('pulse','Pulse',`${WS.overall}% → ${WS.target}`,body=>{
+    body.innerHTML=`<div class="pulse-ring"><div><div class="big">${WS.overall}%</div><div class="lbl">Aurora is ${WS.overall}% to <b>${WS.target}</b></div></div></div>
+      <div class="progress ${WS.overall>=80?'mint':''}"><div class="fill" style="width:${WS.overall}%"></div></div>`;
+    WS.features.now.slice(0,2).forEach(f=>{
+      const fl=document.createElement('div');fl.className='feat-line';
+      fl.innerHTML=`<div class="top"><span>${f.name}${f.blocked?' ✋':''}</span><span class="who">${f.who} · ${f.pct}%</span></div>
+        <div class="progress sm ${f.blocked?'coral':''}"><div class="fill" style="width:${f.pct}%"></div></div>`;
+      body.appendChild(fl);
+    });
+  }));
+  // CHECKUP
+  const cv=WS.checkup.vitals;const worst=cv.Reuse==='C'||cv.Modular==='C'||cv.Clean==='C';
+  const face=worst?'🙂':'😄';const word=worst?'Okay':'Healthy';
+  rail.appendChild(setCard('checkup','Checkup',`${face} ${word}`,body=>{
+    body.innerHTML=`<div class="hint" style="margin-bottom:8px">Last checkup ${WS.checkup.when} · <button class="chip" style="padding:4px 10px;font-size:11px" id="runCheck">Run checkup</button></div>`;
+    Object.entries(cv).forEach(([k,g])=>{
+      const row=document.createElement('div');row.className='vital';
+      const wordg=g==='A'?'excellent':g==='B'?'good':'needs care';
+      row.innerHTML=`<span class="grade ${g}">${g} · ${wordg}</span><span class="vn">${k}</span>`;
+      const note=document.createElement('div');note.className='note';note.hidden=true;
+      note.innerHTML=`${WS.checkup.notes[k]} ${g!=='A'?'<button class="chip" style="padding:4px 10px;font-size:11px;margin-left:4px" >Ask Pixel to fix →</button>':''}`;
+      row.onclick=()=>{note.hidden=!note.hidden;};
+      const fix=note.querySelector('button');if(fix)fix.onclick=e=>{e.stopPropagation();askPixelFix(k);};
+      body.appendChild(row);body.appendChild(note);
+    });
+    const rc=body.querySelector('#runCheck');if(rc)rc.onclick=()=>toast('🩺 Checkup running — grades will refresh shortly');
+  }));
+  // ON SET
+  const blockedCount=countBlocked();
+  rail.appendChild(setCard('onset','On Set',`${activeWorkerCount()} working${blockedCount?` · ${blockedCount}✋`:''}`,body=>{
+    WS.teams.forEach(t=>{
+      const team=teamById(t.id);
+      const anyBlocked=t.members.some(m=>m.mood==='blocked');
+      const anyCeleb=t.members.some(m=>m.mood==='celebrate');
+      const block=document.createElement('div');block.className='team-block'+(anyBlocked?' blocked':'');
+      block.style.borderLeftColor=anyBlocked?PALETTE.coral:PALETTE[team.color];
+      block.innerHTML=`<div class="th"><span class="emblem">${team.emblem}</span><div><b>${team.name}</b><div class="bld">${t.building}</div></div>
+        <span class="statuschip ${anyBlocked?'blocked':anyCeleb?'celebrate':'working'}" style="margin-left:auto">${anyBlocked?'Needs input':anyCeleb?'Shipping':'Active'}</span></div>`;
+      const mem=document.createElement('div');mem.className='members';
+      t.members.forEach(m=>mem.appendChild(memberRow(m)));
+      block.appendChild(mem);body.appendChild(block);
+    });
+    if(WS.solo.length){
+      body.insertAdjacentHTML('beforeend','<div class="hint" style="margin:6px 0 4px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">Solo</div>');
+      const mem=document.createElement('div');mem.className='members';
+      WS.solo.forEach(m=>mem.appendChild(memberRow(m)));
+      body.appendChild(mem);
+    }
+  }));
+  // SHOT LIST
+  const f=WS.features;
+  rail.appendChild(setCard('shotlist','Shot list',`${f.shipped.length}✓ · ${f.now.length}● · ${f.planned.length}○`,body=>{
+    body.innerHTML=`<div class="shot-tally"><span><b>${f.shipped.length}</b> shipped</span><span><b>${f.now.length}</b> now</span><span><b>${f.planned.length}</b> planned</span></div>`;
+    f.now.forEach(x=>body.insertAdjacentHTML('beforeend',`<div class="shot now"><span class="ico">●</span><span class="nm">${x.name}${x.blocked?' ✋':''}</span><span class="pct">${x.pct}%</span></div>`));
+    f.planned.forEach(x=>{
+      const d=document.createElement('div');d.className='shot planned';
+      d.innerHTML=`<span class="ico">○</span><span class="nm">${x.name}</span><button class="start">Ask Pixel to start →</button>`;
+      d.querySelector('.start').onclick=()=>askPixelStart(x.id,x.name);
+      body.appendChild(d);
+    });
+    f.shipped.forEach(x=>body.insertAdjacentHTML('beforeend',`<div class="shot shipped"><span class="ico">✓</span><span class="nm">${x.name}</span>${x.star?'<span>⭐</span>':''}</div>`));
+  }));
+}
+function memberRow(m){
+  const a=agentById(m.id);
+  const wrap=document.createElement('div');
+  const btn=document.createElement('button');btn.className='member';
+  btn.appendChild(castOf(a,m.mood,'40px'));
+  const st=m.mood==='blocked'?'Needs input':m.mood==='celebrate'?'Done!':m.mood==='idle'?'Idle':'Working';
+  const scls=m.mood==='blocked'?'blocked':m.mood==='celebrate'?'celebrate':m.mood==='idle'?'idle':'working';
+  btn.insertAdjacentHTML('beforeend',`<div><div class="mn">${a.name}</div><div class="mj">${a.role}</div></div><span class="statuschip ${scls}" style="margin-left:auto">${st}</span>${m.mood==='blocked'?'<span class="handup" aria-hidden="true">✋</span>':''}`);
+  btn.onclick=()=>{expandedMember=expandedMember===m.id?null:m.id;renderSet();};
+  wrap.appendChild(btn);
+  if(expandedMember===m.id){
+    const det=document.createElement('div');det.className='member-detail';
+    det.innerHTML=`${m.task}<div class="keys" id="k-${m.id}"></div>`;
+    wrap.appendChild(det);
+    const keys=det.querySelector('.keys');
+    (m.reach||[]).forEach(cid=>keys.appendChild(keytag(credById(cid),false)));
+    (m.locked||[]).forEach(cid=>keys.appendChild(keytag(credById(cid),true)));
+  }
+  return wrap;
+}
+function activeWorkerCount(){let n=0;WS.teams.forEach(t=>t.members.forEach(m=>{if(m.mood==='working')n++;}));return n;}
+function countBlocked(){let n=0;WS.teams.forEach(t=>t.members.forEach(m=>{if(m.mood==='blocked')n++;}));return n;}
+
+/* ---- Checkup / Shot list → chat actions ---- */
+function askPixelFix(vital){
+  const msg=`Pixel, can you fix our ${vital} score?`;
+  addBubble('me','You',msg);
+  showTyping(()=>streamBubble('them','Pixel',`On it — I\'ll put the Polish Patrol on ${vital.toLowerCase()}. ${WS.checkup.notes[vital]}`,()=>addCasting('Pixel cast the Polish Patrol on a '+vital+' cleanup')));
+}
+function askPixelStart(id,name){
+  addBubble('me','You',`Pixel, start ${name}.`);
+  showTyping(()=>streamBubble('them','Pixel',`Starting ${name} now — I\'ll brief the crew and keep it behind a flag.`,()=>{addCasting('Pixel cast the Ship-It Squad on '+name);startPlanned(id);}));
+}
+function startPlanned(id){
+  const idx=WS.features.planned.findIndex(x=>x.id===id);if(idx<0)return;
+  const [feat]=WS.features.planned.splice(idx,1);
+  WS.features.now.push({id:feat.id,name:feat.name,who:'Ship-It Squad',pct:5});
+  openCards.shotlist=true;openCards.pulse=true;
+  renderSet();toast(`▶ ${feat.name} is now in progress`);
+}
+
+/* ---- Green room (the ask sheet) ---- */
+function openGreenRoom(idx){
+  const ask=WS.pending[idx];if(!ask)return;
+  const a=agentById(ask.agentId);
+  const body=document.createElement('div');
+  body.innerHTML=`<button class="btn btn-ghost btn-sm close" id="grClose" aria-label="Close">✕</button>
+    <div class="greenroom-head"><div id="grCast"></div><div><h2>${a.name}</h2><div class="hint" style="font-weight:800">${a.role} · ${ask.team}</div></div></div>
+    <div class="ask-q">${ask.q}</div>
+    <div class="ask-ctx">${ask.ctx}</div>
+    <div id="grInput"></div>`;
+  const dlg=openSheet(body,a.name+' is waiting');
+  body.querySelector('#grClose').onclick=closeSheet;
+  body.querySelector('#grCast').appendChild(castOf(a,'blocked','86px'));
+  const inp=body.querySelector('#grInput');
+  if(ask.type==='access'){
+    const cred=credById(ask.want);
+    const granted=WS.grants[ask.want];
+    inp.innerHTML=`<div class="hint" style="margin-bottom:8px;font-weight:800">Grant the exact access she needs — the value stays masked, you grant reach, never the secret.</div>`;
+    const row=document.createElement('div');row.className='toggle-row'+(granted?' on':'');
+    row.innerHTML=`<div class="ic" style="background:${cred.color}">${cred.mark}</div>
+      <div class="t"><b>${cred.name}</b> <span class="vl">${cred.val}</span><div class="sv">${cred.serves}</div></div>
+      <span class="state">${granted?'Granted':'Not granted'}</span>`;
+    const sw=document.createElement('button');sw.className='switch';sw.setAttribute('role','switch');sw.setAttribute('aria-checked',granted);sw.setAttribute('aria-label','Grant '+cred.name+' to Aurora');
+    sw.onclick=()=>{WS.grants[ask.want]=!WS.grants[ask.want];const on=WS.grants[ask.want];sw.setAttribute('aria-checked',on);row.classList.toggle('on',on);row.querySelector('.state').textContent=on?'Granted':'Not granted';};
+    row.appendChild(sw);inp.appendChild(row);
+    inp.insertAdjacentHTML('beforeend','<div style="margin-top:10px"><a href="#" onclick="return false" style="color:var(--sun-deep);font-weight:800;font-size:12px" id="manageLink">Manage all access →</a></div>');
+    const hand=document.createElement('button');hand.className='btn btn-hero';hand.style.marginTop='16px';hand.textContent='Hand it over';
+    hand.onclick=()=>{
+      if(!WS.grants[ask.want]){toast('Flip the switch to grant reach first');return;}
+      resolveAsk(idx,'🔑 '+cred.name+' granted — handed to '+a.name);
+    };
+    inp.appendChild(hand);
+    body.querySelector('#manageLink').onclick=()=>{closeSheet();openProjectAccess();};
+  } else if(ask.type==='decision'){
+    inp.innerHTML='<div class="hint" style="margin-bottom:8px;font-weight:800">Pick one — or type your own.</div>';
+    const row=document.createElement('div');row.className='row';
+    ask.options.forEach(o=>{const b=document.createElement('button');b.className='chip';b.textContent=o;b.onclick=()=>resolveAsk(idx,'Handed “'+o+'” to '+a.name);row.appendChild(b);});
+    inp.appendChild(row);
+    inp.insertAdjacentHTML('beforeend','<div class="field" style="margin-top:12px"><input id="freeText" placeholder="Or type your answer…"></div>');
+    const hand=document.createElement('button');hand.className='btn btn-hero';hand.style.marginTop='4px';hand.textContent='Hand it over';
+    hand.onclick=()=>resolveAsk(idx,'Handed to '+a.name);
+    inp.appendChild(hand);
+  }
+  // next-in-queue hint
+  if(WS.pending.length>1){
+    const next=WS.pending[idx===0?1:0];const na=agentById(next.agentId);
+    body.insertAdjacentHTML('beforeend',`<div class="next-ask">Next: ${na.name} is waiting on ${next.type==='access'?'an access grant':'a quick decision'}.</div>`);
+  }
+}
+function resolveAsk(idx,msg){
+  const ask=WS.pending[idx];const m=findMember(ask.agentId);
+  if(m){m.mood='working';if(ask.type==='access'){m.task='Running the payment test suite now';m.pct=Math.max(m.pct,42);m.locked=[];m.reach=[...new Set([...(m.reach||[]),ask.want])];
+    const co=WS.features.now.find(x=>x.id==='checkout');if(co)co.blocked=false;}}
+  WS.pending.splice(idx,1);
+  closeSheet();
+  if(!matchMedia('(prefers-reduced-motion:reduce)').matches)sparkle();
+  toast(msg);
+  // quiet system line in the director log
+  addCasting(`${agentById(ask.agentId).name} is unblocked — back to work.`);
+  renderSet();renderBanner();
+  if(WS.pending.length)setTimeout(()=>openGreenRoom(0),500);
+}
+
+/* ---- Project access grid (reached from workspace) ---- */
+function openProjectAccess(){
+  const granted=Object.values(WS.grants).filter(Boolean).length;
+  const body=document.createElement('div');
+  body.innerHTML=`<button class="btn btn-ghost btn-sm close" id="paClose" aria-label="Close">✕</button>
+    <h2>What Aurora can reach</h2>
+    <p class="hint" style="margin:8px 0 16px">Aurora can reach <b>${granted} of ${CREDENTIALS.length}</b> capabilities. Agents inherit only what you grant here — values stay masked.</p>
+    <div id="paList"></div>`;
+  openSheet(body,'Aurora access');
+  body.querySelector('#paClose').onclick=closeSheet;
+  const list=body.querySelector('#paList');
+  const refreshCount=()=>{const g=Object.values(WS.grants).filter(Boolean).length;body.querySelector('p b').textContent=`${g} of ${CREDENTIALS.length}`;};
+  CREDENTIALS.forEach(c=>{
+    const on=!!WS.grants[c.id];
+    const row=document.createElement('div');row.className='toggle-row'+(on?' on':'');
+    row.innerHTML=`<div class="ic" style="background:${c.color}">${c.mark}</div>
+      <div class="t"><b>${c.name}</b> <span class="vl">${c.val}</span><div class="sv">${c.serves}</div></div>
+      <span class="state">${on?'Granted':'Not granted'}</span>`;
+    const sw=document.createElement('button');sw.className='switch';sw.setAttribute('role','switch');sw.setAttribute('aria-checked',on);sw.setAttribute('aria-label',(on?'Revoke ':'Grant ')+c.name);
+    sw.onclick=()=>{WS.grants[c.id]=!WS.grants[c.id];const v=WS.grants[c.id];sw.setAttribute('aria-checked',v);row.classList.toggle('on',v);row.querySelector('.state').textContent=v?'Granted':'Not granted';refreshCount();toast((v?'🔑 ':'🔒 ')+c.name+(v?' granted to Aurora':' revoked from Aurora'));};
+    row.appendChild(sw);list.appendChild(row);
+  });
+}
+
+/* ---- Simulated loop ---- */
+function startSimLoop(){
+  stopSimLoop();
+  wsTimer=setInterval(()=>{
+    let changed=false;
+    WS.features.now.forEach(f=>{
+      if(f.blocked)return;
+      f.pct=Math.min(100,f.pct+Math.round(2+Math.random()*5));changed=true;
+      const m=matchByFeature(f);if(m&&m.mood==='working'){m.pct=f.pct;}
+      if(f.pct>=100)shipFeature(f);
+    });
+    // advance lone workers' display pct
+    WS.teams.forEach(t=>t.members.forEach(mm=>{if(mm.mood==='working'&&!matchFeatureOf(mm)){mm.pct=Math.min(100,mm.pct+Math.round(1+Math.random()*3));}}));
+    if(changed){if(openCards.pulse||openCards.shotlist||openCards.onset)renderSet();}
+  },1900);
+}
+function stopSimLoop(){if(wsTimer){clearInterval(wsTimer);wsTimer=null;}}
+function matchByFeature(f){
+  if(f.id==='voice')return findMember('a-pete');
+  return null;
+}
+function matchFeatureOf(m){return m.id==='a-pete';}
+function shipFeature(f){
+  const i=WS.features.now.findIndex(x=>x.id===f.id);if(i<0)return;
+  WS.features.now.splice(i,1);
+  WS.features.shipped.unshift({name:f.name,star:false});
+  WS.overall=Math.min(100,WS.overall+4);
+  const m=matchByFeature(f);if(m){m.mood='celebrate';m.task=f.name+' shipped — review passed!';m.pct=100;}
+  if(!matchMedia('(prefers-reduced-motion:reduce)').matches)sparkle();
+  toast(`✨ ${f.name} shipped!`);
+  renderSet();
+  setTimeout(()=>{if(m){m.mood='idle';m.task='Standing by for the next brief';renderSet();}},2600);
+}
+function sparkle(){
+  const c=document.getElementById('confetti');const cols=[PALETTE.mint,PALETTE.sun,PALETTE.teal];
+  for(let i=0;i<18;i++){const p=document.createElement('i');p.style.left=(35+Math.random()*30)+'vw';p.style.top='40vh';
+    p.style.background=cols[i%cols.length];p.style.animationDuration=(1+Math.random()*1)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;
+    c.appendChild(p);setTimeout(()=>p.remove(),2200);}
+}
+function announce(msg,assertive){document.getElementById(assertive?'alertlive':'live').textContent=msg;}
+
+/* ============================================================
+   SCREEN — CAST LIBRARY + FACTORY
+   ============================================================ */
+let castTab='agents', castQuery='', castView='library'; // library | agent | team
+const TRAITS=['none','beret','sailor-cap','beanie','mortarboard','top-hat','glasses','monocle','deerstalker','propeller','hard-hat','bow','headphones'];
+const PROPS=['none','wrench','magnifier','quill','paint-brush','clipboard','flag'];
+const EMBLEMS=['🚀','🧹','🎬','⭐','🛠️','🎨','🔬','📦'];
+const FUNNY_NAMES=['Captain Semicolon','Sir Lint-a-lot','Madame Mergeworthy','Pixel Pete','Doc Hollywood','Scarlett Scenario','Baron von Backup','Querious','Professor Prompt','Twinkle','Major Refactor','Duchess Deploy','Inspector Edgecase'];
+const PROMPT_TEMPLATES={
+  Frontend:'You are a frontend engineer. Pixel-perfect UI, reuse the component library, no magic numbers. Mock the API until the real endpoint lands.',
+  Backend:'You are a backend engineer. Write tests first. Ship typed, documented endpoints. Never guess credentials — flag what you need.',
+  QA:'You are a QA engineer. Write the test plan before code lands. Block the merge if the suite is red. Sign off the demo.',
+  Design:'You are a UX designer. Obsess over spacing, contrast, and delight. Remove anything that does not earn its place.',
+  Data:'You are a data analyst. Speak fluent SQL. Start by asking what we are actually measuring and why.',
+};
+const ROLES=['Frontend','Backend','Design','QA','Data','DevOps','Research','Writer','Release','Quality'];
+
+function renderCast(){
+  if(castView==='agent'){renderAgentDesigner();return;}
+  if(castView==='team'){renderTeamDesigner();return;}
+  const el=document.getElementById('scene-cast');
+  el.innerHTML=`
+    <div class="scene-head">
+      <div><div class="kicker">The Cast</div><h1>Your cast list</h1>
+      <p>Every agent is a definition — a look, a role, and its own system prompt. The orchestrator can only cast from this library. Definitions rest at neutral; they come alive inside a project.</p></div>
+      <div class="spacer"></div>
+      <div class="lib-tabs" role="tablist" aria-label="Library">
+        <button role="tab" data-ct="agents" aria-selected="${castTab==='agents'}">Agents</button>
+        <button role="tab" data-ct="teams" aria-selected="${castTab==='teams'}">Teams</button>
+      </div>
+    </div>
+    <div class="row" style="margin-bottom:16px;gap:12px">
+      <div class="search-wrap" style="max-width:420px">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="castSearch" type="search" placeholder="Search ${castTab}…" aria-label="Search ${castTab}" value="${castQuery}">
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-hero" id="newBtn">＋ New ${castTab==='agents'?'agent':'team'}</button>
+    </div>
+    <div class="panel" id="castBody"></div>`;
+  el.querySelectorAll('[data-ct]').forEach(b=>b.onclick=()=>{castTab=b.dataset.ct;castQuery='';renderCast();});
+  el.querySelector('#castSearch').oninput=e=>{castQuery=e.target.value;fillCastBody();};
+  el.querySelector('#newBtn').onclick=()=>{castView=castTab==='agents'?'agent':'team';resetDesigners();renderCast();};
+  fillCastBody();
+}
+function fillCastBody(){
+  const body=document.getElementById('castBody');if(!body)return;
+  const q=castQuery.trim().toLowerCase();
+  if(castTab==='agents'){
+    const list=AGENTS.filter(a=>!q||a.name.toLowerCase().includes(q)||a.role.toLowerCase().includes(q)||a.prompt.toLowerCase().includes(q));
+    if(!list.length){body.innerHTML='';const es=document.createElement('div');es.className='empty-state';es.style.color='var(--ink)';es.appendChild(cast('coral','blocked',{size:'72px'}));es.insertAdjacentHTML('beforeend','<h2>No one by that name</h2>');body.appendChild(es);return;}
+    const grid=document.createElement('div');grid.className='def-grid';
+    list.forEach(a=>grid.appendChild(defCard(a)));
+    body.innerHTML='';body.appendChild(grid);
+  } else {
+    const list=TEAMS.filter(t=>!q||t.name.toLowerCase().includes(q));
+    const grid=document.createElement('div');grid.className='def-grid';
+    list.forEach(t=>grid.appendChild(teamCard(t)));
+    body.innerHTML='';body.appendChild(grid);
+  }
+}
+function defCard(a){
+  const inTeams=TEAMS.filter(t=>t.members.includes(a.id));
+  const card=document.createElement('button');card.className='defcard';
+  card.innerHTML=`<div class="dhead"><div class="cslot"></div><div><div class="nm">${a.name}</div><div class="rl">${a.role}</div></div></div>
+    <div class="logline">“${a.logline}”</div>
+    <div class="prompt">${a.prompt}</div>
+    <div class="meta-line">🔒 No standing access · project-granted</div>
+    <div class="meta-line">Used in: ${inTeams.length?inTeams.map(t=>t.name).join(' · '):'—'}</div>
+    <div class="summon">Summonable: solo ✓ &nbsp; via team ✓</div>`;
+  card.querySelector('.cslot').appendChild(castOf(a,'neutral','58px'));
+  card.onclick=()=>{castView='agent';loadAgentForEdit(a);renderCast();};
+  return card;
+}
+function teamCard(t){
+  t.mood='working';
+  const card=document.createElement('button');card.className='teamcard';
+  card.appendChild(troupe(t,104));
+  const info=document.createElement('div');info.style.flex='1';
+  info.innerHTML=`<div class="nm" style="font-size:17px;font-weight:800">${t.emblem} ${t.name}</div>
+    <div class="rl" style="font-size:12px;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:2px 0 8px">${t.members.length} members</div>
+    <div class="logline" style="font-size:13px;font-weight:600">${t.instr}</div>
+    <div class="summon">Summonable as one unit ✓ · members solo ✓</div>`;
+  card.appendChild(info);
+  card.onclick=()=>{castView='team';loadTeamForEdit(t);renderCast();};
+  return card;
+}
+
+/* ---- Agent designer ---- */
+let agentDraft;
+function resetDesigners(){agentDraft={id:null,name:'',role:'Frontend',hue:'teal',trait:'beanie',prop:'paint-brush',prompt:''};teamDraft={id:null,name:'',color:'sun',emblem:'🚀',instr:'',members:[]};}
+function loadAgentForEdit(a){agentDraft={id:a.id,name:a.name,role:a.role,hue:a.hue,trait:a.trait,prop:a.prop,prompt:a.prompt};}
+function renderAgentDesigner(){
+  const el=document.getElementById('scene-cast');const d=agentDraft;
+  el.innerHTML=`
+    <div class="scene-head">
+      <div><div class="kicker">The Factory</div><h1>${d.id?'Edit cast member':'Mint a cast member'}</h1></div>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost on-dark btn-sm" id="backLib">← Cast library</button>
+    </div>
+    <div class="factory-grid">
+      <div class="preview-stage">
+        <div class="belt"><span>Assembling</span><span class="track"></span></div>
+        <div id="pvCast"></div>
+        <div class="preview-name" id="pvName">${d.name||'New agent'}</div>
+        <div class="preview-role" id="pvRole">${d.role}</div>
+        <div class="hint" style="color:rgba(255,246,233,.7);margin-top:12px;text-align:center">Summonable solo · addable to teams</div>
+      </div>
+      <div class="panel"><form class="form" id="agentForm" onsubmit="return false">
+        <div class="field"><label for="agName">Name</label><div class="name-row"><input id="agName" value="${escapeAttr(d.name)}" maxlength="22" placeholder="Captain Semicolon…" autocomplete="off"><button type="button" class="dice" id="agDice" aria-label="Surprise me with a funny name">🎲</button></div></div>
+        <div class="field"><label>Look — color</label><div class="swatches" id="agSw"></div></div>
+        <div class="field"><label>Look — trait</label><div class="chip-row" id="agTrait"></div></div>
+        <div class="field"><label>Look — hand prop</label><div class="chip-row" id="agProp"></div></div>
+        <div class="field"><label for="agRole">Role</label><select id="agRole"></select></div>
+        <div class="field"><label for="agPrompt">The agent's brain — its own system prompt</label>
+          <textarea id="agPrompt" class="mono" rows="4" placeholder="What this agent always knows about itself and how it works.">${escapeHtml(d.prompt)}</textarea>
+          <div class="tmpl-row" id="agTmpl"></div></div>
+        <div class="row"><button class="btn btn-hero" id="agSave">✨ ${d.id?'Save changes':'Save agent'}</button><span class="hint">Shortest path: name → prompt → Save.</span></div>
+      </form></div>
+    </div>`;
+  el.querySelector('#backLib').onclick=()=>{castView='library';renderCast();};
+  const sel=el.querySelector('#agRole');ROLES.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;if(r===d.role)o.selected=true;sel.appendChild(o);});
+  sel.onchange=e=>{d.role=e.target.value;updateAgentPreview();};
+  el.querySelector('#agName').oninput=e=>{d.name=e.target.value;updateAgentPreview();};
+  el.querySelector('#agDice').onclick=()=>{d.name=FUNNY_NAMES[Math.floor(Math.random()*FUNNY_NAMES.length)];el.querySelector('#agName').value=d.name;updateAgentPreview();};
+  el.querySelector('#agPrompt').oninput=e=>{d.prompt=e.target.value;};
+  const sw=el.querySelector('#agSw');
+  Object.keys(COLOR_NAMES).forEach(k=>{const b=document.createElement('button');b.type='button';b.className='swatch';b.style.background=PALETTE[k];b.setAttribute('aria-pressed',k===d.hue);b.setAttribute('aria-label','Color '+COLOR_NAMES[k]);b.onclick=()=>{d.hue=k;updateAgentPreview();};sw.appendChild(b);});
+  const tr=el.querySelector('#agTrait');
+  TRAITS.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='achip';b.textContent=t;b.setAttribute('aria-pressed',t===d.trait);b.onclick=()=>{d.trait=t==='none'?null:t;if(t==='none')d.trait=null;else d.trait=t;updateAgentPreview();};tr.appendChild(b);});
+  const pr=el.querySelector('#agProp');
+  PROPS.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='achip';b.textContent=t;b.setAttribute('aria-pressed',(t==='none'&&!d.prop)||t===d.prop);b.onclick=()=>{d.prop=t==='none'?null:t;updateAgentPreview();};pr.appendChild(b);});
+  const tm=el.querySelector('#agTmpl');
+  if(PROMPT_TEMPLATES[d.role]){const b=document.createElement('button');b.type='button';b.className='chip';b.textContent='Use '+d.role+' template';b.onclick=()=>{d.prompt=PROMPT_TEMPLATES[d.role];el.querySelector('#agPrompt').value=d.prompt;};tm.appendChild(b);}
+  el.querySelector('#agSave').onclick=saveAgent;
+  updateAgentPreview();
+}
+function updateAgentPreview(){
+  const d=agentDraft;const pc=document.getElementById('pvCast');if(!pc)return;
+  pc.innerHTML='';pc.appendChild(cast(d.hue,'celebrate',{trait:d.trait,prop:d.prop,size:'96px'}));
+  document.getElementById('pvName').textContent=d.name||'New agent';
+  document.getElementById('pvRole').textContent=d.role;
+  document.querySelectorAll('#agSw .swatch').forEach(b=>b.setAttribute('aria-pressed',b.getAttribute('aria-label')==='Color '+COLOR_NAMES[d.hue]));
+  document.querySelectorAll('#agTrait .achip').forEach(b=>b.setAttribute('aria-pressed',(b.textContent==='none'&&!d.trait)||b.textContent===d.trait));
+  document.querySelectorAll('#agProp .achip').forEach(b=>b.setAttribute('aria-pressed',(b.textContent==='none'&&!d.prop)||b.textContent===d.prop));
+}
+function saveAgent(){
+  const d=agentDraft;
+  if(!d.name.trim()){toast('Give your agent a name first');return;}
+  if(d.id){const a=agentById(d.id);Object.assign(a,{name:d.name,role:d.role,hue:d.hue,trait:d.trait,prop:d.prop,prompt:d.prompt});if(!a.logline)a.logline=d.prompt.split('.')[0];}
+  else{AGENTS.push({id:'a-'+Date.now(),name:d.name,role:d.role,hue:d.hue,trait:d.trait,prop:d.prop,prompt:d.prompt||'A new cast member.',logline:(d.prompt||'A new cast member').split('.')[0]});}
+  fireConfetti();toast(`✨ ${d.name} joined the cast`);
+  const pc=document.querySelector('#pvCast .cast');if(pc)pc.className='cast mood-celebrate';
+  castView='library';setTimeout(renderCast,700);
+}
+
+/* ---- Team designer ---- */
+let teamDraft;
+function loadTeamForEdit(t){teamDraft={id:t.id,name:t.name,color:t.color,emblem:t.emblem,instr:t.instr,members:t.members.map(id=>({id,instr:t.perMember[id]||''}))};}
+function renderTeamDesigner(){
+  const el=document.getElementById('scene-cast');const d=teamDraft;
+  el.innerHTML=`
+    <div class="scene-head">
+      <div><div class="kicker">The Factory</div><h1>${d.id?'Edit troupe':'Assemble a troupe'}</h1></div>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost on-dark btn-sm" id="backLib">← Cast library</button>
+    </div>
+    <div class="factory-grid">
+      <div class="preview-stage">
+        <div class="belt"><span>Posing the troupe</span><span class="track"></span></div>
+        <div id="pvTroupe"></div>
+        <div class="preview-name" id="pvTName" style="margin-top:14px">${d.name||'New team'}</div>
+        <div class="preview-role" id="pvTCount">${d.members.length} members</div>
+        <div class="hint" style="color:rgba(255,246,233,.7);margin-top:12px;text-align:center">Summonable as one unit ✓</div>
+      </div>
+      <div class="panel"><div class="form">
+        <div class="field"><label for="tmName">Team name</label><div class="name-row"><input id="tmName" value="${escapeAttr(d.name)}" placeholder="The Ship-It Squad…"><button type="button" class="dice" id="tmDice" aria-label="Surprise me">🎲</button></div></div>
+        <div class="field"><label>Team color</label><div class="swatches" id="tmSw"></div></div>
+        <div class="field"><label>Emblem</label><div class="emoji-row" id="tmEm"></div></div>
+        <div class="field"><label for="tmInstr">Team instructions — rules for the whole team</label><textarea id="tmInstr" rows="2" placeholder="Every member reads this on top of their own brain.">${escapeHtml(d.instr)}</textarea></div>
+        <div class="field"><label>Roster — compose from existing agents</label><div id="tmRoster"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="tmAdd">＋ Add agent</button></div>
+        <div class="recap">Each member runs with <b>its own brain + the team's rules + its job on this team</b>. The orchestrator can summon any agent alone — or this whole troupe.</div>
+        <div class="row"><button class="btn btn-hero" id="tmSave">🎬 ${d.id?'Save changes':'Save team'}</button></div>
+      </div></div>
+    </div>`;
+  el.querySelector('#backLib').onclick=()=>{castView='library';renderCast();};
+  el.querySelector('#tmName').oninput=e=>{d.name=e.target.value;updateTeamPreview();};
+  el.querySelector('#tmDice').onclick=()=>{d.name=['The Ship-It Squad','Polish Patrol','Night Owls','The Refactormen','Launch Crew'][Math.floor(Math.random()*5)];el.querySelector('#tmName').value=d.name;updateTeamPreview();};
+  el.querySelector('#tmInstr').oninput=e=>{d.instr=e.target.value;};
+  const sw=el.querySelector('#tmSw');
+  Object.keys(COLOR_NAMES).forEach(k=>{const b=document.createElement('button');b.type='button';b.className='swatch';b.style.background=PALETTE[k];b.setAttribute('aria-pressed',k===d.color);b.setAttribute('aria-label','Color '+COLOR_NAMES[k]);b.onclick=()=>{d.color=k;updateTeamPreview();};sw.appendChild(b);});
+  const em=el.querySelector('#tmEm');
+  EMBLEMS.forEach(e2=>{const b=document.createElement('button');b.type='button';b.className='emoji-pick';b.textContent=e2;b.setAttribute('aria-pressed',e2===d.emblem);b.setAttribute('aria-label','Emblem '+e2);b.onclick=()=>{d.emblem=e2;updateTeamPreview();};em.appendChild(b);});
+  renderRoster();
+  el.querySelector('#tmAdd').onclick=openAgentPicker;
+  el.querySelector('#tmSave').onclick=saveTeam;
+  updateTeamPreview();
+}
+function updateTeamPreview(){
+  const d=teamDraft;const slot=document.getElementById('pvTroupe');if(!slot)return;
+  slot.innerHTML='';
+  slot.appendChild(troupe({color:d.color,emblem:d.emblem,members:d.members.length?d.members.map(m=>m.id):['a-pete'],mood:'working'},120));
+  document.getElementById('pvTName').textContent=d.name||'New team';
+  document.getElementById('pvTCount').textContent=d.members.length+' members';
+  document.querySelectorAll('#tmSw .swatch').forEach(b=>b.setAttribute('aria-pressed',b.getAttribute('aria-label')==='Color '+COLOR_NAMES[d.color]));
+  document.querySelectorAll('#tmEm .emoji-pick').forEach(b=>b.setAttribute('aria-pressed',b.textContent===d.emblem));
+}
+function renderRoster(){
+  const host=document.getElementById('tmRoster');if(!host)return;host.innerHTML='';
+  teamDraft.members.forEach((m,i)=>{
+    const a=agentById(m.id);
+    const row=document.createElement('div');row.className='member-row';
+    row.innerHTML=`<div class="mhead"><div class="cs"></div><div style="flex:1"><b>${a.name}</b> <span class="ctx-glyph" title="Effective context = own brain ▸ team rules ▸ this job">▸▸▸</span><div class="rl">${a.role}</div></div><button class="btn btn-ghost btn-sm" aria-label="Remove ${a.name}">× remove</button></div>
+      <textarea rows="2" placeholder="On this team: what is this agent's job here?">${escapeHtml(m.instr)}</textarea>`;
+    row.querySelector('.cs').appendChild(castOf(a,'neutral','44px'));
+    row.querySelector('textarea').oninput=e=>{m.instr=e.target.value;};
+    row.querySelector('button').onclick=()=>{teamDraft.members.splice(i,1);renderRoster();updateTeamPreview();};
+    host.appendChild(row);
+  });
+  if(!teamDraft.members.length)host.innerHTML='<p class="hint" style="margin:0 0 10px">No members yet — add agents from the library below.</p>';
+}
+function openAgentPicker(){
+  const taken=new Set(teamDraft.members.map(m=>m.id));
+  const avail=AGENTS.filter(a=>!taken.has(a.id));
+  const body=document.createElement('div');
+  body.innerHTML=`<button class="btn btn-ghost btn-sm close" id="apClose" aria-label="Close">✕</button><h2>Add an agent</h2><p class="hint" style="margin:8px 0 14px">You can only add agents that already exist in the library.</p><div class="def-grid" id="apGrid"></div>`;
+  openSheet(body,'Add an agent');
+  body.querySelector('#apClose').onclick=closeSheet;
+  const grid=body.querySelector('#apGrid');
+  if(!avail.length)grid.innerHTML='<p class="hint">Every agent is already on this team.</p>';
+  avail.forEach(a=>{
+    const c=document.createElement('button');c.className='defcard';
+    c.innerHTML=`<div class="dhead"><div class="cs"></div><div><div class="nm">${a.name}</div><div class="rl">${a.role}</div></div></div><div class="logline">“${a.logline}”</div>`;
+    c.querySelector('.cs').appendChild(castOf(a,'neutral','58px'));
+    c.onclick=()=>{teamDraft.members.push({id:a.id,instr:''});closeSheet();renderRoster();updateTeamPreview();};
+    grid.appendChild(c);
+  });
+}
+function saveTeam(){
+  const d=teamDraft;
+  if(!d.name.trim()){toast('Give your team a name first');return;}
+  if(!d.members.length){toast('Add at least one agent');return;}
+  const perMember={};d.members.forEach(m=>perMember[m.id]=m.instr);
+  if(d.id){const t=teamById(d.id);Object.assign(t,{name:d.name,color:d.color,emblem:d.emblem,instr:d.instr,members:d.members.map(m=>m.id),perMember});}
+  else TEAMS.push({id:'t-'+Date.now(),name:d.name,color:d.color,emblem:d.emblem,instr:d.instr,members:d.members.map(m=>m.id),perMember});
+  fireConfetti();toast(`🎬 ${d.name} is ready to be called`);
+  castView='library';castTab='teams';setTimeout(renderCast,700);
+}
+function escapeAttr(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+/* ============================================================
+   EFFECTS — confetti, toast, motes, dialog sheet, keyboard
+   ============================================================ */
+function fireConfetti(){
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  const c=document.getElementById('confetti');const cols=Object.values(PALETTE);
+  for(let i=0;i<60;i++){const p=document.createElement('i');p.style.left=Math.random()*100+'vw';
+    p.style.background=cols[i%cols.length];p.style.animationDuration=(1.4+Math.random()*1.4)+'s';
+    p.style.animationDelay=(Math.random()*.3)+'s';p.style.transform=`rotate(${Math.random()*360}deg)`;
+    c.appendChild(p);setTimeout(()=>p.remove(),3200);}
+}
+let toastTimer=null;
+function toast(msg){const t=document.getElementById('toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2800);}
+
+(function(){const m=document.getElementById('motes');
+  for(let i=0;i<22;i++){const d=document.createElement('span');d.className='mote';const s=2+Math.random()*5;
+    d.style.width=s+'px';d.style.height=s+'px';d.style.left=Math.random()*100+'vw';d.style.bottom=(-10-Math.random()*20)+'vh';
+    d.style.animationDuration=(14+Math.random()*20)+'s';d.style.animationDelay=(-Math.random()*20)+'s';m.appendChild(d);}
+})();
+
+/* focus-trapped dialog */
+const scrim=document.getElementById('scrim');
+let lastFocused=null, trapHandler=null;
+function openSheet(contentEl,label){
+  lastFocused=document.activeElement;
+  scrim.innerHTML='';
+  const sheet=document.createElement('div');sheet.className='sheet';sheet.setAttribute('role','dialog');sheet.setAttribute('aria-modal','true');sheet.setAttribute('aria-label',label||'Dialog');sheet.style.position='relative';
+  sheet.appendChild(contentEl);
+  scrim.appendChild(sheet);scrim.hidden=false;
+  scrim.onclick=e=>{if(e.target===scrim)closeSheet();};
+  const focusables=()=>sheet.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"]),[contenteditable="true"]');
+  setTimeout(()=>{const f=focusables();if(f.length)f[0].focus();},40);
+  trapHandler=e=>{
+    if(e.key==='Escape'){closeSheet();return;}
+    if(e.key!=='Tab')return;
+    const f=focusables();if(!f.length)return;
+    const first=f[0],last=f[f.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+  };
+  document.addEventListener('keydown',trapHandler);
+  return sheet;
+}
+function closeSheet(){
+  scrim.hidden=true;scrim.innerHTML='';
+  if(trapHandler){document.removeEventListener('keydown',trapHandler);trapHandler=null;}
+  if(lastFocused&&lastFocused.focus){try{lastFocused.focus();}catch(e){}}
+}
+
+/* keyboard: '/' focuses project search; arrows move studio stages */
+window.addEventListener('keydown',e=>{
+  const typing=/input|textarea|select/i.test(e.target.tagName)||e.target.isContentEditable;
+  const studioOpen=document.getElementById('studio').hidden===false;
+  const dialogOpen=scrim.hidden===false;
+  if(e.key==='/'&&!typing&&studioOpen&&current==='projects'){
+    const s=document.getElementById('projSearch');if(s){e.preventDefault();s.focus();}return;
+  }
+  if(typing||dialogOpen||!studioOpen)return;
+  const i=STAGES.findIndex(s=>s.id===current);
+  if(e.key==='ArrowRight'&&i<STAGES.length-1)go(STAGES[i+1].id);
+  if(e.key==='ArrowLeft'&&i>0)go(STAGES[i-1].id);
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+resetDesigners();
+go('projects');
+</script>
+</body>
+</html>

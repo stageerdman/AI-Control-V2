@@ -99,8 +99,17 @@ direction. Playful visuals, consistent component system, accessibility pass.
   rationales in `concepts/` (stark-hud, jobs-apple, disney-pixar), each covering
   the full core loop. Each is a plain local `.html` — open directly in a browser
   (no external resources). Deliverables are local HTML files only (no Artifacts).
-- ⏭️ **Next (gate):** concept review with the user → pick a direction (or blend)
-  → Phase 2 stack/architecture spike.
+- ✅ **Direction chosen: Disney/Pixar.** Redesigned around the user's real
+  workflow via `concepts/disney-v2/`: shared BRIEF, three UX specs (global,
+  workspace, factory — factory §1 canonical design language), a SYNTHESIS build
+  contract, and the delivered single-file prototype
+  `concepts/disney-v2/ai-control-disney-v2.html` (1827 lines, no external
+  resources, JS verified). Covers Projects/Cast/Access/Blueprint + full Workspace
+  (Director chat + one-press voice, Pulse/Checkup/On Set/Shot list, hand-raise →
+  green-room input flow), agent/team factory, project-held access, blueprint +
+  principles freshness.
+- ⏭️ **Next (gate):** user reviews disney-v2 prototype → refine, then Phase 2
+  stack/architecture spike.
 
 ## Decisions
 
