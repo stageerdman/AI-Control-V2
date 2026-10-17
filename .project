@@ -1,0 +1,14 @@
+name: AI-Control-V2
+created: 2026-10-17
+modules:
+  - STRUCTURE
+  - CODING
+  - UX
+  - WORKFLOW
+secrets:
+  - ANTHROPIC_API_KEY
+  - OPENAI_API_KEY
+  - ELEVENLABS_API_KEY
+  - DEEPGRAM_API_KEY
+  - GITHUB_TOKEN
+claude_md_generated: 2026-10-17

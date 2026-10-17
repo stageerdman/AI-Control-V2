@@ -1,0 +1,13 @@
+AI-Control-V2 — known issues & TODOs
+=====================================
+Running list. Newest at top. Move resolved items to the bottom with a strikethrough note or delete once truly gone.
+
+OPEN
+----
+- [ ] Lock the stack (Tauri+React vs. web-only) — decide during the INIT update after reviewing UI concepts.
+- [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
+- [ ] Voice in/out provider choice not finalized (Deepgram vs. Whisper for STT; ElevenLabs for TTS) — validate in a research spike.
+
+RESOLVED
+--------
+(none yet)
