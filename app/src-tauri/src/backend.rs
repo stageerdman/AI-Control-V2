@@ -1,7 +1,8 @@
 //! Backend launcher — owns the local Node server's lifecycle.
 //!
 //! `ensure_running` reuses a server that already answers `/health` on the port, otherwise
-//! spawns `npm --prefix <server> run dev` in its own process group and polls `/health`
+//! spawns `npm --prefix <server> start` (no file watcher — a long-running app must not restart
+//! when files change) in its own process group and polls `/health`
 //! until it is ready (or times out / the child dies). `stop` terminates the whole group.
 //! A tiny shell watchdog in the same group kills the server if the app itself dies hard.
 
@@ -116,12 +117,16 @@ impl Backend {
         if let Some(dir) = self.log_path.parent() {
             fs::create_dir_all(dir).map_err(|e| format!("Can't create log dir: {e}"))?;
         }
+        // Keep the previous run's log next to the new one (a crash is read after the restart).
+        if self.log_path.exists() {
+            let _ = fs::rename(&self.log_path, self.log_path.with_extension("prev.log"));
+        }
         let log = File::create(&self.log_path).map_err(|e| format!("Can't open server log: {e}"))?;
         let log_err = log.try_clone().map_err(|e| e.to_string())?;
 
         // $0 = app pid, $1 = server dir. The watchdog ends the group if the app disappears.
         let script = r#"(while kill -0 "$0" 2>/dev/null; do sleep 1; done; kill -TERM 0) &
-exec npm --prefix "$1" run dev"#;
+exec npm --prefix "$1" start"#;
         Command::new("/bin/sh")
             .arg("-c")
             .arg(script)
@@ -129,7 +134,7 @@ exec npm --prefix "$1" run dev"#;
             .arg(&self.server_dir)
             .current_dir(&self.server_dir)
             .env("PORT", self.port.to_string())
-            .env("PATH", with_common_paths(std::env::var("PATH").unwrap_or_default()))
+            .env("PATH", with_common_paths(std::env::var("PATH").unwrap_or_default(), &home_dir()))
             .stdin(Stdio::null())
             .stdout(log)
             .stderr(log_err)
@@ -161,12 +166,26 @@ fn kill_group(mut child: Child) {
     let _ = child.wait();
 }
 
-/// GUI-launched apps get a bare PATH; make sure the usual Node install dirs are on it.
-fn with_common_paths(path: String) -> String {
-    let mut parts: Vec<String> = path.split(':').filter(|p| !p.is_empty()).map(String::from).collect();
-    for extra in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"] {
-        if !parts.iter().any(|p| p == extra) {
-            parts.push(extra.to_string());
+fn home_dir() -> String {
+    std::env::var("HOME").unwrap_or_default()
+}
+
+/// A Finder-launched app gets a bare PATH (/usr/bin:/bin:…). The server and the agents it runs
+/// need node/npm/npx (Homebrew), git, and the `claude` CLI — put the usual install dirs first
+/// (Homebrew before the system), keeping whatever else was there.
+fn with_common_paths(path: String, home: &str) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    let preferred = [
+        "/opt/homebrew/bin".to_string(),
+        "/opt/homebrew/sbin".to_string(),
+        "/usr/local/bin".to_string(),
+        format!("{home}/.local/bin"),
+    ];
+    let rest = path.split(':').filter(|p| !p.is_empty()).map(String::from);
+    let tail = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"].map(String::from);
+    for p in preferred.into_iter().chain(rest).chain(tail) {
+        if !p.is_empty() && !p.starts_with("/.") && !parts.contains(&p) {
+            parts.push(p);
         }
     }
     parts.join(":")
@@ -211,9 +230,26 @@ mod tests {
 
     #[test]
     fn adds_missing_paths_once() {
-        let p = with_common_paths("/opt/homebrew/bin:/x".into());
-        assert_eq!(p.matches("/opt/homebrew/bin").count(), 1);
+        let p = with_common_paths("/opt/homebrew/bin:/x".into(), "/Users/u");
+        assert_eq!(p.matches("/opt/homebrew/bin:").count(), 1);
         assert!(p.contains("/usr/local/bin"));
+        assert!(p.contains("/Users/u/.local/bin"));
+        assert!(p.contains(":/x"));
+    }
+
+    #[test]
+    fn finder_path_puts_homebrew_before_the_system() {
+        // What launchd hands a Finder-launched app.
+        let p = with_common_paths("/usr/bin:/bin:/usr/sbin:/sbin".into(), "/Users/u");
+        let at = |s: &str| p.split(':').position(|x| x == s).unwrap();
+        assert!(at("/opt/homebrew/bin") < at("/usr/bin"));
+        assert_eq!(p.matches("/usr/bin").count(), 1);
+    }
+
+    #[test]
+    fn no_home_adds_no_relative_dir() {
+        let p = with_common_paths(String::new(), "");
+        assert!(!p.split(':').any(|x| x.starts_with("/.")));
     }
 
     #[test]

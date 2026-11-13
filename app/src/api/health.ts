@@ -69,3 +69,24 @@ export async function checkServer(url: string, doFetch: typeof fetch = fetch): P
     };
   }
 }
+
+/** The live-watch step while the app runs: `fails` consecutive failed pings → lost at LOST_AFTER. */
+export const LOST_AFTER = 2;
+export function watchStep(fails: number, ok: boolean): { fails: number; lost: boolean } {
+  const n = ok ? 0 : fails + 1;
+  return { fails: n, lost: n >= LOST_AFTER };
+}
+
+/** One ping of /health (short timeout). True only for a healthy answer. */
+export async function ping(url: string, doFetch: typeof fetch = fetch, ms = 4000): Promise<boolean> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const res = await doFetch(`${url}/health`, { signal: ctl.signal });
+    return res.ok && parseHealth(await res.text()).ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}

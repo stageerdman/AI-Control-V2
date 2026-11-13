@@ -17,6 +17,34 @@
   background: var(--bg-0);
 }
 
+/* the server stopped answering while the app runs: one calm bar, top centre, over everything */
+.gate-lost {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 640px);
+  padding: 8px 8px 8px 16px;
+  border-radius: 999px;
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: var(--shadow-panel, 0 10px 30px rgba(0, 0, 0, 0.35));
+  font-weight: 700;
+  font-size: 14px;
+}
+.gate-lost-why {
+  font-weight: 500;
+  font-size: 12px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* backend gate (A0): centred robot + one line */
 .gate {
   position: relative;

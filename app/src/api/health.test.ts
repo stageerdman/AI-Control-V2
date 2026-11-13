@@ -77,3 +77,28 @@ describe('checkServer (browser, no Tauri)', () => {
     expect(s.kind === 'error' && s.message).toMatch(/No studio server at http:\/\/x:1/);
   });
 });
+
+describe('watchStep + ping (the live watch)', () => {
+  it('is lost only after two failures in a row; one success resets', async () => {
+    const { watchStep } = await import('./health');
+    let s = watchStep(0, false);
+    expect(s).toEqual({ fails: 1, lost: false });
+    s = watchStep(s.fails, false);
+    expect(s.lost).toBe(true);
+    expect(watchStep(s.fails, true)).toEqual({ fails: 0, lost: false });
+  });
+
+  it('pings: healthy → true; down, 503 or garbage → false (never throws)', async () => {
+    const { ping } = await import('./health');
+    const ok = (async () => new Response(JSON.stringify(body))) as unknown as typeof fetch;
+    const down = (async () => {
+      throw new TypeError('Failed to fetch');
+    }) as unknown as typeof fetch;
+    const sick = (async () => new Response('{}', { status: 503 })) as unknown as typeof fetch;
+    const junk = (async () => new Response('<html>')) as unknown as typeof fetch;
+    expect(await ping('http://x', ok)).toBe(true);
+    expect(await ping('http://x', down)).toBe(false);
+    expect(await ping('http://x', sick)).toBe(false);
+    expect(await ping('http://x', junk)).toBe(false);
+  });
+});
