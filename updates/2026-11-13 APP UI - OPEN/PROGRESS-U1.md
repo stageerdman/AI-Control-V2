@@ -12,5 +12,5 @@ FakeRunner only — no live runs (not approved for this phase).
    `health.latest()`; event `thread.message`. Replies are the run's final result (one event per message — the live
    "typing" state is the agent's `agent.status` working/waiting). 5 tests.
 3. ✅ **Cross-project asks** — migration 12 (`asks.seen_at`), `runsRepo.studioAsks/markSeen`, `GET /asks`, `POST /asks/seen`. 2 tests.
-4. ⏳ Office staffing view
+4. ✅ **Office staffing view** — `src/office/office.ts`, `GET /projects/:id/office` (config shape + latest status via `json_extract` over `agent.status` events, stale-busy → idle, `lastEventId` for a gap-free SSE start). 2 tests.
 5. ⏳ Reports (waits for `spec-reports.md`)

@@ -18,6 +18,7 @@ import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { createFeatures } from './office/features.ts';
+import { createOffice } from './office/office.ts';
 import { createThreads } from './office/threads.ts';
 import { accessRoutes } from './routes/access.ts';
 import { agentRoutes } from './routes/agents.ts';
@@ -28,6 +29,7 @@ import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
 import { healthRoutes } from './routes/health.ts';
+import { officeRoutes } from './routes/office.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { roleRoutes } from './routes/roles.ts';
@@ -172,5 +174,6 @@ export function buildApp({
   app.register(projectHealthRoutes({ health }));
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));
+  app.register(officeRoutes({ office: createOffice({ db, store }) }));
   return app;
 }
