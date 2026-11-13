@@ -14,6 +14,7 @@ js/emblem.js
 # data
 js/data-studio.js
 js/data-cast.js
+js/office-layout.js
 js/data-office.js
 # screens
 js/studio.js

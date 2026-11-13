@@ -26,8 +26,8 @@ function route() {
   const parts = currentRoute().split('/').filter(Boolean);
   let head = parts[0] || 'projects';
   /* office shorthands from spec-office §3.5 */
-  if (['board', 'features', 'feature'].includes(head)) { parts.unshift('office', 'aurora'); head = 'office'; }
-  if (head === 'office' && (!parts[1] || ['board', 'features', 'feature'].includes(parts[1]))) parts.splice(1, 0, 'aurora');
+  if (['board', 'health', 'features', 'feature'].includes(head)) { parts.unshift('office', 'aurora'); head = 'office'; }
+  if (head === 'office' && (!parts[1] || ['board', 'health', 'features', 'feature'].includes(parts[1]))) parts.splice(1, 0, 'aurora');
 
   if (APP.view === 'office' && head !== 'office' && typeof closeOffice === 'function') closeOffice();
   if (sheetOpen()) closeSheet();
