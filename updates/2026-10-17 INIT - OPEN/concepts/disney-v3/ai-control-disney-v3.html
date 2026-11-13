@@ -977,6 +977,8 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 .o-prog:hover{background:rgba(255,255,255,.15)}
 .o-prog:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 .o-prog b{font-weight:900}
+.o-prog{white-space:nowrap;flex:none}
+@media (max-width:1099px){.o-ptgt{display:none}}
 .o-pbar{width:90px;height:8px;border-radius:9px;background:rgba(255,255,255,.15);overflow:hidden}
 .o-pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--teal));border-radius:9px;transition:width .6s var(--ease-out)}
 .o-ptgt{font-weight:800;color:rgba(255,246,233,.75)}
@@ -1067,7 +1069,8 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 .o-actor[data-family="red"] .o-tag{background:#ffd9d9}
 .o-actor[data-family="green"] .o-tag{background:#c9f5c9}
 .o-actor.needs .o-tag,.o-actor.speaking .o-tag{display:none}
-.o-actor.odd .o-over{bottom:calc(100% - var(--hy) + 34 * var(--u))}
+.o-tag,.o-bubble,.o-bang{translate:calc(var(--nx,0) * 1px) calc(var(--ny,0) * 1px);translate:calc(var(--nx,0) * var(--u)) calc(var(--ny,0) * var(--u))}
+.o-tag.o-hide{visibility:hidden}
 .o-actor.held .o-body::before{opacity:1;bottom:26%;height:80%;left:-34%;right:-34%;background:radial-gradient(closest-side,rgba(255,230,150,.85),rgba(255,230,150,0))}
 .o-bang{display:inline-flex;align-items:center;gap:calc(6*var(--u));padding:calc(3*var(--u)) calc(11*var(--u)) calc(3*var(--u)) calc(3*var(--u));border-radius:999px;position:relative;
   background:var(--coral);color:#fff;font-weight:900;font-size:calc(13*var(--u));box-shadow:0 0 0 calc(2.5*var(--u)) var(--ink),0 calc(4*var(--u)) calc(12*var(--u)) rgba(255,111,115,.6);animation:o-bob 1.2s ease-in-out infinite}
@@ -2572,6 +2575,10 @@ const AGENTS = [
 ];
 const DIRECTOR = { id: 'director', name: 'Pixel', role: 'Director', hue: 'sun', build: 'hero', hair: 'tuft', accessory: 'none' };
 const agentById = id => (id === 'director' || id === 'pixel') ? DIRECTOR : AGENTS.find(a => a.id === id);
+/* Friendly short name for sentences ("Give Pete a job"). Never the first word blindly:
+   "Sir Lint-a-lot" → "Lint", not "Sir". */
+const AGENT_NICK = { 'a-pete': 'Pete', 'a-semic': 'Captain', 'a-lint': 'Lint', 'a-doc': 'Doc', 'a-baron': 'Baron', 'a-merge': 'Madame M', 'a-prof': 'Professor', 'a-scar': 'Scarlett', 'a-query': 'Querious', 'a-twinkle': 'Twinkle' };
+const shortName = a => (a.id === 'director' || a.id === 'pixel') ? 'Pixel' : (a.nick || AGENT_NICK[a.id] || a.name);
 
 /* Teams (spec-teams §3.1 shape, §3.2 assignments). Rules / jobs for Ship-It and
    Polish are the v2 text verbatim. */
@@ -4204,7 +4211,7 @@ function _crewList(z, p) {
     b.setAttribute('aria-label', `${a.name}, ${eff}${isCap ? ', Captain' : ''}. Edit on this team`);
     b.innerHTML = `<span class="sq-row-fig"></span><span class="sq-row-text"><b>${escapeHtml(a.name)}${isCap ? ` <em>${STAR} Captain</em>` : ''}</b>
       <span>${roleBadge(eff, 12)}${escapeHtml(eff)}${m.role ? ' <i>on this team</i>' : ''}</span>
-      ${m.instr ? '' : `<span class="sq-nudge">Give ${escapeHtml(a.name.split(' ')[0])} a job</span>`}</span><i class="chev" aria-hidden="true">›</i>`;
+      ${m.instr ? '' : `<span class="sq-nudge">Give ${escapeHtml(shortName(a))} a job</span>`}</span><i class="chev" aria-hidden="true">›</i>`;
     b.querySelector('.sq-row-fig').appendChild(hero(a, { size: 'xs', facing: 'front', role: m.role || undefined }));
     b.onclick = () => _selectMember(z, m.agent);
     li.appendChild(b); ul.appendChild(li);
@@ -4246,12 +4253,12 @@ function _selectMember(z, agentId) {
   if (SQ.strip) _closeStrip(true);
   SQ.sel = agentId; _lookAtSelected(z);
   const selB = z.querySelector(`.sq-m[data-id="${agentId}"]`); if (selB) cxHop(selB.querySelector('.hero'));
-  const first = a.name.split(' ')[0];
+  const first = shortName(a);
   const p = _tEl('div', 'z-panel drill-in');
   p.innerHTML = `<div class="zp-scroll">
     <div class="zp-top"><button type="button" class="zp-crumb"><span aria-hidden="true">←</span> ${escapeHtml(t.name || 'New team')}</button><span class="zp-saved" aria-hidden="true">Saved ✓</span></div>
     <div class="sq-mhead"><span class="sq-mfig"></span><div><h2 id="sqMember" tabindex="-1">${escapeHtml(a.name)}</h2>
-      <p>${roleBadge(a.role, 14)}${escapeHtml(a.role)} in the cast · <a href="#cast/agent/${escapeAttr(a.id)}" class="zp-link">Open ${escapeHtml(first)}’s page</a></p></div></div>
+      <p>${roleBadge(a.role, 14)}${escapeHtml(a.role)} in the cast · <a href="#cast/agent/${escapeAttr(a.id)}" class="zp-link">Open agent page</a></p></div></div>
     <section class="zp-sec sq-mrole"><h3 class="zp-label">Role on this team</h3>
       <button type="button" class="zp-link sq-reset" hidden></button></section>
     <section class="zp-sec"><h3 class="zp-label"><label for="sqJob">Job on this team</label></h3>
@@ -4871,7 +4878,7 @@ function _otLounge() {
 /* a name plaque pinned to a rug's front edge — team membership in words */
 function _otPlaque(cx, y, text, hue) {
   const w = Math.max(120, text.length * 11.5 + 30);
-  return `<g transform="translate(${cx} ${y})"><rect x="${-w / 2}" y="-15" width="${w}" height="30" rx="15" fill="${OT.paper}" ${_o(2.5)}/>
+  return `<g class="ot-plaque" transform="translate(${cx} ${y})"><rect x="${-w / 2}" y="-15" width="${w}" height="30" rx="15" fill="${OT.paper}" ${_o(2.5)}/>
     <circle cx="${-w / 2 + 15}" cy="0" r="6" fill="${hueHex(hue)}" ${_o(2)}/>
     <text x="8" y="6" text-anchor="middle" font-size="17" font-weight="900" fill="${OT_INK}" letter-spacing=".02em">${escapeHtml(text)}</text></g>`;
 }
@@ -5356,7 +5363,7 @@ const OE = {
       }
       rec.wrap.style.transitionDuration = '';
     }
-    rec.walking = false; rec.wrap.classList.remove('walking');
+    rec.walking = false; rec.wrap.classList.remove('walking'); this.declutterSoon();
     if (typeof target === 'string') rec.data.at = target;
     if (to.look) setFacing(rec.hero, 'side', { dir: to.look });
   },
@@ -5392,12 +5399,12 @@ const OE = {
     rec.wrap.dataset.kind = a.activity.kind;
     rec.wrap.classList.toggle('asleep', a.activity.kind === 'sleeping');
     rec.wrap.dataset.family = { sleeping: 'sleep', idle: 'free', 'needs-input': 'needs', 'tests-red': 'red', 'tests-green': 'green', shipped: 'green' }[a.activity.kind] || 'work';
-    rec.wrap.classList.toggle('odd', /^[ABC]-[24]$|^hot-[24]$/.test(a.at || '') && !!seated);
     rec.wrap.classList.toggle('needs', a.activity.kind === 'needs-input');
     rec.btn.querySelector('.o-ti').textContent = act.icon;
     const sh = a.activity.short; rec.btn.querySelector('.o-tt').textContent = sh && sh.length <= 13 ? sh : act.tag;
     this.bang(rec.id, a.activity.kind === 'needs-input');
     rec.btn.setAttribute('aria-label', actorLabel(a));
+    this.declutterSoon();
     function kindFront(k) { return k === 'shipped'; }
   },
   bang(id, on) {
@@ -5451,12 +5458,60 @@ const OE = {
     clearTimeout(this._chipT); this._chipT = setTimeout(() => b.remove(), 6000);
   },
 
+  /* ---------------------------------------------------------- declutter
+     Overlays never collide. Priority: "Needs you" pill > speech bubble >
+     status tag. Fixed obstacles: rug name plaques, wall-object labels, and
+     everyone's face (a tag may never cover someone else's face). Each pass
+     resets nudges, measures in screen space, then places items in priority
+     order, nudging up/sideways; a status tag that can't fit is hidden (its
+     state stays in the actor's label, the list mirror and the hover card). */
+  declutterSoon() { if (!this.box) return; clearTimeout(this._dcT); this._dcT = setTimeout(() => this.declutter(), 0); },
+  declutter() {
+    if (!this.box || this.box.classList.contains('zoomed')) return;
+    const items = [];
+    Object.values(this.actors).forEach(r => {
+      if (r.wrap.classList.contains('gone')) return;
+      [['.o-bang', 4], ['.o-bubble', 3], ['.o-tag', 2]].forEach(([sel, pri]) => {
+        const el = r.btn.querySelector(sel); if (!el) return;
+        el.style.setProperty('--nx', 0); el.style.setProperty('--ny', 0); el.classList.remove('o-hide');
+        items.push({ el, pri, r });
+      });
+    });
+    const vis = items.filter(it => { const b = it.el.getBoundingClientRect(); it.b = b; return b.width > 0 && b.height > 0 && getComputedStyle(it.el).display !== 'none'; });
+    const pad = 3;
+    const hit = (a, b) => a.left < b.right + pad && a.right + pad > b.left && a.top < b.bottom + pad && a.bottom + pad > b.top;
+    /* obstacles */
+    const plaques = [...this.art.querySelectorAll('.ot-plaque')].map(g => ({ rect: g.getBoundingClientRect(), owner: null }));
+    const faces = Object.values(this.actors).filter(r => !r.wrap.classList.contains('gone')).map(r => {
+      const hb = r.hero.getBoundingClientRect(); const hy = parseFloat(r.hero.style.getPropertyValue('--head-y')) / 100 || .1;
+      return { rect: { left: hb.left + hb.width * .2, right: hb.right - hb.width * .2, top: hb.top + hb.height * hy, bottom: hb.top + hb.height * (hy + .36) }, owner: r.id };
+    });
+    const placed = [...plaques];
+    const shift = (b, dx, dy) => ({ left: b.left + dx, right: b.right + dx, top: b.top + dy, bottom: b.bottom + dy });
+    const tries = [[0, 0]];
+    for (let dy = 8; dy <= 40; dy += 8) tries.push([0, -dy], [-dy * .8, -dy * .5], [dy * .8, -dy * .5]);
+    for (let dx = 12; dx <= 48; dx += 12) tries.push([-dx, 0], [dx, 0]);
+    vis.sort((a, b) => b.pri - a.pri || a.b.top - b.b.top);
+    vis.forEach(it => {
+      const obst = placed.concat(it.pri <= 2 ? faces.filter(f => f.owner !== it.r.id) : []);
+      let ok = null;
+      const far = it.pri <= 2 && it.r.data.session === 'asleep' ? 16 : 99; /* a sleeper's tag never drifts away from them */
+      for (const [dx, dy] of tries) { if (Math.abs(dx) > far || Math.abs(dy) > far) continue; const c = shift(it.b, dx, dy); if (!obst.some(o => hit(c, o.rect))) { ok = [dx, dy, c]; break; } }
+      if (!ok) {
+        if (it.pri <= 2) { it.el.classList.add('o-hide'); return; }
+        ok = [0, 0, it.b];
+      }
+      if (ok[0] || ok[1]) { it.el.style.setProperty('--nx', ok[0].toFixed(1)); it.el.style.setProperty('--ny', ok[1].toFixed(1)); }
+      placed.push({ rect: ok[2], owner: it.r.id });
+    });
+  },
+
   /* ---------------------------------------------------------- talk */
   async say(id, text, o = {}) {
     const rec = this.actors[id]; if (!rec || this.instant) return;
     const b = rec.btn.querySelector('.o-bubble');
     b.innerHTML = escapeHtml(text).replace(/`([^`]+)`/g, '<code>$1</code>');
-    b.hidden = false; b.classList.remove('to-left', 'to-right', 'shout');
+    b.hidden = false; b.classList.remove('to-left', 'to-right', 'shout'); this.declutterSoon();
     if (o.to && this.actors[o.to]) b.classList.add(this.actors[o.to].x < rec.x ? 'to-left' : 'to-right');
     if (o.shout) b.classList.add('shout');
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
@@ -5464,7 +5519,7 @@ const OE = {
     const ms = o.ms || 1700;
     await this.sleep(ms);
     if (rec._hoverBubble) await new Promise(r => { rec._release = r; });
-    b.hidden = true; rec.wrap.classList.remove('speaking');
+    b.hidden = true; rec.wrap.classList.remove('speaking'); this.declutterSoon();
   },
   /* converse: max 2 conversations visible at once — extras wait */
   async converse(a, b, lines) {
@@ -5549,6 +5604,7 @@ const OE = {
     this.box.style.setProperty('--k', k);
     this._ox = ox; this._oy = oy;
     if (this.zoom.obj) this.zoomTo(this.zoom.obj, true);
+    this.declutterSoon();
   },
   /* fit an object's bounds into the viewport; null = back to the office */
   zoomTo(objId, quiet) {
@@ -5569,6 +5625,7 @@ const OE = {
     this.cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : '';
     this.box.style.setProperty('--z', z);
     this.box.classList.toggle('zoomed', !!objId);
+    if (!objId) setTimeout(() => this.declutter(), reducedMotion() ? 50 : 700);
     return rect;
   },
 };
@@ -5654,11 +5711,7 @@ OP.open = function (id, o = {}) {
   else if (o.from !== 'scene' && o.from !== 'type') this.el.querySelector('#opInput').focus({ preventScroll: true });
 };
 OP._name = id => agentById(id === 'pixel' ? 'director' : id).name;
-OP._short = id => {
-  if (id === 'pixel') return 'Pixel';
-  const nick = { 'a-pete': 'Pete', 'a-semic': 'Captain', 'a-lint': 'Lint', 'a-doc': 'Doc', 'a-baron': 'Baron', 'a-merge': 'Madame M', 'a-prof': 'Professor' };
-  return nick[id] || agentById(id).name.split(' ')[0];
-};
+OP._short = id => id === 'pixel' ? 'Pixel' : shortName(agentById(id));
 
 /* "tell me what you're doing" — summary bubble in the scene + newest message here */
 OP._summary = function (a, bubble, bubbleOnly) {
@@ -5743,7 +5796,7 @@ OP.refresh = function () {
     const status = id === 'pixel' ? `<span class="op-live"><i></i>Always here</span> · ${wsTok(a.tokens.total)} tokens`
       : `${act.icon} ${escapeHtml(a.activity.kind === 'needs-input' ? 'Needs you' : a.activity.detail || a.activity.label)} · <b>${wsTok(a.tokens.total)}</b> tokens`;
     const honest = id === 'pixel' ? 'Your manager · big picture only'
-      : a.session === 'asleep' ? `${escapeHtml(ag.name.split(' ')[0])} is off shift — Pixel can bring them in`
+      : a.session === 'asleep' ? `${escapeHtml(this._short(id))} is off shift — Pixel can bring them in`
       : 'Pixel sees a summary of this chat' + (['coding', 'reading', 'testing', 'reviewing', 'planning'].includes(a.activity.kind) ? ' · still working in the background' : '');
     head.innerHTML = `<div class="op-portrait"><span class="op-spot"></span></div>
       <div class="op-who"><b>${escapeHtml(ag.name)}</b>
@@ -5940,7 +5993,7 @@ OP._askCard = function (m) {
     return el;
   }
   el.setAttribute('role', 'group'); el.setAttribute('aria-label', `${a.name} is asking: ${ask.short}`);
-  el.innerHTML = `<div class="op-ak">❗ ${escapeHtml(a.name.split(' ')[0])} needs you</div><div class="op-aq">${m.text.replace(/<(?!\/?b>)[^>]*>/g, '')}</div><div class="op-actx">${escapeHtml(ask.ctx)}</div><div class="op-ain"></div>`;
+  el.innerHTML = `<div class="op-ak">❗ ${escapeHtml(this._short(ask.agentId))} needs you</div><div class="op-aq">${m.text.replace(/<(?!\/?b>)[^>]*>/g, '')}</div><div class="op-actx">${escapeHtml(ask.ctx)}</div><div class="op-ain"></div>`;
   const inp = el.querySelector('.op-ain');
   if (ask.type === 'access') {
     const cred = credById(ask.want); const on = !!WS.grants[ask.want];
@@ -5981,7 +6034,7 @@ OP.resolveAsk = function (askId, answer) {
   WS.answered = WS.answered || {}; WS.answered[askId] = answer;
   const name = this._name(ask.agentId);
   this.post(ask.agentId, { from: 'user', kind: 'text', text: ask.type === 'access' ? `Granted — ${answer.replace(/ granted$/, '')} (masked).` : `Go with ${answer}.` });
-  toast(`Handed to ${escapeHtml(name.split(' ')[0])} ✓`);
+  toast(`Handed to ${escapeHtml(this._short(ask.agentId))} ✓`);
   this.system(`${name} is unblocked — back to work.`);
   if (typeof OS !== 'undefined') OS.onAnswer(ask, answer);
   if (this.thread === ask.agentId) this._renderThread();
@@ -6919,6 +6972,7 @@ function officeRefresh() {
   document.getElementById('oStage').setAttribute('aria-label', `Office — ${people} people${n ? `, ${n} need${n === 1 ? 's' : ''} you` : ''}. Arrow keys move between people; ! jumps to whoever needs you.`);
   document.getElementById('oStage').setAttribute('role', 'group');
   THEME_OFFICE.sync(OE.art, WS);
+  OE.declutterSoon();
   OP.refresh();
   if (OM.layer) OB.refresh();
 }
