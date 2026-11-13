@@ -74,7 +74,7 @@ Bodies are strict — unknown keys are 422.
 | `GET POST /roles` · `GET PATCH DELETE /roles/:id` | user-defined role names; rename shows on every agent; `PATCH {name?, reporter?}` — `reporter: true` = agents holding the role file reports |
 | `GET POST /agents` · `GET PATCH DELETE /agents/:id` | `kind` set at creation only; each agent carries `teamIds`, `projectIds`, `canDelete {ok, why}` |
 | `GET POST /teams` · `GET PATCH DELETE /teams/:id` | `PATCH {captainId}` to change captain; `reporter: true` = runs for this team file reports |
-| `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add / edit job / remove (captain passes on) |
+| `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add `{agentId, instr?, at?}` (`at` = put back at an old place, undo) / edit job / remove (captain passes on) |
 | `GET POST /projects` · `GET PATCH /projects/:id` | `orchestratorId`, `teamIds` (teams first), `agentIds` (specialists), `folder` (sandbox-relative) |
 | `DELETE /projects/:id` | 204; forgets the record, never touches the folder |
 | `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (validated — see Plan below), `chat` |

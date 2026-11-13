@@ -21,7 +21,12 @@ const TeamCreate = z.strictObject({
 });
 const TeamPatch = z.strictObject({ ...fields, name: Name.optional(), captainId: Id.optional() });
 const MemberParams = z.object({ id: Id, agentId: Id });
-const MemberAdd = z.strictObject({ agentId: Id, instr: Text.optional() });
+/* at: put the member back at its old place (undo after a remove); default last */
+const MemberAdd = z.strictObject({
+  agentId: Id,
+  instr: Text.optional(),
+  at: z.number().int().min(0).max(6).optional(),
+});
 const MemberPatch = z.strictObject({ instr: Text });
 
 export const teamRoutes =
@@ -40,8 +45,8 @@ export const teamRoutes =
 
     app.post('/teams/:id/members', async (req, reply) => {
       const { id } = parse(IdParams, req.params);
-      const { agentId, instr } = parse(MemberAdd, req.body);
-      return reply.status(201).send(store.tx(() => store.teams.addMember(id, agentId, instr)));
+      const { agentId, instr, at } = parse(MemberAdd, req.body);
+      return reply.status(201).send(store.tx(() => store.teams.addMember(id, agentId, instr, at)));
     });
     app.patch('/teams/:id/members/:agentId', async (req) => {
       const { id, agentId } = parse(MemberParams, req.params);

@@ -102,6 +102,14 @@ describe('teams API', () => {
     );
   });
 
+  it('re-adds a member at its old place (undo after remove)', async () => {
+    await h.call('DELETE', '/teams/ship-it/members/a-pete');
+    const back = await h.call('POST', '/teams/ship-it/members', { agentId: 'a-pete', instr: 'UI', at: 1 });
+    expect(back.status).toBe(201);
+    expect(ids(back.body)).toEqual(['a-semic', 'a-pete', 'a-scar']);
+    expect((await h.call('POST', '/teams/ship-it/members', { agentId: 'a-doc', at: 9 })).status).toBe(422);
+  });
+
   it('edits team text and a member’s job', async () => {
     const t = await h.call('PATCH', '/teams/polish', { blurb: 'Shine.', code: 'One cleanup per commit.' });
     expect(t.body).toMatchObject({

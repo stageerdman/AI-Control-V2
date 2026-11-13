@@ -171,8 +171,8 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
       return repo.require(id);
     },
 
-    addMember(id: string, agentId: string, instr = ''): Team {
-      repo.saveRoster(id, addMember(repo.roster(id), agents.ref(agentId), instr));
+    addMember(id: string, agentId: string, instr = '', at?: number): Team {
+      repo.saveRoster(id, addMember(repo.roster(id), agents.ref(agentId), instr, at));
       return repo.require(id);
     },
     updateMember(id: string, agentId: string, instr: string): Team {
