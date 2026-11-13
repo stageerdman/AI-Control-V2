@@ -143,7 +143,41 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
         brief: `Do your part of: ${goal}`,
         ...(research && reporter ? { report: true } : {}),
       }));
-      return answer({ summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000), items: out });
+      /* a building goal makes (or reuses) its feature, when the studio offers the features folder */
+      const features = field<{ id: string; name: string; status: string }[]>(t, 'Features:');
+      const same = features?.find((f) => f.name.toLowerCase() === goal.slice(0, 120).toLowerCase());
+      const feature =
+        !features || (research && reporter)
+          ? undefined
+          : same
+            ? { id: same.id }
+            : { name: goal.slice(0, 120), description: `What the user asked for: ${goal}`.slice(0, 2000) };
+      return answer({
+        summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000),
+        items: out,
+        ...(feature ? { feature } : {}),
+      });
+    }
+    case 'team-split': {
+      /* the captain hands a part to up to two teammates (by their jobs) — tiny items stay with the captain */
+      const item = field<string>(t, "Your team's item:") ?? 'the item';
+      const team = field<{ members: { id: string; name: string; job: string; captain?: boolean }[] }>(
+        t,
+        'Your team:',
+      );
+      const mates = (team?.members ?? []).filter((m) => !m.captain).slice(0, 2);
+      if (!mates.length || /\b(typo|tiny|quick fix)\b/i.test(item))
+        return answer({ mode: 'self', summary: 'Small enough — I’ll do it myself.', subtasks: [] });
+      return answer({
+        mode: 'team',
+        summary: `${mates.map((m) => m.name).join(' and ')} each take a part; I pull it together.`,
+        subtasks: mates.map((m, i) => ({
+          text: `Part ${i + 1} of: ${item}`.slice(0, 300),
+          assignee: m.id,
+          brief: `Build part ${i + 1} of "${item}" (${m.job || 'your job on the team'}).`,
+          parallel: true,
+        })),
+      });
     }
     case 'collaboration': {
       type Who = { id: string; name: string; role: string };

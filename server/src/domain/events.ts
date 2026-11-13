@@ -91,6 +91,22 @@ export const EVENT_SCHEMAS = {
     stage: z.enum(['build', 'review', 'merge']).optional(),
     /** Who holds it right now (the builder, or the reviewer during a review). */
     holder: id.optional(),
+    /** F1c: a member's sub-task of this team item (the office shows it under the item, not on the whiteboard). */
+    parentId: id.optional(),
+    /** F1c: a split team item — members building, or the captain integrating. */
+    teamPhase: z.enum(['members', 'integrate']).optional(),
+  }),
+  /** F1c: a captain split a team item into sub-tasks for members (mode team), or took it on alone (mode self). */
+  'team.split': z.strictObject({
+    itemId: id,
+    goalId: id,
+    captainId: id,
+    teamId: id,
+    mode: z.enum(['team', 'self']),
+    summary: text(1000),
+    subtasks: z.array(z.strictObject({ itemId: id, agentId: id, text: text(300) })).max(8),
+    /** 0 = the first split; 1+ = a rework round the captain sent back after integrating. */
+    round: count,
   }),
   /** The collaboration design (B8) changed: who the orchestrator briefs + how many review gates. GET …/collaboration has it whole. */
   'collaboration.changed': z.strictObject({
@@ -99,13 +115,16 @@ export const EVENT_SCHEMAS = {
     summary: text(500),
   }),
   /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
-      (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). */
+      (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). F1c, inside a team:
+      captain → member (delegate: a sub-task; rework: the captain's notes), member → captain (deliver: merged into
+      the team's branch). On team handoffs itemId is the sub-task and parentId the team item. */
   handoff: z.strictObject({
     itemId: id,
     goalId: id,
+    parentId: id.optional(),
     from: id,
     to: id,
-    kind: z.enum(['review', 'rework', 'merge-fix']),
+    kind: z.enum(['review', 'rework', 'merge-fix', 'delegate', 'deliver']),
     gate: z.enum(GATE_KINDS).optional(),
     note: text().optional(),
   }),
@@ -154,6 +173,14 @@ export const EVENT_SCHEMAS = {
     pct: z.number().int().min(0).max(100).nullable().optional(),
     owner: id.nullable().optional(),
     deleted: z.literal(true).optional(),
+  }),
+  /** F1c: every item of a goal that works on this feature landed — the feature moved to Shipped. */
+  'feature.shipped': z.strictObject({ featureId: id, goalId: id, name: text(120) }),
+  /** F1c: the project's app (its dev server / start command) started, printed its address, stopped or exited. */
+  'app.status': z.strictObject({
+    status: z.enum(['running', 'stopped', 'exited']),
+    url: text(300).optional(),
+    exitCode: z.number().int().nullable().optional(),
   }),
   /** Project conversations (U1): a message in the user's thread with an agent (the orchestrator or anyone on the project). */
   'thread.message': z.strictObject({

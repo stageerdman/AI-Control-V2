@@ -50,7 +50,13 @@ describe('setup → work, end to end (fake brain)', () => {
     }
     expect(g).toMatchObject({ status: 'done', pct: 100 });
     const runs = (await h.call('GET', `/projects/${p.id}/runs`)).body;
-    expect(runs.map((r: { status: string }) => r.status)).toEqual(['succeeded', 'succeeded']);
+    // F1c: each captain split its item with its members, then integrated their parts
+    expect(runs.every((r: { status: string }) => r.status === 'succeeded')).toBe(true);
+    expect(runs).toHaveLength(5); // ship-it: 2 members + captain · the new team: 1 member + captain
+    expect(g.items.map((i: { subtasks: unknown[] }) => i.subtasks.length)).toEqual([2, 1]);
+    // the goal built a feature, and it shipped when the goal landed
+    const feats = (await h.call('GET', `/projects/${p.id}/features`)).body;
+    expect(feats).toMatchObject([{ name: 'Ship the first screen', status: 'shipped', pct: 100 }]);
     expect(h.store.projects.require(p.id).progress).toBe(100);
   });
 });

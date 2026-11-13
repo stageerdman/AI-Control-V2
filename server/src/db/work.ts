@@ -9,6 +9,8 @@ export type GoalStatus = 'running' | 'done' | 'failed' | 'cancelled';
 export type ItemStatus = 'todo' | 'running' | 'done' | 'failed' | 'cancelled';
 /** build → review(s) → (merge) → done. `merge` = the builder fixes a merge conflict. */
 export type ItemStage = 'build' | 'review' | 'merge';
+/** F1c: a team item the captain split — its members are building ('members'), or the captain pulls it together ('integrate'). */
+export type TeamPhase = 'members' | 'integrate';
 export type ItemReview = {
   reviewer: string;
   gate: ItemGate['kind'];
@@ -50,6 +52,16 @@ export type ChecklistItem = {
   workspace: Workspace | null;
   /** Merge conflicts the builder was asked to fix. */
   mergeTries: number;
+  /** F1c: a member's sub-task of a team item (null on the whiteboard's own items). */
+  parentId: string | null;
+  /** F1c: where a split team item is (null = not split, or back in the normal flow after integration). */
+  teamPhase: TeamPhase | null;
+  /** Rework rounds the captain sent members back for. */
+  teamRounds: number;
+  /** The captain's split in one sentence (null = not split). */
+  teamPlan: string | null;
+  /** The members' sub-tasks (oldest round first; empty on sub-tasks themselves). */
+  subtasks: ChecklistItem[];
   createdAt: string;
   updatedAt: string;
 };
@@ -65,6 +77,9 @@ export type ItemPatch = {
   buildRunId?: string | null;
   workspace?: Workspace | null;
   mergeTries?: number;
+  teamPhase?: TeamPhase | null;
+  teamRounds?: number;
+  teamPlan?: string | null;
 };
 export type Goal = {
   id: string;
@@ -77,6 +92,9 @@ export type Goal = {
   pct: number;
   /** Caps for every run this goal dispatches (null → the runtime defaults). */
   caps: { maxTurns?: number; maxBudgetUsd?: number } | null;
+  /** F1c: the feature this goal works on (null = none, e.g. research), and whether finishing it ships the feature. */
+  featureId: string | null;
+  ships: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -106,6 +124,11 @@ const toItem = (r: Row): ChecklistItem => ({
   buildRunId: (r.build_run_id as string | null) ?? null,
   workspace: r.workspace ? (JSON.parse(r.workspace as string) as Workspace) : null,
   mergeTries: (r.merge_tries as number) ?? 0,
+  parentId: (r.parent_id as string | null) ?? null,
+  teamPhase: (r.team_phase as TeamPhase | null) ?? null,
+  teamRounds: (r.team_rounds as number) ?? 0,
+  teamPlan: (r.team_plan as string | null) ?? null,
+  subtasks: [],
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
 });
@@ -118,16 +141,27 @@ function parseList<T>(raw: unknown): T[] {
   }
 }
 
+const WITH_REPORT = `SELECT i.*, (SELECT r.id FROM reports r WHERE r.item_id = i.id ORDER BY r.created_at DESC LIMIT 1) AS report_id
+  FROM checklist_items i`;
+
 export function workRepo(db: Db) {
+  /** A team item's sub-tasks, in the order the captain gave them (rounds in order). */
+  const children = (parentId: string): ChecklistItem[] =>
+    (
+      db
+        .prepare('SELECT * FROM checklist_items WHERE parent_id = ? ORDER BY position, rowid')
+        .all(parentId) as Row[]
+    ).map(toItem);
+  const withSubtasks = (it: ChecklistItem): ChecklistItem => ({ ...it, subtasks: children(it.id) });
+  /** The whiteboard's own items (sub-tasks hang under their team item). */
   const items = (goalId: string) =>
     (
       db
-        .prepare(
-          `SELECT i.*, (SELECT r.id FROM reports r WHERE r.item_id = i.id ORDER BY r.created_at DESC LIMIT 1) AS report_id
-           FROM checklist_items i WHERE i.goal_id = ? ORDER BY i.position`,
-        )
+        .prepare(`${WITH_REPORT} WHERE i.goal_id = ? AND i.parent_id IS NULL ORDER BY i.position`)
         .all(goalId) as Row[]
-    ).map(toItem);
+    )
+      .map(toItem)
+      .map(withSubtasks);
   const toGoal = (r: Row): Goal => {
     const its = items(r.id as string);
     return {
@@ -138,6 +172,8 @@ export function workRepo(db: Db) {
       status: r.status as GoalStatus,
       items: its,
       caps: r.caps ? JSON.parse(r.caps as string) : null,
+      featureId: (r.feature_id as string | null) ?? null,
+      ships: r.ships !== 0,
       pct: its.length ? Math.round((its.filter((i) => i.status === 'done').length / its.length) * 100) : 0,
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
@@ -190,11 +226,49 @@ export function workRepo(db: Db) {
       });
       return repo.goal(g.id) as Goal;
     },
+    /** F1c: link a goal to a feature. */
+    setGoalFeature: (id: string, featureId: string | null, ships: boolean) =>
+      db
+        .prepare('UPDATE goals SET feature_id = ?, ships = ?, updated_at = ? WHERE id = ?')
+        .run(featureId, ships ? 1 : 0, now(), id),
+    /** Running goals of a project that work on this feature. */
+    featureGoals: (featureId: string): Goal[] =>
+      (db.prepare('SELECT * FROM goals WHERE feature_id = ?').all(featureId) as Row[]).map(toGoal),
+    children,
+    /** F1c: the captain's sub-tasks for a team item (appended after any earlier round). */
+    insertSubtasks(
+      parent: ChecklistItem,
+      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId'> & { parallel?: boolean })[],
+    ): ChecklistItem[] {
+      const t = now();
+      const start = children(parent.id).length;
+      const ins = db.prepare(
+        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, parent_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', 'todo', ?, ?, ?)`,
+      );
+      list.forEach((i, n) => {
+        ins.run(
+          i.id,
+          parent.goalId,
+          parent.projectId,
+          start + n,
+          i.text,
+          i.brief,
+          i.agentId,
+          parent.teamId,
+          i.parallel ? 1 : 0,
+          parent.id,
+          t,
+          t,
+        );
+      });
+      return children(parent.id).slice(start);
+    },
     setGoalStatus: (id: string, status: GoalStatus) =>
       db.prepare('UPDATE goals SET status = ?, updated_at = ? WHERE id = ?').run(status, now(), id),
     item(id: string): ChecklistItem | null {
-      const r = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id) as Row | undefined;
-      return r ? toItem(r) : null;
+      const r = db.prepare(`${WITH_REPORT} WHERE i.id = ?`).get(id) as Row | undefined;
+      return r ? withSubtasks(toItem(r)) : null;
     },
     itemByRun(runId: string): ChecklistItem | null {
       const r = db.prepare('SELECT * FROM checklist_items WHERE run_id = ?').get(runId) as Row | undefined;
@@ -217,7 +291,8 @@ export function workRepo(db: Db) {
         (patch[k] === undefined ? cur[k] : patch[k]) as ChecklistItem[K];
       db.prepare(
         `UPDATE checklist_items SET status = ?, run_id = ?, note = ?, stage = ?, gate_index = ?, send_backs = ?, notes = ?,
-           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, updated_at = ? WHERE id = ?`,
+           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, team_phase = ?, team_rounds = ?, team_plan = ?,
+           updated_at = ? WHERE id = ?`,
       ).run(
         patch.status,
         pick('runId'),
@@ -230,6 +305,9 @@ export function workRepo(db: Db) {
         pick('buildRunId'),
         pick('workspace') ? JSON.stringify(pick('workspace')) : null,
         pick('mergeTries'),
+        pick('teamPhase'),
+        pick('teamRounds'),
+        pick('teamPlan'),
         now(),
         id,
       );

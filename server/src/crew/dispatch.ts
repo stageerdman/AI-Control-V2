@@ -9,9 +9,15 @@
    each gate's reviewer (approve, or send back with notes → the builder reworks, resuming its session) → done.
    Send-backs are bounded (maxSendBacks); past the limit the item fails and waits for the user.
 
-   Contract `dispatch`: {"summary": string, "items": [{"text", "assignee", "teamId"?, "brief"}]}. */
+   Teams (F1c, src/crew/team.ts): an item for a team's captain is a small team task — the captain splits it into
+   member sub-tasks (or does it alone), members build in their own checkouts off the item's branch, the captain
+   integrates, then the item goes through the gates and merges into main. Goals link to a feature; the feature
+   ships when its goal's items have all landed.
+
+   Contract `dispatch`: {"summary": string, "items": [{"text", "assignee", "teamId"?, "brief"}], "feature"?}. */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { projectState } from '../apps/run-command.ts';
 import type { Db } from '../db/connection.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
@@ -28,10 +34,22 @@ import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Worktrees } from '../git/worktrees.ts';
+import type { Features } from '../office/features.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { type Crew, validateWith } from './structured.ts';
+import {
+  integrateTask,
+  MAX_TEAM_ROUNDS,
+  memberTask,
+  parseRework,
+  SPLIT_CAPS,
+  splitCall,
+  splitIssues,
+  TEAM_SPLIT,
+  TeamSplitSchema,
+} from './team.ts';
 
 export const DISPATCH = 'dispatch';
 export const DEFAULT_MAX_CONCURRENT = 2;
@@ -56,6 +74,16 @@ export const DispatchSchema = z.strictObject({
     )
     .min(1)
     .max(MAX_ITEMS),
+  /** F1c: the feature this goal builds — an existing one (id) or a new one (name + description, goes to Now).
+      ships = false: the goal is only a step, the feature isn't finished by it. Research goals leave it out. */
+  feature: z
+    .strictObject({
+      id: z.string().trim().min(1).max(80).optional(),
+      name: z.string().trim().min(1).max(120).optional(),
+      description: z.string().trim().max(2000).optional(),
+      ships: z.boolean().optional(),
+    })
+    .optional(),
 });
 export type DispatchPlan = z.output<typeof DispatchSchema>;
 
@@ -68,6 +96,8 @@ export type Crewing = {
   name: (id: string) => string;
   /** May this assignee (for this team) file reports? */
   canReport: (agentId: string, teamId?: string) => boolean;
+  /** The project's feature ids (a goal may link to one). */
+  features?: Set<string>;
 };
 
 /** Pure: every item goes to a captain (with their team) or a specialist (without one). */
@@ -96,6 +126,13 @@ export function dispatchIssues(plan: DispatchPlan, c: Crewing): string[] {
         `items.${i}: ${c.name(it.assignee)} doesn't file reports — give a report item to a reporter (marked "reporter" in "Who works on it"), or drop "report"`,
       );
   });
+  const f = plan.feature;
+  if (f?.id && c.features && !c.features.has(f.id))
+    out.push(
+      `feature.id: '${f.id}' is not a feature of this project — use an id from "Features", or give "name" for a new one`,
+    );
+  if (f && !f.id && !f.name)
+    out.push('feature: give the "id" of an existing feature, or a "name" for a new one');
   return out;
 }
 
@@ -142,11 +179,15 @@ export function createDispatch(deps: {
   sandbox?: string;
   /** The orchestrator planned a goal (or failed to): the office thread records it (src/office/threads.ts). */
   onPlanned?: (e: { projectId: string; goalText: string; goal: Goal | null; error?: string }) => void;
+  /** The features folder (F1c): goals link to a feature, which ships when the goal lands. Absent → no linking. */
+  features?: Features;
 }) {
   const { store, events, crew, runtime } = deps;
   const cap = deps.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
   const work = workRepo(deps.db);
   const planning = new Set<string>();
+  /** Split team items whose goal was cancelled: they stop once their members' sub-tasks have. */
+  const stopping = new Set<string>();
 
   const emit = (projectId: string, e: Parameters<EventLog['append']>[2]) => {
     try {
@@ -170,6 +211,8 @@ export function createDispatch(deps: {
         status: it.status,
         ...(it.runId ? { runId: it.runId } : {}),
         ...(it.gates.length ? { stage: it.stage, holder: holder(it) } : {}),
+        ...(it.parentId ? { parentId: it.parentId } : {}),
+        ...(it.teamPhase ? { teamPhase: it.teamPhase } : {}),
       },
     });
   const name = (id: string) => store.agents.get(id)?.name ?? id;
@@ -194,6 +237,7 @@ export function createDispatch(deps: {
         const a = store.agents.get(id);
         return !!a && !!deps.canFile?.(a, teamId ?? null);
       },
+      ...(deps.features ? { features: new Set(deps.features.repo.list(projectId).map((f) => f.id)) } : {}),
     };
   }
 
@@ -204,7 +248,10 @@ export function createDispatch(deps: {
     emit(g.projectId, { type: 'progress', payload: { pct: g.pct, label: clip(g.summary, 120) } });
     if (g.status !== 'running') return;
     const open = g.items.some((i) => i.status === 'todo' || i.status === 'running');
-    if (open) return;
+    if (open) {
+      featureFollows(g, null);
+      return;
+    }
     const status: GoalStatus = g.items.every((i) => i.status === 'done')
       ? 'done'
       : g.items.some((i) => i.status === 'failed')
@@ -212,6 +259,52 @@ export function createDispatch(deps: {
         : 'cancelled';
     work.setGoalStatus(g.id, status);
     emit(g.projectId, { type: 'goal.changed', payload: { goalId: g.id, status } });
+    featureFollows(g, status);
+  }
+
+  /** The goal's feature follows it (F1c): its % while the goal runs; shipped once the goal landed whole and no
+      other goal still works on it. A failed or cancelled goal leaves the feature where it is. */
+  function featureFollows(g: Goal, ended: GoalStatus | null) {
+    const fs = deps.features;
+    if (!fs || !g.featureId || !g.ships) return;
+    try {
+      const f = fs.repo.get(g.projectId, g.featureId);
+      if (!f || f.status === 'shipped') return;
+      if (!ended) {
+        if (f.pct !== g.pct) fs.update(g.projectId, f.id, { pct: g.pct });
+        return;
+      }
+      if (ended !== 'done') return;
+      if (work.featureGoals(f.id).some((x) => x.id !== g.id && x.status === 'running')) return;
+      const shipped = fs.update(g.projectId, f.id, { status: 'shipped', pct: 100 });
+      emit(g.projectId, {
+        type: 'feature.shipped',
+        payload: { featureId: shipped.id, goalId: g.id, name: clip(shipped.name, 120) },
+      });
+    } catch {
+      /* the feature was deleted meanwhile: nothing to move */
+    }
+  }
+
+  /** Link a new goal to its feature: an existing one (planned → now), or a new one in Now. */
+  function linkFeature(goal: Goal, f: DispatchPlan['feature']) {
+    const fs = deps.features;
+    if (!fs || !f) return;
+    try {
+      let feature = f.id ? fs.repo.get(goal.projectId, f.id) : null;
+      if (feature && feature.status === 'planned')
+        feature = fs.update(goal.projectId, feature.id, { status: 'now' });
+      if (!feature && f.name)
+        feature = fs.create(goal.projectId, {
+          name: f.name,
+          status: 'now',
+          pct: 0,
+          description: f.description ?? goal.summary,
+        });
+      if (feature) work.setGoalFeature(goal.id, feature.id, f.ships !== false);
+    } catch {
+      /* a feature that can't be linked never blocks the work */
+    }
   }
 
   const orchName = (projectId: string) =>
@@ -231,8 +324,11 @@ export function createDispatch(deps: {
           : `You do this item for ${team.name}. Do the work yourself in this run; note anything for your teammates in issues.txt.`
         : '',
       it.workspace
-        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`) — it merges into ${it.workspace.main} once accepted. Other items may be running in parallel in their own checkouts.`
+        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`) — it merges into ${it.workspace.main} once accepted. Do not push. Other items may be running in parallel in their own checkouts.`
         : '',
+      it.report
+        ? ''
+        : 'If your work sets up or changes how the app starts, record it in `.project` as one line `run: <command>` (e.g. `run: npm run dev`) so the studio can start it.',
       reviewers.length
         ? `When you are done, your work goes to ${reviewers.join(', then ')} for review — keep it focused on the brief and commit it.`
         : '',
@@ -283,9 +379,12 @@ export function createDispatch(deps: {
 
   /** Checklist order: an item waits for every item before its parallel group; if one of those didn't succeed, it's skipped. */
   function orderGate(goal: Goal, it: ChecklistItem): 'go' | 'wait' | 'skip' {
+    const list = it.parentId ? work.children(it.parentId) : goal.items;
     let start = it.position;
-    while (start > 0 && goal.items[start]?.parallel) start--;
-    const before = goal.items.slice(0, start);
+    while (start > 0 && list[start]?.parallel) start--;
+    const before = list.slice(0, start);
+    /* a member's sub-task never skips: whatever a teammate didn't finish, the captain picks up when integrating */
+    if (it.parentId) return before.some((b) => b.status === 'todo' || b.status === 'running') ? 'wait' : 'go';
     if (before.some((b) => b.status === 'failed' || b.status === 'cancelled')) return 'skip';
     return before.every((b) => b.status === 'done') ? 'go' : 'wait';
   }
@@ -301,6 +400,41 @@ export function createDispatch(deps: {
   /** What to run for the item's current stage. */
   function runFor(it: ChecklistItem, goal: Goal) {
     const caps = goal.caps ?? undefined;
+    const team = it.teamId ? store.teams.get(it.teamId) : null;
+    if (team && it.teamPhase === 'integrate') {
+      const parts = latestParts(it);
+      return {
+        agentId: it.agentId,
+        teamId: team.id,
+        task: integrateTask({
+          parent: it,
+          goal,
+          team,
+          name,
+          parts,
+          canSendBack: it.teamRounds < MAX_TEAM_ROUNDS,
+          reviewers: it.gates.map((g) => `${name(g.reviewer)} (${g.kind})`),
+        }),
+        caps,
+      };
+    }
+    if (team && it.parentId && it.stage === 'build') {
+      const parent = work.item(it.parentId) as ChecklistItem;
+      return {
+        agentId: it.agentId,
+        teamId: team.id,
+        task: memberTask({
+          sub: it,
+          parent,
+          goal,
+          team,
+          name,
+          siblings: parent.subtasks.filter((s) => s.status === 'todo' || s.status === 'running'),
+          rework: it.notes,
+        }),
+        caps,
+      };
+    }
     if (it.stage === 'review') {
       const gate = it.gates[it.gateIndex] as ItemGate;
       const teamId = teamOf(it.projectId, gate.reviewer);
@@ -326,7 +460,8 @@ export function createDispatch(deps: {
   /** Start queued items while the project has room: ≤ cap live, one per agent. An item is claimed
       (running) right away; its checkout and run follow (launch). */
   function pump(projectId: string) {
-    const running = work.projectItems(projectId, 'running');
+    /* a split team item waits on its members: it holds no seat */
+    const running = work.projectItems(projectId, 'running').filter((i) => i.teamPhase !== 'members');
     let free = cap - running.length;
     const busy = new Set(running.map(holder));
     for (const it of work.projectItems(projectId, 'todo')) {
@@ -359,7 +494,15 @@ export function createDispatch(deps: {
     let it = work.item(itemId) as ChecklistItem;
     try {
       if (!it.workspace && deps.worktrees && it.stage === 'build') {
-        const ws = await deps.worktrees.open(repoOf(it.projectId), it.projectId, it.id, it.text);
+        /* a member's sub-task branches off its team item's branch (and merges back into it) */
+        const parentWs = it.parentId ? work.item(it.parentId)?.workspace : null;
+        const ws = await deps.worktrees.open(
+          repoOf(it.projectId),
+          it.projectId,
+          it.id,
+          it.text,
+          parentWs ? { branch: parentWs.branch } : undefined,
+        );
         if (ws) work.setItem(it.id, { status: it.status, workspace: ws });
       }
     } catch (e) {
@@ -368,8 +511,16 @@ export function createDispatch(deps: {
       return;
     }
     it = work.item(itemId) as ChecklistItem;
+    if (it.status === 'running' && delegable(it)) {
+      const mode = await split(it);
+      it = work.item(itemId) as ChecklistItem;
+      if (mode === 'team' && it.status === 'running') {
+        pump(it.projectId);
+        return;
+      }
+    }
     if (it.status !== 'running') {
-      /* cancelled while its checkout was being made */
+      /* cancelled while its checkout was being made (or while its captain split it) */
       await shelve(it);
       return;
     }
@@ -442,13 +593,14 @@ export function createDispatch(deps: {
   function settle(it: ChecklistItem, patch: ItemPatch) {
     work.setItem(it.id, patch);
     announce(work.item(it.id) as ChecklistItem);
+    if (it.parentId && patch.status !== 'todo' && patch.status !== 'running') teamCheck(it.parentId);
     refreshGoal(it.goalId);
   }
   const handoff = (
     it: ChecklistItem,
     from: string,
     to: string,
-    kind: 'review' | 'rework' | 'merge-fix',
+    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver',
     note?: string,
     gate?: ItemGate,
   ) =>
@@ -457,6 +609,7 @@ export function createDispatch(deps: {
       payload: {
         itemId: it.id,
         goalId: it.goalId,
+        ...(it.parentId ? { parentId: it.parentId } : {}),
         from,
         to,
         kind,
@@ -476,10 +629,16 @@ export function createDispatch(deps: {
     const wt = deps.worktrees;
     work.setItem(it.id, { ...patch, status: 'running' }); // stays on the board while it merges
     void serial(it.projectId, async () => {
-      const repo = repoOf(it.projectId);
+      /* a member's part merges into its team item's checkout; everything else into the project folder (main) */
+      const parent = it.parentId ? work.item(it.parentId) : null;
+      const repo = parent?.workspace?.cwd ?? repoOf(it.projectId);
       const r = await wt.merge(repo, ws, clip(`AI Studio: ${it.text} (${name(it.agentId)})`, 200));
       const cur = work.item(it.id) as ChecklistItem;
-      if (r.ok) {
+      if (r.ok && parent) {
+        await wt.close(repo, ws, { deleteBranch: true });
+        handoff(cur, cur.agentId, parent.agentId, 'deliver', clip(cur.note ?? '', 600) || undefined);
+        settle(cur, { status: 'done' });
+      } else if (r.ok) {
         await wt.close(repo, ws, { deleteBranch: true });
         settle(cur, { status: 'done' });
         emit(it.projectId, {
@@ -607,10 +766,213 @@ export function createDispatch(deps: {
     handoff(it, gate.reviewer, it.agentId, 'rework', v.notes, gate);
   }
 
+  /* ---------------------------------------------------------------- teams (F1c) */
+
+  /** A fresh item for a team's captain, in its own checkout, on a team with someone to delegate to. */
+  function delegable(it: ChecklistItem): boolean {
+    if (it.parentId || it.report || !it.teamId || !it.workspace || it.teamPlan) return false;
+    if (it.stage !== 'build' || it.buildRunId || it.sendBacks > 0) return false;
+    const team = store.teams.get(it.teamId);
+    return !!team && team.captainId === it.agentId && team.members.length > 1;
+  }
+
+  /** The captain's split (one short read-only call). Never fails the item: a broken answer → the captain does it. */
+  async function split(it: ChecklistItem): Promise<'team' | 'self'> {
+    const team = store.teams.get(it.teamId as string);
+    const captain = store.agents.get(it.agentId);
+    const goal = work.goal(it.goalId) as Goal;
+    if (!team || !captain) return 'self';
+    emit(it.projectId, {
+      type: 'agent.status',
+      payload: {
+        agentId: captain.id,
+        status: 'working',
+        activity: { kind: 'thinking', label: 'Splitting the work with the team' },
+      },
+    });
+    const call = splitCall({
+      captain,
+      team,
+      item: it,
+      goal,
+      orchestrator: orchName(it.projectId),
+      name,
+      role: (id) => store.agents.get(id)?.role ?? '',
+    });
+    let value: z.output<typeof TeamSplitSchema> | null = null;
+    try {
+      ({ value } = await crew.call({
+        who: captain.name,
+        contract: TEAM_SPLIT,
+        systemPrompt: call.systemPrompt,
+        task: call.task,
+        caps: SPLIT_CAPS,
+        workspace: call.workspace,
+        validate: validateWith(TeamSplitSchema, (v) =>
+          splitIssues(v, { captainId: team.captainId, members: team.members.map((m) => m.agentId) }),
+        ),
+        onEvent: (e) => {
+          if (e.kind === 'tokens')
+            emit(it.projectId, {
+              type: 'tokens',
+              payload: { agentId: captain.id, input: e.input, output: e.output },
+            });
+          else if (e.kind === 'activity')
+            emit(it.projectId, {
+              type: 'agent.status',
+              payload: { agentId: captain.id, status: e.status, activity: e.activity },
+            });
+        },
+      }));
+    } catch {
+      value = null; // the captain couldn't split it: it does the item itself, as before F1c
+    } finally {
+      emit(it.projectId, { type: 'agent.status', payload: { agentId: captain.id, status: 'idle' } });
+    }
+    const cur = work.item(it.id) as ChecklistItem;
+    if (cur.status !== 'running') return 'self'; // cancelled meanwhile: the caller puts it away
+    const splitEvent = (mode: 'team' | 'self', summary: string, subs: ChecklistItem[]) =>
+      emit(it.projectId, {
+        type: 'team.split',
+        payload: {
+          itemId: it.id,
+          goalId: it.goalId,
+          captainId: captain.id,
+          teamId: team.id,
+          mode,
+          summary: clip(summary, 1000),
+          subtasks: subs.map((s) => ({ itemId: s.id, agentId: s.agentId, text: clip(s.text, 300) })),
+          round: cur.teamRounds,
+        },
+      });
+    if (!value || value.mode === 'self') {
+      const summary = value?.summary ?? `${captain.name} takes this on alone.`;
+      work.setItem(it.id, { status: 'running', teamPlan: clip(summary, 1000) });
+      if (value) splitEvent('self', summary, []);
+      return 'self';
+    }
+    const subs = store.tx(() =>
+      work.insertSubtasks(
+        cur,
+        value.subtasks.map((t) => ({
+          id: randomUUID(),
+          text: t.text,
+          brief: t.brief,
+          agentId: t.assignee,
+          parallel: t.parallel !== false,
+        })),
+      ),
+    );
+    work.setItem(it.id, {
+      status: 'running',
+      runId: null,
+      teamPhase: 'members',
+      teamPlan: clip(value.summary, 1000),
+    });
+    announce(work.item(it.id) as ChecklistItem);
+    splitEvent('team', value.summary, subs);
+    for (const sub of subs) {
+      announce(sub);
+      handoff(sub, captain.id, sub.agentId, 'delegate', sub.text);
+    }
+    return 'team';
+  }
+
+  /** Each member's latest part (rework rounds replace earlier ones), in the captain's order. */
+  function latestParts(parent: ChecklistItem): ChecklistItem[] {
+    const byMember = new Map<string, ChecklistItem>();
+    for (const s of work.children(parent.id)) byMember.set(s.agentId, s);
+    return [...byMember.values()].sort((a, b) => a.position - b.position);
+  }
+
+  /** A member's part ended: once every part has, the captain integrates (or, the goal being cancelled, it stops). */
+  function teamCheck(parentId: string) {
+    const p = work.item(parentId);
+    if (p?.status !== 'running' || p.teamPhase !== 'members') return;
+    if (p.subtasks.some((s) => s.status === 'todo' || s.status === 'running')) return;
+    if (stopping.delete(p.id)) {
+      void stop(p, { status: 'cancelled', teamPhase: null });
+      return;
+    }
+    work.setItem(p.id, { status: 'todo', teamPhase: 'integrate', runId: null });
+    announce(work.item(p.id) as ChecklistItem);
+    queueMicrotask(() => pump(p.projectId));
+  }
+
+  /** The captain's integration run ended: one bounded rework round, or on through the gates like any build. */
+  function afterIntegrate(it: ChecklistItem, run: Run) {
+    if (run.status !== 'succeeded') {
+      void stop(it, {
+        status: run.status === 'cancelled' ? 'cancelled' : 'failed',
+        note: clip(run.error ?? run.result ?? '', 2000) || null,
+      });
+      return;
+    }
+    const team = it.teamId ? store.teams.get(it.teamId) : null;
+    const seats = new Set(team?.members.map((m) => m.agentId) ?? []);
+    const rework =
+      it.teamRounds < MAX_TEAM_ROUNDS
+        ? parseRework(run.result ?? '').filter((r) => seats.has(r.assignee) && r.assignee !== it.agentId)
+        : [];
+    if (rework.length) {
+      const parts = new Map(latestParts(it).map((s) => [s.agentId, s]));
+      const subs = store.tx(() => {
+        const made = work.insertSubtasks(
+          it,
+          rework.map((r) => {
+            const was = parts.get(r.assignee);
+            return {
+              id: randomUUID(),
+              text: clip(`Rework: ${was?.text ?? it.text}`, 300),
+              brief: was?.brief ?? it.brief,
+              agentId: r.assignee,
+              parallel: true,
+            };
+          }),
+        );
+        made.forEach((m, i) => {
+          work.setItem(m.id, { status: 'todo', notes: rework[i]?.notes ?? null });
+        });
+        return made;
+      });
+      work.setItem(it.id, {
+        status: 'running',
+        runId: null,
+        teamPhase: 'members',
+        teamRounds: it.teamRounds + 1,
+        note: clip(run.result ?? '', 2000) || null,
+      });
+      announce(work.item(it.id) as ChecklistItem);
+      emit(it.projectId, {
+        type: 'team.split',
+        payload: {
+          itemId: it.id,
+          goalId: it.goalId,
+          captainId: it.agentId,
+          teamId: it.teamId as string,
+          mode: 'team',
+          summary: clip(`Back to ${subs.map((s) => name(s.agentId)).join(' and ')} for rework.`, 1000),
+          subtasks: subs.map((s) => ({ itemId: s.id, agentId: s.agentId, text: clip(s.text, 300) })),
+          round: it.teamRounds + 1,
+        },
+      });
+      for (const sub of subs) {
+        const cur = work.item(sub.id) as ChecklistItem;
+        announce(cur);
+        handoff(cur, it.agentId, cur.agentId, 'rework', cur.notes ?? undefined);
+      }
+      return;
+    }
+    /* integrated: from here on it is the captain's build (reviewer rework resumes this session) */
+    work.setItem(it.id, { status: 'running', teamPhase: null });
+    afterBuild(work.item(it.id) as ChecklistItem, run);
+  }
+
   runtime.onFinished((run) => {
     const it = work.itemByRun(run.id);
     if (it?.status === 'running') {
       if (it.stage === 'review') afterReview(it, run);
+      else if (it.teamPhase === 'integrate') afterIntegrate(it, run);
       else afterBuild(it, run);
     }
     /* any run ending frees its agent: an item waiting for it may start now */
@@ -682,18 +1044,37 @@ export function createDispatch(deps: {
           p.agentIds.includes(id) ||
           p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
         const everyone = collab?.orchestratorTalksTo === 'everyone';
+        const state = projectState(repoOf(projectId));
+        const features = deps.features
+          ? deps.features.repo
+              .list(projectId)
+              .map((f) => ({ id: f.id, name: f.name, status: f.status, about: clip(f.description, 200) }))
+          : null;
         const task = [
           `Project: ${json({ name: p.name, about: p.note })}`,
           `Who works on it: ${json(staff)}`,
           `How they work together: ${json(collab ? describeCollaboration(collab, name) : { orchestratorTalksTo: 'captains', gates: [] })}`,
           `Already on the whiteboard, not done yet: ${json(open)}`,
+          `The project right now: ${json(state)}`,
+          features ? `Features: ${json(features)}` : '',
           `The user's goal: ${json(text)}`,
           [
             'Break the goal into a short checklist (1–8 items, in the order they should happen).',
             everyone
               ? 'Assign every item to someone on a team (set "assignee" to their id and "teamId" to their team — captains or members) or to a specialist (only "assignee").'
               : 'Assign every item to a team CAPTAIN (set "assignee" to the captain id and "teamId" to their team) or to a specialist (only "assignee").',
-            everyone ? '' : 'Never assign to other team members — the captain owns the item for the team.',
+            everyone
+              ? ''
+              : 'Never assign to other team members — the captain owns the item for the team and splits it among its members by their jobs.',
+            state.hasCode
+              ? ''
+              : 'The project has no code yet: the FIRST item sets up the stack it needs (simple and standard for what it is; CLAUDE.md’s rules apply), records how to start it in `.project` as one line `run: <command>`, and writes the stack, how to run and how to test into CLAUDE.md’s "Project-specific rules". Later items build on it (not parallel).',
+            state.hasCode && !state.run
+              ? 'Nobody has recorded how to start the app yet: the item that touches it adds `run: <command>` to `.project`.'
+              : '',
+            features
+              ? 'Link the goal to the feature it builds in "feature": {"id": "<an id from Features>"} or a new one {"name": "Short name", "description": "What it is, in a sentence or two"} (it goes to Now). It moves to Shipped once every item has landed; set "ships": false when this goal is only a step and the feature isn’t finished by it. Research or report goals: leave "feature" out.'
+              : '',
             '"text" is the whiteboard line (short); "brief" tells the assignee what done looks like.',
             collab?.gates.length
               ? 'The review gates above run automatically after each build item — do not add separate review or QA items for them.'
@@ -717,8 +1098,13 @@ export function createDispatch(deps: {
                 report: false,
               },
             ],
+            ...(features
+              ? { feature: { name: 'Feature name', description: 'What it is.', ships: true } }
+              : {}),
           })}`,
-        ].join('\n\n');
+        ]
+          .filter(Boolean)
+          .join('\n\n');
         let value: DispatchPlan;
         try {
           ({ value } = await crew.call({
@@ -757,6 +1143,7 @@ export function createDispatch(deps: {
             }),
           ),
         );
+        linkFeature(goal, value.feature);
         emit(projectId, {
           type: 'goal.changed',
           payload: {
@@ -782,8 +1169,13 @@ export function createDispatch(deps: {
     cancel(projectId: string, goalId: string): Goal {
       const g = this.get(projectId, goalId);
       if (g.status !== 'running') throw conflict(`This goal is already ${g.status}`);
-      for (const it of g.items) {
-        if (it.status === 'todo' || (it.status === 'running' && !it.runId)) {
+      const split: string[] = [];
+      for (const it of g.items.flatMap((i) => [...i.subtasks, i])) {
+        if (it.status === 'running' && it.teamPhase === 'members') {
+          /* its members' parts stop first; it follows (teamCheck) */
+          stopping.add(it.id);
+          split.push(it.id);
+        } else if (it.status === 'todo' || (it.status === 'running' && !it.runId)) {
           /* queued, or its checkout is still being made (launch notices and puts it away) */
           work.setItem(it.id, { status: 'cancelled' });
           announce(work.item(it.id) as ChecklistItem);
@@ -796,6 +1188,7 @@ export function createDispatch(deps: {
           }
         }
       }
+      for (const id of split) teamCheck(id);
       refreshGoal(goalId);
       return work.goal(goalId) as Goal;
     },

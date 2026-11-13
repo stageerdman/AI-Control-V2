@@ -153,7 +153,9 @@ export function buildApp({
       threadsRef?.record(projectId, orchestratorId, { sender: 'agent', text: reply });
     },
   });
+  const features = createFeatures({ db, store, events });
   const dispatch = createDispatch({
+    features,
     db,
     store,
     events,
@@ -183,7 +185,6 @@ export function buildApp({
   const lifecycle = createLifecycle({ db, store, events });
   lifecycle.recover();
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
-  const features = createFeatures({ db, store, events });
   const threads = createThreads({
     db,
     store,

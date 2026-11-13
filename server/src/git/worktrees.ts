@@ -77,11 +77,18 @@ export function worktrees(root: string) {
       );
     },
 
-    /** A fresh checkout on a new branch from the main branch's tip. Null when the repo can't have one. */
-    async open(repo: string, projectId: string, itemId: string, label: string): Promise<Workspace | null> {
+    /** A fresh checkout on a new branch from the main branch's tip — or, for a member's sub-task (F1c), from the
+        team item's branch (`from`), which it then merges back into. Null when the repo can't have one. */
+    async open(
+      repo: string,
+      projectId: string,
+      itemId: string,
+      label: string,
+      from?: { branch: string },
+    ): Promise<Workspace | null> {
       if (!(await this.usable(repo))) return null;
-      const main = (await git(repo, ['symbolic-ref', '--short', 'HEAD'])) as string;
-      const base = await git(repo, ['rev-parse', 'HEAD']);
+      const main = from?.branch ?? ((await git(repo, ['symbolic-ref', '--short', 'HEAD'])) as string);
+      const base = await git(repo, ['rev-parse', from ? `refs/heads/${from.branch}` : 'HEAD']);
       const short = itemId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
       const name = `${slugify(label, 'item').slice(0, 40)}-${short}`;
       const branch = `studio/${name}`;

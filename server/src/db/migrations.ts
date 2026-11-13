@@ -357,6 +357,20 @@ export const MIGRATIONS: readonly string[] = [
   `ALTER TABLE projects ADD COLUMN target TEXT;`,
   /* 19 — the orchestrator's thread records goals (F1b): the user's goal and the orchestrator's plan reply carry the goal. */
   `ALTER TABLE thread_messages ADD COLUMN goal_id TEXT;`,
+  /* 20 — real team work (F1c): a captain splits a team item into member sub-tasks. A sub-task is a checklist item
+     with parent_id = the team item (same goal; never on the whiteboard's top level). team_phase on the team item:
+     NULL (the captain works it, or it isn't split) · 'members' (sub-tasks running) · 'integrate' (the captain pulls
+     their work together). team_rounds = rework rounds the captain sent back, team_plan = the captain's split in a
+     sentence. Goals link to a feature (feature_id); ships = finishing the goal ships the feature. */
+  `
+  ALTER TABLE checklist_items ADD COLUMN parent_id TEXT REFERENCES checklist_items(id) ON DELETE CASCADE;
+  ALTER TABLE checklist_items ADD COLUMN team_phase TEXT CHECK (team_phase IN ('members', 'integrate'));
+  ALTER TABLE checklist_items ADD COLUMN team_rounds INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE checklist_items ADD COLUMN team_plan TEXT;
+  CREATE INDEX checklist_by_parent ON checklist_items(parent_id);
+  ALTER TABLE goals ADD COLUMN feature_id TEXT;
+  ALTER TABLE goals ADD COLUMN ships INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
