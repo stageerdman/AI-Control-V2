@@ -25,7 +25,7 @@ OS.start = async function () {
   const d = WS.office.demo;
   if (d.started) { this._settle(); if (WS.story !== 'aurora' || d.t > SIM_ACT1_END) this._ambient(); else this._schedule(d.t); return; }
   d.started = true;
-  if (demo.includes('selftest')) { setTimeout(() => officeSelftest(), 50); return; }
+  if (demo.includes('selftest') && !OS._selftested) { OS._selftested = true; setTimeout(() => officeSelftest(), 50); return; }
   if (WS.story !== 'aurora') { this.t0 = Date.now(); this._ambient(); this._hooks(demo); return; }
   let skip = 0;
   demo.forEach(x => { const m = /^t(\d+)$/.exec(x); if (m) skip = +m[1]; });

@@ -192,5 +192,21 @@ async function officeSelftest() {
   const pend = WS.pending.length; go('projects'); await wait(200); go('office'); await wait(600);
   ok(WS.pending.length === pend && wsAgent('a-scar').activity.kind !== 'needs-input', 'reopening resumes (no replayed asks)');
   ok(!!$('.o-body[data-id="a-merge"]'), 'office rebuilt from state');
+  /* a project with its own office config gets its own fresh office (Aurora stays the demo) */
+  const auroraPend = WS.pending.length, auroraFeat = WS.features.length;
+  PROJECTS.push({ id: 'st-kite', name: 'Kite Test', group: 'active', status: 'live', pct: 0, orchestrator: (orchestrators()[1] || orchestrators()[0]).id,
+    github: { connected: true, private: false }, office: { project: 'st-kite', teams: [{ id: 'polish', members: ['a-lint', 'a-twinkle'] }], solo: ['a-doc'] } });
+  go('office/st-kite'); await wait(600);
+  ok(WS.project === 'st-kite' && OM.project === 'st-kite', 'fresh office: built from the project\'s config');
+  ok(wsOnProject().map(a => a.id).sort().join() === 'a-doc,a-lint,a-twinkle', 'fresh office: its own crew only');
+  ok(/KITE TEST/.test(OE.art.textContent) && !/AURORA/.test(OE.art.textContent), 'fresh office: nameplate is the project');
+  ok(wsAg('pixel').id === (orchestrators()[1] || orchestrators()[0]).id && /Kite Test/.test(WS.threads.pixel[0].text), 'fresh office: its orchestrator greets you');
+  ok(!WS.features.length && !WS.checklist.length && !WS.pending.length && WS.overall === 0, 'fresh office: empty whiteboard + features, nobody waiting');
+  omGo('board'); await wait(900);
+  ok(location.hash === '#office/st-kite/board' && /No tasks yet/.test($('.ob-card').textContent), 'fresh office: whiteboard opens on this project');
+  omGo('health'); await wait(900);
+  ok(/Public/.test($('.ob-card').textContent) && /first check/i.test($('.ob-card').textContent), 'fresh office: health shows its GitHub (public), no grades yet');
+  go('office/aurora'); await wait(600);
+  ok(WS.project === 'aurora' && WS.pending.length === auroraPend && WS.features.length === auroraFeat && !!$('.o-body[data-id="a-scar"]'), 'back to Aurora: its demo state is intact');
   console.log(fails ? `SELFTEST: ${fails} FAILED` : 'SELFTEST: ALL PASS');
 }

@@ -8,6 +8,8 @@
            wsAg(id)        the roster entry behind an office actor ('pixel' = the
                            project's orchestrator, PROJECTS[i].orchestrator → a-pixel)
            wsPager()       who needs you, grouped per team/solo agent, minus visits
+           wsUse(projectId) swap WS to that project's office (Aurora demo, or a fresh
+                           office built from PROJECTS[i].office); state kept per project
    Separation: config = who sits where (layout derives the floor plan) ·
                WS = state · engine moves actors · theme draws.
    Secrets: asks reference credential ids only; values never appear.
@@ -112,10 +114,11 @@ const _WS_DEFAULT_WORK = [
   ['coding', 'Writing useCart.ts', 'useCart.ts', 'checkout'], ['planning', 'Planning the next step', null, 'cleanup'],
   ['coding', 'Writing Results.tsx', 'Results.tsx', 'voice'], ['testing', 'Running the test suite', null, 'cleanup'],
 ];
-function _wsAgents(cfg, plan, story) {
+function _wsAgents(cfg, plan, story, fresh) {
   const out = []; let i = 0;
   const add = (id, teamId) => {
-    const s = (story && story[id]) || {};
+    const s = (story && story[id]) || (fresh ? { activity: { kind: 'reading', label: 'Reading the brief', detail: 'Reading the project brief and CLAUDE.md', target: 'CLAUDE.md', featureId: null },
+      tokens: 0, tasksDone: 0, reach: ['gh'], brief: { left: 'Getting to know the codebase, then whatever the Director plans first.', changed: [] } } : {});
     const w = _WS_DEFAULT_WORK[i++ % _WS_DEFAULT_WORK.length];
     const home = plan.home[id];
     out.push({
@@ -317,3 +320,56 @@ const SIM_AMBIENT = {
   talks: [2, 2, 3, 2],
   files: { coding: ['PriceTag.tsx', 'useCart.ts', 'Results.tsx', 'refund.ts', 'Card.tsx', 'tokens.css'], reading: ['orders.ts', 'README.md', 'stripe docs', 'Card.tsx', 'schema.sql'] },
 };
+
+/* ---------- one office per project ----------
+   Aurora is the scripted demo (the state above). A project that carries its own
+   office config (PROJECTS[i].office — spec-office-config.md shape, e.g. from the
+   New / Adopt flow) gets a fresh, calm office built from it: its own teams and
+   desks, a greeting from its orchestrator, an empty whiteboard and features
+   folder, no story — just the ambient loop. Projects without a config keep
+   showing the Aurora demo. Each office's state is kept while you're away. */
+const _WS_STORE = {};
+function wsOfficeKey(projectId) { const p = projById(projectId); return p && p.office && p.id !== 'aurora' ? p.id : 'aurora'; }
+function wsUse(projectId) {
+  const key = wsOfficeKey(projectId);
+  if (WS.project === key) return;
+  _WS_STORE[WS.project] = { ws: Object.assign({}, WS), plan: THEME_OFFICE.plan };
+  const st = _WS_STORE[key] || _wsFresh(projById(key));
+  Object.keys(WS).forEach(k => delete WS[k]);
+  Object.assign(WS, st.ws);
+  THEME_OFFICE.plan = st.plan;
+}
+function _wsFresh(p) {
+  const cfg = _wsResolve(Object.assign({ teams: [], solo: [] }, p.office, { project: p.id, spare: p.office.spare != null ? p.office.spare : 1 }));
+  const plan = officeLayout(cfg);
+  const dir = (p.orchestrator && agentById(p.orchestrator)) || agentById('a-pixel') || agentById('director');
+  const nick = dir.nick || dir.name.split(' ')[0];
+  const crew = cfg.teams.map(t => (teamById(t.id) || {}).name).filter(Boolean);
+  const g = _wsGithub(p.id);
+  const ws = {
+    project: p.id, story: 'fresh', config: cfg, overall: p.pct || 0, target: 'v0.1',
+    grants: { gh: true, anthropic: true },
+    github: Object.assign(g, { pushedAgo: 'just now', branch: 'main', fresh: false }),
+    run: { where: p.folder || '~/dev/' + p.id, cmd: 'npm run app', built: 'not yet' },
+    pager: { seen: {} },
+    checkup: { when: 'not yet', items: [] },
+    office: { demo: { t: 0 } },
+    director: { id: 'pixel', seat: 'director', at: 'director', home: 'director', onProject: true,
+      activity: { kind: 'planning', label: 'Big picture', short: 'Big picture', detail: 'Planning the first update', target: null, featureId: null },
+      session: 'running', tokens: { total: 0 }, tasksDone: 0 },
+    agents: _wsAgents(cfg, plan, null, true),
+    threads: { pixel: [{ id: 'm1', from: 'pixel', kind: 'text', at: 0,
+      text: `Hi, I'm ${nick} — I'll run ${p.name}. ${crew.length ? (crew.length === 1 ? crew[0] : crew.slice(0, -1).join(', ') + ' and ' + crew.slice(-1)) + ' ' + (crew.length === 1 ? 'is' : 'are') : 'The crew is'} settling in and reading the brief. What should we build first?` }] },
+    comms: [], pending: [], checklist: [], features: [],
+  };
+  return { ws, plan };
+}
+
+/* dev hook: ?demo=fresh adds a just-created project with its own office config
+   (what the New / Adopt flow writes) → #office/kite-notes */
+if (/[?&]demo=[^&#]*\bfresh\b/.test(location.search) && !projById('kite-notes')) {
+  PROJECTS.unshift({ id: 'kite-notes', name: 'Kite Notes', group: 'active', status: 'live', agents: 4, pct: 0, g1: '#4ea8ff', g2: '#2fd3c3', glyph: 'quill',
+    orchestrator: agentById('a-maestro') ? 'a-maestro' : 'a-pixel', github: { connected: true, private: true }, folder: '~/dev/kite-notes',
+    note: 'Just set up', cast: ['a-pete', 'a-semic', 'a-twinkle'], openable: true,
+    office: { project: 'kite-notes', teams: [{ id: 'ship-it', members: ['a-pete', 'a-semic', 'a-twinkle'] }], solo: ['a-doc'] } });
+}

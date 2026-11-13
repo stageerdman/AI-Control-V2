@@ -18,6 +18,11 @@ function openOffice(projectId, sub = '') {
   if (!OM.mounted || OM.project !== p.id) _omMount(p);
   _omLayer(sub || '');
 }
+/* office sub-routes for the project that's open (Aurora keeps the short #board… forms) */
+function omGo(sub) {
+  const pid = OM.project || 'aurora';
+  if (pid === 'aurora') go(sub || 'office'); else go('office/' + pid + (sub && sub !== 'office' ? '/' + sub : ''));
+}
 function closeOffice() {
   if (OM.focusKey) OM.unfocusTeam(true);
   if (typeof OS !== 'undefined') OS.stop();
@@ -28,6 +33,8 @@ function closeOffice() {
 }
 
 function _omMount(p) {
+  if (OM.mounted) closeOffice();            /* office → another project's office */
+  wsUse(p.id);                              /* its own state: Aurora demo or built from p.office */
   OM.project = p.id; OM.mounted = true;
   /* this project's repo facts (its Director comes from PROJECTS[i].orchestrator via wsAg) */
   const g = _wsGithub(p.id); WS.github.connected = g.connected; WS.github.private = g.private;
@@ -71,9 +78,9 @@ function _omResize() { OE.fit(); if (OM.layer) OB.reposition(); }
 /* ------------------------------------------------------------ the few interactive objects */
 const OM_HOTS = [
   { id: 'door', label: 'Leave office — back to all projects', act: () => _omLeave() },
-  { id: 'dossier', label: 'Features — now, planned, shipped', act: () => go('features') },
-  { id: 'whiteboard', label: 'Whiteboard — progress and tasks', act: () => go('board') },
-  { id: 'health', label: 'Health check — code health, GitHub, how it runs', act: () => go('health') },
+  { id: 'dossier', label: 'Features — now, planned, shipped', act: () => omGo('features') },
+  { id: 'whiteboard', label: 'Whiteboard — progress and tasks', act: () => omGo('board') },
+  { id: 'health', label: 'Health check — code health, GitHub, how it runs', act: () => omGo('health') },
   { id: 'safe', label: 'Safe — what this project can reach (Access)', act: () => _omAccess() },
 ];
 /* the door: it swings open, then you're back on Projects */
@@ -151,7 +158,7 @@ function _omKeys(e) {
   if (e.altKey && (e.key === 'r' || e.key === 'R' || e.code === 'KeyR')) { e.preventDefault(); OS.replay(); return; }
   if (e.key === '!' ) {
     const ask = WS.pending[0]; if (!ask) { announce('Nobody needs you right now.'); return; }
-    e.preventDefault(); if (OM.layer) go('office'); OM.focusActor(ask.agentId); return;
+    e.preventDefault(); if (OM.layer) omGo('office'); OM.focusActor(ask.agentId); return;
   }
   const inStage = t.closest && t.closest('#oStage .o-body,#oStage .o-hot'); if (!inStage || OM.layer) return;
   const order = _omOrder();
@@ -218,7 +225,7 @@ function _omList() {
   const cur = wsDemoSize();
   el.innerHTML = `<div class="o-lhead"><b>Everyone</b><button type="button" class="o-ctl" id="oListClose" aria-label="Close list">✕</button></div>
     ${groups.filter(g => g[1].length).map(([name, list]) => `<h3>${escapeHtml(name)}</h3><ul>${list.map(row).join('')}</ul>`).join('')}
-    <nav class="o-dev" aria-label="Demo office size (dev)">Size ${['size2', 'size6', 'size12', 'size20'].map(k => `<a href="?demo=${k}#office"${k === cur ? ' aria-current="true"' : ''}>${k.slice(4)}</a>`).join('')}</nav>`;
+    ${WS.project === 'aurora' ? `<nav class="o-dev" aria-label="Demo office size (dev)">Size ${['size2', 'size6', 'size12', 'size20'].map(k => `<a href="?demo=${k}#office"${k === cur ? ' aria-current="true"' : ''}>${k.slice(4)}</a>`).join('')}</nav>` : ''}`;
   el.querySelector('#oListClose').onclick = () => _omToggleList(false);
   el.querySelectorAll('.o-lrow').forEach(b => b.onclick = () => { OM.opener = b; OM.clickActor(b.dataset.id); });
 }
@@ -261,7 +268,7 @@ function _omFocusRect(entry) {
 }
 OM.focusTeam = function (entry) {
   if (!entry) return;
-  if (OM.layer) { go('office'); setTimeout(() => OM.focusTeam(entry), 80); return; }
+  if (OM.layer) { omGo('office'); setTimeout(() => OM.focusTeam(entry), 80); return; }
   if (OM.focusKey && OM.focusKey !== entry.key) OPG.leave();
   const r = _omFocusRect(entry); if (!r) return;
   OM.focusKey = entry.key;

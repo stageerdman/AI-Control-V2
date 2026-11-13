@@ -176,9 +176,9 @@ OP._reply = function (tid, text) {
     }
     if (/^save it/.test(t)) { this._say('pixel', OB.saveStaged() ? 'Saved — I’ll brief whoever picks it up.' : 'Nothing staged to save.'); return; }
     if (/^never mind/.test(t)) { OB.discardStaged(); this._say('pixel', 'Okay — left it as it was.'); return; }
-    if (/health|modular|clean|reus/.test(t)) { this._say('pixel', 'Here’s the health report.'); setTimeout(() => go('health'), 400); return; }
-    if (/board|whiteboard|progress|checklist|task/.test(t)) { this._say('pixel', 'Here’s the board.'); setTimeout(() => go('board'), 400); return; }
-    if (/feature|shipped|what shipped|plan/.test(t)) { this._say('pixel', `${WS.features.filter(f => f.status === 'shipped').length} features shipped so far. Opening the folder.`); setTimeout(() => go('features'), 400); return; }
+    if (/health|modular|clean|reus/.test(t)) { this._say('pixel', 'Here’s the health report.'); setTimeout(() => omGo('health'), 400); return; }
+    if (/board|whiteboard|progress|checklist|task/.test(t)) { this._say('pixel', 'Here’s the board.'); setTimeout(() => omGo('board'), 400); return; }
+    if (/feature|shipped|what shipped|plan/.test(t)) { this._say('pixel', `${WS.features.filter(f => f.status === 'shipped').length} features shipped so far. Opening the folder.`); setTimeout(() => omGo('features'), 400); return; }
     if (/who needs|waiting/.test(t)) { const p = WS.pending[0]; this._say('pixel', p ? `${this._name(p.agentId)} — ${p.short.toLowerCase()}. Tap the “!”.` : 'Nobody right now — everyone’s unblocked.'); return; }
     if (/currenc|start it/.test(t)) { this._say('pixel', 'On it — Multi-currency is in progress. Checkout stays the priority.'); const f = wsFeature('multicur'); if (f && f.status === 'planned') { f.status = 'now'; f.pct = 2; officeChanged(); } return; }
     const wake = /wake\s+(\w+)/.exec(t);

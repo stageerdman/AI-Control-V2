@@ -18,9 +18,9 @@ const OB_OBJ = { board: 'whiteboard', health: 'health', features: 'dossier', fea
 OB.show = function (sub) {
   const layers = document.getElementById('oLayers'); if (!layers) return;
   const [kind, fid] = sub.split('/');
-  if (!OB_OBJ[kind]) { go('office'); return; }
+  if (!OB_OBJ[kind]) { omGo('office'); return; }
   if (kind === 'feature') {
-    const f = wsFeature(fid); if (!f) { go('features'); return; }
+    const f = wsFeature(fid); if (!f) { omGo('features'); return; }
     if (!this.draft || this.feature !== fid) { this.feature = fid; this.draft = { description: f.description, vision: f.vision }; }
   } else { this.feature = null; this.draft = null; }
   this.sub = sub; this._confirm = false;
@@ -51,9 +51,9 @@ OB.escape = function () {
   const [kind] = this.sub.split('/');
   if (kind === 'feature') {
     if (this._dirty() && !this._confirm) { this._confirm = true; this._key = ''; this._render(); const k = this.el.querySelector('.ob-confirm button'); if (k) k.focus(); return; }
-    this._confirm = false; this.draft = null; go('features'); return;
+    this._confirm = false; this.draft = null; omGo('features'); return;
   }
-  go('office');
+  omGo('office');
 };
 OB.reposition = function () { if (this.obj) OE.zoomTo(this.obj, true); };
 /* live data changes re-render only when what's shown actually changed (no flashing) */
@@ -98,7 +98,7 @@ OB._board = function () {
             <span class="ob-track${f.blocked ? ' blocked' : ''}"><i style="width:${f.pct}%"></i></span></button></li>`).join('') || '<li class="ob-empty">Nothing in progress.</li>'}</ul>
         </section>
         <section aria-labelledby="obT"><h3 id="obT">Tasks</h3>
-          <ul class="ob-tasks">${WS.checklist.map(k => `<li class="${k.done ? 'done' : ''}"><span class="ob-box" aria-hidden="true">${k.done ? '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3L12.5 5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span><span class="sr-only">${k.done ? 'Done:' : 'To do:'}</span> ${escapeHtml(k.text)}</li>`).join('')}</ul>
+          <ul class="ob-tasks">${WS.checklist.length ? '' : `<li class="ob-empty">No tasks yet — ${escapeHtml(OP._dir())} writes them here as the plan takes shape.</li>`}${WS.checklist.map(k => `<li class="${k.done ? 'done' : ''}"><span class="ob-box" aria-hidden="true">${k.done ? '<svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3L12.5 5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span><span class="sr-only">${k.done ? 'Done:' : 'To do:'}</span> ${escapeHtml(k.text)}</li>`).join('')}</ul>
         </section>
       </div>
     </div>`;
@@ -118,6 +118,7 @@ OB._health = function () {
       <li><span class="ob-pi" aria-hidden="true">⎇</span>${gh}</li>
       <li><span class="ob-pi" aria-hidden="true">⌂</span><b>Runs locally</b><span class="ob-pv">open with <code>${escapeHtml(r.cmd)}</code> in <code>${escapeHtml(r.where)}</code> · built ${escapeHtml(r.built)}</span></li>
     </ul>
+    ${WS.checkup.items.length ? '' : '<p class="ob-empty">The first check runs after the first update lands.</p>'}
     <ul class="ob-health">${WS.checkup.items.map(it => `<li>
       <div class="ob-hk"><span class="ob-grade g-${it.grade}" aria-hidden="true">${it.grade}</span><b>${escapeHtml(it.name)}</b><span class="ob-hw">${word[it.grade] || ''}<span class="sr-only"> (grade ${it.grade})</span></span></div>
       <p><span class="ob-hl">Good</span>${escapeHtml(it.good)}</p>
@@ -131,7 +132,7 @@ OB._folder = function () {
   const group = (st, title) => { const list = by(st); return list.length ? `<h3>${title}</h3><ul class="ob-rows">${list.map(f => `<li><button type="button" class="ob-row" data-key="r-${f.id}" data-fid="${f.id}">${_obMark(f.status)}<span class="sr-only">${OB_ST[f.status]}:</span><span class="ob-rn">${escapeHtml(f.name)}</span><span class="ob-chev" aria-hidden="true">›</span></button></li>`).join('')}</ul>` : ''; };
   return `${_obBack('Office', 'Back to the office')}
     <header class="ob-hhead"><h2>Features</h2></header>
-    <div class="ob-scroll">${group('now', 'Now')}${group('planned', 'Planned')}${group('shipped', 'Shipped')}</div>`;
+    <div class="ob-scroll">${WS.features.length ? group('now', 'Now') + group('planned', 'Planned') + group('shipped', 'Shipped') : `<p class="ob-empty">No features yet. Tell ${escapeHtml(OP._dir())} what to build first.</p>`}</div>`;
 };
 
 /* ------------------------------------------------------------ feature page */
@@ -154,7 +155,7 @@ OB._featurePage = function () {
 OB._wire = function (kind) {
   const el = this.el;
   el.querySelector('.ob-back').onclick = () => this.escape();
-  el.querySelectorAll('[data-feat],[data-fid]').forEach(b => b.onclick = () => go('feature/' + (b.dataset.feat || b.dataset.fid)));
+  el.querySelectorAll('[data-feat],[data-fid]').forEach(b => b.onclick = () => omGo('feature/' + (b.dataset.feat || b.dataset.fid)));
   const pv = el.querySelector('#obPriv'); if (pv) pv.onclick = () => OM.privacy();
   const gc = el.querySelector('#obGhc'); if (gc) gc.onclick = () => { WS.github.connected = true; toast('🐙 GitHub connected (prototype)'); officeChanged(); };
   if (kind !== 'feature') return;
@@ -167,8 +168,8 @@ OB._wire = function (kind) {
   el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => {
     const c = b.dataset.c; this._confirm = false;
     if (c === 'keep') { this._key = ''; this._render(); el.querySelector('textarea').focus(); }
-    if (c === 'discard') { this.draft = null; go('features'); }
-    if (c === 'save') { this._save(); go('features'); }
+    if (c === 'discard') { this.draft = null; omGo('features'); }
+    if (c === 'save') { this._save(); omGo('features'); }
   });
 };
 OB._save = function () {
@@ -196,7 +197,7 @@ OB.stageDrop = function (fid, word) {
   if (nd == null && nv == null) return false;
   this.feature = fid;
   this.draft = { description: nd ?? base.description, vision: nv ?? base.vision, staged: nd != null ? 'description' : 'vision' };
-  if (this.sub === 'feature/' + fid) { this._key = ''; this._render(); } else go('feature/' + fid);
+  if (this.sub === 'feature/' + fid) { this._key = ''; this._render(); } else omGo('feature/' + fid);
   return true;
 };
 OB.saveStaged = function () { if (!this.draft || !this._dirty()) return false; this._save(); if (this.el && this.sub.startsWith('feature/')) { this._key = ''; this._render(); } return true; };

@@ -280,7 +280,6 @@
   .o-main{flex-direction:column;position:relative}
   .o-stagewrap{flex:1}
   .o-stagectl{bottom:84px}
-  .o-pagerwrap{bottom:84px}
   .o-list{bottom:82px}
   .o-panel{position:absolute;left:0;right:0;bottom:0;width:auto;height:70px;z-index:20;border-left:0;border-radius:20px 20px 0 0;box-shadow:0 -10px 30px rgba(10,4,30,.45);transition:height .32s var(--ease-out)}
   #office.drawer-up .o-panel{height:62%}
@@ -309,6 +308,7 @@
 /* ---------------- v5: the pager (bottom-left) ---------------- */
 .o-pagerwrap{position:absolute;left:14px;bottom:14px;z-index:6}
 .o-stagewrap.zooming .o-pagerwrap{display:none}
+@media (max-width:899px){.o-pagerwrap{bottom:84px}}
 .o-pager{position:relative;width:248px;display:flex;align-items:stretch;gap:8px;padding:10px 10px 10px 12px;border-radius:20px;
   background:linear-gradient(180deg,#3a2f5c,#241a44);box-shadow:0 0 0 2px var(--ink),inset 0 2px 0 rgba(255,255,255,.12),0 10px 24px rgba(10,4,30,.45)}
 .o-pager::before{content:"";position:absolute;left:18px;top:-9px;width:18px;height:11px;border-radius:5px 5px 0 0;background:#3a2f5c;box-shadow:0 0 0 2px var(--ink)}
