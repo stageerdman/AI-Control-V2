@@ -389,6 +389,9 @@ export function seedIfNeeded(store: Store): boolean {
       store.agents.create({ ...rest, roleId: role ? (roleId.get(role) ?? null) : null }, id);
     }
     for (const { id, ...t } of TEAMS) store.teams.create(t, id);
+    /* the starter reporters (research ends in a report) — migration 13 does the same for older databases */
+    store.roles.setReporter(roleId.get('Research') as string, true);
+    store.teams.update('expedition', { reporter: true });
     for (const { id, ...p } of PROJECTS) store.projects.create(p, id);
     store.db.prepare("INSERT INTO meta (key, value) VALUES ('seeded', ?)").run(new Date().toISOString());
   });

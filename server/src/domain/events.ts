@@ -105,7 +105,13 @@ export const EVENT_SCHEMAS = {
     kind: z.enum(['text', 'error']),
     text: text(20_000),
     runId: id.optional(),
+    /** The report this turn filed (the reply is one line pointing at it). */
+    reportId: id.optional(),
   }),
+  /** Reports (U1): a reporter filed one — title only, never the body (GET the report for it). */
+  'report.filed': z.strictObject({ reportId: id, projectId: id, authorAgentId: id, title: text(80) }),
+  'report.read': z.strictObject({ reportId: id, read: z.boolean() }),
+  'report.archived': z.strictObject({ reportId: id, archived: z.boolean() }),
   progress: z.strictObject({ pct: z.number().int().min(0).max(100), label: text(120).optional() }),
   tokens: z.strictObject({ agentId: id, runId: id.optional(), input: count, output: count }),
   /** A headless agent run (B5) began / ended. */

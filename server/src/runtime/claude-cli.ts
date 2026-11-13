@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { redactSecrets } from '../events/redact.ts';
 import type { RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
-import { ASK_TOOL, createStreamParser } from './stream.ts';
+import { ASK_TOOL, createStreamParser, REPORT_TOOL } from './stream.ts';
 
 export const TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'];
 /** Pre-approved; everything else is denied (dontAsk). Bash is limited to read-only shell + git. */
@@ -48,16 +48,22 @@ export function cliArgs(
             type: 'stdio',
             command: opts.node ?? process.execPath,
             args: [opts.askServer],
-            env: { AI_STUDIO_ASK_URL: spec.askBridge.url, AI_STUDIO_RUN_TOKEN: spec.askBridge.token },
+            env: {
+              AI_STUDIO_ASK_URL: spec.askBridge.url,
+              AI_STUDIO_RUN_TOKEN: spec.askBridge.token,
+              /* reporter runs only: the server then also lists file_report */
+              ...(spec.askBridge.reportUrl ? { AI_STUDIO_REPORT_URL: spec.askBridge.reportUrl } : {}),
+            },
           },
         },
       }
     : { mcpServers: {} };
   /* big-picture runs (orchestrator, Agent Creator) pass their own, usually empty, tool list */
   const tools = spec.tools ?? TOOLS;
+  const report = spec.askBridge?.reportUrl ? [REPORT_TOOL] : [];
   const allowed = spec.tools
-    ? [...(spec.allowedTools ?? spec.tools), ...(spec.askBridge ? [ASK_TOOL] : [])]
-    : (opts.allowedTools ?? DEFAULT_ALLOWED);
+    ? [...(spec.allowedTools ?? spec.tools), ...(spec.askBridge ? [ASK_TOOL] : []), ...report]
+    : [...(opts.allowedTools ?? DEFAULT_ALLOWED), ...report];
   return [
     '-p',
     '--output-format',

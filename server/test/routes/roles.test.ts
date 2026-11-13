@@ -24,15 +24,43 @@ describe('roles API', () => {
       'Release',
       'Quality',
     ]);
-    expect(body[0]).toEqual({ id: 'r-frontend', name: 'Frontend', agentCount: 1 });
+    expect(body[0]).toEqual({ id: 'r-frontend', name: 'Frontend', agentCount: 1, reporter: false });
+    // the seed's reporter: research ends in a report
+    expect(body.filter((r: { reporter: boolean }) => r.reporter).map((r: { id: string }) => r.id)).toEqual([
+      'r-research',
+    ]);
   });
 
   it('creates a role with a normalized name; duplicates (any case) are 409 with the existing id', async () => {
     const c = await h.call('POST', '/roles', { name: '  Voice   UX ' });
-    expect(c).toEqual({ status: 201, body: { id: 'r-voice-ux', name: 'Voice UX', agentCount: 0 } });
+    expect(c).toEqual({
+      status: 201,
+      body: { id: 'r-voice-ux', name: 'Voice UX', agentCount: 0, reporter: false },
+    });
     const dup = await h.call('POST', '/roles', { name: 'voice ux' });
     expect(dup.status).toBe(409);
     expect(dup.body.error).toMatchObject({ code: 'conflict', details: { existingId: 'r-voice-ux' } });
+  });
+
+  it('reporter flag on roles and teams: PATCH toggles it, survives rename, delete + restore', async () => {
+    const r = await h.call('PATCH', '/roles/r-writer', { reporter: true });
+    expect(r.body).toMatchObject({ id: 'r-writer', name: 'Writer', reporter: true });
+    expect((await h.call('PATCH', '/roles/r-writer', { name: 'Docs' })).body).toMatchObject({
+      name: 'Docs',
+      reporter: true,
+    });
+    expect((await h.call('PATCH', '/roles/r-writer', {})).status).toBe(422);
+    const del = (await h.call('DELETE', '/roles/r-writer')).body;
+    await h.call('POST', `/trash/${del.restoreToken}/restore`);
+    expect((await h.call('GET', '/roles/r-writer')).body.reporter).toBe(true);
+    // teams
+    expect((await h.call('GET', '/teams/expedition')).body.reporter).toBe(true);
+    expect((await h.call('GET', '/teams/ship-it')).body.reporter).toBe(false);
+    expect((await h.call('PATCH', '/teams/polish', { reporter: true })).body.reporter).toBe(true);
+    const tdel = (await h.call('DELETE', '/teams/polish')).body;
+    await h.call('POST', `/trash/${tdel.restoreToken}/restore`);
+    expect((await h.call('GET', '/teams/polish')).body.reporter).toBe(true);
+    expect((await h.call('POST', '/teams', { name: 'Scouts', reporter: true })).body.reporter).toBe(true);
   });
 
   it('rejects empty names and unknown body keys with 422', async () => {

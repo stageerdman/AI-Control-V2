@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../src/db/connection.ts';
 import { MIGRATIONS, migrate } from '../../src/db/migrations.ts';
@@ -46,6 +47,32 @@ describe('migrations', () => {
     expect(() =>
       db.prepare("INSERT INTO team_members (team_id, agent_id, position) VALUES ('ghost', 's1', 0)").run(),
     ).toThrow(/FOREIGN KEY/);
+    db.close();
+  });
+
+  it('13 marks the starter reporters in a database seeded before reports existed', () => {
+    const db = new DatabaseSync(':memory:');
+    for (const sql of MIGRATIONS.slice(0, 12)) db.exec(sql);
+    db.exec('PRAGMA user_version = 12');
+    db.exec(
+      "INSERT INTO roles (id, name, name_key, position, created_at) VALUES ('r-research', 'Research', 'research', 0, ''), ('r-qa', 'QA', 'qa', 1, '')",
+    );
+    db.exec(
+      "INSERT INTO teams (id, name, color, emblem, position, created_at, updated_at) VALUES ('expedition', 'The Expedition', 'teal', 'compass', 0, '', ''), ('polish', 'P', 'x', 'y', 1, '', '')",
+    );
+    migrate(db);
+    const flags = (t: string) =>
+      (
+        db.prepare(`SELECT id, reporter FROM ${t} ORDER BY id`).all() as { id: string; reporter: number }[]
+      ).map((r) => [r.id, r.reporter]);
+    expect(flags('roles')).toEqual([
+      ['r-qa', 0],
+      ['r-research', 1],
+    ]);
+    expect(flags('teams')).toEqual([
+      ['expedition', 1],
+      ['polish', 0],
+    ]);
     db.close();
   });
 });

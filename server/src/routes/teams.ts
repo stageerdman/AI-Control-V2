@@ -11,6 +11,8 @@ const fields = {
   blurb: z.string().max(500).optional(),
   instr: Text.optional(),
   code: Text.optional(),
+  /** Runs for this team may file reports. */
+  reporter: z.boolean().optional(),
 };
 const TeamCreate = z.strictObject({
   ...fields,

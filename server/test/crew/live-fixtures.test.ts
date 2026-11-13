@@ -66,6 +66,7 @@ describe('B6 live streams', () => {
       captains: new Map([['a-semic', [{ teamId: 'ship-it', teamName: 'The Ship-It Squad' }]]]),
       specialists: new Set(['a-twinkle', 'a-ally-alt-text']),
       name: (id: string) => id,
+      canReport: () => false,
     };
     expect(dispatchIssues(plan, crewing)).toEqual([]);
   });

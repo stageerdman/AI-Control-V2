@@ -28,7 +28,12 @@ export type StartRun = {
       no tools at all, no secrets, no ask tool — it answers in its reply. */
   bigPicture?: { systemPrompt: string };
 };
-type Live = { run: Run; handle: RunHandle; token: string; secrets: string[] };
+type Live = { run: Run; handle: RunHandle; token: string; secrets: string[]; reporter: boolean };
+/** The reports seam (src/reports): who may file, and filing itself. */
+export type ReportDesk = {
+  canFile(agent: { kind: string; roleId: string | null }, teamId?: string | null): boolean;
+  file(run: Run, input: unknown, extraSecrets: readonly string[]): { id: string };
+};
 type Waiter = (a: Ask) => void;
 
 export type RuntimeDeps = {
@@ -41,6 +46,8 @@ export type RuntimeDeps = {
   /** Granted secrets for a project (B3 projectAccess.envFor). */
   envFor: (projectId: string) => Record<string, string>;
   parentEnv?: NodeJS.ProcessEnv;
+  /** Reporter runs get file_report (absent → nobody files). */
+  reports?: ReportDesk;
 };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -218,10 +225,12 @@ export function createRuntime(deps: RuntimeDeps) {
       model: deps.model,
       caps,
     });
+    const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
     const l: Live = {
       run,
       token,
       secrets,
+      reporter,
       handle: { done: Promise.resolve({} as RunOutcome), cancel: () => {} },
     };
     live.set(runId, l);
@@ -260,7 +269,15 @@ export function createRuntime(deps: RuntimeDeps) {
         secretValues: secrets,
         ...(big ? { tools: [] } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
-        ...(baseUrl && !big ? { askBridge: { url: `${baseUrl}/internal/runs/${runId}/asks`, token } } : {}),
+        ...(baseUrl && !big
+          ? {
+              askBridge: {
+                url: `${baseUrl}/internal/runs/${runId}/asks`,
+                token,
+                ...(reporter ? { reportUrl: `${baseUrl}/internal/runs/${runId}/reports` } : {}),
+              },
+            }
+          : {}),
       },
       {
         emit: (e) => onRunEvent(l, e),
@@ -269,6 +286,7 @@ export function createRuntime(deps: RuntimeDeps) {
           if (a.status !== 'answered') throw new Error('cancelled');
           return a.answer as string;
         },
+        ...(reporter ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
       },
     );
     l.handle.done.then(
@@ -282,6 +300,13 @@ export function createRuntime(deps: RuntimeDeps) {
         }),
     );
     return run;
+  }
+  /** file_report from a live reporter run (the MCP side door and the FakeRunner both land here). */
+  function fileReport(runId: string, input: unknown): { id: string } {
+    const l = live.get(runId);
+    if (!l) throw conflict('That run is not running');
+    if (!l.reporter || !deps.reports) throw conflict('This run does not file reports');
+    return { id: deps.reports.file(l.run, input, l.secrets).id };
   }
   const waitUntilAnswered = async (askId: string): Promise<Ask> => {
     for (;;) {
@@ -354,6 +379,7 @@ export function createRuntime(deps: RuntimeDeps) {
         if (!ok) throw notFound('Run', runId);
       },
       openAsk,
+      fileReport,
       waitAsk(runId: string, askId: string, timeoutMs: number) {
         const a = repo.ask(askId);
         if (!a || a.runId !== runId) return Promise.reject(notFound('Ask', askId));

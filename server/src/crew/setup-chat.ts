@@ -27,6 +27,7 @@ const RULES = [
   'Individual specialists are the exception: for a skill the teams lack, or for a small project where a whole team would be too much. Each one needs a "why". You decide how many — keep it lean.',
   'Do not list a specialist who already comes with a planned team — teams stay whole.',
   'If no team or agent in the Cast fits, add a brief to "newTeams" or "newAgents" — the Agent Creator designs it when the user accepts the plan. The brief says what it must be good at.',
+  'If the project will need research, comparisons, reviews or write-ups, staff a reporter (a team or agent marked "reporter" in the Cast) — only reporters file reports to the Reports tray.',
   'Use only ids that appear in the Cast. Keep the user’s earlier choices unless they ask to change them.',
 ];
 

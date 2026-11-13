@@ -14,14 +14,17 @@ export type CastCatalogue = {
     codes: string;
     captain: string | null;
     members: { id: string; name: string; role: string; job: string }[];
+    /** Files reports (research, reviews, write-ups end in the Reports tray). */
+    reporter?: true;
   }[];
-  agents: { id: string; name: string; role: string }[];
+  agents: { id: string; name: string; role: string; reporter?: true }[];
 };
 
 /** Teams (with what they do / how they code / members / captain) and every regular agent with its role. */
 export function castCatalogue(store: Store): CastCatalogue {
   const agents = store.agents.list().filter((a) => a.kind === 'agent');
   const byId = new Map(agents.map((a) => [a.id, a]));
+  const reporterRole = (roleId: string | null) => !!roleId && !!store.roles.get(roleId)?.reporter;
   return {
     teams: store.teams.list().map((t) => ({
       id: t.id,
@@ -36,8 +39,14 @@ export function castCatalogue(store: Store): CastCatalogue {
         role: byId.get(m.agentId)?.role ?? '',
         job: clip(m.instr, 200),
       })),
+      ...(t.reporter ? { reporter: true as const } : {}),
     })),
-    agents: agents.map((a) => ({ id: a.id, name: a.name, role: a.role })),
+    agents: agents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      role: a.role,
+      ...(reporterRole(a.roleId) ? { reporter: true as const } : {}),
+    })),
   };
 }
 

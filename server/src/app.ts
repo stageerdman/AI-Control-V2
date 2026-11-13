@@ -10,7 +10,7 @@ import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import type { Db } from './db/connection.ts';
 import { createStore, type Store } from './db/store.ts';
-import { AppError } from './errors.ts';
+import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
 import { type EventLog, eventLog } from './events/log.ts';
 import type { GhProbe } from './health/git-status.ts';
@@ -20,6 +20,7 @@ import type { OpenStreams } from './http/sse.ts';
 import { createFeatures } from './office/features.ts';
 import { createOffice } from './office/office.ts';
 import { createThreads } from './office/threads.ts';
+import { createReports, ReportInputSchema } from './reports/reports.ts';
 import { accessRoutes } from './routes/access.ts';
 import { agentRoutes } from './routes/agents.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
@@ -32,6 +33,7 @@ import { healthRoutes } from './routes/health.ts';
 import { officeRoutes } from './routes/office.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
+import { reportRoutes } from './routes/reports.ts';
 import { roleRoutes } from './routes/roles.ts';
 import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
@@ -98,6 +100,7 @@ export function buildApp({
   /* SSE responses are hijacked: end them on shutdown so close() never hangs */
   const open: OpenStreams = new Set();
   const access = projectAccess(store, secrets, config.sandbox);
+  const reports = createReports({ db, store, events, secretValues: secretValuesOf(secrets) });
   const runtime = createRuntime({
     db,
     store,
@@ -106,6 +109,11 @@ export function buildApp({
     model,
     sandbox: config.sandbox,
     envFor: access.envFor,
+    /* reporter runs get file_report; its input is checked here (422 lists what's wrong) */
+    reports: {
+      canFile: reports.canFile,
+      file: (run, input, extra) => reports.file(run, parse(ReportInputSchema, input), extra),
+    },
   });
   runtime.recover();
   onRuntime?.(runtime);
@@ -120,6 +128,8 @@ export function buildApp({
     crew,
     runtime,
     ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
+    canFile: reports.canFile,
+    filedBy: (runId) => reports.byRun(runId).length > 0,
   });
   dispatch.recover();
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
@@ -131,6 +141,7 @@ export function buildApp({
     runtime,
     features,
     health,
+    reports,
     secretValues: secretValuesOf(secrets),
   });
   /* the ask_user MCP server calls back here; learn our own address once listening */
@@ -174,6 +185,7 @@ export function buildApp({
   app.register(projectHealthRoutes({ health }));
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));
+  app.register(reportRoutes({ reports }));
   app.register(officeRoutes({ office: createOffice({ db, store }) }));
   return app;
 }

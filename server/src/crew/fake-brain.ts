@@ -100,18 +100,39 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
     case 'dispatch': {
       const goal = field<string>(t, "The user's goal:") ?? 'the goal';
       const staff = field<{
-        teams: { teamId: string; captain: { id: string } | null }[];
-        specialists: { id: string }[];
+        teams: { teamId: string; captain: { id: string } | null; reporter?: boolean }[];
+        specialists: { id: string; reporter?: boolean }[];
       }>(t, 'Who works on it:');
-      const items = [
+      let items: { text: string; assignee: string; teamId?: string; reporter?: boolean }[] = [
         ...(staff?.teams ?? []).flatMap((tm) =>
-          tm.captain ? [{ text: `${goal} (${tm.teamId})`, assignee: tm.captain.id, teamId: tm.teamId }] : [],
+          tm.captain
+            ? [
+                {
+                  text: `${goal} (${tm.teamId})`,
+                  assignee: tm.captain.id,
+                  teamId: tm.teamId,
+                  reporter: tm.reporter,
+                },
+              ]
+            : [],
         ),
-        ...(staff?.specialists ?? []).map((s) => ({ text: `${goal} (support)`, assignee: s.id })),
-      ]
-        .slice(0, 8)
-        .map((i) => ({ ...i, text: i.text.slice(0, 300), brief: `Do your part of: ${goal}` }));
-      return answer({ summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000), items });
+        ...(staff?.specialists ?? []).map((s) => ({
+          text: `${goal} (support)`,
+          assignee: s.id,
+          reporter: s.reporter,
+        })),
+      ];
+      /* knowledge, not change → one report item for the first reporter */
+      const research = /\b(research|compare|investigate|find out|write up|review|status of)\b/i.test(goal);
+      const reporter = items.find((i) => i.reporter);
+      if (research && reporter) items = [{ ...reporter, text: goal }];
+      const out = items.slice(0, 8).map(({ reporter: _, ...i }) => ({
+        ...i,
+        text: i.text.slice(0, 300),
+        brief: `Do your part of: ${goal}`,
+        ...(research && reporter ? { report: true } : {}),
+      }));
+      return answer({ summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000), items: out });
     }
     case 'health': {
       const aspect = (grade: string, good: string, fix: string) => ({ grade, good, fix });
@@ -131,6 +152,25 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
       ];
     }
     default:
+      /* a report item (or a reporter asked for research): file a report, like a real reporter would */
+      if (/file_report/.test(t)) {
+        const q = /question: "([^"]{1,200})"/.exec(t)?.[1] ?? 'the question';
+        return [
+          { activity: { kind: 'reading', label: 'Reading CLAUDE.md', target: 'CLAUDE.md' } },
+          { tokens: { input: 900, output: 300 } },
+          {
+            report: {
+              title: `Findings: ${q}`.slice(0, 80),
+              summary: 'A fake report from the free runner — the real one would answer the question here.',
+              body: `## What we looked at\n\n- The project folder\n- CLAUDE.md\n\n## Answer\n\nThis is a scripted report (AI_STUDIO_RUNNER=fake) for: ${q}.`,
+              kind: 'research',
+              question: q,
+              sources: [{ title: 'Project rules', path: 'CLAUDE.md' }],
+            },
+          },
+          { result: 'Filed the report.' },
+        ];
+      }
       return DEFAULT_SCRIPT;
   }
 }

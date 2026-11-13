@@ -7,6 +7,8 @@ export type FakeStep =
   | { tokens: { input: number; output: number } }
   | { text: string }
   | { ask: string; options?: string[] }
+  /** Call file_report with this input (refused → the run goes on, like a tool error). */
+  | { report: Record<string, unknown> }
   | { wait: number }
   | { fail: string }
   | { result: string };
@@ -70,6 +72,19 @@ export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT
             ]);
             if (answer === null || cancelled) return end({ status: 'cancelled' });
             io.emit({ kind: 'text', text: `User answered: ${answer}` });
+          } else if ('report' in step) {
+            io.emit({
+              kind: 'activity',
+              status: 'working',
+              activity: { kind: 'writing', label: 'Filing a report' },
+            });
+            try {
+              if (!io.report) throw new Error('file_report is not available in this run');
+              const { id } = await io.report(step.report);
+              io.emit({ kind: 'text', text: `Filed report ${id}` });
+            } catch (e) {
+              io.emit({ kind: 'text', text: `file_report refused: ${(e as Error).message}` });
+            }
           } else if ('wait' in step) await sleep(step.wait);
           else if ('fail' in step) return end({ status: 'failed', error: step.fail });
           else if ('result' in step) return end({ status: 'succeeded', result: step.result });

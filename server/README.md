@@ -51,6 +51,7 @@ src/
                      creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
                      prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
   health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
+  reports/           reports.ts: who may file, file_report (stamped, secrets masked, ≤ 2 per run), list/read/archive
   office/            what the office screen needs: features.ts (features folder), threads.ts (project conversations),
                      office.ts (staffing + latest status for the scene)
   seed.ts            the prototype's cast and projects
@@ -70,9 +71,9 @@ Bodies are strict — unknown keys are 422.
 | | |
 |---|---|
 | `GET /health` | version, paths, db ok (503 when the db is down) |
-| `GET POST /roles` · `GET PATCH DELETE /roles/:id` | user-defined role names; rename shows on every agent |
+| `GET POST /roles` · `GET PATCH DELETE /roles/:id` | user-defined role names; rename shows on every agent; `PATCH {name?, reporter?}` — `reporter: true` = agents holding the role file reports |
 | `GET POST /agents` · `GET PATCH DELETE /agents/:id` | `kind` set at creation only; each agent carries `teamIds`, `projectIds`, `canDelete {ok, why}` |
-| `GET POST /teams` · `GET PATCH DELETE /teams/:id` | `PATCH {captainId}` to change captain |
+| `GET POST /teams` · `GET PATCH DELETE /teams/:id` | `PATCH {captainId}` to change captain; `reporter: true` = runs for this team file reports |
 | `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add / edit job / remove (captain passes on) |
 | `GET POST /projects` · `GET PATCH /projects/:id` | `orchestratorId`, `teamIds` (teams first), `agentIds` (specialists), `folder` (sandbox-relative) |
 | `DELETE /projects/:id` | 204; forgets the record, never touches the folder |
@@ -87,6 +88,9 @@ Bodies are strict — unknown keys are 422.
 | `GET /projects/:id/office` | the office on load: `{project, name, director (orchestrator id), teams: [{id, name, color, emblem, captain, members}], solo, agents: {agentId: {status, activity?, runId?, since?}}, lastEventId}` — the prototype's office-config shape + each agent's latest `agent.status` (a "working"/"waiting" whose run ended or that predates this server's start reads `idle`; never reported = `idle`). Then open `/projects/:id/events?after=<lastEventId>` |
 | `GET /projects/:id/threads/:agentId/messages` | the user's thread with the orchestrator or anyone on the project → `{projectId, agentId, busy, messages: [{id, from: 'user'\|agentId, kind: text\|error, text, runId, at}]}` (last 200, oldest first) |
 | `POST /projects/:id/threads/:agentId/messages` `{text}` | one turn → 202 `{message, runId}`; the reply arrives as a `thread.message` event (and in GET). The turn is a run in the project folder that resumes the thread's last session: an agent gets its composed prompt + tools (+ its team on this project, granted secrets, ask_user); the **orchestrator** runs big picture — its brain + altitude, no tools, no secrets, no ask tool, caps 3 turns, and a fresh summary of the whiteboard, features, latest health and open questions in every message. One turn at a time per thread (409); an agent already on a run is 409 too; not on the project → 409. Answer an ask on the asks endpoint. Text is secret-scrubbed before it's stored |
+| `GET /projects/:id/reports[?archived=1]` | the Reports tray: `{reports (newest first, no body), unread}` — archived ones only with `?archived=1` |
+| `GET /projects/:id/reports/:rid` · `PATCH /projects/:id/reports/:rid` `{read?, archived?}` | one report (full body) · mark read / archive (or undo) → events `report.read` / `report.archived` |
+| `GET /reports[?limit=50]` | studio-wide: the latest non-archived reports across projects (+ `projectName`), newest first, + the `unread` total |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
@@ -135,7 +139,7 @@ session, issues listed); a second miss is 502.
   slots (no crew-only gear), role reused by name or created, name unique in the Cast
 - `mint-team` → `{name, blurb, instr, code, emblem, color, members: [{agentId, job} | {newAgent, job}], captain}` —
   emblem/colour from the studio ids, 2–7 members, ≤ 4 new, captain = a member's agentId or a new agent's name
-- `dispatch` → `{summary, items: [{text, assignee, teamId?, brief, parallel?}]}` — assignee is a project team's captain (with that
+- `dispatch` → `{summary, items: [{text, assignee, teamId?, brief, parallel?, report?}]}` — assignee is a project team's captain (with that
   `teamId`) or a project specialist (no `teamId`). Items run **in order** (one shared working tree); `parallel: true` lets an
   item start alongside the one before it; if an earlier item fails, later ones are skipped
 
@@ -143,9 +147,22 @@ session, issues listed); a second miss is 502.
   project folder: tools Read/Glob/Grep/Bash, Bash pre-approved only for `ls`, `pwd`, `git status|log|diff|show|ls-files|shortlog`
   (no Write/Edit tool at all), no secrets, caps 15 turns. Commissioned by the project's orchestrator.
 
+**Reports** (`src/reports/reports.ts`, spec: `updates/2026-11-13 APP UI - OPEN/spec-reports.md`). A report =
+`{id: 'rep_…', projectId, kind: research|review|status|other, title (4–80), summary (≤ 280), body (markdown ≤ 40k), question?,
+sources: [{title, url? (http/s), path? (project-relative)}] ≤ 20, author: {agentId, name, teamId, teamName} (snapshot), runId, goalId,
+itemId, threadId, createdAt, readAt, archivedAt}`. Only **reporters** file: a run whose agent's role has `reporter`, or that runs for a
+`reporter` team (seed: role Research, team The Expedition); orchestrators/crew never. Such runs get the `file_report` MCP tool on the same
+per-run server as `ask_user` (`AI_STUDIO_REPORT_URL` + `mcp__studio__file_report` allowed) — others never see it. The server stamps
+project, author, run, the checklist item / chat thread it answers, time; every text field is secret-masked; ≤ 2 per run (then 409 "One report
+per question"); bad input → 422 back to the agent. Event `report.filed {reportId, projectId, authorAgentId, title}` (never the body). A chat turn
+that filed a report replies in one line (`"<Nick> filed it — <title>."`, `reportId` on the message). Dispatch items carry `report: true` for
+knowledge-not-change goals (research, compare, review, write-up…): only a reporter may take one, its brief says to answer with
+`file_report`, and it's **done only when its run filed a report** (else failed: "Finished without filing the report"); goal items expose
+`reportId`. Big-picture prompts (setup chat, dispatch, orchestrator chat) route research to reporters; the Cast catalogue marks them.
+
 **Git / GitHub status** (`src/health/git-status.ts`): branch, clean + change count, last commit, commit count, first remote (URL
 with credentials stripped). GitHub visibility (`gh repo view <owner/repo> --json visibility`, read-only, 10 s) is asked only during
 a health check, only for a GitHub remote, only when `gh` is installed — never on GET.
 
-Events added: `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
+Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read` / `report.archived` (U1), `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
 `goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`), `progress` (project stream; also sets `project.progress`).

@@ -21,8 +21,9 @@ export type RunSpec = {
   tools?: readonly string[];
   /** Pre-approved permission patterns (e.g. `Bash(git log *)`); defaults to `tools`. Ignored without `tools`. */
   allowedTools?: readonly string[];
-  /** Where the ask_user MCP tool reaches the backend (CLI runner only). */
-  askBridge?: { url: string; token: string };
+  /** Where the ask_user MCP tool reaches the backend (CLI runner only). `reportUrl` is set only for
+      reporter runs: then the same MCP server also offers `file_report`. */
+  askBridge?: { url: string; token: string; reportUrl?: string };
 };
 
 export type Activity = { kind: string; label: string; detail?: string; target?: string };
@@ -47,6 +48,8 @@ export type RunIO = {
   emit: (e: RunEvent) => void;
   /** Ask the user; resolves with their answer (FakeRunner calls it; the CLI reaches it via MCP). */
   ask: (question: string, options?: string[]) => Promise<string>;
+  /** File a report (reporter runs only; FakeRunner calls it, the CLI reaches it via MCP). Throws when refused. */
+  report?: (input: unknown) => Promise<{ id: string }>;
 };
 
 export type RunHandle = { done: Promise<RunOutcome>; cancel: () => void };

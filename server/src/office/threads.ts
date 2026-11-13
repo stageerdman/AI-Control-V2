@@ -23,6 +23,7 @@ import { conflict } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
+import type { Reports } from '../reports/reports.ts';
 import type { Runtime } from '../runtime/service.ts';
 import type { Features } from './features.ts';
 
@@ -33,6 +34,8 @@ export type ThreadMessage = {
   kind: 'text' | 'error';
   text: string;
   runId: string | null;
+  /** Set when this turn filed a report: the reply is one line pointing at it ("Open report"). */
+  reportId: string | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
@@ -56,6 +59,7 @@ export function orchestratorChatPrompt(
       'The user is chatting with you in the project’s office. You have no tools: every message carries a fresh summary of the whiteboard, the features folder and the latest health check — that is what you know about the work.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
       'You do not do the work yourself. When the user wants something built, suggest they post it as a goal on the whiteboard, and say which team or specialist you would brief. Details belong to the teams — the user can tap any agent to talk to them directly.',
+      'Research, comparisons, reviews and write-ups end in a report in the Reports tray, filed by a reporter (a role or team marked "files reports"). Route such requests to a reporter on the project; if nobody on it files reports, say so in one line and offer to add one. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
     ].join('\n'),
   ].join('\n\n');
 }
@@ -67,6 +71,7 @@ export function createThreads(deps: {
   runtime: Runtime;
   features: Features;
   health: Health;
+  reports: Reports;
   /** Every known secret value (the global cabinet) — scrubbed from stored text. */
   secretValues: () => string[];
 }) {
@@ -84,19 +89,26 @@ export function createThreads(deps: {
     kind: r.kind as ThreadMessage['kind'],
     text: r.text as string,
     runId: (r.run_id as string | null) ?? null,
+    reportId: (r.report_id as string | null) ?? null,
     at: r.created_at as string,
   });
   const insert = (
     projectId: string,
     agentId: string,
-    m: { sender: 'user' | 'agent'; kind: ThreadMessage['kind']; text: string; runId: string | null },
+    m: {
+      sender: 'user' | 'agent';
+      kind: ThreadMessage['kind'];
+      text: string;
+      runId: string | null;
+      reportId?: string | null;
+    },
   ): ThreadMessage => {
     const id = randomUUID();
     const text = scrub(m.text);
     const at = now();
     db.prepare(
-      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, at);
+      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, m.reportId ?? null, at);
     try {
       events.append('project', projectId, {
         type: 'thread.message',
@@ -107,12 +119,21 @@ export function createThreads(deps: {
           kind: m.kind,
           text: clip(text, 20_000),
           ...(m.runId ? { runId: m.runId } : {}),
+          ...(m.reportId ? { reportId: m.reportId } : {}),
         },
       });
     } catch {
       /* the message is stored; a bad event line never loses it */
     }
-    return { id, from: m.sender === 'user' ? 'user' : agentId, kind: m.kind, text, runId: m.runId, at };
+    return {
+      id,
+      from: m.sender === 'user' ? 'user' : agentId,
+      kind: m.kind,
+      text,
+      runId: m.runId,
+      reportId: m.reportId ?? null,
+      at,
+    };
   };
 
   /** Who the user may talk to here: the orchestrator, a specialist, or a member of a project team. */
@@ -166,6 +187,7 @@ export function createThreads(deps: {
             when: health.createdAt,
           }
         : null,
+      unreadReports: deps.reports.unreadTitles(p.id),
       openQuestions: runtime
         .asks(p.id, 'open')
         .map((a) => ({ from: name(a.agentId), question: clip(a.question, 200) })),
@@ -188,6 +210,20 @@ export function createThreads(deps: {
     if (!t) return;
     turns.delete(run.id);
     busy.delete(key(t.projectId, t.agentId));
+    /* a turn that filed a report answers in one line pointing at it (spec-reports §1.2) */
+    const filed = deps.reports.byRun(run.id).at(-1);
+    if (filed) {
+      const a = store.agents.get(t.agentId);
+      const who = a?.nick ?? a?.name.split(' ')[0] ?? filed.author.name;
+      insert(t.projectId, t.agentId, {
+        sender: 'agent',
+        kind: 'text',
+        text: `${who} filed it — ${filed.title}.`,
+        runId: run.id,
+        reportId: filed.id,
+      });
+      return;
+    }
     const ok = run.status === 'succeeded' && !!run.result?.trim();
     insert(t.projectId, t.agentId, {
       sender: 'agent',

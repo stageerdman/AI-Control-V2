@@ -16,6 +16,10 @@ export type ChecklistItem = {
   teamId: string | null;
   /** May start alongside the item before it; otherwise it waits for every earlier item. */
   parallel: boolean;
+  /** Asks for knowledge, not change: done when its report is filed (by a reporter). */
+  report: boolean;
+  /** The report this item's run filed (the whiteboard links to it). */
+  reportId: string | null;
   status: ItemStatus;
   runId: string | null;
   note: string | null;
@@ -48,6 +52,8 @@ const toItem = (r: Row): ChecklistItem => ({
   agentId: r.agent_id as string,
   teamId: (r.team_id as string) ?? null,
   parallel: r.parallel === 1,
+  report: r.report === 1,
+  reportId: (r.report_id as string | null) ?? null,
   status: r.status as ItemStatus,
   runId: (r.run_id as string) ?? null,
   note: (r.note as string) ?? null,
@@ -58,7 +64,12 @@ const toItem = (r: Row): ChecklistItem => ({
 export function workRepo(db: Db) {
   const items = (goalId: string) =>
     (
-      db.prepare('SELECT * FROM checklist_items WHERE goal_id = ? ORDER BY position').all(goalId) as Row[]
+      db
+        .prepare(
+          `SELECT i.*, (SELECT r.id FROM reports r WHERE r.item_id = i.id ORDER BY r.created_at DESC LIMIT 1) AS report_id
+           FROM checklist_items i WHERE i.goal_id = ? ORDER BY i.position`,
+        )
+        .all(goalId) as Row[]
     ).map(toItem);
   const toGoal = (r: Row): Goal => {
     const its = items(r.id as string);
@@ -89,18 +100,34 @@ export function workRepo(db: Db) {
       ).map(toGoal),
     insertGoal(
       g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps'] },
-      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'> & { parallel?: boolean })[],
+      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'> & {
+        parallel?: boolean;
+        report?: boolean;
+      })[],
     ): Goal {
       const t = now();
       db.prepare(
         `INSERT INTO goals (id, project_id, text, summary, status, caps, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
       ).run(g.id, g.projectId, g.text, g.summary, g.caps ? JSON.stringify(g.caps) : null, t, t);
       const ins = db.prepare(
-        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
+        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
       );
       list.forEach((i, n) => {
-        ins.run(i.id, g.id, g.projectId, n, i.text, i.brief, i.agentId, i.teamId, i.parallel ? 1 : 0, t, t);
+        ins.run(
+          i.id,
+          g.id,
+          g.projectId,
+          n,
+          i.text,
+          i.brief,
+          i.agentId,
+          i.teamId,
+          i.parallel ? 1 : 0,
+          i.report ? 1 : 0,
+          t,
+          t,
+        );
       });
       return repo.goal(g.id) as Goal;
     },

@@ -7,6 +7,7 @@ import { redactSecrets } from '../events/redact.ts';
 import type { Activity, RunEvent, RunOutcome } from './runner.ts';
 
 export const ASK_TOOL = 'mcp__studio__ask_user';
+export const REPORT_TOOL = 'mcp__studio__file_report';
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const base = (p: string) => p.split('/').filter(Boolean).at(-1) ?? p;
@@ -57,6 +58,11 @@ export function activityFor(
         },
       };
     }
+    case REPORT_TOOL:
+      return {
+        status: 'working',
+        activity: { kind: 'writing', label: clip(`Filing a report: ${s('title')}`, 120) },
+      };
     case ASK_TOOL:
       return {
         status: 'waiting',

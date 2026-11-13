@@ -26,6 +26,7 @@ export type TeamRecord = {
   position: number;
   created_at: string;
   updated_at: string;
+  reporter?: number;
 };
 
 export type Team = {
@@ -41,6 +42,8 @@ export type Team = {
   captainId: string | null;
   members: Member[];
   projectIds: string[];
+  /** Runs for this team may file reports (file_report). */
+  reporter: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -52,6 +55,7 @@ type TeamFields = {
   blurb?: string;
   instr?: string;
   code?: string;
+  reporter?: boolean;
 };
 export type TeamCreate = TeamFields & {
   members?: { agentId: string; instr?: string }[];
@@ -90,6 +94,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
     captainId: r.captain_id,
     members: members(r.id),
     projectIds: projectIds(r.id),
+    reporter: r.reporter === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -137,6 +142,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         blurb: input.blurb ?? '',
         instr: input.instr ?? '',
         code: input.code ?? '',
+        reporter: input.reporter ? 1 : 0,
         captain_id: null,
         position: nextPosition(db, 'teams'),
         created_at: t,
@@ -150,7 +156,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
       const r = requireRecord(id);
       if (patch.captainId !== undefined) repo.saveRoster(id, setCaptain(repo.roster(id), patch.captainId));
       db.prepare(
-        'UPDATE teams SET name = ?, color = ?, emblem = ?, blurb = ?, instr = ?, code = ?, updated_at = ? WHERE id = ?',
+        'UPDATE teams SET name = ?, color = ?, emblem = ?, blurb = ?, instr = ?, code = ?, reporter = ?, updated_at = ? WHERE id = ?',
       ).run(
         patch.name ?? r.name,
         patch.color ?? r.color,
@@ -158,6 +164,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         patch.blurb ?? r.blurb,
         patch.instr ?? r.instr,
         patch.code ?? r.code,
+        patch.reporter === undefined ? (r.reporter ?? 0) : patch.reporter ? 1 : 0,
         now(),
         id,
       );
@@ -185,8 +192,8 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
 
     insertRecord(r: TeamRecord): void {
       db.prepare(
-        `INSERT INTO teams (id, name, color, emblem, blurb, instr, code, captain_id, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO teams (id, name, color, emblem, blurb, instr, code, captain_id, position, created_at, updated_at, reporter)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.name,
@@ -199,6 +206,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         r.position,
         r.created_at,
         r.updated_at,
+        r.reporter ?? 0,
       );
     },
     deleteRecord: (id: string) => db.prepare('DELETE FROM teams WHERE id = ?').run(id),

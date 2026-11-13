@@ -95,6 +95,12 @@ export const runRoutes =
       const { question, options } = parse(InternalAsk, req.body);
       return reply.status(201).send({ askId: runtime.internal.openAsk(runId, question, options).id });
     });
+    /* file_report (reporter runs only — the runtime refuses others); the body is validated by the reports desk */
+    app.post('/internal/runs/:runId/reports', async (req, reply) => {
+      const { runId } = parse(InternalParams, req.params);
+      runtime.internal.authorize(runId, token(req.headers['x-run-token']));
+      return reply.status(201).send(runtime.internal.fileReport(runId, req.body));
+    });
     app.get('/internal/runs/:runId/asks/:askId/wait', async (req) => {
       const { runId, askId } = parse(InternalWait, req.params);
       runtime.internal.authorize(runId, token(req.headers['x-run-token']));

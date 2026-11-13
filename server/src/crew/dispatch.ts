@@ -31,6 +31,8 @@ export const DispatchSchema = z.strictObject({
         brief: z.string().trim().min(1).max(4000),
         /** May run at the same time as the item before it (they touch different files). Default: wait. */
         parallel: z.boolean().optional(),
+        /** Asks for knowledge, not change (research, compare, review, write-up): the assignee answers with file_report. */
+        report: z.boolean().optional(),
       }),
     )
     .min(1)
@@ -43,6 +45,8 @@ export type Crewing = {
   captains: Map<string, { teamId: string; teamName: string }[]>;
   specialists: Set<string>;
   name: (id: string) => string;
+  /** May this assignee (for this team) file reports? */
+  canReport: (agentId: string, teamId?: string) => boolean;
 };
 
 /** Pure: every item goes to a captain (with their team) or a specialist (without one). */
@@ -62,6 +66,10 @@ export function dispatchIssues(plan: DispatchPlan, c: Crewing): string[] {
           : `items.${i}: '${it.assignee}' is not a captain or specialist on this project — brief teams through their captains`,
       );
     }
+    if (it.report && !c.canReport(it.assignee, it.teamId))
+      out.push(
+        `items.${i}: ${c.name(it.assignee)} doesn't file reports — give a report item to a reporter (marked "reporter" in "Who works on it"), or drop "report"`,
+      );
   });
   return out;
 }
@@ -75,6 +83,10 @@ export function createDispatch(deps: {
   crew: Crew;
   runtime: Runtime;
   maxConcurrent?: number;
+  /** Who may file reports (src/reports). Absent → nobody: report items are refused. */
+  canFile?: (agent: { kind: string; roleId: string | null }, teamId?: string | null) => boolean;
+  /** Did this run file a report? (a report item is done only then) */
+  filedBy?: (runId: string) => boolean;
 }) {
   const { store, events, crew, runtime } = deps;
   const cap = deps.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
@@ -114,6 +126,10 @@ export function createDispatch(deps: {
       captains,
       specialists: new Set(p.agentIds),
       name: (id) => store.agents.get(id)?.name ?? id,
+      canReport: (id, teamId) => {
+        const a = store.agents.get(id);
+        return !!a && !!deps.canFile?.(a, teamId ?? null);
+      },
     };
   }
 
@@ -146,7 +162,9 @@ export function createDispatch(deps: {
       team
         ? `You are the captain of ${team.name}: you own this item for the team. Do the work yourself in this run; note anything a teammate should pick up in issues.txt.`
         : '',
-      'When you are done, reply with a short plain-words summary of what you did.',
+      it.report
+        ? `This item asks for knowledge, not change: answer it with the file_report tool (question: ${JSON.stringify(clip(goal.text, 200))}). It is done when the report is filed — then reply with one line.`
+        : 'When you are done, reply with a short plain-words summary of what you did.',
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -207,8 +225,16 @@ export function createDispatch(deps: {
   runtime.onFinished((run) => {
     const it = work.itemByRun(run.id);
     if (it?.status !== 'running') return;
-    const status = run.status === 'succeeded' ? 'done' : run.status === 'cancelled' ? 'cancelled' : 'failed';
-    work.setItem(it.id, { status, note: clip(run.result ?? run.error ?? '', 2000) || null });
+    const missing = it.report && run.status === 'succeeded' && !deps.filedBy?.(run.id);
+    const status = missing
+      ? 'failed'
+      : run.status === 'succeeded'
+        ? 'done'
+        : run.status === 'cancelled'
+          ? 'cancelled'
+          : 'failed';
+    const note = missing ? 'Finished without filing the report' : clip(run.result ?? run.error ?? '', 2000);
+    work.setItem(it.id, { status, note: note || null });
     announce(work.item(it.id) as ChecklistItem);
     refreshGoal(it.goalId);
     pump(it.projectId);
@@ -255,6 +281,7 @@ export function createDispatch(deps: {
                     does: clip(t.instr, 400),
                     captain: t.captainId ? { id: t.captainId, name: c.name(t.captainId) } : null,
                     members: t.members.map((m) => c.name(m.agentId)),
+                    ...(t.captainId && c.canReport(t.captainId, t.id) ? { reporter: true } : {}),
                   },
                 ]
               : [];
@@ -263,6 +290,7 @@ export function createDispatch(deps: {
             id,
             name: c.name(id),
             role: store.agents.get(id)?.role ?? '',
+            ...(c.canReport(id) ? { reporter: true } : {}),
           })),
         };
         const open = work
@@ -280,6 +308,7 @@ export function createDispatch(deps: {
             'Never assign to other team members — the captain owns the item for the team.',
             '"text" is the whiteboard line (short); "brief" tells the assignee what done looks like.',
             'Items run one after another in the same project folder. Set "parallel": true only when an item can safely run at the same time as the one before it (it touches different files). Keep it small: a one-page task is 1–2 items.',
+            'When the goal asks for KNOWLEDGE, not change — research, compare, investigate, audit/review, "find out", "write up", "what is the status of…" — make it a report item: set "report": true and give it to a reporter (marked "reporter": true above); it ends in a report in the Reports tray. Mixed goals ("research X, then build it"): the report item first, the build items after. If nobody here is a reporter, plan the work without "report" and say in the summary that nobody on the project files reports yet.',
           ].join('\n'),
           `Answer with one JSON object shaped like this: ${json({
             summary: 'The plan in one sentence.',
@@ -290,6 +319,7 @@ export function createDispatch(deps: {
                 teamId: '<team id when the assignee is a captain>',
                 brief: 'What to do and what done looks like.',
                 parallel: false,
+                report: false,
               },
             ],
           })}`,
@@ -318,6 +348,7 @@ export function createDispatch(deps: {
               agentId: i.assignee,
               teamId: i.teamId ?? null,
               parallel: i.parallel === true,
+              report: i.report === true,
             })),
           ),
         );

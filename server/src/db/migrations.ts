@@ -285,6 +285,40 @@ export const MIGRATIONS: readonly string[] = [
   /* 12 — the pager (U1): an open ask you already went to see (opened its office and left) is quiet
      until a NEW ask arrives there. seen_at = when you visited while it was open. */
   `ALTER TABLE asks ADD COLUMN seen_at TEXT;`,
+
+  /* 13 — reports (U1, spec-reports.md): finished write-ups filed by reporter roles/teams through the
+     file_report tool. author is a snapshot (survives deletes/renames); body is markdown, secrets masked. */
+  `
+  ALTER TABLE roles ADD COLUMN reporter INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE teams ADD COLUMN reporter INTEGER NOT NULL DEFAULT 0;
+  -- a dispatched item that asks for knowledge, not change: done when its report is filed
+  ALTER TABLE checklist_items ADD COLUMN report INTEGER NOT NULL DEFAULT 0;
+  -- the one-line thread reply that points at the report a chat turn filed
+  ALTER TABLE thread_messages ADD COLUMN report_id TEXT;
+  CREATE TABLE reports (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL CHECK (kind IN ('research', 'review', 'status', 'other')),
+    title       TEXT NOT NULL,
+    summary     TEXT NOT NULL,
+    body        TEXT NOT NULL,
+    question    TEXT,
+    sources     TEXT NOT NULL DEFAULT '[]',   -- JSON [{title, url?, path?}]
+    author      TEXT NOT NULL,                -- JSON {agentId, name, teamId, teamName}
+    run_id      TEXT,
+    goal_id     TEXT,
+    item_id     TEXT,
+    thread_id   TEXT,                         -- the thread's agent id when a chat turn filed it
+    created_at  TEXT NOT NULL,
+    read_at     TEXT,
+    archived_at TEXT
+  );
+  CREATE INDEX reports_by_project ON reports(project_id, created_at);
+  CREATE INDEX reports_by_run ON reports(run_id);
+  -- the starter cast's reporters (fresh databases get them from the seed)
+  UPDATE roles SET reporter = 1 WHERE name_key = 'research';
+  UPDATE teams SET reporter = 1 WHERE id = 'expedition';
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
