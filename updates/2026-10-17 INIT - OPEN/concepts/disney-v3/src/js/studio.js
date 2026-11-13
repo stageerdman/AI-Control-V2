@@ -56,9 +56,10 @@ function renderProjects() {
     const q = projQuery.trim().toLowerCase();
     const m = p => !q || p.name.toLowerCase().includes(q) || (p.note || '').toLowerCase().includes(q);
     const a = active.filter(m), d = db.filter(m);
-    el.querySelector('#resCount').textContent = `${a.length} on set · ${d.length} in the back lot`;
+    const dr = (typeof npVisibleDrafts === 'function' ? npVisibleDrafts() : []).filter(x => !q || (x.name || 'untitled').toLowerCase().includes(q));
+    el.querySelector('#resCount').textContent = `${dr.length ? dr.length + ' in setup · ' : ''}${a.length} on set · ${d.length} in the back lot`;
     const sh = el.querySelector('#shelves');
-    if (a.length === 0 && d.length === 0) {
+    if (a.length === 0 && d.length === 0 && !dr.length) {
       sh.innerHTML = '';
       const es = document.createElement('div'); es.className = 'empty-state';
       es.appendChild(hero({ name: 'Scout', role: 'QA', hue: 'rose', build: 'sprout', hair: 'bob' }, { size: 120, pose: 'thinking' }));
@@ -66,7 +67,12 @@ function renderProjects() {
       const b = document.createElement('button'); b.className = 'btn btn-hero'; b.textContent = '＋ New project'; b.onclick = () => openNewProject();
       es.appendChild(b); sh.appendChild(es); return;
     }
-    sh.innerHTML = `
+    sh.innerHTML = `${dr.length ? `
+      <section class="shelf draft-shelf">
+        <div class="shelf-head"><h2>In setup</h2><span class="cnt">${dr.length} draft${dr.length > 1 ? 's' : ''}</span></div>
+        <div class="shelf-hr"></div>
+        <div class="shelf-grid" id="draftGrid"></div>
+      </section>` : ''}
       <section class="shelf active-shelf">
         <div class="shelf-head"><h2>On set today</h2><span class="cnt">${a.length} active</span></div>
         <div class="shelf-hr"></div>
@@ -77,6 +83,7 @@ function renderProjects() {
         <div class="shelf-hr"></div>
         <div class="shelf-grid" id="dbGrid"></div>
       </section>`;
+    const dg0 = sh.querySelector('#draftGrid'); if (dg0) dr.forEach(x => dg0.appendChild(npDraftCard(x)));
     const ag = sh.querySelector('#activeGrid');
     a.forEach(p => ag.appendChild(activeCard(p)));
     if (!a.length) ag.innerHTML = '<p class="hint" style="color:rgba(255,246,233,.6)">Nothing on set matches.</p>';

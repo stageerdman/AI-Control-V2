@@ -2,16 +2,65 @@
    studio-new.css — New project / Adopt flow (studio-new.js).
    One sheet: dark stage (the crew acts here) over a cream body.
    ============================================================ */
-.sheet.np-sheet{max-width:min(94vw,720px);padding:0;overflow:hidden auto;display:flex;flex-direction:column}
-.np-head{display:flex;align-items:center;gap:12px;padding:16px 18px 0;background:#241a44;color:var(--cream)}
-.np-dots{display:flex;gap:6px;list-style:none;margin:0;padding:0}
-.np-dots li{width:22px;height:6px;border-radius:999px;background:rgba(255,246,233,.18);transition:background .3s}
-.np-dots li.done{background:var(--teal)}
-.np-dots li.now{background:var(--sun)}
-.np-steplbl{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,246,233,.6)}
-.np-x{margin-left:auto;appearance:none;border:0;background:rgba(255,255,255,.08);color:var(--cream);width:34px;height:34px;border-radius:50%;cursor:pointer;font:inherit;font-weight:800}
-.np-x:hover{background:rgba(255,255,255,.16)}
-.np-x:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+/* the page: roomy, centred; the team step adds the chat column */
+.np-page{max-width:980px;margin:0 auto;padding-bottom:28px;color:var(--cream)}
+.np-page.with-chat{max-width:1320px}
+.np-pagehead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:4px 0 16px}
+.np-pagehead h1{margin:2px 0 0;font-size:clamp(22px,2.6vw,30px);letter-spacing:-.02em}
+.np-steps{display:flex;gap:4px;list-style:none;margin:0;padding:6px;border-radius:999px;background:rgba(255,255,255,.07)}
+.np-steps li{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:800;color:rgba(255,246,233,.5)}
+.np-steps li i{width:8px;height:8px;border-radius:50%;background:rgba(255,246,233,.25)}
+.np-steps li.done{color:rgba(255,246,233,.8)}
+.np-steps li.done i{background:var(--teal)}
+.np-steps li.now{background:var(--cream);color:var(--ink)}
+.np-steps li.now i{background:var(--sun-deep)}
+.np-grid{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+.with-chat .np-grid{grid-template-columns:minmax(0,1fr) 380px}
+.np-card{border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow);background:linear-gradient(180deg,#ffffff,#fff9f0);color:var(--ink)}
+.np-pagefoot{display:flex;align-items:center;gap:12px;margin-top:12px;color:rgba(255,246,233,.6)}
+.np-pagefoot .hint{color:rgba(255,246,233,.55)}
+.np-del{margin-left:auto;appearance:none;border:0;background:none;font:inherit;font-size:12.5px;font-weight:800;color:rgba(255,246,233,.6);cursor:pointer;padding:6px 8px;border-radius:8px}
+.np-del:hover{color:var(--coral)}
+.np-del:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.np-opt{text-transform:none;letter-spacing:0;font-weight:700;color:rgba(91,82,128,.7);margin-left:6px}
+.np-namefields{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.np-namefields[hidden]{display:none}
+.np-tile-empty{background:transparent!important;border:2px dashed rgba(255,246,233,.35);box-shadow:none}
+.np-dcard .np-tile-empty{border-color:rgba(36,26,68,.25)}
+
+/* chat column — reuses the office chat look (op-head / op-log / op-composer from office.css) */
+.np-chat{display:flex;flex-direction:column;height:min(640px,calc(100vh - 230px));min-height:420px;border-radius:var(--r-lg);overflow:hidden;
+  background:linear-gradient(180deg,#fffaf2,#fff3e2);box-shadow:var(--shadow);color:var(--ink)}
+
+/* the plan on stage: orchestrator, then squads under their emblems */
+.np-planstage{justify-content:flex-start;align-items:flex-end;gap:22px;min-height:250px;padding-top:24px}
+.np-groups{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 18px;flex:1;min-width:0}
+.np-group{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 10px 2px;border-radius:16px;background:rgba(255,255,255,.05)}
+.np-group.np-spec{background:none;border:1px dashed rgba(255,246,233,.22)}
+.np-ghead{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:var(--cream)}
+.np-ghead i{font-style:normal;color:#1b1135;background:var(--mint);border-radius:999px;padding:1px 6px;font-size:10px}
+.np-emb{display:inline-grid;place-items:center;width:26px;height:26px}
+.np-gmem{display:flex;align-items:flex-end;gap:2px;padding-top:16px}
+.np-newteam{box-shadow:0 0 0 2px rgba(139,232,139,.5)}
+
+/* "In setup" cards on Projects */
+.draft-shelf .shelf-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.np-dcard{position:relative;display:flex;align-items:stretch;border-radius:var(--r-md);background:rgba(255,255,255,.9);box-shadow:var(--shadow-sm);border:2px dashed rgba(255,155,61,.45)}
+.np-dresume{flex:1;min-width:0;appearance:none;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-md)}
+.np-dresume:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.np-dcard:hover{transform:translateY(-2px);transition:transform .15s}
+.np-dtext{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.np-dtext b{font-size:15px}
+.np-dtext span{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.np-ddots{display:flex;gap:3px;flex:none}
+.np-ddots i{width:12px;height:4px;border-radius:2px;background:rgba(36,26,68,.14)}
+.np-ddots i.done{background:var(--teal)}
+.np-ddots i.now{background:var(--sun-deep)}
+.np-ddel{appearance:none;border:0;background:none;color:var(--ink-soft);font:inherit;font-weight:800;width:40px;cursor:pointer;border-radius:0 var(--r-md) var(--r-md) 0}
+.np-ddel:hover{color:#c03540;background:rgba(255,111,115,.1)}
+.np-ddel:focus-visible{outline:3px solid var(--grape);outline-offset:-3px}
+.toast-undo{appearance:none;border:0;background:var(--sun);color:#4a2600;font:inherit;font-weight:900;font-size:13px;padding:5px 12px;border-radius:999px;cursor:pointer;margin-left:6px}
+.toast-undo:focus-visible{outline:3px solid var(--cream);outline-offset:2px}
 
 /* the stage */
 .np-stage{position:relative;display:flex;align-items:flex-end;justify-content:center;gap:28px;min-height:220px;padding:18px 24px 22px;
@@ -66,8 +115,6 @@
 .np-folder:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
 .np-fpath{font-family:var(--mono);font-size:13px;font-weight:700}
 .np-fmeta{margin-left:auto;font-size:12px;font-weight:700;color:var(--ink-soft)}
-.np-namefield{margin-top:16px}
-.np-namefield[hidden]{display:none}
 
 /* step 3: setup checklist */
 .np-prog{margin:16px 0 12px}
@@ -84,19 +131,17 @@
 @keyframes np-spin{to{transform:rotate(360deg)}}
 
 /* step 4: proposal */
-.np-teamstage{justify-content:flex-start;gap:18px;padding-top:86px}
-.np-bubble{position:absolute;left:24px;right:24px;top:16px;background:var(--cream);color:var(--ink);font-size:14px;font-weight:700;line-height:1.35;
-  padding:10px 14px;border-radius:16px;box-shadow:var(--shadow-sm);z-index:2}
-.np-bubble::after{content:"";position:absolute;left:52px;bottom:-8px;border:9px solid transparent;border-top-color:var(--cream);border-bottom:0}
-.np-squad{display:flex;align-items:flex-end;gap:6px;margin:0 auto;flex-wrap:nowrap}
-.np-new .hero{animation:np-pop .5s var(--spring)}
 .np-creator{animation:np-in .6s var(--ease-out)}
 @keyframes np-in{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
 
+@media (max-width:1100px){
+  .with-chat .np-grid{grid-template-columns:1fr}
+  .np-chat{height:460px}
+}
 @media (max-width:640px){
+  .np-steps li span{display:none}
   .np-choices{grid-template-columns:1fr}
   .np-stage{gap:10px}
-  .np-squad{gap:0}
   .np-checks li b{min-width:120px}
   .np-fmeta{display:none}
 }

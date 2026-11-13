@@ -30,6 +30,7 @@ function route() {
   if (head === 'office' && (!parts[1] || ['board', 'health', 'features', 'feature'].includes(parts[1]))) parts.splice(1, 0, 'aurora');
 
   if (APP.view === 'office' && head !== 'office' && typeof closeOffice === 'function') closeOffice();
+  if (APP.stage === 'new' && head !== 'new' && typeof npLeave === 'function') npLeave();
   if (sheetOpen()) closeSheet();
 
   if (head === 'gallery') {
@@ -40,10 +41,13 @@ function route() {
     _showLayer('office'); APP.view = 'office'; APP.sub = parts.slice(2).join('/');
     openOffice(parts[1], APP.sub); return;
   }
-  const stage = STAGES.some(s => s.id === head) ? head : 'projects';
+  /* #new/<draftId> — the project-setup space: a studio page, nav shows Projects */
+  const stage = head === 'new' ? 'new' : STAGES.some(s => s.id === head) ? head : 'projects';
   _showLayer('studio'); APP.view = 'studio'; APP.stage = stage; APP.sub = parts.slice(1).join('/');
   document.querySelectorAll('#stage .scene').forEach(s => s.classList.toggle('active', s.id === 'scene-' + stage));
-  document.querySelectorAll('#nav a').forEach(a => { if (a.dataset.stage === stage) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  const navOn = stage === 'new' ? 'projects' : stage;
+  document.querySelectorAll('#nav a').forEach(a => { if (a.dataset.stage === navOn) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (stage === 'new') renderNewProject(parts[1]);
   if (stage === 'projects') renderProjects();
   if (stage === 'cast') renderCast(parts[1] === 'teams' ? 'teams' : 'agents');
   if (stage === 'access') renderAccess();
@@ -62,7 +66,7 @@ window.addEventListener('keydown', e => {
   }
   const free = t === document.body || !t.closest || t.closest('#nav') || t.classList.contains('scene');
   if (!free || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
-  const i = STAGES.findIndex(s => s.id === APP.stage);
+  const i = STAGES.findIndex(s => s.id === APP.stage); if (i < 0) return;
   const j = e.key === 'ArrowRight' ? Math.min(STAGES.length - 1, i + 1) : Math.max(0, i - 1);
   if (j !== i) { e.preventDefault(); go(STAGES[j].id); }
 });
