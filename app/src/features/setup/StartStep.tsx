@@ -43,7 +43,7 @@ export function StartStep({
       body={
         <>
           <StepTitle>Start a project</StepTitle>
-          <p className="np-sub">Your orchestrator picks the teams, then the Project Setter sets it up.</p>
+          <p className="np-sub">The Project Setter sets it up, then your orchestrator picks the teams.</p>
           <div className="np-choices">
             <button
               type="button"

@@ -1,24 +1,24 @@
 /* The project-setup space, pure: steps + what each one needs, the "In setup" card, the plan on
    stage, and the Project Setter's checklist folded from live `setup.step` events.
-
-   Step order vs the prototype (Start · Name · Orchestrator · Setup · Team): the real Setter
-   (POST /drafts/:id/finish) creates the project and deletes the draft, and refuses until the plan
-   is accepted — so the team step (chat + accept) comes BEFORE the Setter here. */
+   The user's order (v5): the Setter sets the project up first (POST /drafts/:id/setup), then the
+   orchestrator enters and picks the team; Accept → finish creates the project. */
 import type { Agent, Draft, Plan, SetupStep, Team } from '../../api';
 import { nickOf } from '../projects/model';
 
-export const STEPS = ['Start', 'Name', 'Orchestrator', 'Team', 'Setup'] as const;
-export const STEP = { start: 0, name: 1, orchestrator: 2, team: 3, setup: 4 } as const;
+export const STEPS = ['Start', 'Name', 'Orchestrator', 'Setup', 'Team'] as const;
+export const STEP = { start: 0, name: 1, orchestrator: 2, setup: 3, team: 4 } as const;
 export const stepOf = (d: Pick<Draft, 'step'>): number => Math.max(0, Math.min(STEPS.length - 1, d.step));
 
 /* ---------------- what each step needs before Continue ---------------- */
-export type StepDraft = Pick<Draft, 'mode' | 'name' | 'folder' | 'orchestratorId' | 'plan'>;
+export type StepDraft = Pick<Draft, 'mode' | 'name' | 'folder' | 'orchestratorId' | 'plan' | 'setupAt'>;
 export function canContinue(step: number, d: StepDraft, orchestrators: Pick<Agent, 'id'>[]): boolean {
   switch (step) {
     case STEP.name:
       return !!d.name.trim() && (d.mode !== 'adopt' || !!d.folder);
     case STEP.orchestrator:
       return !!d.orchestratorId && orchestrators.some((o) => o.id === d.orchestratorId);
+    case STEP.setup:
+      return !!d.setupAt;
     case STEP.team:
       return !!d.plan && staffed(d.plan) > 0;
     default:
@@ -214,6 +214,11 @@ export function setterDone(steps: SetupStep[], mode: Draft['mode']): SetterState
   for (const ev of steps) s = setterStep(s, ev, mode);
   return { ...s, done: true };
 }
+/** A draft set up earlier (this session didn't see the steps): every row done. */
+export const setterAlreadyDone = (mode: Draft['mode']): SetterState => {
+  const s = setterStart(mode);
+  return { ...s, rows: s.rows.map((r) => ({ ...r, state: 'done' })), done: true };
+};
 /** 0–100: finished rows over all rows. */
 export const setterPct = (st: SetterState): number =>
   st.done

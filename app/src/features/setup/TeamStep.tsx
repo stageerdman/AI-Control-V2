@@ -1,13 +1,16 @@
 /* 3 — Team: the orchestrator's plan on stage + a side chat with it (v6 N2–N4). The first time,
    the orchestrator opens with a proposal. Each message is one real orchestrator turn
    (POST /drafts/:id/chat → reply + the whole updated plan). Accept → the Agent Creator mints every
-   brief (POST /accept); what it made shows up tagged "new", then "Set it up →". */
+   brief (POST /accept); what it made shows up tagged "new", then "Open the office →". Finishing
+   (POST /finish) only creates the project — the Setter set the folder up in the step before. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { type Agent, type ChatMessage, type Draft, invalidate, studio, type Team } from '../../api';
 import { Hero } from '../../characters/Hero';
 import { reducedMotion } from '../../design/palette';
+import { go } from '../../shell/router';
 import { nickOf } from '../projects/model';
-import { sparkle } from './confetti';
+import { fireConfetti, sparkle } from './confetti';
+import { DRAFTS_KEY } from './drafts';
 import { briefLine, canContinue, pendingBriefs, planLine, planView, STEP } from './flow';
 import { PlanStage } from './PlanStage';
 import { Foot, StepCard, StepTitle } from './parts';
@@ -22,16 +25,12 @@ export function TeamStep({
   teams,
   orch,
   creator,
-  onBack,
-  onNext,
 }: {
   d: Draft;
   agents: Agent[];
   teams: Team[];
   orch: Agent | undefined;
   creator: Agent | undefined;
-  onBack: () => void;
-  onNext: () => void;
 }) {
   const [busy, setBusy] = useState<false | 'orch' | 'creator' | 'accept'>(false);
   const [mine, setMine] = useState<string | null>(null); // my message while the orchestrator answers
@@ -85,8 +84,28 @@ export function TeamStep({
     void say();
   }, [d.id]);
 
+  /* draft → project, then walk into the office (the prototype's npFinish) */
+  const finish = async () => {
+    const r = await studio.drafts.finish(d.id);
+    void invalidate('projects');
+    void invalidate(DRAFTS_KEY);
+    fireConfetti();
+    go({ name: 'office', projectId: r.project.id, sub: 'room' });
+  };
+
   const accept = async () => {
-    if (minted) return onNext();
+    if (minted) {
+      setBusy('accept');
+      setAcceptErr(null);
+      try {
+        await finish();
+      } catch (e) {
+        if (live.current) setAcceptErr(`Couldn’t open the project — ${(e as Error).message}`);
+      } finally {
+        if (live.current) setBusy(false);
+      }
+      return;
+    }
     const briefs = pendingBriefs(d.plan);
     setBusy(briefs ? 'creator' : 'accept');
     setAcceptErr(null);
@@ -106,12 +125,12 @@ export function TeamStep({
         setTimeout(() => primary.current?.focus(), 60);
       } else {
         putDraft(d.id, { plan: r.plan });
-        if (live.current) onNext();
+        await finish();
       }
     } catch (e) {
       if (live.current)
         setAcceptErr(
-          `${briefs ? `${cNick} couldn’t finish` : 'Couldn’t accept the plan'} — ${(e as Error).message}`,
+          `${briefs ? `${cNick} couldn’t finish` : 'Couldn’t open the project'} — ${(e as Error).message}`,
         );
     } finally {
       if (live.current) setBusy(false);
@@ -160,7 +179,7 @@ export function TeamStep({
           </>
         }
         foot={
-          <Foot onBack={onBack} backDisabled={!!busy}>
+          <Foot>
             <button
               ref={primary}
               type="button"
@@ -172,7 +191,7 @@ export function TeamStep({
               {busy === 'creator'
                 ? `${cNick} is designing…`
                 : minted
-                  ? 'Set it up →'
+                  ? 'Open the office →'
                   : acceptErr
                     ? 'Try again'
                     : 'Accept the plan →'}

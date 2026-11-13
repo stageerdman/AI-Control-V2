@@ -1,45 +1,54 @@
-/* 4 — Setup: the Project Setter turns the accepted draft into a project (POST /drafts/:id/finish).
-   Its steps stream live from GET /drafts/:id/events (`setup.step`); the finish response is the
-   truth at the end. Then: "Open the office →". */
+/* 3 — Setup: the Project Setter sets the draft's folder up (POST /drafts/:id/setup) — the user's
+   order: the Setter first, then the orchestrator picks the team. Its steps stream live from
+   GET /drafts/:id/events (`setup.step`); the setup response is the truth at the end. Idempotent on
+   the server, so a retry only adds what's missing. Then: "Call in <orchestrator> →". */
 import { useEffect, useRef, useState } from 'react';
-import {
-  type Agent,
-  type Draft,
-  invalidate,
-  openEventStream,
-  type Project,
-  type SetupStep,
-  studio,
-} from '../../api';
-import { go } from '../../shell/router';
+import { type Agent, type Draft, invalidate, openEventStream, studio } from '../../api';
 import { LogoTile } from '../projects/LogoTile';
 import { nickOf } from '../projects/model';
 import { tileFor } from '../projects/tile';
-import { fireConfetti, sparkle } from './confetti';
+import { type SetupResult, setupDraft } from './api';
+import { sparkle } from './confetti';
 import { DRAFTS_KEY } from './drafts';
-import { type SetterState, setterDone, setterFailed, setterPct, setterStart, setterStep } from './flow';
+import {
+  type SetterState,
+  setterAlreadyDone,
+  setterDone,
+  setterFailed,
+  setterPct,
+  setterStart,
+  setterStep,
+} from './flow';
 import { Actor, Foot, StepCard, StepTitle } from './parts';
+import { putDraft } from './useDraft';
 
-/** One Setter per draft per session (StrictMode mounts twice; a remount must not run it again). */
-const runs = new Map<string, Promise<{ project: Project; steps: SetupStep[] }>>();
+/** One Setter run per draft per session (StrictMode mounts twice; a remount must not run it again). */
+const runs = new Map<string, Promise<SetupResult>>();
 
 export function SetterStep({
   d,
   setter,
+  orch,
   onBack,
+  onNext,
 }: {
   d: Draft;
   setter: Agent | undefined;
+  orch: Agent | undefined;
   onBack: () => void;
+  onNext: () => void;
 }) {
-  const [st, setSt] = useState<SetterState>(() => setterStart(d.mode));
-  const [project, setProject] = useState<Project | null>(null);
+  const [st, setSt] = useState<SetterState>(() =>
+    d.setupAt ? setterAlreadyDone(d.mode) : setterStart(d.mode),
+  );
   const [attempt, setAttempt] = useState(0);
-  const open = useRef<HTMLButtonElement>(null);
+  const next = useRef<HTMLButtonElement>(null);
   const name = d.name.trim();
+  const setUp = !!d.setupAt;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: one run per attempt
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one run per attempt; a set-up draft never reruns
   useEffect(() => {
+    if (setUp && attempt === 0 && !runs.has(d.id)) return;
     let alive = true;
     const t0 = Date.now() - 1500; // ignore steps of an earlier attempt replayed by the stream
     const stream = openEventStream(
@@ -53,28 +62,23 @@ export function SetterStep({
     );
     let run = runs.get(d.id);
     if (!run) {
-      run = (async () => {
-        await new Promise((r) => setTimeout(r, 250)); // let the stream connect first
-        const res = await studio.drafts.finish(d.id);
-        const p = res.project;
-        /* the studio lot shows it on set with the tile the draft had (best effort) */
-        const project = await studio.projects
-          .update(p.id, { tile: tileFor(name || p.name), status: 'live' })
-          .catch(() => p);
-        return { project, steps: res.steps };
-      })();
+      run = new Promise((ok) => setTimeout(ok, 250)).then(() => setupDraft(d.id)); // let the stream connect first
       runs.set(d.id, run);
     }
     run.then(
-      ({ project: p, steps }) => {
-        void invalidate('projects');
+      (r) => {
+        putDraft(d.id, {
+          folder: r.draft.folder,
+          setupAt: r.draft.setupAt,
+          setupCommit: r.draft.setupCommit,
+        });
         void invalidate(DRAFTS_KEY);
+        void invalidate('sandbox:');
         if (!alive) return;
         stream.close();
-        setSt(setterDone(steps, d.mode));
-        setProject(p);
+        setSt(setterDone(r.steps, d.mode));
         sparkle(50, 30);
-        setTimeout(() => open.current?.focus(), 60);
+        setTimeout(() => next.current?.focus(), 60);
       },
       (e: Error) => {
         runs.delete(d.id);
@@ -89,8 +93,8 @@ export function SetterStep({
     };
   }, [d.id, attempt]);
 
-  const done = !!project;
-  const pct = done ? 100 : setterPct(st);
+  const done = st.done && !st.failed;
+  const pct = setterPct(st);
   return (
     <StepCard
       label="Setup"
@@ -163,7 +167,8 @@ export function SetterStep({
         </>
       }
       foot={
-        <Foot onBack={st.failed ? onBack : undefined}>
+        /* the prototype: no way back once the Setter is done */
+        <Foot onBack={done ? undefined : onBack}>
           {st.failed ? (
             <button
               type="button"
@@ -178,17 +183,14 @@ export function SetterStep({
             </button>
           ) : (
             <button
-              ref={open}
+              ref={next}
               type="button"
               className="btn btn-hero np-primary"
               disabled={!done}
-              onClick={() => {
-                if (!project) return;
-                fireConfetti();
-                go({ name: 'office', projectId: project.id, sub: 'room' });
-              }}
+              data-autofocus={done ? true : undefined}
+              onClick={onNext}
             >
-              Open the office →
+              Call in {nickOf(orch) || 'the orchestrator'} →
             </button>
           )}
         </Foot>

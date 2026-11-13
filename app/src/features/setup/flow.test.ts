@@ -10,6 +10,7 @@ import {
   planView,
   resetsTeamTalk,
   STEP,
+  setterAlreadyDone,
   setterDone,
   setterFailed,
   setterPct,
@@ -95,6 +96,12 @@ describe('step machine', () => {
   it('Orchestrator must be a real orchestrator; Team needs a plan that staffs someone', () => {
     expect(canContinue(STEP.orchestrator, draft({ orchestratorId: 'a-maestro' }), orchs)).toBe(true);
     expect(canContinue(STEP.orchestrator, draft({ orchestratorId: 'a-gone' }), orchs)).toBe(false);
+    // the user's order: Setter first (needs the folder set up), then the team
+    expect(STEP.setup).toBeLessThan(STEP.team);
+    expect(canContinue(STEP.setup, draft({ name: 'Kite' }), orchs)).toBe(false);
+    expect(canContinue(STEP.setup, draft({ name: 'Kite', setupAt: '2026-11-13T00:00:00Z' }), orchs)).toBe(
+      true,
+    );
     expect(canContinue(STEP.team, draft(), orchs)).toBe(false);
     expect(canContinue(STEP.team, draft({ plan: plan() }), orchs)).toBe(false);
     expect(canContinue(STEP.team, draft({ plan: plan({ newTeams: [{ brief: 'mobile' }] }) }), orchs)).toBe(
@@ -137,7 +144,7 @@ describe('"In setup" card', () => {
   });
   it('names the orchestrator from the orchestrator step on', () => {
     const c = draftCard(draft({ mode: 'adopt', step: 3, name: 'Kiln', orchestratorId: 'a-pixel' }), orchs);
-    expect(c.line).toBe('Adopting · Team · Pixel');
+    expect(c.line).toBe('Adopting · Setup · Pixel');
     expect(c.dots).toEqual(['done', 'done', 'done', 'now', '']);
   });
   it('clamps a step out of range', () => {
@@ -216,6 +223,11 @@ describe('Project Setter checklist', () => {
     s = setterStep(s, { step: 'folder', status: 'running', detail: '' }, 'adopt');
     expect(s.failed).toBeNull();
     expect(s.rows.filter((r) => r.state).map((r) => r.step)).toEqual(['folder']);
+  });
+  it('a draft set up before reads as all done', () => {
+    const s = setterAlreadyDone('new');
+    expect(s.done && s.rows.every((r) => r.state === 'done')).toBe(true);
+    expect(setterPct(s)).toBe(100);
   });
   it('unknown server steps are appended, the finish response is the truth', () => {
     const s = setterDone(

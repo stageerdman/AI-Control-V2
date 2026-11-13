@@ -147,32 +147,30 @@ function Walkthrough({ id, crew, teams }: { id: string; crew: Crew; teams: impor
           crew={crew}
           edit={q.edit}
           onBack={() => to(STEP.name)}
-          onNext={(extra) => to(STEP.team, extra)}
+          onNext={(extra) => to(STEP.setup, extra)}
         />
       );
       break;
     case STEP.team:
-      body = (
-        <TeamStep
-          d={d}
-          agents={crew.agents}
-          teams={teams}
-          orch={orch}
-          creator={crew.creator}
-          onBack={() => to(STEP.orchestrator)}
-          onNext={() => to(STEP.setup)}
-        />
-      );
+      body = <TeamStep d={d} agents={crew.agents} teams={teams} orch={orch} creator={crew.creator} />;
       break;
     default:
-      body = <SetterStep d={d} setter={crew.setter} onBack={() => to(STEP.team)} />;
+      body = (
+        <SetterStep
+          d={d}
+          setter={crew.setter}
+          orch={orch}
+          onBack={() => to(STEP.orchestrator)}
+          onNext={() => to(STEP.team)}
+        />
+      );
   }
   return (
     <Page
       mode={d.mode}
       name={d.name}
       step={step}
-      onDelete={step < STEP.setup ? () => void deleteDraft(d.id, d.name, () => go('projects')) : undefined}
+      onDelete={() => void deleteDraft(d.id, d.name, () => go('projects'))}
     >
       {body}
     </Page>

@@ -127,6 +127,9 @@ export type Draft = {
   orchestratorId: string | null;
   plan: Plan | null;
   chat: ChatMessage[];
+  /** When the Project Setter set up `folder` (POST /drafts/:id/setup); null until then. */
+  setupAt?: string | null;
+  setupCommit?: string | null;
   createdAt: string;
   updatedAt: string;
 };
