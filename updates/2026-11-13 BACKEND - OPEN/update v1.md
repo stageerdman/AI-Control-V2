@@ -99,6 +99,7 @@ Modularity / cleanliness / reusability report via an agent run + git/GitHub stat
 Tailwind components, wire to this API).
 
 ## Status
+- ✅ **A0 — App shell** (2026-11-13): `app/` Tauri 2 + React/Vite/Tailwind v4 "AI Studio" (9.9 MiB .app); starts/reuses the server, waits for `/health`, stops it on quit. Notes: `PROGRESS-A0.md`, `app/README.md`.
 - ✅ **B0 — Foundation** (2026-11-13): `server/` (TS strict/ESM, Fastify 5, zod 4, vitest 4, biome 2,
   tsx), zod config + owned dirs, `GET /health`, sandbox guard. 20 tests.
 - ✅ **B1 — Cast & projects domain** (2026-11-13): sqlite schema + migrations, repos per aggregate,

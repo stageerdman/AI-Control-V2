@@ -25,3 +25,19 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   paths that don't exist yet. Reject `..` segments outright rather than normalising them.
 - **409 vs 422.** 422 = the body is malformed or names an id that doesn't exist; 409 = the body is
   fine but a studio rule says no. The UI can show 409 `message` as-is (it's written for people).
+
+### App shell (A0)
+- **Kill the backend by process group, not pid.** `npm run dev` → `tsx watch` → `node`: killing npm
+  orphans the server. Spawn with `process_group(0)` and `killpg` (TERM, grace, then KILL).
+- **Hard app death needs a watchdog.** `RunEvent::Exit` only fires on a clean quit; a tiny `sh`
+  loop in the same group (`while kill -0 $APP_PID; … ; kill -TERM 0`) ends the server within ~1 s
+  if the app is SIGTERM'd/SIGKILL'd. Verified both paths.
+- **Reuse beats spawn.** If `/health` already answers, the app uses that server and leaves it
+  running on quit — lets backend devs keep their own `npm run dev`.
+- **Health is fetched from Rust (raw TCP GET), not the webview.** The server sends no CORS
+  headers, so a webview `fetch` from `localhost:1420`/`tauri://` would be blocked. The real UI
+  will need either CORS on the server (allow the Tauri origins) or calls proxied through Rust.
+- **GUI apps get a bare PATH.** Add `/opt/homebrew/bin`, `/usr/local/bin` before spawning `npm`.
+- **Screenshots from an agent shell fail** (`screencapture` → "could not create image": no
+  Screen Recording permission). Workaround that tests the real UI: headless Chrome via CDP on the
+  Vite dev URL with `window.__TAURI_INTERNALS__.invoke` mocked to return the live `/health` body.
