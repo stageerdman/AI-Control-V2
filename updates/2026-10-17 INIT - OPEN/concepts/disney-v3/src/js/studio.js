@@ -17,6 +17,13 @@ function keytag(c, locked) {
 }
 
 /* ============================================================ PROJECTS */
+/* the project's orchestrator (falls back to Pixel until the contract lands) */
+function projOrch(p) { return (p && p.orchestrator && agentById(p.orchestrator)) || agentById('pixel'); }
+function projOrchName(p) { const o = projOrch(p); return o ? (typeof shortName === 'function' ? shortName(o) : o.name) : 'Pixel'; }
+function ghBadge(p) {
+  const g = p.github || {};
+  return !g.connected ? 'GitHub not connected' : g.private ? '🔒 GitHub · private' : '🌐 GitHub · public';
+}
 let projQuery = '';
 function renderProjects() {
   const el = document.getElementById('scene-projects');
@@ -87,7 +94,7 @@ function activeCard(p) {
       ${logoTile(p)}
       <div style="flex:1;min-width:0">
         <div class="row" style="justify-content:space-between;gap:8px"><h3>${escapeHtml(p.name)}</h3>${pill}</div>
-        <div class="hint">${p.agents} agents on set</div>
+        <div class="hint">${escapeHtml(projOrchName(p))} · ${p.agents} agents</div>
       </div>
     </div>
     <div class="mini-cast" aria-hidden="true"></div>
@@ -95,8 +102,7 @@ function activeCard(p) {
     <div class="hint" style="margin-top:5px;font-weight:800">${p.pct}% to launch</div>
     <div class="note">${escapeHtml(p.note)}</div>
     <div class="micro-row">
-      <span class="micro-badge">${p.github ? '✓ GitHub' : 'Connect GitHub'}</span>
-      <span class="micro-badge">${p.private ? '🔒 Private' : '🌐 Public'}</span>
+      <span class="micro-badge">${ghBadge(p)}</span>
     </div>`;
   const mc = b.querySelector('.mini-cast');
   const shown = (p.cast || []).slice(0, 4);
@@ -113,7 +119,7 @@ function dbCard(p) {
   const b = document.createElement('button'); b.className = 'pcard-db';
   const tagcls = p.tag === 'Draft' ? 'draft' : p.tag === 'Archived' ? 'archived' : 'idle';
   b.innerHTML = `${logoTile(p, true)}
-    <div style="flex:1;min-width:0"><h3>${escapeHtml(p.name)}</h3><div class="sub">${p.edited}${p.public ? ' · Public' : ''}</div></div>
+    <div style="flex:1;min-width:0"><h3>${escapeHtml(p.name)}</h3><div class="sub">${p.edited}${p.github && p.github.connected && !p.github.private ? ' · Public' : ''}</div></div>
     <span class="pill ${tagcls}">${p.tag}</span>`;
   b.onclick = () => openProject(p);
   return b;
@@ -149,7 +155,7 @@ function renderAccess() {
       <h2>🔐 Access entries</h2>
       <p class="sub">You see where a key goes — never the key itself.</p>
       <div id="accessList"></div>
-      <div class="masklock">🔒 Values are masked everywhere in AI Control, including logs.</div>
+      <div class="masklock">🔒 Values are masked everywhere in AI Studio, including logs.</div>
     </div>`;
   el.querySelector('#addAccess').onclick = () => openAccessForm(null);
   const list = el.querySelector('#accessList');
