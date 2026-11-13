@@ -1,28 +1,45 @@
 /* ============================================================
-   hero.js — Character system v3 (spec-cast §1 + SYNTHESIS seam 1).
-   THE way every screen draws a character.
+   hero.js — Character system v4: little robot minions.
+   THE way every screen draws a character (spec-cast §1 interface).
 
-   Public:
+   Public (unchanged from v3):
      hero(agent, opts) → HTMLDivElement.hero
      heroSVG(agent, opts) → string (same markup; setPose etc. still work on it)
-     setPose(el, pose, {seated, props, holding}?)
-     setFacing(el, facing, {dir, look}?)        animated head-first turn (250ms)
-     setLook(el, {x,y} | 'viewer' | null)
-     heroHeadAnchor(el) → {x, y} px inside el (crown point, for overlays)
+     setPose(el, pose, {seated, props, holding, moving}?)
+     setFacing(el, facing, {dir, look}?)        animated screen-face turn (250ms)
+     setLook(el, {x,y} | 'viewer' | null)       glowing eyes slide on the screen
+     heroHeadAnchor(el) → {x, y} px inside el (antenna/gear top, for overlays)
      castOf(agent, mood, size)                  v2 shim
-     POSES, FACINGS, BUILDS, HAIR, ACCESSORIES, ROLE_GEAR, HERO_SIZES,
+     POSES, FACINGS, BUILDS, HAIR, ACCESSORIES, HOLDINGS, ROLE_GEAR, HERO_SIZES,
      MOOD_TO_POSE, POSE_TEXT, MAT
    opts: size 'xs'|'sm'|'md'|'xl'|px · pose · facing 'side'|'three-quarter'|'front'
          dir 'right'|'left' · look · seated · props · holding
          'mug'|'envelope'|'paper'|'binder'|'pen'|'none' · role (override)
-         captain · armband <hex> · ghost · label
-   Geometry: viewBox 0 0 120 160, ground y=152, feet centred on x=60.
-   Coordinate spaces: head-local (r normalised to 30), torso-local (40×42),
+         captain · armband <hex> · ghost · label · moving
+
+   The bot: a screen face (dark glass, big glowing eyes) on a rounded head
+   shell, an antenna, a small chassis, mitten arms, and a hover base — no
+   legs. Identity = hue (shell) + build (chassis silhouette) + "hair"
+   (antenna style) + accessory (screen/head extra). Role = headgear + tool
+   + chassis decal + badge.
+     build   hero → squircle head, barrel chassis, jet hover
+             sprout → orb head, tiny chassis, hover pad
+             bruiser → box head, wide chassis, one wheel
+             lanky → dome head on a stalk neck, tall chassis, hover ring
+   Semantics for a legless bot:
+     seated  = hovering low (rig drops 18 units, base hidden) behind a desk —
+               the screen face always clears the desk top.
+     walking = gliding: slight forward lean, arms trail, thruster brighter.
+   Geometry: viewBox 0 0 120 160, ground y=152, centred on x=60.
+   Coordinate spaces: head-local (shell ≈ r30), torso-local (40×42),
    hand-local (origin = hand centre, long axis up, kept upright).
    ============================================================ */
 
 const MAT = { metal: '#c9c3dd', steel: '#8e86ad', wood: '#b9773f', paper: '#fff6e9' };
 const HERO_INK = '#241a44';
+const BOT_SCREEN = '#1c1636';
+const BOT_GLOW = '#e8fcff';
+const BOT_HALO = '#7fe7ff';
 
 const POSES = ['idle', 'walking', 'typing', 'writing', 'reading', 'carrying', 'talking', 'chilling', 'sleeping',
   'celebrating', 'needs-input', 'thinking', 'frustrated', 'waiting', 'pressing', 'waving', 'salute'];
@@ -34,9 +51,9 @@ const HOLDINGS = ['mug', 'envelope', 'paper', 'binder', 'pen', 'none'];
 const HERO_SIZES = { xs: 48, sm: 96, md: 160, xl: 360 };
 const MOOD_TO_POSE = { neutral: 'idle', idle: 'idle', working: 'typing', blocked: 'needs-input', celebrate: 'celebrating' };
 
-/* per pose: mouth, eyes, whether the role tool shows, default hand-held item,
-   rig-level desk prop, seated by default, fx overlay. Static key poses (arms,
-   legs, lean…) live in hero.css as custom properties on .pose-<name>. */
+/* per pose: screen mouth, eyes, whether the role tool shows, default hand-held
+   item, rig-level desk prop, seated by default, fx overlay. Static key poses
+   (arms, lean, look…) live in hero.css as custom properties on .pose-<name>. */
 const POSE_DEF = {
   idle: { mouth: 'smile', tool: 1 },
   walking: { mouth: 'smile', tool: 1 },
@@ -57,18 +74,31 @@ const POSE_DEF = {
   salute: { mouth: 'smile', tool: 1 },
 };
 const POSE_TEXT = {
-  idle: 'standing by', walking: 'walking', typing: 'writing code', writing: 'writing', reading: 'reading',
+  idle: 'standing by', walking: 'on the move', typing: 'writing code', writing: 'writing', reading: 'reading',
   carrying: 'carrying paperwork', talking: 'talking', chilling: 'taking a break', sleeping: 'sleeping, off shift',
   celebrating: 'celebrating', 'needs-input': 'needs your input', thinking: 'thinking', frustrated: 'fixing a failure',
   waiting: 'waiting on a teammate', pressing: 'pressing the button', waving: 'waving', salute: 'saluting',
 };
 
-/* Builds — anchors per spec-cast §1.2 */
+/* Builds → bot silhouettes. head: neck pivot = cy + bottom*k; torso = chassis box. */
 const BUILD_DEF = {
-  hero: { head: { cx: 60, cy: 52, r: 30 }, torso: { x: 40, y: 82, w: 40, h: 42 }, legW: 12, sh: 89 },
-  sprout: { head: { cx: 60, cy: 64, r: 32 }, torso: { x: 41, y: 94, w: 38, h: 32 }, legW: 12, sh: 100 },
-  bruiser: { head: { cx: 60, cy: 48, r: 27 }, torso: { x: 32, y: 74, w: 56, h: 48 }, legW: 15, sh: 82 },
-  lanky: { head: { cx: 60, cy: 38, r: 26 }, torso: { x: 44, y: 64, w: 32, h: 52 }, legW: 10, sh: 70 },
+  hero: { head: { cx: 60, cy: 58, r: 30 }, shape: 'squircle', bottom: 28, torso: { x: 41, y: 88, w: 38, h: 34 }, sh: 95, base: 'jet' },
+  sprout: { head: { cx: 60, cy: 66, r: 32 }, shape: 'orb', bottom: 30, torso: { x: 44, y: 99, w: 32, h: 22 }, sh: 104, base: 'pad' },
+  bruiser: { head: { cx: 60, cy: 54, r: 29 }, shape: 'box', bottom: 26, torso: { x: 33, y: 82, w: 54, h: 38 }, sh: 90, base: 'wheel' },
+  lanky: { head: { cx: 60, cy: 42, r: 27 }, shape: 'dome', bottom: 24, torso: { x: 46, y: 74, w: 28, h: 46 }, sh: 81, base: 'ring' },
+};
+/* head shells (head-local) and chassis outlines (torso-local 40×42) */
+const SHELL = {
+  squircle: 'M-32 -4 C-32 -24 -24 -28 0 -28 C24 -28 32 -24 32 -4 V6 C32 24 24 28 0 28 C-24 28 -32 24 -32 6Z',
+  orb: 'M-30 0 C-30 -40 30 -40 30 0 C30 40 -30 40 -30 0Z',
+  box: 'M-21 -26 H21 C29 -26 33 -22 33 -14 V14 C33 22 29 26 21 26 H-21 C-29 26 -33 22 -33 14 V-14 C-33 -22 -29 -26 -21 -26Z',
+  dome: 'M-29 8 C-31 -22 -18 -31 0 -31 C18 -31 31 -22 29 8 C29 19 22 24 0 24 C-22 24 -29 19 -29 8Z',
+};
+const CHASSIS = {
+  hero: 'M8 0 H32 C37 0 40 3 40 8 V26 C40 36 32 42 22 42 H18 C8 42 0 36 0 26 V8 C0 3 3 0 8 0Z',
+  sprout: 'M7 0 H33 C38 0 40 3 40 8 C40 28 32 42 20 42 C8 42 0 28 0 8 C0 3 2 0 7 0Z',
+  bruiser: 'M6 0 H34 C38 0 40 2 40 6 V34 C40 39 37 42 32 42 H8 C3 42 0 39 0 34 V6 C0 2 2 0 6 0Z',
+  lanky: 'M11 0 H29 C33 0 35 3 35 7 L40 33 C40 39 36 42 31 42 H9 C4 42 0 39 0 33 L5 7 C5 3 7 0 11 0Z',
 };
 
 let _heroSeq = 0;
@@ -91,27 +121,25 @@ function _tp(d, sx, sy, tx, ty) {
 const _r = n => +n.toFixed(2);
 
 /* ============================================================
-   ROLE GEAR — {accent, sleeve, legs, look, top, outfit, headgear, tool, badge}
-   ctx: {c, dark, light, hairC, accent, cloth, T(d), TC(x,y,r,attrs), MAT}
+   ROLE GEAR — {accent, look, top, outfit, headgear, tool, badge}
+   outfit = a paint decal on the chassis (no clothes — it's a bot).
+   ctx: {c, dark, light, accent, cloth, T(d), TC(x,y,r,attrs), MAT}
    headgear/tool/badge are authored in head-/hand-/badge-local coords.
    `top` = highest headgear point in head-local units (for the head anchor).
    ============================================================ */
 const O = 'class="o"', O2 = 'class="o2"';
 const ROLE_GEAR = {
   Frontend: {
-    accent: 'teal', sleeve: 'cloth', top: -42, look: 'headphones, hoodie, giant pencil',
-    outfit: x => `<path ${O} fill="${x.cloth}" d="${x.T('M0 0 H40 V42 H0Z')}"/>
-      <path ${O2} fill="${shade(x.cloth, 22)}" d="${x.T('M7 -1 C11 8 29 8 33 -1 L36 4 C30 13 10 13 4 4Z')}"/>
-      <path class="o2 h-trim" fill="${shade(x.cloth, -14)}" d="${x.T('M9 27 H31 L28 37 H12Z')}"/>
-      <path class="h-trim" stroke="${x.accent}" stroke-width="2.2" stroke-linecap="round" fill="none" d="${x.T('M16 8 L15 19 M24 8 L25 19')}"/>
-      <g class="h-trim">${x.TC(15, 20, 1.8, `fill="${x.accent}"`)}${x.TC(25, 20, 1.8, `fill="${x.accent}"`)}</g>`,
+    accent: 'teal', top: -42, look: 'headphones, giant stylus',
+    outfit: x => `<path ${O2} fill="${x.accent}" d="${x.T('M-2 29 H42 V36 H-2Z')}"/>
+      <g class="h-trim">${x.TC(9, 10, 1.8, `fill="${x.accent}"`)}${x.TC(9, 17, 1.8, `fill="${PALETTE.sun}"`)}</g>`,
     headgear: x => `<path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="${HERO_INK}" stroke-width="10" stroke-linecap="round"/>
       <path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="${x.accent}" stroke-width="5" stroke-linecap="round"/>
       <path class="h-fine" d="M-22 -28 C-14 -36 -4 -38 4 -38" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
-      <rect ${O} x="-40" y="-12" width="14" height="25" rx="7" fill="${x.accent}"/>
-      <rect ${O} x="26" y="-12" width="14" height="25" rx="7" fill="${x.accent}"/>
-      <rect class="h-fine" x="-37" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"/>
-      <rect class="h-fine" x="29" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"/>`,
+      <rect ${O} x="-41" y="-12" width="14" height="25" rx="7" fill="${x.accent}"/>
+      <rect ${O} x="27" y="-12" width="14" height="25" rx="7" fill="${x.accent}"/>
+      <rect class="h-fine" x="-38" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"/>
+      <rect class="h-fine" x="30" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"/>`,
     tool: x => `<g transform="rotate(8)"><path ${O} fill="${x.accent}" d="M-5 -36 H5 V5 H-5Z"/>
       <path class="h-fine" d="M-1.6 -35 V4" stroke="${shade(x.accent, -40)}" stroke-width="1.2"/>
       <path ${O} fill="${MAT.wood}" d="M-5 -36 L0 -49 L5 -36Z"/>
@@ -121,18 +149,15 @@ const ROLE_GEAR = {
     badge: () => `<path d="M-2.2 -3 L-4.6 0 L-2.2 3 M2.2 -3 L4.6 0 L2.2 3 M0.9 -3.6 L-0.9 3.6" fill="none" stroke="${HERO_INK}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`,
   },
   Backend: {
-    accent: 'sky', sleeve: 'skin', legs: 'cloth', top: -38, look: 'welding goggles, overalls, cog',
-    outfit: x => `<path ${O} fill="${x.cloth}" d="${x.T('M-2 25 H42 V44 H-2Z')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M9 7 H31 V30 H9Z')}"/>
-      <path ${O2} fill="${x.cloth}" d="${x.T('M3 -1 L9 -1 L13 9 L8 9Z M37 -1 L31 -1 L27 9 L32 9Z')}"/>
-      <rect class="o2 h-trim" x="${_r(x.X(15))}" y="${_r(x.Y(13))}" width="${_r(10 * x.sx)}" height="${_r(8 * x.sy)}" rx="1.5" fill="${shade(x.cloth, -16)}"/>
-      ${x.TC(10.5, 10, 2.2, `${O2} fill="${MAT.metal}"`)}${x.TC(29.5, 10, 2.2, `${O2} fill="${MAT.metal}"`)}`,
+    accent: 'sky', top: -40, look: 'welding goggles, big cog',
+    outfit: x => `<path ${O2} fill="${MAT.steel}" d="${x.T('M-2 28 H42 V36 H-2Z')}"/>
+      <g class="h-trim">${[6, 16, 26, 34].map(v => x.TC(v, 32, 1.3, `fill="${MAT.metal}"`)).join('')}</g>`,
     headgear: x => `<path d="M-30 -10 C-20 -26 20 -26 30 -10" fill="none" stroke="${HERO_INK}" stroke-width="8" stroke-linecap="round"/>
       <path d="M-30 -10 C-20 -26 20 -26 30 -10" fill="none" stroke="${MAT.steel}" stroke-width="4" stroke-linecap="round"/>
       <rect ${O} x="-4" y="-27" width="8" height="5" rx="2" fill="${MAT.steel}"/>
-      <circle ${O} cx="-11" cy="-27" r="10" fill="${MAT.metal}"/><circle ${O} cx="11" cy="-27" r="10" fill="${MAT.metal}"/>
-      <circle ${O2} cx="-11" cy="-27" r="6" fill="${shade(x.accent, -30)}"/><circle ${O2} cx="11" cy="-27" r="6" fill="${shade(x.accent, -30)}"/>
-      <circle cx="-13" cy="-29.5" r="2" fill="#fff" opacity=".85"/><circle cx="9" cy="-29.5" r="2" fill="#fff" opacity=".85"/>`,
+      <circle ${O} cx="-11" cy="-28" r="10" fill="${MAT.metal}"/><circle ${O} cx="11" cy="-28" r="10" fill="${MAT.metal}"/>
+      <circle ${O2} cx="-11" cy="-28" r="6" fill="${shade(x.accent, -30)}"/><circle ${O2} cx="11" cy="-28" r="6" fill="${shade(x.accent, -30)}"/>
+      <circle cx="-13" cy="-30.5" r="2" fill="#fff" opacity=".85"/><circle cx="9" cy="-30.5" r="2" fill="#fff" opacity=".85"/>`,
     tool: () => {
       let d = ''; const cx = 0, cy = -21, ro = 18, ri = 13.5, n = 8;
       for (let i = 0; i < n * 4; i++) {
@@ -145,14 +170,11 @@ const ROLE_GEAR = {
     badge: () => `<circle cx="0" cy="0" r="2.6" fill="none" stroke="${HERO_INK}" stroke-width="1.5"/><path d="M0 -4.6 V-3 M0 3 V4.6 M-4.6 0 H-3 M3 0 H4.6 M-3.2 -3.2 L-2.2 -2.2 M2.2 2.2 L3.2 3.2 M3.2 -3.2 L2.2 -2.2 M-2.2 2.2 L-3.2 3.2" stroke="${HERO_INK}" stroke-width="1.5" stroke-linecap="round"/>`,
   },
   Design: {
-    accent: 'rose', sleeve: 'paper', top: -50, look: 'beret, painter\'s smock, palette and brush',
-    outfit: x => `<path ${O} fill="${MAT.paper}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path ${O2} fill="${x.accent}" d="${x.T('M20 3 L12 -1 L12 8Z M20 3 L28 -1 L28 8Z')}"/>${x.TC(20, 3, 2.2, `${O2} fill="${shade(x.accent, -30)}"`)}
-      <g class="h-trim">${x.TC(10, 22, 3, `fill="${PALETTE.sun}"`)}${x.TC(29, 30, 2.6, `fill="${PALETTE.teal}"`)}${x.TC(15, 35, 2.2, `fill="${PALETTE.coral}"`)}${x.TC(31, 17, 1.6, `fill="${PALETTE.sky}"`)}</g>
-      <path class="o2 h-trim" fill="none" d="${x.T('M8 30 H30')}"/>`,
-    headgear: x => `<path ${O} fill="${x.cloth}" d="M-29 -14 C-34 -34 -6 -46 16 -42 C36 -38 46 -26 41 -15 C36 -10 22 -12 8 -12 C-6 -12 -20 -8 -29 -14Z"/>
-      <path class="h-fine" d="M-20 -30 C-10 -38 4 -40 12 -39" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".35"/>
-      <path ${O} fill="${x.cloth}" d="M4 -43 C3 -49 9 -51 10 -46 Z"/>`,
+    accent: 'rose', top: -50, look: 'beret, paint palette and brush',
+    outfit: x => `<g class="h-trim">${x.TC(9, 24, 3.4, `fill="${PALETTE.sun}"`)}${x.TC(30, 31, 2.8, `fill="${PALETTE.teal}"`)}${x.TC(15, 34, 2.2, `fill="${PALETTE.coral}"`)}${x.TC(32, 11, 1.8, `fill="${PALETTE.sky}"`)}</g>`,
+    headgear: x => `<path ${O} fill="${x.accent}" d="M-29 -14 C-34 -34 -6 -46 16 -42 C36 -38 46 -26 41 -15 C36 -10 22 -12 8 -12 C-6 -12 -20 -8 -29 -14Z"/>
+      <path class="h-fine" d="M-20 -30 C-10 -38 4 -40 12 -39" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" opacity=".45"/>
+      <path ${O} fill="${x.accent}" d="M4 -43 C3 -49 9 -51 10 -46 Z"/>`,
     tool: x => `<path ${O} fill="${MAT.wood}" d="M7 -6 L14 -50 L18 -49 L11 -5Z"/>
       <path ${O} fill="${x.accent}" d="M14 -50 C13 -56 15 -60 17 -61 C19 -58 19 -53 18 -49Z"/>
       <path ${O} fill="${MAT.wood}" d="M-15 -30 C-18 -40 -8 -46 2 -44 C12 -42 15 -34 10 -28 C7 -25 3 -27 1 -24 C-1 -20 4 -17 1 -13 C-3 -9 -12 -14 -15 -30Z"/>
@@ -162,12 +184,9 @@ const ROLE_GEAR = {
     badge: () => `<path d="M0 -4.6 L3.4 -0.4 L1.4 4 H-1.4 L-3.4 -0.4Z" fill="${HERO_INK}"/><path d="M0 -1.6 V2.4" stroke="#fff" stroke-width="1"/>`,
   },
   QA: {
-    accent: 'coral', sleeve: 'cloth', top: -38, look: 'deerstalker, trench collar, magnifier',
-    outfit: x => `<path ${O} fill="${x.cloth}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path ${O2} fill="${shade(x.cloth, 26)}" d="${x.T('M6 -1 L20 15 L13 1Z M34 -1 L20 15 L27 1Z')}"/>
-      <path ${O2} fill="${shade(x.cloth, -22)}" d="${x.T('M-2 26 H42 V31 H-2Z')}"/>
-      <rect class="o2 h-trim" x="${_r(x.X(16))}" y="${_r(x.Y(25))}" width="${_r(8 * x.sx)}" height="${_r(7 * x.sy)}" rx="1" fill="${MAT.metal}"/>
-      <g class="h-trim">${x.TC(20, 19, 1.5, `fill="${HERO_INK}"`)}${x.TC(20, 37, 1.5, `fill="${HERO_INK}"`)}</g>`,
+    accent: 'coral', top: -38, look: 'detective cap, magnifier',
+    outfit: x => `<path ${O2} fill="${x.cloth}" d="${x.T('M-2 28 H42 V35 H-2Z')}"/>
+      <rect class="o2 h-trim" x="${_r(x.X(16))}" y="${_r(x.Y(27.5))}" width="${_r(8 * x.sx)}" height="${_r(8 * x.sy)}" rx="1" fill="${MAT.metal}"/>`,
     headgear: x => `<path ${O} fill="${x.cloth}" d="M-31 -14 C-36 -6 -34 6 -27 9 C-25 0 -25 -6 -26 -14Z"/>
       <path ${O} fill="${x.cloth}" d="M31 -14 C36 -6 34 6 27 9 C25 0 25 -6 26 -14Z"/>
       <path ${O} fill="${shade(x.cloth, -16)}" d="M-18 -15 C-30 -18 -40 -14 -43 -8 C-34 -6 -24 -8 -16 -10Z"/>
@@ -175,7 +194,7 @@ const ROLE_GEAR = {
       <path ${O} fill="${x.cloth}" d="M-29 -11 C-31 -42 31 -42 29 -11 C18 -15 -18 -15 -29 -11Z"/>
       <path class="h-fine" d="M-20 -22 L20 -22 M-24 -16 L24 -16 M-8 -33 L-12 -13 M8 -33 L12 -13" stroke="${x.accent}" stroke-width="1.3" opacity=".7" fill="none"/>
       <path ${O2} fill="${x.accent}" d="M-6 -34 C-6 -40 6 -40 6 -34 C3 -36 -3 -36 -6 -34Z"/>`,
-    tool: x => `<rect ${O} x="-3" y="-17" width="6" height="25" rx="3" fill="${MAT.wood}"/>
+    tool: () => `<rect ${O} x="-3" y="-17" width="6" height="25" rx="3" fill="${MAT.wood}"/>
       <circle cx="0" cy="-30" r="12" fill="#fff" opacity=".28"/>
       <circle cx="0" cy="-30" r="12" fill="none" stroke="${HERO_INK}" stroke-width="8"/>
       <circle cx="0" cy="-30" r="12" fill="none" stroke="${MAT.metal}" stroke-width="4"/>
@@ -183,31 +202,28 @@ const ROLE_GEAR = {
     badge: () => `<ellipse cx="0" cy="0.8" rx="2.6" ry="3.4" fill="${HERO_INK}"/><circle cx="0" cy="-3" r="1.6" fill="${HERO_INK}"/><path d="M-2.4 -1 L-4.6 -2 M2.4 -1 L4.6 -2 M-2.6 1.4 L-4.8 1.4 M2.6 1.4 L4.8 1.4 M-2.2 3.4 L-4 4.8 M2.2 3.4 L4 4.8" stroke="${HERO_INK}" stroke-width="1.1" stroke-linecap="round"/>`,
   },
   Data: {
-    accent: 'mint', sleeve: 'skin', top: -37, look: 'miner\'s headlamp, vest with pockets, pickaxe',
-    outfit: x => `<path ${O} fill="${x.cloth}" d="${x.T('M-2 0 L13 0 L19 30 L18 44 L-2 44Z')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M42 0 L27 0 L21 30 L22 44 L42 44Z')}"/>
-      <path class="o2 h-trim" fill="${shade(x.cloth, -14)}" d="${x.T('M4 25 H13 V33 H4Z M27 25 H36 V33 H27Z')}"/>
-      <path class="h-trim" fill="${x.accent}" d="${x.T('M4 25 H13 V27.5 H4Z M27 25 H36 V27.5 H27Z')}"/>`,
+    accent: 'mint', top: -37, look: 'miner\'s headlamp, pickaxe',
+    outfit: x => `<g class="h-trim"><path ${O2} fill="${BOT_SCREEN}" d="${x.T('M5 20 H17 V34 H5Z')}"/>
+      <path fill="${x.accent}" d="${x.T('M7 30 H9 V32 H7Z M10 26 H12 V32 H10Z M13 23 H15 V32 H13Z')}"/></g>`,
     headgear: x => `<path d="M40 -50 L10 -33 L13 -22 L48 -24Z" fill="${MAT.paper}" opacity=".3"/><path d="M26 -41 L10 -33 L13 -22 L30 -24Z" fill="${x.accent}" opacity=".45"/>
       <path d="M-30 -10 C-20 -26 20 -26 30 -10" fill="none" stroke="${HERO_INK}" stroke-width="8" stroke-linecap="round"/>
       <path d="M-30 -10 C-20 -26 20 -26 30 -10" fill="none" stroke="${x.cloth}" stroke-width="4" stroke-linecap="round"/>
       <rect ${O} x="-6" y="-35" width="16" height="15" rx="4" fill="${MAT.steel}"/>
       <circle ${O2} cx="6" cy="-27.5" r="5.6" fill="${MAT.paper}"/><circle cx="6" cy="-27.5" r="2.6" fill="${x.accent}"/>`,
-    tool: x => `<rect ${O} x="-2.8" y="-38" width="5.6" height="46" rx="2.8" fill="${MAT.wood}"/>
+    tool: () => `<rect ${O} x="-2.8" y="-38" width="5.6" height="46" rx="2.8" fill="${MAT.wood}"/>
       <path ${O} fill="${MAT.steel}" d="M-17 -33 C-10 -46 10 -46 17 -33 L13 -32 C7 -39 -7 -39 -13 -32Z"/>
       <rect ${O2} x="-4" y="-42" width="8" height="7" rx="1.5" fill="${MAT.metal}"/>
       <path class="h-fine" d="M-11 -37 C-6 -41 2 -42 6 -41" fill="none" stroke="#fff" stroke-width="1.4" opacity=".6"/>`,
     badge: () => `<path d="M-4.2 4 V0.5 H-2 V4Z M-1.1 4 V-1.6 H1.1 V4Z M2 4 V-4 H4.2 V4Z" fill="${HERO_INK}"/>`,
   },
   DevOps: {
-    accent: 'sun-deep', sleeve: 'skin', top: -40, look: 'hard hat, hi-vis vest, wrench',
-    outfit: x => `<path ${O} fill="${x.accent}" d="${x.T('M-2 0 L14 0 L20 16 L26 0 L42 0 V44 H-2Z')}"/>
-      <path class="h-trim" fill="${PALETTE.sun}" d="${x.T('M-2 20 H42 V24 H-2Z M-2 31 H42 V35 H-2Z')}"/>
-      <path class="o2" fill="none" d="${x.T('M20 16 V44')}"/>`,
-    headgear: x => `<path ${O} fill="${x.accent}" d="M-27 -13 C-28 -46 28 -46 27 -13Z"/>
-      <path ${O2} fill="${shade(x.accent, 22)}" d="M-4.5 -38 C-2 -40.5 2 -40.5 4.5 -38 L4.5 -14 L-4.5 -14Z"/>
-      <path class="h-fine" d="M-18 -27 C-15 -33 -10 -36 -6 -37" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".55"/>
-      <path ${O} fill="${shade(x.accent, -22)}" d="M-37 -14 C-37 -19 37 -19 37 -14 C37 -9 -37 -9 -37 -14Z"/>`,
+    accent: 'sun-deep', top: -42, look: 'hard hat, hi-vis stripes, wrench',
+    outfit: x => `<path ${O2} fill="${x.accent}" d="${x.T('M-2 22 H42 V38 H-2Z')}"/>
+      <path class="h-trim" fill="${PALETTE.sun}" d="${x.T('M-2 26 H42 V29 H-2Z M-2 32 H42 V35 H-2Z')}"/>`,
+    headgear: x => `<path ${O} fill="${x.accent}" d="M-27 -15 C-28 -48 28 -48 27 -15Z"/>
+      <path ${O2} fill="${shade(x.accent, 22)}" d="M-4.5 -40 C-2 -42.5 2 -42.5 4.5 -40 L4.5 -16 L-4.5 -16Z"/>
+      <path class="h-fine" d="M-18 -29 C-15 -35 -10 -38 -6 -39" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" opacity=".55"/>
+      <path ${O} fill="${shade(x.accent, -22)}" d="M-37 -16 C-37 -21 37 -21 37 -16 C37 -11 -37 -11 -37 -16Z"/>`,
     tool: () => `<rect ${O} x="-3.4" y="-27" width="6.8" height="34" rx="3" fill="${MAT.steel}"/>
       <path ${O} fill="${MAT.steel}" d="M-3.8 -46 L-3.8 -37 L3.8 -37 L3.8 -46 C10 -44 13 -37 10 -30 C8 -26 4 -25 3 -25 L-3 -25 C-4 -25 -8 -26 -10 -30 C-13 -37 -10 -44 -3.8 -46Z"/>
       <path class="h-fine" d="M-7 -40 C-6 -43 -5 -44 -4 -44.5" fill="none" stroke="#fff" stroke-width="1.6" opacity=".6"/>
@@ -215,18 +231,16 @@ const ROLE_GEAR = {
     badge: () => `<path d="M0 0 C-1 -3 -4.6 -3 -4.6 0 C-4.6 3 -1 3 0 0 C1 -3 4.6 -3 4.6 0 C4.6 3 1 3 0 0Z" fill="none" stroke="${HERO_INK}" stroke-width="1.5"/>`,
   },
   Research: {
-    accent: 'grape', sleeve: 'cloth', elbow: true, top: -42, look: 'mortarboard, cardigan, open book',
-    outfit: x => `<path ${O} fill="${shade(x.accent, -10)}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M-2 0 H15 L18 44 H-2Z')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M25 0 H42 V44 H22Z')}"/>
-      <g class="h-trim">${x.TC(19.8, 14, 1.7, `${O2} fill="${MAT.paper}"`)}${x.TC(20.3, 23, 1.7, `${O2} fill="${MAT.paper}"`)}${x.TC(20.8, 32, 1.7, `${O2} fill="${MAT.paper}"`)}</g>`,
-    headgear: x => `<path ${O} fill="${x.cloth}" d="M-24 -14 C-25 -30 25 -30 24 -14 C12 -18 -12 -18 -24 -14Z"/>
-      <path ${O} fill="${shade(x.cloth, -14)}" d="M-34 -30 L2 -42 L34 -30 L-2 -20Z"/>
-      <path class="h-fine" d="M-26 -30 L2 -39" stroke="#fff" stroke-width="1.4" opacity=".35"/>
-      <circle cx="0" cy="-31" r="2.4" fill="${PALETTE.sun}"/>
-      <path d="M0 -31 L24 -28 L26 -14" fill="none" stroke="${HERO_INK}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M0 -31 L24 -28 L26 -14" fill="none" stroke="${PALETTE.sun}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-      <path ${O2} fill="${PALETTE.sun}" d="M23 -16 H29 L30 -6 H22Z"/>`,
+    accent: 'grape', top: -42, look: 'mortarboard, open book',
+    outfit: x => `<path ${O2} fill="${x.accent}" d="${x.T('M-2 30 H42 V36 H-2Z')}"/>
+      <g class="h-trim">${x.TC(9, 12, 1.7, `${O2} fill="${MAT.paper}"`)}${x.TC(9, 20, 1.7, `${O2} fill="${MAT.paper}"`)}</g>`,
+    headgear: x => `<path ${O} fill="${x.cloth}" d="M-24 -15 C-25 -31 25 -31 24 -15 C12 -19 -12 -19 -24 -15Z"/>
+      <path ${O} fill="${shade(x.cloth, -14)}" d="M-34 -31 L2 -43 L34 -31 L-2 -21Z"/>
+      <path class="h-fine" d="M-26 -31 L2 -40" stroke="#fff" stroke-width="1.4" opacity=".35"/>
+      <circle cx="0" cy="-32" r="2.4" fill="${PALETTE.sun}"/>
+      <path d="M0 -32 L24 -29 L26 -15" fill="none" stroke="${HERO_INK}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M0 -32 L24 -29 L26 -15" fill="none" stroke="${PALETTE.sun}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path ${O2} fill="${PALETTE.sun}" d="M23 -17 H29 L30 -7 H22Z"/>`,
     tool: x => `<path ${O} fill="${x.cloth}" d="M-19 -42 C-11 -45 -3 -44 0 -40 C3 -44 11 -45 19 -42 L19 -6 C11 -9 3 -8 0 -5 C-3 -8 -11 -9 -19 -6Z"/>
       <path ${O2} fill="${MAT.paper}" d="M-17 -41 C-10 -43 -3 -42 0 -38 L0 -7 C-3 -11 -10 -11 -17 -8Z"/>
       <path ${O2} fill="${MAT.paper}" class="h-page" d="M17 -41 C10 -43 3 -42 0 -38 L0 -7 C3 -11 10 -11 17 -8Z"/>
@@ -234,19 +248,15 @@ const ROLE_GEAR = {
     badge: () => `<circle cx="0" cy="-1.2" r="2.9" fill="${HERO_INK}"/><rect x="-1.5" y="1.6" width="3" height="2.8" rx=".6" fill="${HERO_INK}"/><circle cx="-0.9" cy="-2.1" r=".8" fill="#fff"/>`,
   },
   Writer: {
-    accent: 'sun', sleeve: 'paper', top: -48, look: 'newsboy cap with a quill, waistcoat and scarf, giant quill',
-    outfit: x => `<path ${O} fill="${MAT.paper}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M-2 0 L12 0 L20 22 L20 44 L-2 44Z')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M42 0 L28 0 L20 22 L20 44 L42 44Z')}"/>
-      <g class="h-trim">${x.TC(20, 28, 1.6, `fill="${PALETTE.sun}" ${O2}`)}${x.TC(20, 36, 1.6, `fill="${PALETTE.sun}" ${O2}`)}</g>
-      <path ${O2} fill="${x.accent}" d="${x.T('M5 -1 C10 6 30 6 35 -1 L35 5 C30 11 10 11 5 5Z')}"/>
-      <path ${O2} fill="${x.accent}" d="${x.T('M10 6 L5 27 L12 25 L16 7Z')}"/>`,
-    headgear: x => `<path ${O} fill="${MAT.paper}" d="M-25 -2 C-38 -18 -38 -38 -33 -50 C-28 -38 -22 -20 -25 -2Z"/>
-      <path d="M-25 -4 C-30 -20 -32 -36 -33 -48" fill="none" stroke="${MAT.steel}" stroke-width="1.4"/>
-      <path ${O} fill="${x.cloth}" d="M-30 -11 C-35 -34 -6 -44 12 -40 C30 -36 35 -22 30 -11 C14 -15 -14 -15 -30 -11Z"/>
-      <path class="h-fine" d="M-14 -38 L-2 -14 M8 -40 L6 -14" stroke="${shade(x.cloth, -28)}" stroke-width="1.3" fill="none"/>
-      <circle ${O2} cx="3" cy="-40" r="2.8" fill="${shade(x.cloth, -18)}"/>
-      <path ${O} fill="${shade(x.cloth, -20)}" d="M12 -14 C26 -17 39 -14 43 -8 C34 -5 22 -7 10 -9Z"/>`,
+    accent: 'sun', top: -50, look: 'newsboy cap with a quill, giant quill',
+    outfit: x => `<path ${O2} fill="${x.accent}" d="${x.T('M2 -1 C10 6 30 6 38 -1 L38 6 C30 12 10 12 2 6Z')}"/>
+      <path ${O2} fill="${x.accent}" d="${x.T('M9 7 L5 24 L12 22 L15 8Z')}"/>`,
+    headgear: x => `<path ${O} fill="${MAT.paper}" d="M-25 -4 C-38 -20 -38 -40 -33 -52 C-28 -40 -22 -22 -25 -4Z"/>
+      <path d="M-25 -6 C-30 -22 -32 -38 -33 -50" fill="none" stroke="${MAT.steel}" stroke-width="1.4"/>
+      <path ${O} fill="${x.cloth}" d="M-30 -13 C-35 -36 -6 -46 12 -42 C30 -38 35 -24 30 -13 C14 -17 -14 -17 -30 -13Z"/>
+      <path class="h-fine" d="M-14 -40 L-2 -16 M8 -42 L6 -16" stroke="${shade(x.cloth, -28)}" stroke-width="1.3" fill="none"/>
+      <circle ${O2} cx="3" cy="-42" r="2.8" fill="${shade(x.cloth, -18)}"/>
+      <path ${O} fill="${shade(x.cloth, -20)}" d="M12 -16 C26 -19 39 -16 43 -11 C34 -9 22 -10 10 -11Z"/>`,
     tool: () => `<path ${O} fill="${MAT.paper}" d="M2 -4 C-14 -16 -15 -40 3 -56 C12 -42 14 -18 2 -4Z"/>
       <path d="M2 -4 C3 -22 3 -38 3 -54" fill="none" stroke="${MAT.steel}" stroke-width="1.6"/>
       <path class="h-fine" d="M3 -44 L-6 -38 M3 -36 L-8 -29 M3 -28 L-7 -21 M3 -40 L10 -35 M3 -31 L11 -25 M3 -22 L9 -17" stroke="${MAT.steel}" stroke-width="1.1"/>
@@ -254,35 +264,28 @@ const ROLE_GEAR = {
     badge: () => `<path d="M1.4 4.4 V-4.2 M3.6 4.4 V-4.2 M4.4 -4.2 H0 C-2.6 -4.2 -3.6 -2.8 -3.6 -1.2 C-3.6 0.6 -2.4 1.6 0 1.6 H1.4" fill="none" stroke="${HERO_INK}" stroke-width="1.4"/>`,
   },
   Release: {
-    accent: 'grape', sleeve: 'cloth', cuff: true, legs: 'cloth', top: -42, look: 'captain\'s peaked cap, double-breasted coat, flag',
-    outfit: x => `<path ${O} fill="${x.cloth}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path ${O2} fill="${shade(x.cloth, 24)}" d="${x.T('M8 -1 L20 12 L13 1Z M32 -1 L20 12 L27 1Z')}"/>
-      ${[16, 25, 34].map(y => x.TC(12.5, y, 2.1, `${O2} fill="${PALETTE.sun}"`) + x.TC(27.5, y, 2.1, `${O2} fill="${PALETTE.sun}"`)).join('')}`,
-    headgear: x => `<path ${O} fill="${x.cloth}" d="M-27 -20 L27 -20 L26 -10 C10 -13 -10 -13 -26 -10Z"/>
-      <path ${O} fill="${MAT.paper}" d="M-34 -24 C-36 -35 -18 -42 0 -42 C18 -42 36 -35 34 -24 C24 -18 -24 -18 -34 -24Z"/>
-      <path class="h-fine" d="M-24 -33 C-14 -38 4 -39 14 -37" fill="none" stroke="${MAT.metal}" stroke-width="1.6"/>
-      <path ${O} fill="${HERO_INK}" d="M-6 -11 C8 -13 23 -11 32 -4 C21 -1 7 -3 -8 -6Z"/>
-      <circle ${O2} cx="0" cy="-15" r="4.4" fill="${PALETTE.sun}"/>
-      <path d="M0 -18 V-12 M-2.2 -13.6 C-1.4 -12 1.4 -12 2.2 -13.6 M-1.4 -17 H1.4" fill="none" stroke="${HERO_INK}" stroke-width="1" stroke-linecap="round"/>`,
+    accent: 'grape', top: -44, look: 'captain\'s peaked cap, flag',
+    outfit: x => `<g class="h-trim">${[10, 20, 30].map(y => x.TC(9, y, 2, `${O2} fill="${PALETTE.sun}"`)).join('')}</g>`,
+    headgear: x => `<path ${O} fill="${x.cloth}" d="M-27 -22 L27 -22 L26 -13 C10 -16 -10 -16 -26 -13Z"/>
+      <path ${O} fill="${MAT.paper}" d="M-34 -26 C-36 -37 -18 -44 0 -44 C18 -44 36 -37 34 -26 C24 -20 -24 -20 -34 -26Z"/>
+      <path class="h-fine" d="M-24 -35 C-14 -40 4 -41 14 -39" fill="none" stroke="${MAT.metal}" stroke-width="1.6"/>
+      <path ${O} fill="${HERO_INK}" d="M-6 -14 C8 -16 22 -14 30 -9 C20 -7 7 -8 -8 -10Z"/>
+      <circle ${O2} cx="0" cy="-18" r="4.4" fill="${PALETTE.sun}"/>
+      <path d="M0 -21 V-15 M-2.2 -16.6 C-1.4 -15 1.4 -15 2.2 -16.6 M-1.4 -20 H1.4" fill="none" stroke="${HERO_INK}" stroke-width="1" stroke-linecap="round"/>`,
     tool: () => `<rect ${O} x="-2.2" y="-46" width="4.4" height="54" rx="2.2" fill="${MAT.wood}"/>
       <circle ${O} cx="0" cy="-48" r="3.4" fill="${PALETTE.sun}"/>
       <path ${O} fill="${PALETTE.coral}" class="o h-flag" d="M2 -44 C10 -46 18 -40 28 -38 C18 -34 10 -30 2 -30Z"/>`,
     badge: () => `<path d="M-2.6 4.4 V-4.4" stroke="${HERO_INK}" stroke-width="1.4" stroke-linecap="round"/><path d="M-2 -4.2 L4.4 -2.2 L-2 0Z" fill="${HERO_INK}"/>`,
   },
   Quality: {
-    accent: 'mint', sleeve: 'steel', top: -54, look: 'knight\'s helm with plume, tabard, broom-lance',
-    outfit: x => `<path ${O} fill="${MAT.steel}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path class="h-fine" fill="none" stroke="${shade(MAT.steel, -26)}" stroke-width="1" d="${x.T('M0 8 H40 M0 16 H40 M0 24 H40 M0 32 H40')}"/>
-      <path ${O} fill="${x.cloth}" d="${x.T('M7 -1 H33 L35 44 H5Z')}"/>
-      <path class="h-trim" fill="${x.accent}" d="${x.T('M17.5 -1 H22.5 V44 H17.5Z')}"/>
-      <path ${O2} fill="${MAT.metal}" d="${x.T('M5 25 H35 V29.5 H5Z')}"/>`,
-    headgear: x => `<path ${O} fill="${x.accent}" d="M2 -36 C-6 -56 -30 -58 -40 -42 C-33 -46 -25 -45 -20 -38 C-26 -41 -32 -38 -35 -31 C-24 -42 -10 -40 -2 -33Z"/>
-      <path ${O} fill="${MAT.metal}" d="M-31 -6 C-32 -46 32 -46 31 -6 C24 -11 14 -13 0 -13 C-14 -13 -24 -11 -31 -6Z"/>
-      <path ${O} fill="${MAT.metal}" d="M-32 -9 L-25 -10 L-24 6 L-31 4Z M32 -9 L25 -10 L24 6 L31 4Z"/>
-      <path ${O} fill="${MAT.steel}" d="M-22 -24 C-10 -33 20 -33 28 -22 L27 -16 C16 -24 -10 -24 -21 -18Z"/>
-      <path class="h-fine" d="M-10 -24 V-20 M-2 -25 V-21 M6 -25 V-21 M14 -24 V-20" stroke="${HERO_INK}" stroke-width="1.6" stroke-linecap="round"/>
-      <path class="h-fine" d="M-20 -33 C-14 -38 -6 -40 2 -40" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".6"/>
-      <circle cx="-26" cy="-3" r="1.4" fill="${HERO_INK}" class="h-fine"/><circle cx="26" cy="-3" r="1.4" fill="${HERO_INK}" class="h-fine"/>`,
+    accent: 'mint', top: -56, look: 'knight\'s helm with plume, broom-lance',
+    outfit: x => `<path class="h-fine" fill="none" stroke="${x.dark}" stroke-width="1.2" d="${x.T('M0 12 H40 M0 22 H40')}"/>
+      <path ${O2} fill="${x.accent}" d="${x.T('M16 -1 H24 V44 H16Z')}"/>`,
+    headgear: x => `<path ${O} fill="${x.accent}" d="M2 -38 C-6 -58 -30 -60 -40 -44 C-33 -48 -25 -47 -20 -40 C-26 -43 -32 -40 -35 -33 C-24 -44 -10 -42 -2 -35Z"/>
+      <path ${O} fill="${MAT.metal}" d="M-31 -10 C-32 -48 32 -48 31 -10 C24 -15 14 -16 0 -16 C-14 -16 -24 -15 -31 -10Z"/>
+      <path ${O} fill="${MAT.steel}" d="M-22 -27 C-10 -36 20 -36 28 -25 L27 -19 C16 -27 -10 -27 -21 -21Z"/>
+      <path class="h-fine" d="M-10 -27 V-23 M-2 -28 V-24 M6 -28 V-24 M14 -27 V-23" stroke="${HERO_INK}" stroke-width="1.6" stroke-linecap="round"/>
+      <path class="h-fine" d="M-20 -36 C-14 -41 -6 -43 2 -43" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".6"/>`,
     tool: x => `<rect ${O} x="-2.6" y="-48" width="5.2" height="58" rx="2.6" fill="${MAT.wood}"/>
       <path ${O} fill="${MAT.paper}" d="M-9 -48 C-11 -58 -4 -66 0 -70 C4 -66 11 -58 9 -48 Z"/>
       <path class="h-fine" d="M-4 -50 L-2 -64 M0 -50 V-66 M4 -50 L2 -64" stroke="${MAT.wood}" stroke-width="1.2"/>
@@ -290,15 +293,12 @@ const ROLE_GEAR = {
     badge: () => `<path d="M0 -4.8 C0.6 -1.2 1.2 -0.6 4.8 0 C1.2 0.6 0.6 1.2 0 4.8 C-0.6 1.2 -1.2 0.6 -4.8 0 C-1.2 -0.6 -0.6 -1.2 0 -4.8Z" fill="${HERO_INK}"/>`,
   },
   Director: {
-    accent: 'sun', sleeve: 'cloth', top: -48, look: 'director\'s cap, sash, megaphone',
-    outfit: x => `<path ${O} fill="${x.cloth}" d="${x.T('M-2 0 H42 V44 H-2Z')}"/>
-      <path ${O2} fill="${shade(x.cloth, 26)}" d="${x.T('M9 -1 L20 11 L14 0Z M31 -1 L20 11 L26 0Z')}"/>
-      <path ${O} fill="${PALETTE.coral}" d="${x.T('M2 -1 L11 -1 L42 30 L42 40Z')}"/>
-      <path class="h-trim" d="${x.T('M30 24 L31.4 27.6 L35 28 L32.2 30.4 L33 34 L30 32 L27 34 L27.8 30.4 L25 28 L28.6 27.6Z')}" fill="${PALETTE.sun}" stroke="${HERO_INK}" stroke-width="1"/>`,
-    headgear: x => `<path ${O} fill="${shade(x.cloth, -26)}" d="M-21 -22 L-19 -44 C-7 -49 7 -49 19 -44 L21 -22Z"/>
-      <path ${O2} fill="${PALETTE.sun}" d="M-21 -30 L21 -30 L21 -23 L-21 -23Z"/>
-      <path ${O} fill="${shade(x.cloth, -12)}" d="M-30 -18 C-20 -27 22 -27 40 -16 C30 -11 -18 -12 -30 -18Z"/>
-      <path class="h-fine" d="M-14 -42 C-8 -45 0 -46 6 -45" fill="none" stroke="#fff" stroke-width="1.6" opacity=".4"/>`,
+    accent: 'sun', top: -50, look: 'director\'s cap, megaphone',
+    outfit: x => `<path ${O2} fill="${PALETTE.coral}" d="${x.T('M-2 4 L8 -2 L44 30 L40 40Z')}"/>`,
+    headgear: x => `<path ${O} fill="${shade(x.cloth, -26)}" d="M-21 -24 L-19 -46 C-7 -51 7 -51 19 -46 L21 -24Z"/>
+      <path ${O2} fill="${PALETTE.sun}" d="M-21 -32 L21 -32 L21 -25 L-21 -25Z"/>
+      <path ${O} fill="${shade(x.cloth, -12)}" d="M-30 -20 C-20 -29 22 -29 40 -18 C30 -13 -18 -14 -30 -20Z"/>
+      <path class="h-fine" d="M-14 -44 C-8 -47 0 -48 6 -47" fill="none" stroke="#fff" stroke-width="1.6" opacity=".4"/>`,
     tool: () => `<rect ${O} x="-3.2" y="-12" width="6.4" height="16" rx="2" fill="${MAT.steel}"/>
       <path ${O} fill="${PALETTE.sun}" d="M-4.5 -10 L-14 -42 C-6 -46 6 -46 14 -42 L4.5 -10Z"/>
       <ellipse ${O} cx="0" cy="-42.5" rx="14" ry="4.2" fill="${shade(PALETTE.sun, -40)}"/>
@@ -307,40 +307,41 @@ const ROLE_GEAR = {
   },
 };
 
-/* ---------- hair (head-local; colour = shade(c,-45)) — {back, front} ---------- */
-function _hair(name, hc) {
-  const f = (d, extra = '') => `<path ${O} fill="${hc}" d="${d}" ${extra}/>`;
-  const side = f('M-29 -6 C-32 -14 -28 -20 -24 -22 C-26 -14 -26 -8 -24 -2Z') + f('M29 -6 C32 -14 28 -20 24 -22 C26 -14 26 -8 24 -2Z');
+/* ---------- "hair" = antenna style (head-local, drawn behind the shell) ---------- */
+const ANT_TOP = { none: -48, tuft: -50, spikes: -47, swoop: -46, bob: -40, bun: -42, curl: -52 };
+function _antenna(name, x) {
+  const stalk = d => `<path class="h-ant" d="${d}" fill="none" stroke="${HERO_INK}" stroke-width="5" stroke-linecap="round"/>
+    <path d="${d}" fill="none" stroke="${MAT.steel}" stroke-width="2.2" stroke-linecap="round"/>`;
+  const ball = (cx, cy, r = 4.6) => `<circle class="o h-bulb" cx="${cx}" cy="${cy}" r="${r}" fill="${x.light}"/>
+    <circle class="h-fine" cx="${_r(cx - r * .32)}" cy="${_r(cy - r * .32)}" r="${_r(r * .32)}" fill="#fff" opacity=".8"/>`;
+  const ears = (big) => big
+    ? `<g>${[-1, 1].map(s => `<path ${O} fill="${MAT.metal}" d="M${s * 29} -6 C${s * 44} -14 ${s * 46} 10 ${s * 31} 8Z"/><circle ${O2} cx="${s * 36}" cy="1" r="2.4" fill="${x.light}"/>`).join('')}</g>`
+    : `<rect ${O} x="-36" y="-8" width="9" height="16" rx="4" fill="${MAT.steel}"/><rect ${O} x="27" y="-8" width="9" height="16" rx="4" fill="${MAT.steel}"/>`;
   switch (name) {
-    case 'tuft': return { back: '', front: side + f('M-4 -28 C-10 -40 2 -46 8 -38 C3 -40 0 -36 3 -29Z') + f('M2 -29 C6 -36 14 -36 14 -30 C10 -32 7 -31 6 -28Z') };
-    case 'spikes': return { back: '', front: f('M-28 -10 L-27 -27 L-17 -22 L-12 -40 L-3 -27 L5 -44 L11 -27 L22 -36 L22 -21 L30 -22 L28 -10 C18 -20 -18 -20 -28 -10Z') };
-    case 'swoop': return { back: '', front: f('M-29 -4 C-33 -28 -12 -38 6 -36 C22 -34 32 -22 30 -6 C26 -16 18 -21 6 -20 C10 -16 10 -12 8 -10 C-2 -18 -18 -14 -29 -4Z') + `<path class="h-fine" d="M-16 -26 C-6 -32 8 -32 18 -26" fill="none" stroke="${shade(hc, 40)}" stroke-width="1.6" stroke-linecap="round"/>` };
-    case 'bob': return { back: f('M-34 14 C-38 -20 -22 -36 0 -36 C22 -36 38 -20 34 14 C30 18 24 18 22 14 L-22 14 C-24 18 -30 18 -34 14Z'),
-      front: f('M-29 -2 C-30 -28 30 -28 29 -2 C24 -12 14 -14 4 -12 C-6 -14 -20 -14 -29 -2Z') + `<path class="h-fine" d="M-12 -24 C-4 -28 6 -28 14 -24" fill="none" stroke="${shade(hc, 40)}" stroke-width="1.6" stroke-linecap="round"/>` };
-    case 'bun': return { back: `<circle ${O} cx="0" cy="-35" r="10" fill="${hc}"/><path ${O2} fill="${shade(hc, 30)}" d="M-7 -28 C-3 -26 3 -26 7 -28 L6 -25 C2 -23 -2 -23 -6 -25Z"/>`,
-      front: side + f('M-28 -8 C-30 -28 30 -28 28 -8 C20 -18 6 -20 0 -18 C-8 -20 -20 -18 -28 -8Z') };
-    case 'curl': return { back: '', front: side + [[-22, -18, 7], [-14, -26, 7.5], [-4, -30, 7.5], [7, -29, 7.5], [17, -24, 7], [24, -15, 6]].map(([x, y, r]) => `<circle ${O} cx="${x}" cy="${y}" r="${r}" fill="${hc}"/>`).join('') +
-      `<path class="h-fine" d="M-15 -27 a3 3 0 1 1 3 3 M5 -30 a3 3 0 1 1 3 3" fill="none" stroke="${shade(hc, 40)}" stroke-width="1.3"/>` };
-    default: return { back: '', front: '' };
+    case 'tuft': return ears() + stalk('M0 -26 L5 -42') + `<circle class="h-fine" cx="6" cy="-45" r="8" fill="${x.light}" opacity=".3"/>` + ball(6, -45, 5.4);
+    case 'spikes': return ears() + stalk('M-8 -25 L-14 -40 M8 -25 L14 -40') + ball(-14, -42, 4) + ball(14, -42, 4);
+    case 'swoop': return ears() + stalk('M0 -26 C0 -42 14 -48 18 -38') + ball(18, -37, 4.4);
+    case 'bob': return ears(true) + stalk('M0 -26 V-34') + ball(0, -36, 3.6);
+    case 'bun': return ears() + `<path ${O} fill="${x.dark}" d="M-11 -24 C-11 -38 11 -38 11 -24Z"/>` + ball(0, -37, 3.6);
+    case 'curl': return ears() + stalk('M0 -26 L-5 -30 L5 -34 L-5 -38 L5 -42 L0 -45') + ball(0, -48, 4.4);
+    default: return ears() + stalk('M0 -26 V-41') + ball(0, -44, 4.6);
   }
 }
 
-/* ---------- accessory (eye-line / cheek) — {near, far, face, fixed} ---------- */
+/* ---------- accessory (screen or shell extra) — {near, far, face, fixed} ---------- */
 function _acc(name, x) {
-  const lens = (fill, sw = 2.4) => `<ellipse cx="0" cy="0" rx="10" ry="10.4" fill="${fill}" stroke="${HERO_INK}" stroke-width="${sw}"/>`;
+  const ring = (c, w = 2.2) => `<ellipse rx="9.6" ry="10.6" fill="none" stroke="${c}" stroke-width="${w}"/>`;
   switch (name) {
-    case 'glasses': return { near: lens('rgba(255,255,255,.14)'), far: lens('rgba(255,255,255,.14)'), face: `<path d="M-1.4 3 C-0.4 1.6 0.4 1.6 1.4 3" fill="none" stroke="${HERO_INK}" stroke-width="2.4"/><path d="M-21 2 L-29 -1" stroke="${HERO_INK}" stroke-width="2.4" stroke-linecap="round"/>` };
-    case 'shades': return { near: `<rect x="-10.5" y="-7" width="21" height="14" rx="6" fill="${HERO_INK}" stroke="${HERO_INK}" stroke-width="2"/><path d="M-6 -3 L-1 -3" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".7"/>`,
-      far: `<rect x="-10.5" y="-7" width="21" height="14" rx="6" fill="${HERO_INK}" stroke="${HERO_INK}" stroke-width="2"/><path d="M-6 -3 L-1 -3" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".7"/>`,
-      face: `<path d="M-1 0 H1" stroke="${HERO_INK}" stroke-width="3"/>`, cover: true };
-    case 'monocle': return { far: `<circle r="10.4" fill="rgba(255,255,255,.16)" stroke="${PALETTE.sun}" stroke-width="2.6"/><circle r="10.4" fill="none" stroke="${HERO_INK}" stroke-width="1" opacity=".8"/>`,
-      face: `<path class="h-fine" d="M19 13 C20 20 16 26 12 30" fill="none" stroke="${PALETTE.sun}" stroke-width="1.4"/>` };
-    case 'mustache': return { face: `<path ${O2} fill="${x.hairC}" d="M0 10 C-4 7 -10 7 -13 11 C-15 13 -14 16 -12 16 C-11 13 -6 13 0 13 C6 13 11 13 12 16 C14 16 15 13 13 11 C10 7 4 7 0 10Z"/>` };
-    case 'freckles': { const dots = pts => pts.map(([a, b]) => `<circle cx="${a}" cy="${b}" r="1.3"/>`).join('');
-      return { face: `<g fill="${x.dark}" opacity=".7">${dots([[-18, 10], [-14, 12.5], [-19, 14]])}<g class="h-acc-far">${dots([[14, 12.5], [18, 10], [19, 14]])}</g></g>` }; }
+    case 'glasses': return { near: ring(MAT.metal), far: ring(MAT.metal), face: `<path d="M-1.4 1 H1.4" stroke="${MAT.metal}" stroke-width="2.2"/>` };
+    case 'shades': return { face: `<path class="h-shades" d="M-21 -7 H21 C21 4 17 8 11 8 C6 8 3 4 0 2 C-3 4 -6 8 -11 8 C-17 8 -21 4 -21 -7Z" fill="${HERO_INK}" opacity=".62"/>
+      <path d="M-17 -4 L-9 -4" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>` };
+    case 'monocle': return { far: `${ring(PALETTE.sun, 2.4)}`, face: `<path class="h-fine" d="M19 11 C20 15 19 17 17 19" fill="none" stroke="${PALETTE.sun}" stroke-width="1.4"/>` };
+    case 'mustache': return { face: `<path fill="${BOT_GLOW}" opacity=".9" d="M0 9 C-3 7 -8 7 -10 10 C-11 12 -10 13.5 -9 13.5 C-8 11.5 -4 11.5 0 11.5 C4 11.5 8 11.5 9 13.5 C10 13.5 11 12 10 10 C8 7 3 7 0 9Z"/>` };
+    case 'freckles': { const dots = pts => pts.map(([a, b]) => `<circle cx="${a}" cy="${b}" r="1.1"/>`).join('');
+      return { face: `<g fill="${PALETTE.rose}" opacity=".8">${dots([[-19, 8], [-16, 10.5], [-19.5, 12]])}<g class="h-acc-far">${dots([[16, 10.5], [19, 8], [19.5, 12]])}</g></g>` }; }
     case 'bow': { const bc = x.hueKey === 'coral' || x.hueKey === 'rose' ? PALETTE.sun : PALETTE.coral;
-      return { fixed: `<g transform="translate(-24 -20) rotate(-20)"><path ${O2} fill="${bc}" d="M0 0 L-9 -6 L-9 6Z M0 0 L9 -6 L9 6Z"/><circle ${O2} r="3" fill="${shade(bc, -30)}"/></g>` }; }
-    case 'flower': return { fixed: `<g transform="translate(-26 -14)">${[0, 72, 144, 216, 288].map(a => `<ellipse ${O2} rx="3.6" ry="5.6" fill="${MAT.paper}" transform="rotate(${a}) translate(0 -5)"/>`).join('')}<circle ${O2} r="3.2" fill="${PALETTE.sun}"/></g>` };
+      return { fixed: `<g transform="translate(-22 -24) rotate(-20)"><path ${O2} fill="${bc}" d="M0 0 L-9 -6 L-9 6Z M0 0 L9 -6 L9 6Z"/><circle ${O2} r="3" fill="${shade(bc, -30)}"/></g>` }; }
+    case 'flower': return { fixed: `<g transform="translate(-24 -20)">${[0, 72, 144, 216, 288].map(a => `<ellipse ${O2} rx="3.6" ry="5.6" fill="${MAT.paper}" transform="rotate(${a}) translate(0 -5)"/>`).join('')}<circle ${O2} r="3.2" fill="${PALETTE.sun}"/></g>` };
     default: return {};
   }
 }
@@ -376,7 +377,7 @@ function _handProp(kind, x) {
 function _deskProp(kind, g) {
   const sy = g.sh, fx = g.torso.x;
   if (kind === 'laptop') {
-    const y = sy + 14, l = fx + 12, rgt = fx + g.torso.w + 26;
+    const y = sy + 16, l = fx + 10, rgt = fx + g.torso.w + 26;
     return `<path ${O} fill="${MAT.metal}" d="M${l} ${y} L${rgt} ${y} L${rgt - 5} ${y + 6} L${l + 4} ${y + 6}Z"/>
       <path ${O} fill="${MAT.steel}" d="M${rgt - 9} ${y - 33} L${rgt} ${y - 30} L${rgt + 1} ${y} L${rgt - 8} ${y}Z"/>
       <path d="M${rgt - 9.5} ${y - 31} L${rgt - 8.5} ${y - 2}" stroke="${PALETTE.teal}" stroke-width="1.6" opacity=".9"/>
@@ -410,7 +411,7 @@ function _ctx(n) {
   const sx = g.torso.w / 40, sy = g.torso.h / 42;
   const X = v => v * sx + g.torso.x, Y = v => v * sy + g.torso.y;
   return {
-    c, dark: shade(c, -26), light: shade(c, 22), hairC: shade(c, -45), hueKey: n.hueKey, role: n.role,
+    c, dark: shade(c, -30), light: shade(c, 40), hueKey: n.hueKey, role: n.role, build: n.build,
     accent, cloth: shade(accent, -70), MAT, g, gear, sx, sy, X, Y,
     T: d => _tp(d, sx, sy, g.torso.x, g.torso.y),
     TC: (cx, cy, r, attrs) => `<circle cx="${_r(X(cx))}" cy="${_r(Y(cy))}" r="${_r(r * (sx + sy) / 2)}" ${attrs}/>`,
@@ -423,97 +424,126 @@ function _holdFor(pose, opts) {
 }
 function _seatedFor(pose, opts) { return opts.seated != null ? !!opts.seated : !!(POSE_DEF[pose] || {}).seated; }
 
-function _anchorY(x, seated) {
+function _anchorY(x, n, seated) {
   const { head } = x.g; const k = head.r / 30;
-  const top = Math.min(head.cy - head.r, head.cy + (x.gear ? x.gear.top : -30) * k);
+  const gearTop = x.gear ? x.gear.top - 2 : 0;
+  const top = head.cy + Math.min(-30, ANT_TOP[n.hair] || -48, gearTop) * k;
   return top - 2 + (seated ? 18 : 0);
 }
 
 /* ============================================================
    Markup
    ============================================================ */
-function _arm(side, x, n, o) {
+/* mitten arm: two short steel segments + elbow bolt + hue mitten */
+function _arm(side, x, o) {
   const g = x.g; const isF = side === 'f';
-  const sx = isF ? g.torso.x + 6 : g.torso.x + g.torso.w - 6;
-  const gear = x.gear || {};
-  const sleeve = gear.sleeve === 'cloth' ? x.cloth : gear.sleeve === 'paper' ? MAT.paper : gear.sleeve === 'steel' ? MAT.steel : (isF ? x.c : x.dark);
-  const sleeveB = isF ? sleeve : shade(sleeve, gear.sleeve && gear.sleeve !== 'skin' ? -14 : 0);
-  const sc = isF ? sleeve : sleeveB;
-  const band = isF && o.band ? `<rect x="-7.6" y="4" width="15.2" height="9" rx="2" fill="${o.band}" stroke="${HERO_INK}" stroke-width="1.8"/>
-      <path transform="translate(0 8.5) scale(.75)" d="M0 -5 L1.5 -1.6 L5 -1.6 L2.2 0.7 L3.2 4.2 L0 2.2 L-3.2 4.2 L-2.2 0.7 L-5 -1.6 L-1.5 -1.6Z" fill="${PALETTE.sun}" stroke="${HERO_INK}" stroke-width="1.2"/>` : '';
-  const deco = gear.elbow ? `<ellipse class="h-trim" cx="0" cy="2" rx="4" ry="3.4" fill="${shade(x.cloth, -22)}"/>`
-    : gear.cuff ? `<rect class="h-trim" x="-5.6" y="8.5" width="11.2" height="2.6" fill="${PALETTE.sun}"/>` : '';
+  const sx = isF ? g.torso.x + 2 : g.torso.x + g.torso.w - 2;
+  const sc = isF ? x.dark : shade(x.dark, -16);
   const content = isF ? `<g class="h-prop">${o.hand}</g>` : `<g class="h-tool">${o.tool}</g>`;
   return `<g class="h-arm h-arm-${side}" transform="translate(${sx} ${g.sh})"><g class="h-sh">
-    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="13"/><line class="h-limb" x1="0" y1="0" x2="0" y2="13" stroke="${sc}"/>${band}</g>
-    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="13"/><circle r="5.5" fill="${sc}"/><line class="h-limb" x1="0" y1="0" x2="0" y2="13" stroke="${sc}"/>${deco}</g>
-      <g class="h-hnd"><g class="h-hj"><g class="h-up">${content}</g><circle ${O} class="o h-hand" r="6.5" fill="${x.light}"/></g></g>
-    </g></g></g>`;
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"/><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="${sc}"/></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"/><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="${sc}"/><circle class="o2" r="3.4" fill="${MAT.metal}"/></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up">${content}</g><circle class="o h-hand" r="6.2" fill="${x.light}"/><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"/></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="${MAT.steel}"/></g></g>`;
 }
+/* hover base (kept in .h-legs so the class contract holds) */
 function _legs(x) {
-  const g = x.g; const hip = g.torso.y + g.torso.h - 8; const L = 146 - hip; const dx = _r(g.legW * 0.6);
-  const legC = x.gear && x.gear.legs === 'cloth' ? x.cloth : x.dark;
-  const leg = (cls, lx, col) => `<g class="h-leg ${cls}" transform="translate(${_r(lx)} ${hip})"><g class="h-lr">
-    <line class="h-limb-o" x1="0" y1="0" x2="0" y2="${L}" style="stroke-width:calc(${g.legW}px + 2*var(--ol))"/>
-    <line class="h-limb" x1="0" y1="0" x2="0" y2="${L}" stroke="${col}" style="stroke-width:${g.legW}px"/>
-    <ellipse ${O} cx="3" cy="${L + 1.5}" rx="${_r(g.legW * 0.62 + 2)}" ry="5" fill="${HERO_INK}"/>
-    <ellipse class="h-fine" cx="1" cy="${L - 0.5}" rx="3" ry="1.4" fill="#ffffff" opacity=".22"/></g></g>`;
-  return `<g class="h-legs">${leg('h-leg-b', 60 + dx, shade(legC, -12))}${leg('h-leg-f', 60 - dx, legC)}</g>`;
+  const g = x.g; const by = g.torso.y + g.torso.h; const cx = 60;
+  const glow = (cy, rx, ry) => `<g class="h-glow" style="transform-origin:${cx}px ${cy}px"><ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${x.light}" opacity=".45"/>
+    <ellipse cx="${cx}" cy="${_r(cy - ry * .2)}" rx="${_r(rx * .5)}" ry="${_r(ry * .55)}" fill="#fff" opacity=".85"/></g>`;
+  let base = '';
+  switch (g.base) {
+    case 'wheel': {
+      const wy = 139;
+      base = `<path ${O} fill="${MAT.steel}" d="M${cx - 8} ${by - 3} H${cx + 8} L${cx + 5} ${wy} H${cx - 5}Z"/>
+        <circle ${O} cx="${cx}" cy="${wy}" r="12" fill="${HERO_INK}"/>
+        <g class="h-spokes" style="transform-origin:${cx}px ${wy}px"><circle cx="${cx}" cy="${wy}" r="6.5" fill="${MAT.metal}"/>
+          <path d="M${cx - 6} ${wy} H${cx + 6} M${cx} ${wy - 6} V${wy + 6}" stroke="${MAT.steel}" stroke-width="1.8"/></g>
+        <circle cx="${cx}" cy="${wy}" r="2.2" fill="${x.light}"/>`;
+      break;
+    }
+    case 'pad':
+      base = glow(by + 12, 10, 5) + `<ellipse ${O} cx="${cx}" cy="${by + 3}" rx="12" ry="4.4" fill="${MAT.steel}"/>
+        <ellipse cx="${cx}" cy="${by + 3.6}" rx="6" ry="1.8" fill="${x.light}"/>`;
+      break;
+    case 'ring':
+      base = glow(by + 14, 12, 5) + `<ellipse cx="${cx}" cy="${by + 6}" rx="14" ry="4.6" fill="none" stroke="${HERO_INK}" stroke-width="7"/>
+        <ellipse cx="${cx}" cy="${by + 6}" rx="14" ry="4.6" fill="none" stroke="${x.light}" stroke-width="3"/>`;
+      break;
+    default: /* jet */
+      base = glow(by + 14, 9, 6) + `<path ${O} fill="${MAT.steel}" d="M${cx - 10} ${by - 3} H${cx + 10} L${cx + 7} ${by + 7} H${cx - 7}Z"/>
+        <path d="M${cx - 5} ${by + 7} H${cx + 5}" stroke="${x.light}" stroke-width="2.4" stroke-linecap="round"/>`;
+  }
+  return `<g class="h-legs h-base">${base}</g>`;
 }
-function _torso(x, uid) {
-  const g = x.g; const d = x.T('M13 0 H27 C35 0 40 5 40 13 V30 C40 37 35 42 28 42 H12 C5 42 0 37 0 30 V13 C0 5 5 0 13 0Z');
-  const gear = x.gear; const chest = { x: _r(g.torso.x + g.torso.w * 0.66), y: _r(g.torso.y + g.torso.h * 0.36) };
-  const badge = gear ? `<g class="h-badge" transform="translate(${chest.x} ${chest.y})"><g class="h-badge-in"><circle ${O2} r="7" fill="${x.accent}"/>${gear.badge(x)}</g></g>` : '';
+function _torso(x, uid, band) {
+  const g = x.g; const d = x.T(CHASSIS[x.build]);
+  const gear = x.gear; const s = _r(Math.min(1, Math.min(g.torso.w, g.torso.h) / 32));
+  const chest = { x: _r(g.torso.x + g.torso.w * 0.62), y: _r(g.torso.y + g.torso.h * 0.4) };
+  const badge = gear ? `<g class="h-badge" transform="translate(${chest.x} ${chest.y}) scale(${s})"><g class="h-badge-in"><circle ${O2} r="7" fill="${x.accent}"/>${gear.badge(x)}</g></g>` : '';
+  const star = 'M0 -5 L1.5 -1.6 L5 -1.6 L2.2 0.7 L3.2 4.2 L0 2.2 L-3.2 4.2 L-2.2 0.7 L-5 -1.6 L-1.5 -1.6Z';
+  const bandSVG = band ? `<path class="o2" fill="${band}" d="${x.T('M-2 31 H42 V38 H-2Z')}"/>` : '';
+  const bandStar = band ? `<g class="h-capstar" transform="translate(${_r(x.X(10))} ${_r(x.Y(34.5))}) scale(${_r(1.15 * s)})"><circle r="6.4" fill="${band}" stroke="${HERO_INK}" stroke-width="1.8"/><path d="${star}" fill="${PALETTE.sun}" stroke="${HERO_INK}" stroke-width="1.1"/></g>` : '';
   return `<g class="h-torso"><defs><clipPath id="hc${uid}"><path d="${d}"/></clipPath></defs>
     <path ${O} d="${d}" fill="${x.c}"/>
-    <ellipse class="h-fine" cx="${_r(g.torso.x + g.torso.w * 0.38)}" cy="${_r(g.torso.y + g.torso.h * 0.6)}" rx="${_r(g.torso.w * 0.22)}" ry="${_r(g.torso.h * 0.24)}" fill="${x.light}" opacity=".45"/>
-    <g class="h-outfit" clip-path="url(#hc${uid})">${gear ? gear.outfit(x) : ''}</g>
-    <path class="o h-torso-line" d="${d}" fill="none"/>${badge}</g>`;
+    <g clip-path="url(#hc${uid})">
+      <ellipse class="h-fine" cx="${_r(g.torso.x + g.torso.w * 0.3)}" cy="${_r(g.torso.y + g.torso.h * 0.3)}" rx="${_r(g.torso.w * 0.2)}" ry="${_r(g.torso.h * 0.22)}" fill="#fff" opacity=".22"/>
+      <path d="${x.T('M-2 34 H42 V44 H-2Z')}" fill="${x.dark}" opacity=".35"/>
+      <g class="h-outfit">${gear ? gear.outfit(x) : ''}</g>${bandSVG}
+    </g>
+    <path class="o h-torso-line" d="${d}" fill="none"/>${badge}${bandStar}</g>`;
 }
-function _eye(side, x, acc) {
-  const ex = side === 'near' ? -11 : 11;
-  const extra = acc[side] || '';
-  return `<g transform="translate(${ex} 4)"><g class="h-eye ${side}">
-    <ellipse ${O2} class="o2 h-white" rx="7.4" ry="8.6" fill="#fff"/>
-    <g class="h-glance"><g class="h-pupil"><ellipse rx="4.1" ry="4.8" fill="${HERO_INK}"/><circle class="h-catch" cx="-1.5" cy="-1.9" r="1.5" fill="#fff"/><circle class="h-fine" cx="1.5" cy="1.8" r=".7" fill="#fff" opacity=".7"/></g></g>
-    <g transform="translate(0 -9.4)"><ellipse class="o2 h-lid" cx="0" cy="9.4" rx="8.2" ry="9.4" fill="${x.c}"/></g>
-    <path class="h-shut h-shut-s" d="M-6.5 2 Q0 7.5 6.5 2"/><path class="h-shut h-shut-h" d="M-6.5 5 Q0 -3 6.5 5"/>
-    <path class="h-shut h-shut-x" d="${side === 'near' ? 'M-5 -2.5 L4 2 L-5 6.5' : 'M5 -2.5 L-4 2 L5 6.5'}"/>
-    ${extra}</g></g>`;
+function _neck(x) {
+  const g = x.g; const k = g.head.r / 30; const top = g.head.cy + g.bottom * k - 4; const bot = g.torso.y + 3;
+  return `<g class="h-neck"><rect ${O} x="54" y="${_r(top)}" width="12" height="${_r(bot - top)}" rx="4" fill="${MAT.steel}"/>
+    <rect class="h-fine" x="56.5" y="${_r(top + 2)}" width="2.4" height="${_r(Math.max(1, bot - top - 4))}" rx="1.2" fill="#fff" opacity=".35"/></g>`;
 }
-function _head(x, n, uid) {
+function _eye(side, acc) {
+  const ex = side === 'near' ? -10 : 10;
+  return `<g transform="translate(${ex} 2)"><g class="h-eye ${side}">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="${BOT_HALO}" opacity=".26"/>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="${BOT_GLOW}"/>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"/>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="${BOT_SCREEN}"/></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"/><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"/>
+    <path class="h-shut h-shut-x" d="${side === 'near' ? 'M-5 -4 L4 0.5 L-5 5' : 'M5 -4 L-4 0.5 L5 5'}"/>
+    ${acc[side] || ''}</g></g>`;
+}
+function _head(x, n) {
   const { head } = x.g; const k = _r(head.r / 30);
-  const hr = _hair(n.hair, x.hairC); const acc = _acc(n.accessory, x);
-  const browC = x.hairC;
-  const mouths = `<g class="h-mouths">
+  const acc = _acc(n.accessory, x);
+  const mouths = `<g class="h-mouths" transform="translate(0 13.2) scale(.5) translate(0 -17)">
     <path class="h-mouth m-l" data-m="smile" d="M-7.5 13 Q0 21 7.5 13"/>
     <path class="h-mouth m-l" data-m="focus" d="M-5 15.5 Q0 18 5 15.5"/>
     <path class="h-mouth m-f" data-m="talkA" d="M-6 13 Q0 13.5 6 13 Q5.5 22 0 22 Q-5.5 22 -6 13Z"/>
     <path class="h-mouth m-l" data-m="talkB" d="M-4.5 15.5 Q0 18.5 4.5 15.5"/>
-    <path class="h-mouth m-l" data-m="worried" d="M-6 18 Q0 13 6 18"/>
+    <path class="h-mouth m-l" data-m="worried" d="M-6 19 Q0 13 6 19"/>
     <g class="h-mouth" data-m="grin"><path class="m-f" d="M-9.5 12 Q0 13.5 9.5 12 Q9 25 0 25 Q-9 25 -9.5 12Z"/><path d="M-4.5 21.5 Q0 18 4.5 21.5 Q2.5 24 0 24 Q-2.5 24 -4.5 21.5Z" fill="${PALETTE.coral}"/></g>
     <circle class="h-mouth m-f" data-m="o" cx="1" cy="17" r="2.8"/>
-    <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="17" r="2.6" fill="${PALETTE.coral}" stroke="${HERO_INK}" stroke-width="1.2"/><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"/></g>
+    <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="18" r="2.8" fill="${PALETTE.coral}"/><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"/></g>
     <path class="h-mouth m-l" data-m="flat" d="M-4.5 16 L4.5 16"/>
     <path class="h-mouth m-l" data-m="wavy" d="M-7 16 Q-3.5 13 0 16 Q3.5 19 7 16"/></g>`;
   const gearSVG = x.gear ? x.gear.headgear(x) : '';
-  return `<g class="h-head" transform="translate(${head.cx} ${head.cy + head.r})"><g class="h-tilt"><g transform="translate(0 ${-head.r}) scale(${k})">
-    <g class="h-hair-back">${hr.back}</g>
-    <circle ${O} r="30" fill="${x.c}"/>
-    <ellipse class="h-sheen" cx="-12" cy="-15" rx="10" ry="6.5" transform="rotate(-32 -12 -15)" fill="#fff" opacity=".28"/>
-    <g class="h-hair">${hr.front}</g>
+  return `<g class="h-head" transform="translate(${head.cx} ${_r(head.cy + x.g.bottom * k)})"><g class="h-tilt"><g transform="translate(0 ${_r(-x.g.bottom * k)}) scale(${k})">
+    <g class="h-hair-back">${_antenna(n.hair, x)}</g>
+    <path class="o h-shell" d="${SHELL[x.g.shape]}" fill="${x.c}"/>
+    <ellipse class="h-sheen" cx="-15" cy="-19" rx="9" ry="5" transform="rotate(-28 -15 -19)" fill="#fff" opacity=".32"/>
+    <g class="h-hair"></g>
     <g class="h-face">
-      <g transform="translate(-11 -10)"><rect class="h-brow near" x="-5" y="-1.7" width="10" height="3.4" rx="1.7" fill="${browC}"/></g>
-      <g transform="translate(11 -10)"><rect class="h-brow far" x="-5" y="-1.7" width="10" height="3.4" rx="1.7" fill="${browC}"/></g>
-      ${_eye('near', x, acc)}${_eye('far', x, acc)}
-      <ellipse class="h-blush near" cx="-19" cy="13" rx="5.2" ry="3.2" fill="${PALETTE.rose}"/>
-      <ellipse class="h-blush far" cx="19" cy="13" rx="5.2" ry="3.2" fill="${PALETTE.rose}"/>
-      <ellipse class="h-nose" cx="1.5" cy="8.5" rx="2.6" ry="1.9" fill="${x.dark}" opacity=".55"/>
+      <rect class="o2 h-screen" x="-23" y="-15" width="46" height="34" rx="13" fill="${BOT_SCREEN}"/>
+      <path class="h-fine h-glare" d="M-17 -9 C-14 -12 -9 -12.5 -5 -12.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".22"/>
+      <g transform="translate(-10 -9.5)"><rect class="h-brow near" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="${BOT_GLOW}"/></g>
+      <g transform="translate(10 -9.5)"><rect class="h-brow far" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="${BOT_GLOW}"/></g>
+      ${_eye('near', acc)}${_eye('far', acc)}
+      <ellipse class="h-blush near" cx="-17.5" cy="12" rx="3.4" ry="2" fill="${PALETTE.rose}"/>
+      <ellipse class="h-blush far" cx="17.5" cy="12" rx="3.4" ry="2" fill="${PALETTE.rose}"/>
       <g class="h-acc-f">${acc.face || ''}</g>
       ${mouths}
     </g>
-    <text class="h-q" x="0" y="12" text-anchor="middle">?</text>
-    <g class="h-headgear">${gearSVG}</g>
+    <text class="h-q" x="0" y="11" text-anchor="middle">+</text>
+    <g class="h-headgear" transform="translate(0 0)">${gearSVG}</g>
     <g class="h-acc">${acc.fixed || ''}</g>
   </g></g></g>`;
 }
@@ -521,7 +551,7 @@ function _head(x, n, uid) {
 function _classes(n, o) {
   const px = _px(o.size); const pose = POSES.includes(o.pose) ? o.pose : 'idle';
   const pd = POSE_DEF[pose]; const seated = _seatedFor(pose, o);
-  const cls = ['hero', 'size-' + _sizeName(px), 'pose-' + pose, _faceCls(o.facing), o.dir === 'left' ? 'dir-l' : 'dir-r'];
+  const cls = ['hero', 'bot', 'b-' + n.build, 'size-' + _sizeName(px), 'pose-' + pose, _faceCls(o.facing), o.dir === 'left' ? 'dir-l' : 'dir-r'];
   if (px < 64) cls.push('lod-xs');
   if (o.captain) cls.push('is-captain');
   if (seated) cls.push('seated');
@@ -553,22 +583,23 @@ function heroSVG(agent, opts = {}) {
   const tool = x.gear ? x.gear.tool(x) : '';
   const look = o.facing === 'front' ? { x: 0, y: 0 } : (o.look === 'viewer' ? { x: 0, y: 0 } : o.look);
   const lookCss = look ? `--lx:${look.x};--ly:${look.y};` : '';
-  const ay = _anchorY(x, st.seated);
-  const g = x.g; const hip = g.torso.y + g.torso.h - 8;
-  const delay = -(Math.random() * 3.6).toFixed(2);
+  const ay = _anchorY(x, n, st.seated);
+  const g = x.g; const pivot = g.torso.y + g.torso.h;
+  const delay = -(Math.random() * 4).toFixed(2);
   const aria = o.label ? ` role="img" aria-label="${escapeAttr(_label(n, pose))}"` : ' aria-hidden="true"';
   const sr = o.label && (st.pd.fx === 'bang' || pose === 'sleeping') ? `<span class="sr-only">${pose === 'sleeping' ? 'sleeping' : 'needs your input'}</span>` : '';
-  const shadowRing = `<ellipse class="h-cring" cx="60" cy="152" rx="29" ry="6.5" fill="none" stroke="${PALETTE.sun}" stroke-width="2"/>`;
+  const shadowRing = `<ellipse class="h-cring" cx="60" cy="152" rx="27" ry="6" fill="none" stroke="${PALETTE.sun}" stroke-width="2"/>`;
   return `<div class="${st.cls}"${aria} data-hero="${uid}" data-name="${escapeAttr(n.name)}" data-id="${escapeAttr(n.id)}" data-hue="${n.hueKey}" data-build="${n.build}" data-hair="${n.hair}" data-acc="${n.accessory}" data-role="${escapeAttr(n.roleLabel)}" data-mouth="${st.pd.mouth}" data-eyes="${st.pd.eyes || 'open'}" data-hold="${hold || ''}"${o.armband ? ` data-band="${escapeAttr(o.armband)}"` : ''} style="--hpx:${st.px}px;width:${_r(st.px * 0.75)}px;height:${st.px}px;--ol:${_r(ol)}px;--hue:${x.c};--head-y:${_r(ay / 160 * 100)}%;--dl:${delay}s;${lookCss}">
   <svg viewBox="0 0 120 160" aria-hidden="true" focusable="false">
-    <ellipse class="h-shadow" cx="60" cy="152" rx="26" ry="5"/>${shadowRing}
-    <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px ${hip}px">
-      ${_arm('b', x, n, { tool })}
+    <ellipse class="h-shadow" cx="60" cy="152" rx="${g.base === 'wheel' ? 22 : 18}" ry="4.5"/>${shadowRing}
+    <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px ${pivot}px">
       ${_legs(x)}
-      ${_torso(x, uid)}
-      ${_head(x, n, uid)}
+      ${_arm('b', x, { tool })}
+      ${_neck(x)}
+      ${_torso(x, uid, showBand)}
+      ${_head(x, n)}
       <g class="h-desk">${desk}</g>
-      ${_arm('f', x, n, { hand, band: showBand })}
+      ${_arm('f', x, { hand })}
     </g></g></g>
   </svg>${_fx(o, st.px)}${sr}</div>`;
 }
@@ -596,7 +627,7 @@ function _state(el) {
   return el._hero;
 }
 
-/* in-place pose swap: classes, mouth/eyes, hand prop, desk prop, fx — no re-render */
+/* in-place pose swap: classes, screen face, hand prop, desk prop, fx — no re-render */
 function setPose(el, pose, o = {}) {
   if (!el) return;
   const st = _state(el);
@@ -614,12 +645,12 @@ function setPose(el, pose, o = {}) {
   const hold = _holdFor(opts.pose, opts); el.dataset.hold = hold || '';
   const hp = el.querySelector('.h-prop'); if (hp) hp.innerHTML = hold ? _handProp(hold, x) : '';
   const dk = el.querySelector('.h-desk'); if (dk) dk.innerHTML = opts.props === false ? '' : _deskProp(pd.desk, x.g);
-  el.style.setProperty('--head-y', _r(_anchorY(x, seated) / 160 * 100) + '%');
+  el.style.setProperty('--head-y', _r(_anchorY(x, n, seated) / 160 * 100) + '%');
   if (el.getAttribute('role') === 'img') el.setAttribute('aria-label', _label(n, opts.pose));
   return el;
 }
 
-/* THE turn transition: head (face/eyes) turns in 250ms, arms follow 80ms later (CSS) */
+/* THE turn transition: the screen face slides/turns in 250ms, arms follow 80ms later (CSS) */
 function setFacing(el, facing, o = {}) {
   if (!el) return;
   const st = _state(el);
