@@ -23,8 +23,11 @@ Where a spec and this file disagree, **this file wins**.
    member, delete line) get an Undo toast. **Drop** spec-cast §3.5's dirty bar /
    Save / Discard. Create mode: the record is created on first valid name; Back with an
    empty name discards the draft silently.
-3. **One role list** — spec-cast `ROLES` + `ROLE_GEAR`. Teams' per-team role overrides
-   the agent's role on that team only (data: `members[].role`).
+3. **One role list** — spec-cast `ROLES` + `ROLE_GEAR`. **Role lives only on the agent**
+   (user decision 2026-11-13: no per-team role override). On a team, a member gets a
+   "Job on this team"; the team itself carries two prompts: **What this team does**
+   (`instr`) and **How this team codes** (`code`: structure, folders, what they touch).
+   An agent's context = own brain ▸ what the team does ▸ how the team codes ▸ its job.
 4. **Data shapes:** `AGENTS` per spec-cast §4; `TEAMS` per spec-teams §3 (4 teams);
    `WS` per spec-office §7. The Aurora office cast = Pixel (director) + Ship-It Squad +
    Polish Patrol + Querious solo (as in v2). Engine Room / Expedition exist in the

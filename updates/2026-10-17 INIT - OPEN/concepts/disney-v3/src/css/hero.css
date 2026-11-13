@@ -39,8 +39,8 @@
 .hero.dir-l{--dir:-1}
 .hero.seated{--seat:18px}
 .hero.seated .h-legs,.hero.seated .h-shadow,.hero.seated .h-cring{display:none}
-.hero.dir-l .h-badge-in,.hero.dir-l .h-capstar{transform:scaleX(-1)}
-.hero.dir-l .h-capstar{transform-box:fill-box;transform-origin:center}
+.hero.dir-l .h-badge-in{transform:scaleX(-1)}
+/* the captain star is symmetric — never mirror it (a CSS transform would wipe its SVG position attr) */
 
 /* ---- arms: two short mitten segments, joint vars per side ---- */
 .hero .h-arm-f{--a:var(--af);--e:var(--ef);--k:var(--kf);--t:var(--pt)}

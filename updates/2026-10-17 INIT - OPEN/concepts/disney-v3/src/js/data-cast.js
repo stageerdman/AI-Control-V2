@@ -61,43 +61,44 @@ const TEAMS = [
   { id: 'ship-it', name: 'The Ship-It Squad', color: 'sun', emblem: 'rocket', captain: 'a-semic',
     blurb: 'Takes a feature from idea to demo — behind a flag, main kept green.',
     instr: 'Ship the feature behind a flag. Keep main green at all times. One person demos at the end. No scope creep — park extras in issues.txt.',
+    code: 'Feature-first folders: src/features/<feature>/ holds its UI, API client, types and tests together. Shared pieces only move to src/shared/ once a second feature needs them. API endpoints live in api/<resource>.ts with a typed contract in types/. Every feature ships behind a flag in config/flags.ts. Tests sit next to the code (*.test.ts). Touch only the feature you are building plus its tests; log anything else in issues.txt.',
     members: [
-      { agent: 'a-semic', role: null, instr: 'Build /search + /checkout endpoints. Hand Pixel a typed stub on day one. Flag anything that needs a key.' },
-      { agent: 'a-pete', role: null, instr: 'Own the storefront UI and the voice-search bar. Mock the API until Captain\'s endpoint lands. Match the component library.' },
-      { agent: 'a-scar', role: null, instr: 'Write the test plan before code lands. Block the merge if the payment suite is red. Sign off the demo.' },
+      { agent: 'a-semic', instr: 'Build /search + /checkout endpoints. Hand Pixel a typed stub on day one. Flag anything that needs a key.' },
+      { agent: 'a-pete', instr: 'Own the storefront UI and the voice-search bar. Mock the API until Captain\'s endpoint lands. Match the component library.' },
+      { agent: 'a-scar', instr: 'Write the test plan before code lands. Block the merge if the payment suite is red. Sign off the demo.' },
     ] },
   { id: 'polish', name: 'The Polish Patrol', color: 'mint', emblem: 'castle', captain: 'a-lint',
     blurb: 'No new features. Tidies, de-dupes and documents until it all shines.',
     instr: 'No new features. Reduce, de-dupe, document. Every change is a small focused commit. Leave the health ratings better than you found them.',
+    code: 'Never adds folders — removes and merges them. Works across the existing tree: dead files go, near-duplicate components merge into src/shared/ui/. Keeps one component per file and names files after what they export. Updates README.md and the MD descriptions in the same commit as the code change. Small focused commits, one cleanup per commit, no behaviour changes.',
     members: [
-      { agent: 'a-lint', role: null, instr: 'Sweep for dead code and style drift. Propose extractions where you see a second caller — never over-generalize.' },
-      { agent: 'a-doc', role: null, instr: 'Update README + the MD file descriptions to match what shipped. Note lessons in the update\'s wiki.md.' },
-      { agent: 'a-twinkle', role: null, instr: 'Tighten spacing and contrast on changed screens only. Cut any element that doesn\'t earn its place.' },
+      { agent: 'a-lint', instr: 'Sweep for dead code and style drift. Propose extractions where you see a second caller — never over-generalize.' },
+      { agent: 'a-doc', instr: 'Update README + the MD file descriptions to match what shipped. Note lessons in the update\'s wiki.md.' },
+      { agent: 'a-twinkle', instr: 'Tighten spacing and contrast on changed screens only. Cut any element that doesn\'t earn its place.' },
     ] },
   { id: 'engine', name: 'The Engine Room', color: 'grape', emblem: 'cogcrest', captain: 'a-baron',
     blurb: 'Branches, releases, deploys, backups. Ships calmly, rolls back calmer.',
     instr: 'Nothing ships without a rollback. Main stays green. Deploy to preview first, announce before production.',
+    code: 'Owns the edges of the repo, not the app code: .github/workflows/, infra/, scripts/ and CHANGELOG.md. Release branches are release/x.y. Every deploy script has a matching rollback script. Config goes in env files listed in .env.example — never hard-coded. Leaves src/ alone except for version bumps.',
     members: [
-      { agent: 'a-baron', role: null, instr: 'Own deploys and backups. Keep a rollback ready for every release.' },
-      { agent: 'a-merge', role: null, instr: 'Cut release branches, squash with grace, write the changelog.' },
+      { agent: 'a-baron', instr: 'Own deploys and backups. Keep a rollback ready for every release.' },
+      { agent: 'a-merge', instr: 'Cut release branches, squash with grace, write the changelog.' },
     ] },
   { id: 'expedition', name: 'The Expedition', color: 'teal', emblem: 'compass', captain: 'a-prof',
     blurb: 'Maps the unknown: researches the ask, measures what matters first.',
     instr: 'No code. Bring back a crisp brief: what we learned, what to measure, what it could look like.',
+    code: 'Writes no product code. Everything goes into the current update folder: research notes in wiki.md, throwaway spikes in updates/<update>/spike-<topic>/ with their own isolated setup, and one brief per question. Nothing from a spike is copied into src/ — the building team rewrites it properly.',
     members: [
-      { agent: 'a-prof', role: null, instr: 'Clarify the ask and cite sources. Hand the director one page.' },
-      { agent: 'a-query', role: null, instr: 'Define the one metric that proves it worked.' },
-      { agent: 'a-twinkle', role: 'Research', instr: 'Sketch two directions; cut everything that doesn\'t earn its place.' },
+      { agent: 'a-prof', instr: 'Clarify the ask and cite sources. Hand the director one page.' },
+      { agent: 'a-query', instr: 'Define the one metric that proves it worked.' },
+      { agent: 'a-twinkle', instr: 'Sketch two directions; cut everything that doesn\'t earn its place.' },
     ] },
 ];
 const teamById = id => TEAMS.find(t => t.id === id);
 const memberOf = (team, agentId) => team && team.members.find(m => m.agent === agentId);
 const teamsOf = agentId => TEAMS.filter(t => memberOf(t, agentId));
-/* the role an agent plays on a team (override or own role) */
-function roleOn(team, agentId) {
-  const m = memberOf(team, agentId); const a = agentById(agentId);
-  return (m && m.role) || (a && a.role) || null;
-}
+/* an agent's role is defined once, on the agent — teams never override it */
+function roleOn(team, agentId) { const a = agentById(agentId); return (a && a.role) || null; }
 
 /* ---- team invariants (spec-teams §3.1): captain ∈ members, ≤6, no dupes ---- */
 const TEAM_MAX = 7;
@@ -105,9 +106,9 @@ function setCaptain(team, agentId) {
   if (!memberOf(team, agentId)) return false;
   team.captain = agentId; return true;
 }
-function addMember(team, agentId, role = null, instr = '') {
+function addMember(team, agentId, instr = '') {
   if (memberOf(team, agentId) || team.members.length >= TEAM_MAX || !agentById(agentId)) return false;
-  team.members.push({ agent: agentId, role, instr });
+  team.members.push({ agent: agentId, instr });
   if (!team.captain) team.captain = agentId;
   return true;
 }

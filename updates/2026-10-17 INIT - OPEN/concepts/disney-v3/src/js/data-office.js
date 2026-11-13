@@ -64,7 +64,7 @@ function _wsResolve(cfg) {
   const res = id => { const m = /^gen:(\d+)$/.exec(id); return m ? _wsGen(+m[1]) : id; };
   const teams = cfg.teams.map(t => {
     const members = t.members.map(res);
-    if (!teamById(t.id)) TEAMS.push({ id: t.id, name: t.name || t.id, color: t.color || 'grape', emblem: t.emblem || 'starship', captain: members[0], blurb: '', instr: '', members: members.map(agent => ({ agent, role: null, instr: '' })) });
+    if (!teamById(t.id)) TEAMS.push({ id: t.id, name: t.name || t.id, color: t.color || 'grape', emblem: t.emblem || 'starship', captain: members[0], blurb: '', instr: '', code: '', members: members.map(agent => ({ agent, instr: '' })) });
     return { id: t.id, members, captain: t.captain };
   });
   return Object.assign({}, cfg, { teams, solo: (cfg.solo || []).map(res) });
