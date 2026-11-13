@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { TRASH_TTL_MS } from '../../src/db/trash.ts';
 import { testApp } from '../helpers.ts';
 
 describe('roles API', () => {
@@ -75,6 +76,14 @@ describe('roles API', () => {
     const d = await h.call('DELETE', '/roles/r-qa');
     await h.call('POST', '/roles', { name: 'qa' });
     expect((await h.call('POST', `/trash/${d.body.restoreToken}/restore`)).status).toBe(409);
+  });
+
+  it('restore tokens expire after a week', async () => {
+    const d = await h.call('DELETE', '/roles/r-qa');
+    h.db
+      .prepare('UPDATE trash SET created_at = ?')
+      .run(new Date(Date.now() - TRASH_TTL_MS - 1000).toISOString());
+    expect((await h.call('POST', `/trash/${d.body.restoreToken}/restore`)).status).toBe(404);
   });
 
   it('malformed restore tokens are 422, unknown ones 404', async () => {
