@@ -9,7 +9,7 @@
            OS.onAnswer(ask, answer)  consequences of answering a "!"
            OS.wake(id)               Pixel brings a sleeper in
    Dev hooks (URL ?demo=…, not in UI): fast · t<sec> · ask · chat · talk ·
-           ship · end · sleepy · peek · size2|size6|size12|size20 · selftest
+           ship · end · sleepy · peek · list · size2|size6|size12|size20 · selftest
    ============================================================ */
 
 const OS = { timers: [], running: false, t0: 0, cycleN: 0, seed: 7, busy: {} };
@@ -39,6 +39,7 @@ OS._hooks = function (demo) {
   if (demo.includes('chat')) setTimeout(() => OP.open('a-scar', { from: 'scene' }), 30);
   if (demo.includes('pete')) setTimeout(() => OP.open('a-pete', { from: 'scene' }), 30);
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
+  if (demo.includes('list')) setTimeout(() => _omToggleList(true), 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
   if (demo.includes('talk')) setTimeout(() => { const ids = wsOnProject().filter(a => a.session !== 'asleep').map(a => a.id); OE.instant = false; if (ids.length > 1) OE.converse(ids[0], ids[1], 8); }, 30);
 };

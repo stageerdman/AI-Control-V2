@@ -214,7 +214,7 @@ function _omList() {
     const needs = a.activity.kind === 'needs-input';
     return `<li><button type="button" class="o-lrow${needs ? ' needs' : ''}" data-id="${a.id}">
       <span class="o-lface" style="background:${hueHex(ag.hue)}" aria-hidden="true">${escapeHtml(ag.name[0])}</span>
-      <span class="o-lt"><b>${escapeHtml(ag.name)}</b><span class="o-lact">${act.icon} ${escapeHtml(needs ? 'Needs you' : a.activity.detail || a.activity.label)}</span></span></button></li>`;
+      <span class="o-lt"><b>${escapeHtml(ag.name)}</b><span class="o-lact">${act.icon} ${escapeHtml(needs ? 'Needs you' : a.session === 'asleep' ? 'Off shift' : a.activity.detail || a.activity.label)}</span></span></button></li>`;
   };
   const on = wsOnProject();
   const groups = [['Director', [WS.director]]];

@@ -49,7 +49,7 @@ function officeLayout(cfg) {
   const rowW = r => r.reduce((s, b, i) => s + b.w + (i ? OL.GAP : 0), 0);
   if (rows.length === 1 && blocks.length >= 3) rows.push(rows[0].splice(Math.ceil(blocks.length / 2)));
 
-  const rowY = rows.length === 1 ? [604] : [540, 770];
+  const rowY = rows.length === 1 ? [604] : [530, 794];
   const plan = { W, rows: rowY, pods: [], seats: {}, home: {} };
   const areaL = OL.LEFT, areaR = W - OL.RIGHT;
   const count = {};
@@ -71,7 +71,7 @@ function officeLayout(cfg) {
 
   plan.director = { x: W - 208, y: 512 };
   plan.couch = [{ x: W - 308, y: 798 }, { x: W - 222, y: 798 }, { x: W - 136, y: 798 }];
-  plan.lanes = { back: 432, mid: 656 };
+  plan.lanes = { back: 432, mid: 664 };
   /* crossing columns: left edge, every gap between row-0 rugs, the right column's edge */
   const r0 = plan.pods.filter(p => p.row === 0).sort((a, b) => a.rug.x - b.rug.x);
   plan.gaps = [30];
