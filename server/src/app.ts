@@ -5,6 +5,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { Config } from './config.ts';
 import { createCreator } from './crew/creator.ts';
 import { createDispatch } from './crew/dispatch.ts';
+import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import type { Db } from './db/connection.ts';
@@ -48,7 +49,7 @@ export type AppDeps = {
   dev?: boolean;
   /** SSE heartbeat interval (tests shorten it). */
   heartbeatMs?: number;
-  /** How agents run. Default: the scripted FakeRunner (main.ts passes the Claude Code CLI). */
+  /** How agents run. Default: the FakeRunner with the fake crew brain (main.ts passes the Claude Code CLI). */
   runner?: Runner;
   model?: string;
   /** Exposed so tests and main can reach the runtime; built from the deps when omitted. */
@@ -74,7 +75,7 @@ export function buildApp({
   events = eventLog(db, createBus(), secretValuesOf(secrets)),
   dev = process.env.NODE_ENV !== 'production',
   heartbeatMs,
-  runner = fakeRunner(),
+  runner = fakeRunner(fakeBrain),
   model = 'claude-opus-5-5',
   onRuntime,
   longPollMs,

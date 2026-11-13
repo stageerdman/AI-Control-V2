@@ -29,6 +29,7 @@ brings back things you deleted.
 | `HOST` | `127.0.0.1` | local only by default |
 | `AI_STUDIO_CLAUDE_BIN` | first of `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`, `~/.claude/local/claude`, `~/.local/bin/claude` | Claude Code CLI for agent runs (absolute path; never a shell alias) |
 | `AI_STUDIO_MODEL` | `claude-opus-5-5` | model for agent runs |
+| `AI_STUDIO_RUNNER` | (CLI) | `fake` = the free scripted runner + fake crew brain (UI work, demos): the whole setup → work flow runs without Claude |
 
 ## Layout
 
@@ -46,6 +47,9 @@ src/
   blueprint/         modules → CLAUDE.md compile, scaffold file templates (read-only on AI Control home)
   secrets/           dotenv.ts (parse/format), secretStore.ts (atomic 0600 .env), cabinet.ts, projectAccess.ts
   setter/            scaffold/adopt/inspect, local git, finishDraft (draft → project)
+  crew/              the studio crew: structured.ts (JSON contracts + one repair), setup-chat.ts,
+                     creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
+                     prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -56,8 +60,9 @@ CORS: only `http://localhost:1420`, `tauri://localhost` and same-origin; any oth
 
 Errors: `400 bad_request` (malformed JSON) · `404 not_found` · `409 conflict` (a studio rule
 blocks it: second setter, last orchestrator, team full, captain not a member…) · `422 invalid`
-(body fails validation or references an unknown id; `details` lists the issues). Bodies are
-strict — unknown keys are 422.
+(body fails validation or references an unknown id; `details` lists the issues) · `502 agent_error`
+(an orchestrator / Agent Creator run failed, or its answer broke the contract twice; `details.issues`).
+Bodies are strict — unknown keys are 422.
 
 | | |
 |---|---|
@@ -100,3 +105,23 @@ endpoint and error path, and the sqlite bytes. Credential `DELETE` removes the v
 is **not restorable** (`restorable: false`; an undo snapshot would have to keep the value);
 it lists `projectIds` whose `.env` still holds the key until their next sync. Projects reach
 nothing until granted.
+
+**Plan** (`src/domain/plan.ts`): `{teams: [{teamId, why}], specialists: [{agentId, why}], newAgents: [{brief}],
+newTeams: [{brief}], summary}`. Teams first: whole teams with their own captains (no captain field — strict objects
+reject one); specialists need a `why`, can't already come with a planned team, ≤ 3 next to teams, ≤ 2 with no team;
+≤ 4 teams incl. new ones; every id must exist. 422 shape/unknown id, 409 rule.
+
+**Crew contracts.** Orchestrator and Agent Creator runs have no tools (`--tools ""`), no MCP server, no secrets, and
+run in `$AI_STUDIO_HOME/scratch` (caps 3 turns / $0.50). The task's first line names the contract; the answer must be
+ONE JSON object (fenced or wrapped is tolerated), validated by zod + the studio rules. A miss is sent back once (same
+session, issues listed); a second miss is 502.
+- `setup-chat` → `{reply, plan}`
+- `mint-agent` → `{name, nick?, role, prompt, look: {hat, tool, body, antenna, face, hue}}` — look values from the studio
+  slots (no crew-only gear), role reused by name or created, name unique in the Cast
+- `mint-team` → `{name, blurb, instr, code, emblem, color, members: [{agentId, job} | {newAgent, job}], captain}` —
+  emblem/colour from the studio ids, 2–7 members, ≤ 4 new, captain = a member's agentId or a new agent's name
+- `dispatch` → `{summary, items: [{text, assignee, teamId?, brief}]}` — assignee is a project team's captain (with that
+  `teamId`) or a project specialist (no `teamId`)
+
+Events added: `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
+`goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`), `progress` (project stream; also sets `project.progress`).

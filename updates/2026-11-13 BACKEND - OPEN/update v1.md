@@ -151,3 +151,13 @@ Tailwind components, wire to this API).
   loudly if its port is taken. 27 tests (178 total). Two live runs (both approved): run 1 proved isolation
   (login auth, no personal plugins/skills/MCP), Write and a live ask_user, then was interrupted; run 2
   resumed the session and committed `hello.txt` (`e62a3c8`) — 3 turns, $0.139. Notes: `PROGRESS-B5.md`.
+- ✅ **B6 — Orchestrator & Agent Creator** (2026-11-13, FakeRunner only — no live runs approved): setup chat
+  (`POST/GET /drafts/:id/chat`, reply + whole plan per turn), zod plan with teams-first invariants (`drafts.plan`
+  validated), Agent Creator (`mint-agent` / `mint-team` contracts, roles reused or created, studio look slots +
+  emblem ids, captain ∈ members, ≤ 7) minting on `POST /drafts/:id/accept` in one transaction, `/finish` staffs from the
+  resolved plan, dispatch (`POST /projects/:id/work` → checklist for captains/specialists → runs, ≤ 2 per project, one
+  per agent; whiteboard = migration 6). 28 tests (206 total). Notes: `PROGRESS-B6.md`.
+  - Decisions: crew runs are tool-less (`--tools ""`) in `~/.ai-studio/scratch`, caps 3 turns / $0.50; text-JSON
+    contracts with one in-session repair, then 502 `agent_error`; minting happens on accept, not mid-chat (the chat only
+    writes briefs); captains do their item themselves for now (in-team delegation is later); nothing restarts after a
+    reboot; `AI_STUDIO_RUNNER=fake` serves the whole flow for free.

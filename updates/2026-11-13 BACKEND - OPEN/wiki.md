@@ -74,6 +74,29 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   answer; the request still runs. Refuse unknown Origins with 403 so no web page can drive the file system.
 - **Dangling symlinks are escapes too.** Writing through one creates its target — the guard follows it.
 
+### Orchestrator & Agent Creator (B6)
+- **Structured output = a named contract + zod + the domain rules + ONE repair.** The task's first line names the
+  contract (`AI Studio contract: setup-chat`), the answer is one JSON object; the validator runs the same pure rules the
+  API enforces (plan invariants, design rules), so a rule broken by the model comes back as a precise bullet
+  ("Pixel Pete already comes with The Ship-It Squad — teams stay whole") in a repair turn on the same session. A second
+  miss is a 502 the UI can show; nothing is saved.
+- **Make the rule unrepresentable when you can.** "The orchestrator never picks captains" is the plan having no
+  captain field and strict objects rejecting one — no check to forget.
+- **Slow model work outside the transaction, one short transaction after.** Accept designs every brief first (awaits),
+  then persists roles + agents + teams + the resolved plan in one `store.tx`; a failure anywhere leaves the Cast
+  untouched. Events go out only after the commit (a rolled-back mint must never be announced).
+- **Later designs must know earlier ones.** Names chosen earlier in the same accept count as taken, or two briefs mint
+  two "Nova"s.
+- **Big-picture runs get no tools at all** (`--tools ""`, no MCP, no secrets, cwd = a scratch dir). They can't wander
+  into a project folder, and every fact they need is in the prompt (the Cast as one-line JSON).
+- **Brief through captains, by construction.** Dispatch validates that each item's assignee captains a team on the
+  project (with that `teamId`) or is a project specialist; anything else is sent back.
+- **Queue in the db, schedule on events.** Checklist items are rows (`todo/running/done/failed/cancelled`); a runtime
+  `onFinished` hook ticks the item and pumps the next one (≤ cap per project, one per agent). After a restart nothing
+  restarts by itself — it would spend money unasked.
+- **Prompts that put one JSON value per line are parseable by a fake.** The fake crew brain reads the Cast back out of
+  the task, so `AI_STUDIO_RUNNER=fake` serves the whole setup → work flow for free (UI work, demos).
+
 ## Claude Code CLI (2.1.322) for headless agents — findings
 - **Isolation flags:** `--restricted` (ignores user/project/local settings → no personal plugins or hooks;
   confines file tools to cwd; Bash only if `--tools` names it), `--strict-mcp-config` + `--mcp-config`
@@ -98,6 +121,8 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   next to it fails with EADDRINUSE and requests silently go to the app's backend.
 - **Resume works as advertised:** `--resume <session>` with a new task continued the interrupted conversation
   (it remembered hello.txt) and cost $0.14 for 3 turns, mostly cache reads.
+- **`--tools ""` disables every built-in tool** (help text); `--json-schema` exists for structured output in print mode
+  — not used yet (unverified where the stream reports it); our text-JSON contract + repair works with any runner.
 - **Record real streams as fixtures.** Both bugs we hit (key order, interrupted host) were invisible in
   hand-written fixtures; the recorded ones now replay in tests.
 
