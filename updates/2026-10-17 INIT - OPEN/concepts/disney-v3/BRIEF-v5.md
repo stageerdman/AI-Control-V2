@@ -1,5 +1,16 @@
 # Disney v5 — checklist + shared contract
 
+> **Contract implemented** (Builder A, commit 43da2ae — `data-cast.js` + `hero.js`):
+> `AGENTS[i].kind` ('agent'|'setter'|'orchestrator'|'creator'), `kindOf(a)`, `AGENT_KINDS`, `KIND_LABEL`, `KIND_ABOUT`;
+> system agents `a-setter` (Rivet), `a-pixel` (Pixel) + `a-maestro` (Maestro) orchestrators, `a-creator` (Tinker) — appended AFTER the regular ten;
+> `systemAgents()`, `orchestrators()`, `agentsOfKind(k)`, `isSystemAgent(a)`, `castOrder()`;
+> `DIRECTOR` is now a `let` = current orchestrator — call `useOrchestrator(PROJECTS[i].orchestrator)` when opening a project; `agentById('director'|'pixel')` → it;
+> `canDeleteAgent(a)` → `{ok, why}`, `deleteAgent(id)` → undo rec, `restoreAgent(rec)`; system agents can't join teams (`addMember` refuses).
+> Roles: `ROLES` = `[{id, name}]` (records stringify to their name), `roleById`, `roleByName`, `roleName(x)`, `roleUsage(id)`, `addRole(name)`, `renameRole(id, name)`, `deleteRole(id)` → undo rec, `restoreRole(rec)`.
+> **`agent.role` stays the role NAME string** (display-safe); `PROMPT_TEMPLATES` removed. B: in `data-office.js _wsGen` prefer `ROLES[k].name` (works either way).
+> Look: `agent.look = {hat, tool, body, antenna, face, hue, decal?}`; `applyLook(agent, slot, v)`, `setWholeLook(agent, look)`; hero.js `HATS`, `TOOLS`, `LOOK_SLOTS`, `lookFromLegacy(a)`, `randomLook()`, `lookAnchors(look, px)`. Agents without `look` still render from v4 fields.
+
+
 Source: `user-feedback-v5.md` (verbatim). Everything not listed stays as v4 (calm, minimal,
 robot minions). Three builders, disjoint files — see ownership.
 
