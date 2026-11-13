@@ -1,0 +1,48 @@
+/* Characters: the prototype's robot minions + team emblems. React components first;
+   the imperative string/element API is re-exported for scenes that need it (the office). */
+export { CaptainPip, Emblem, type EmblemProps } from './Emblem';
+export {
+  EMBLEM_SIZES,
+  EMBLEMS,
+  type EmblemDef,
+  type EmblemTeam,
+  emblem,
+  emblemById,
+  emblemSVG,
+} from './emblem-svg';
+export { Hero, type HeroHandle, type HeroProps } from './Hero';
+export {
+  ACCESSORIES,
+  BUILDS,
+  castOf,
+  FACINGS,
+  type Facing,
+  HAIR,
+  HATS,
+  HERO_SIZES,
+  type HeroAgent,
+  type HeroOpts,
+  type HeroSize,
+  HOLDINGS,
+  hatDecal,
+  hero,
+  heroHeadAnchor,
+  heroSVG,
+  LOOK_SLOTS,
+  type Look,
+  type LookSlot,
+  type LookSlotId,
+  lookAnchors,
+  lookFromLegacy,
+  lookSlot,
+  MOOD_TO_POSE,
+  POSE_TEXT,
+  POSES,
+  type Pose,
+  ROLE_GEAR,
+  randomLook,
+  setFacing,
+  setLook,
+  setPose,
+  TOOLS,
+} from './hero-svg';

@@ -1,11 +1,8 @@
 /* Health client — validates the backend's `/health` body and folds a start attempt into a UI status.
-   Pure: the Tauri `invoke` is injected so this is testable without a window. */
+   Pure: the Tauri `invoke` (or, in a plain browser, `fetch`) is injected so this is testable. */
+import type { ServerHealth } from './types';
 
-export type Health = {
-  ok: boolean;
-  version: string;
-  paths: { home: string; sandbox: string; controlHome: string; db: string };
-};
+export type Health = ServerHealth;
 
 export type Status =
   | { kind: 'starting' }
@@ -54,5 +51,21 @@ export async function startBackend(invoke: Invoke): Promise<Status> {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return { kind: 'error', message: message || 'The server could not start.' };
+  }
+}
+
+/** Plain-browser path (Vite dev in Chrome, no Tauri): the server must already be running. */
+export async function checkServer(url: string, doFetch: typeof fetch = fetch): Promise<Status> {
+  try {
+    const res = await doFetch(`${url}/health`);
+    const health = parseHealth(await res.text());
+    if (!health.ok) return { kind: 'error', message: 'The server is up, but its database is not healthy.' };
+    return { kind: 'ready', health, reused: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return {
+      kind: 'error',
+      message: `No studio server at ${url} (${message}). Start it with \`npm run dev\` in server/.`,
+    };
   }
 }

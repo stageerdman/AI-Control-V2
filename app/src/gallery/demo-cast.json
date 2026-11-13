@@ -1,0 +1,254 @@
+[
+  {
+    "id": "a-setter",
+    "name": "Rivet",
+    "role": "Project Setter",
+    "hue": "sky",
+    "build": "bruiser",
+    "hair": "tuft",
+    "accessory": "none",
+    "look": {
+      "hat": "hardhat",
+      "tool": "clipboard",
+      "decal": "Technician",
+      "body": "bruiser",
+      "antenna": "tuft",
+      "face": "none",
+      "hue": "sky"
+    }
+  },
+  {
+    "id": "a-pixel",
+    "name": "Pixel",
+    "role": "Orchestrator",
+    "hue": "sun",
+    "build": "hero",
+    "hair": "tuft",
+    "accessory": "none",
+    "look": {
+      "hat": "director",
+      "tool": "megaphone",
+      "decal": "Director",
+      "body": "hero",
+      "antenna": "tuft",
+      "face": "none",
+      "hue": "sun"
+    }
+  },
+  {
+    "id": "a-maestro",
+    "name": "Maestro",
+    "role": "Orchestrator",
+    "hue": "grape",
+    "build": "lanky",
+    "hair": "swoop",
+    "accessory": "monocle",
+    "look": {
+      "hat": "director",
+      "tool": "baton",
+      "decal": "Director",
+      "body": "lanky",
+      "antenna": "swoop",
+      "face": "monocle",
+      "hue": "grape"
+    }
+  },
+  {
+    "id": "a-creator",
+    "name": "Tinker",
+    "role": "Agent Creator",
+    "hue": "teal",
+    "build": "sprout",
+    "hair": "bob",
+    "accessory": "none",
+    "look": {
+      "hat": "inventor",
+      "tool": "blueprint",
+      "decal": "Inventor",
+      "body": "sprout",
+      "antenna": "bob",
+      "face": "none",
+      "hue": "teal"
+    }
+  },
+  {
+    "id": "a-pete",
+    "name": "Pixel Pete",
+    "role": "Frontend",
+    "hue": "teal",
+    "build": "sprout",
+    "hair": "spikes",
+    "accessory": "freckles",
+    "look": {
+      "hat": "headphones",
+      "tool": "stylus",
+      "decal": "Frontend",
+      "body": "sprout",
+      "antenna": "spikes",
+      "face": "freckles",
+      "hue": "teal"
+    }
+  },
+  {
+    "id": "a-semic",
+    "name": "Captain Semicolon",
+    "role": "Backend",
+    "hue": "sky",
+    "build": "bruiser",
+    "hair": "tuft",
+    "accessory": "mustache",
+    "look": {
+      "hat": "goggles",
+      "tool": "cog",
+      "decal": "Backend",
+      "body": "bruiser",
+      "antenna": "tuft",
+      "face": "mustache",
+      "hue": "sky"
+    }
+  },
+  {
+    "id": "a-twinkle",
+    "name": "Twinkle",
+    "role": "Design",
+    "hue": "rose",
+    "build": "sprout",
+    "hair": "bun",
+    "accessory": "flower",
+    "look": {
+      "hat": "beret",
+      "tool": "palette",
+      "decal": "Design",
+      "body": "sprout",
+      "antenna": "bun",
+      "face": "flower",
+      "hue": "rose"
+    }
+  },
+  {
+    "id": "a-scar",
+    "name": "Scarlett Scenario",
+    "role": "QA",
+    "hue": "coral",
+    "build": "lanky",
+    "hair": "bob",
+    "accessory": "bow",
+    "look": {
+      "hat": "detective",
+      "tool": "magnifier",
+      "decal": "QA",
+      "body": "lanky",
+      "antenna": "bob",
+      "face": "bow",
+      "hue": "coral"
+    }
+  },
+  {
+    "id": "a-query",
+    "name": "Querious",
+    "role": "Data",
+    "hue": "sky",
+    "build": "sprout",
+    "hair": "curl",
+    "accessory": "glasses",
+    "look": {
+      "hat": "headlamp",
+      "tool": "pickaxe",
+      "decal": "Data",
+      "body": "sprout",
+      "antenna": "curl",
+      "face": "glasses",
+      "hue": "sky"
+    }
+  },
+  {
+    "id": "a-baron",
+    "name": "Baron von Backup",
+    "role": "DevOps",
+    "hue": "rose",
+    "build": "bruiser",
+    "hair": "none",
+    "accessory": "monocle",
+    "look": {
+      "hat": "hardhat",
+      "tool": "wrench",
+      "decal": "DevOps",
+      "body": "bruiser",
+      "antenna": "none",
+      "face": "monocle",
+      "hue": "rose"
+    }
+  },
+  {
+    "id": "a-prof",
+    "name": "Professor Prompt",
+    "role": "Research",
+    "hue": "grape",
+    "build": "hero",
+    "hair": "swoop",
+    "accessory": "glasses",
+    "look": {
+      "hat": "mortarboard",
+      "tool": "book",
+      "decal": "Research",
+      "body": "hero",
+      "antenna": "swoop",
+      "face": "glasses",
+      "hue": "grape"
+    }
+  },
+  {
+    "id": "a-doc",
+    "name": "Doc Hollywood",
+    "role": "Writer",
+    "hue": "sun",
+    "build": "hero",
+    "hair": "swoop",
+    "accessory": "shades",
+    "look": {
+      "hat": "newsboy",
+      "tool": "quill",
+      "decal": "Writer",
+      "body": "hero",
+      "antenna": "swoop",
+      "face": "shades",
+      "hue": "sun"
+    }
+  },
+  {
+    "id": "a-merge",
+    "name": "Madame Mergeworthy",
+    "role": "Release",
+    "hue": "grape",
+    "build": "lanky",
+    "hair": "bun",
+    "accessory": "none",
+    "look": {
+      "hat": "captain",
+      "tool": "flag",
+      "decal": "Release",
+      "body": "lanky",
+      "antenna": "bun",
+      "face": "none",
+      "hue": "grape"
+    }
+  },
+  {
+    "id": "a-lint",
+    "name": "Sir Lint-a-lot",
+    "role": "Quality",
+    "hue": "mint",
+    "build": "hero",
+    "hair": "none",
+    "accessory": "monocle",
+    "look": {
+      "hat": "helm",
+      "tool": "broom",
+      "decal": "Quality",
+      "body": "hero",
+      "antenna": "none",
+      "face": "monocle",
+      "hue": "mint"
+    }
+  }
+]

@@ -1,0 +1,40 @@
+/* AI Studio design tokens — the ONE source of the prototype's palette, radii, shadows, fonts
+   and easings (concepts/disney-v3/src/css/base.css :root). Tailwind utilities read them
+   (bg-sun, text-ink, rounded-lg, shadow-panel, ease-spring, font-sans…); prototype.css aliases
+   them to the prototype's own variable names so ported screen CSS works unchanged. */
+@theme static {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* the 7 character hues + sun-deep (gear / UI accent only) */
+  --color-sun: #ffc24b;
+  --color-sun-deep: #ff9b3d;
+  --color-coral: #ff6f73;
+  --color-teal: #2fd3c3;
+  --color-sky: #4ea8ff;
+  --color-grape: #9b6cff;
+  --color-mint: #8be88b;
+  --color-rose: #ff9ecf;
+
+  /* twilight stage, cream text on dark, ink on light panels */
+  --color-twilight-0: #1a1430;
+  --color-twilight-1: #241a44;
+  --color-twilight-2: #2e2156;
+  --color-cream: #fff6e9;
+  --color-cream-72: rgba(255, 246, 233, 0.72);
+  --color-ink: #241a44;
+  --color-ink-soft: #5b5280;
+  --color-panel: #ffffff;
+  --color-line: rgba(36, 26, 68, 0.1);
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+
+  --shadow-panel: 0 18px 40px -18px rgba(20, 10, 45, 0.55);
+  --shadow-soft: 0 8px 20px -10px rgba(20, 10, 45, 0.45);
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}

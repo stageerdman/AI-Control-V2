@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseHealth, startBackend } from './health';
+import { checkServer, parseHealth, startBackend } from './health';
 
 const body = {
   ok: true,
@@ -57,5 +57,23 @@ describe('startBackend', () => {
       kind: 'error',
       message: expect.stringMatching(/JSON/),
     });
+  });
+});
+
+describe('checkServer (browser, no Tauri)', () => {
+  it('reads /health from the given url', async () => {
+    const f = async (u: string | URL | Request) => {
+      expect(String(u)).toBe('http://x:1/health');
+      return new Response(JSON.stringify(body));
+    };
+    const s = await checkServer('http://x:1', f as typeof fetch);
+    expect(s).toMatchObject({ kind: 'ready', health: { version: '0.1.0' } });
+  });
+  it('explains a missing server', async () => {
+    const s = await checkServer('http://x:1', (async () => {
+      throw new TypeError('Failed to fetch');
+    }) as typeof fetch);
+    expect(s.kind).toBe('error');
+    expect(s.kind === 'error' && s.message).toMatch(/No studio server at http:\/\/x:1/);
   });
 });
