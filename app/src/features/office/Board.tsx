@@ -337,7 +337,7 @@ function TaskRow({
   const hover = taskHover(item, nameOf);
   const done = item.status === 'done';
   const kids = item.subtasks ?? [];
-  const who = sub ? nameOf(item.agentId).split(/\s+/)[0] : null;
+  const who = sub ? nameOf(item.agentId) : null;
   return (
     <li
       className={`${done ? 'done' : ''}${kids.length || item.teamPlan ? ' ob-team' : ''}`}
