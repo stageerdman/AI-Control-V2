@@ -58,3 +58,11 @@ describe('report markdown (sanitised subset)', () => {
     expect(safeUrl('http://x.dev/a')).toBe('http://x.dev/a');
   });
 });
+
+describe('markdown — intraword underscores', () => {
+  it('AI_STUDIO_RUNNER stays plain; _em_ and *em* still emphasise', () => {
+    const c = html('Run AI_STUDIO_RUNNER=fake with _care_ and *joy*.');
+    expect(c.textContent).toContain('AI_STUDIO_RUNNER=fake');
+    expect([...c.querySelectorAll('em')].map((e) => e.textContent)).toEqual(['care', 'joy']);
+  });
+});

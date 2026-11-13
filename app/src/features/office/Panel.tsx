@@ -262,10 +262,12 @@ export function Panel(p: PanelProps) {
 
 function Bubble({ m, who, openReport }: { m: ThreadMessage; who: string; openReport: (id: string) => void }) {
   const me = m.from === 'user';
+  const about = me ? /^About the report “(.+?)”: /.exec(m.text) : null;
   return (
     <div className={`bubble ${me ? 'me' : 'them'}${m.kind === 'error' ? ' err' : ''}`}>
       <span className="who">{who}</span>
-      <span className="t">{fmt(m.text)}</span>
+      {about && <span className="op-about">About: {about[1]}</span>}
+      <span className="t">{fmt(about ? m.text.slice(about[0].length) : m.text)}</span>
       {m.reportId && (
         <button type="button" className="op-link" onClick={() => openReport(m.reportId as string)}>
           Open report

@@ -248,7 +248,7 @@ function _otSheets(unread: number) {
   const rot = [-3, 2.5, -1];
   return Array.from({ length: n }, (_, i) => {
     const top = i === n - 1;
-    return `<g transform="translate(46 ${26 - i * 5}) rotate(${rot[i]})">
+    return `<g transform="translate(46 ${12 - i * 4}) rotate(${rot[i]})">
       ${top ? `<rect x="18" y="-16" width="9" height="12" rx="2" fill="${PALETTE.coral}" ${_o(1.6)}/>` : ''}
       <rect x="-30" y="-12" width="60" height="22" rx="2" fill="${OT.paper}" ${_o(1.8)}/>
       <path d="M-22 -5 H14 M-22 1 H6" stroke="#bdb5d6" stroke-width="2" stroke-linecap="round"/>

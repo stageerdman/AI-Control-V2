@@ -227,7 +227,7 @@ function Whiteboard({ pid, dir, go }: BoardProps) {
           {pct}
           <small>%</small>
         </b>
-        {toward && <span className="ob-toward">to {clip(toward, 40)}</span>}
+        {toward && <span className="ob-toward">to {clip(toward, 20)}</span>}
       </div>
       <div className="ob-cols">
         <section aria-labelledby="obN">

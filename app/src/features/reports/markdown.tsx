@@ -29,7 +29,8 @@ export const safeUrl = (u: string): string | null => {
   }
 };
 
-const INLINE = /(`[^`\n]+`)|\[([^\]\n]+)\]\(([^)\s]+)\)|(\*\*|__)(.+?)\4|(\*|_)([^*_\s](?:.*?[^*_\s])?)\6/;
+const INLINE =
+  /(`[^`\n]+`)|\[([^\]\n]+)\]\(([^)\s]+)\)|(\*\*|__)(.+?)\4|\*([^*\s](?:.*?[^*\s])?)\*|(?<![A-Za-z0-9])_([^_\s](?:.*?[^_\s])?)_(?![A-Za-z0-9])/;
 
 export function inline(text: string, key = 'i'): ReactNode[] {
   const out: ReactNode[] = [];
@@ -56,7 +57,7 @@ export function inline(text: string, key = 'i'): ReactNode[] {
         ),
       );
     } else if (m[4]) out.push(<strong key={k}>{inline(m[5], k)}</strong>);
-    else out.push(<em key={k}>{inline(m[7], k)}</em>);
+    else out.push(<em key={k}>{inline(m[6] ?? m[7], k)}</em>);
     rest = rest.slice(m.index + m[0].length);
   }
   return out;
