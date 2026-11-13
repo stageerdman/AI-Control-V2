@@ -1,0 +1,25 @@
+# Load order for build.py. CSS first block, JS after; one file per line.
+css/base.css
+css/hero.css
+css/emblem.css
+css/studio.css
+css/cast.css
+css/office.css
+css/gallery.css
+
+# core + libraries
+js/core.js
+js/hero.js
+js/emblem.js
+# data
+js/data-studio.js
+js/data-cast.js
+js/data-office.js
+# screens
+js/studio.js
+js/cast.js
+js/teams.js
+js/office-main.js
+js/gallery.js
+# boot last
+js/app.js
