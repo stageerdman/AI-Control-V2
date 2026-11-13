@@ -108,6 +108,32 @@ export const MIGRATIONS: readonly string[] = [
     created_at TEXT NOT NULL
   );
   `,
+
+  /* 3 — secrets & access (B3). Metadata only: secret VALUES live in the global .env,
+     never here. last4 is NULL when the value is too short to show any of it. */
+  `
+  CREATE TABLE credentials (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    env_var      TEXT NOT NULL UNIQUE,        -- the key in ~/.ai-control/.env
+    serves       TEXT NOT NULL DEFAULT '',
+    docs_url     TEXT,
+    instructions TEXT NOT NULL DEFAULT '',
+    has_value    INTEGER NOT NULL DEFAULT 0,
+    last4        TEXT,
+    position     INTEGER NOT NULL,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+  );
+
+  -- a project reaches nothing until a credential is granted here
+  CREATE TABLE project_access (
+    project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    credential_id TEXT NOT NULL REFERENCES credentials(id) ON DELETE CASCADE,
+    granted_at    TEXT NOT NULL,
+    PRIMARY KEY (project_id, credential_id)
+  );
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
