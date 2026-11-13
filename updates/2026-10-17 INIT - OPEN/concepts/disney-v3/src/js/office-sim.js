@@ -10,7 +10,7 @@
            OS.wake(id)               the Director brings a sleeper in
            OS.create(need)           the Agent Creator builds a new bot at a free desk
    Dev hooks (URL ?demo=…, not in UI): fast · t<sec> · ask · chat · talk ·
-           ship · end · sleepy · peek · list · creator · pager · focus · orch2 ·
+           ship · end · sleepy · peek · list · creator · pager · focus · safe · door · fresh · orch2 ·
            size2|size6|size12|size20 · selftest
    ============================================================ */
 
@@ -45,6 +45,8 @@ OS._hooks = function (demo) {
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
   if (demo.includes('list')) setTimeout(() => _omToggleList(true), 30);
   if (demo.includes('focus')) setTimeout(() => OPG.go(0), 30);
+  if (demo.includes('safe')) setTimeout(() => _omAccess(), 30);
+  if (demo.includes('door')) setTimeout(() => OM.focusActor('obj:door'), 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
   if (demo.includes('talk')) setTimeout(() => { const ids = wsOnProject().filter(a => a.session !== 'asleep').map(a => a.id); OE.instant = false; if (ids.length > 1) OE.converse(ids[0], ids[1], 8); }, 30);
 };
