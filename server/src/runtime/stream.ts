@@ -104,6 +104,8 @@ export function createStreamParser(secretValues: readonly string[] = []) {
     /** Assistant messages seen so far (≈ model turns) — used to enforce maxTurns. */
     turns: () => turns,
     sessionId: () => sessionId,
+    /** True once the `result` message arrived (its keys aren't ordered — never sniff the raw line). */
+    finished: () => final !== undefined,
     feed(raw: string): RunEvent[] {
       let m: Line;
       try {

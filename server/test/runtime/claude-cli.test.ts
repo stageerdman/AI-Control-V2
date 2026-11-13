@@ -154,6 +154,17 @@ describe('ClaudeCliRunner', () => {
     expect(log).not.toContain('SECRETVALUE123');
   });
 
+  it('ends the CLI after the real result line (whose keys are not type-first) by closing stdin', async () => {
+    const live = join(import.meta.dirname, '../fixtures/live-hello-commit.jsonl');
+    const o = await run(spec('replay', { env: { ...spec('replay').env, FAKE_FIXTURE: live } })).h.done;
+    expect(o).toMatchObject({
+      status: 'succeeded',
+      turns: 3,
+      costUsd: 0.1389382,
+      usage: { input: 6, output: 296, cacheRead: 35586, cacheWrite: 656 },
+    });
+  });
+
   it('resumes a session with --resume instead of a new --session-id', async () => {
     await run(spec('replay', { resumeSessionId: 'abc-session' })).h.done;
     const { argv } = recorded();

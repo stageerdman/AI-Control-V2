@@ -132,7 +132,7 @@ export function claudeCliRunner(opts: CliOptions): Runner {
       lines.on('line', (line) => {
         if (logFile) appendFileSync(logFile, `${redactSecrets(line, spec.secretValues).value}\n`);
         for (const e of parser.feed(line)) io.emit(e);
-        if (/^\{"type":"result"/.test(line)) child.stdin.end(); // one task per run: let it exit
+        if (parser.finished() && !child.stdin.writableEnded) child.stdin.end(); // one task per run: let it exit
         if (parser.turns() > spec.caps.maxTurns)
           stop({ status: 'failed', error: `Stopped: reached the turn cap (${spec.caps.maxTurns})` });
       });
