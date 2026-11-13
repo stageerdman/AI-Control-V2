@@ -59,7 +59,6 @@ the folder. Camera zooms to the tray, scene scrim, card fades in.
  ┌───────────────────────────────────────────────────────┐
  │ ← Office                                              │
  │ Reports                                               │
- │                                                       │
  │ ● Payment providers compared              2 h ago   › │
  │   🤖 Scout · ◆ Research Crew                           │
  │   Stripe wins on fees under 10k/mo; Adyen if we go EU.│
@@ -87,7 +86,6 @@ Card widens to **720 px** (reading width), same scrim. Marked read when opened.
 ```
  ┌──────────────────────────────────────────────────────────────┐
  │ ← Reports                                                    │
- │                                                              │
  │ Payment providers compared                                   │
  │ 🤖 Scout · ◆ Research Crew · Research · Today 14:05           │
  │ ❝ Which payment provider should the storefront use? ❞        │
