@@ -21,13 +21,16 @@ export interface EventBus {
   /** Returns the unsubscribe function. */
   subscribe(key: StreamKey, fn: Listener): () => void;
   listenerCount(key: StreamKey): number;
+  /** Every event of every stream (in-process services, e.g. the project lifecycle). Returns the unsubscribe function. */
+  subscribeAll(fn: Listener): () => void;
 }
 
 export function createBus(): EventBus {
   const subs = new Map<StreamKey, Set<Listener>>();
+  const all = new Set<Listener>();
   return {
     publish(e) {
-      for (const fn of [...(subs.get(streamKey(e.scope, e.scopeId)) ?? [])]) {
+      for (const fn of [...(subs.get(streamKey(e.scope, e.scopeId)) ?? []), ...all]) {
         try {
           fn(e);
         } catch {
@@ -45,5 +48,9 @@ export function createBus(): EventBus {
       };
     },
     listenerCount: (key) => subs.get(key)?.size ?? 0,
+    subscribeAll(fn) {
+      all.add(fn);
+      return () => all.delete(fn);
+    },
   };
 }

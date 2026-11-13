@@ -26,6 +26,7 @@ type ProjectRecord = {
   github_private: number;
   tile: string;
   collaboration: string | null;
+  target: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -47,6 +48,8 @@ export type Project = {
   agentIds: string[];
   /** How its people work together (B8): who the orchestrator briefs + review gates. null = captains, no gates. */
   collaboration: Collaboration | null;
+  /** What the overall progress counts towards ("v1.0"); null = no label. */
+  target: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -63,6 +66,7 @@ type ProjectFields = {
   teamIds?: string[];
   agentIds?: string[];
   collaboration?: Collaboration | null;
+  target?: string | null;
 };
 export type ProjectCreate = ProjectFields;
 export type ProjectPatch = Partial<ProjectFields>;
@@ -155,6 +159,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     teamIds: links(r.id, 'teams'),
     agentIds: links(r.id, 'agents'),
     collaboration: readCollaboration(r.collaboration),
+    target: r.target ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -179,8 +184,8 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = normFolder(input.folder);
       const t = now();
       db.prepare(
-        `INSERT INTO projects (id, name, note, status, progress, folder, orchestrator_id, github_connected, github_private, tile, collaboration, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, name, note, status, progress, folder, orchestrator_id, github_connected, github_private, tile, collaboration, target, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         pid,
         input.name,
@@ -193,6 +198,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         (input.github?.private ?? true) ? 1 : 0,
         JSON.stringify(input.tile ?? DEFAULT_TILE),
         input.collaboration ? JSON.stringify(input.collaboration) : null,
+        input.target?.trim() || null,
         nextPosition(db, 'projects'),
         t,
         t,
@@ -210,7 +216,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = patch.folder === undefined ? r.folder : normFolder(patch.folder, id);
       db.prepare(
         `UPDATE projects SET name = ?, note = ?, status = ?, progress = ?, folder = ?, orchestrator_id = ?,
-           github_connected = ?, github_private = ?, tile = ?, collaboration = ?, updated_at = ? WHERE id = ?`,
+           github_connected = ?, github_private = ?, tile = ?, collaboration = ?, target = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.name ?? r.name,
         patch.note ?? r.note,
@@ -226,6 +232,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
           : patch.collaboration
             ? JSON.stringify(patch.collaboration)
             : null,
+        patch.target === undefined ? r.target : patch.target?.trim() || null,
         now(),
         id,
       );

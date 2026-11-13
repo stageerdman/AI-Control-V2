@@ -54,7 +54,7 @@ src/
   health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
   reports/           reports.ts: who may file, file_report (stamped, secrets masked, ≤ 2 per run), list/read/archive
   office/            what the office screen needs: features.ts (features folder), threads.ts (project conversations),
-                     office.ts (staffing + latest status for the scene)
+                     office.ts (staffing + latest status for the scene), lifecycle.ts (status + overall progress)
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -76,7 +76,7 @@ Bodies are strict — unknown keys are 422.
 | `GET POST /agents` · `GET PATCH DELETE /agents/:id` | `kind` set at creation only; each agent carries `teamIds`, `projectIds`, `canDelete {ok, why}` |
 | `GET POST /teams` · `GET PATCH DELETE /teams/:id` | `PATCH {captainId}` to change captain; `reporter: true` = runs for this team file reports |
 | `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add `{agentId, instr?, at?}` (`at` = put back at an old place, undo) / edit job / remove (captain passes on) |
-| `GET POST /projects` · `GET PATCH /projects/:id` | `orchestratorId`, `teamIds` (teams first), `agentIds` (specialists), `folder` (sandbox-relative) |
+| `GET POST /projects` · `GET PATCH /projects/:id` | `orchestratorId`, `teamIds` (teams first), `agentIds` (specialists), `folder` (sandbox-relative), `target` (≤ 40, "v1.0"; null clears), `collaboration` (read; set it via `/collaboration`). `status` and `progress` move on their own (see Lifecycle) |
 | `DELETE /projects/:id` | 204; forgets the record, never touches the folder |
 | `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (validated — see Plan below), `chat`, `setupAt`/`setupCommit` (set by `/setup`; the folder can't change after, 409). `DELETE` never touches the disk: a set-up draft's folder stays and the response says so (`keptFolder`, else null) — adopt it later |
 | `POST /drafts/:id/chat` `{text?}` · `GET /drafts/:id/chat` | one orchestrator turn → `{reply, plan, chat}` (no `text` = the orchestrator opens with a proposal); history `{chat, plan}` |
@@ -89,7 +89,7 @@ Bodies are strict — unknown keys are 422.
 | `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git}` — `git` is live and local only (no network) |
 | `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
 | `GET POST /projects/:id/features` · `GET PATCH DELETE /projects/:id/features/:featureId` | the features folder: `{name, status: now\|planned\|shipped (default planned), order (1-based in its status; default last), pct?, owner? (agent or team id), description, vision}` (plain text blocks); list = Now, Planned, Shipped, each in order; moves keep every group dense; event `feature.changed` (`deleted: true` on delete) |
-| `GET /projects/:id/office` | the office on load: `{project, name, director (orchestrator id), teams: [{id, name, color, emblem, captain, members}], solo, agents: {agentId: {status, activity?, runId?, since?}}, lastEventId}` — the prototype's office-config shape + each agent's latest `agent.status` (a "working"/"waiting" whose run ended or that predates this server's start reads `idle`; never reported = `idle`). Then open `/projects/:id/events?after=<lastEventId>` |
+| `GET /projects/:id/office` | the office on load: `{project, name, director (orchestrator id), teams: [{id, name, color, emblem, captain, members}], solo, agents: {agentId: {status, activity?, runId?, since?}}, status, progress: {pct, shipped, total, target, goal: {id, text, pct, status} \| null}, lastEventId}` — the prototype's office-config shape + each agent's latest `agent.status` (a "working"/"waiting" whose run ended or that predates this server's start reads `idle`; never reported = `idle`). Then open `/projects/:id/events?after=<lastEventId>` |
 | `GET /projects/:id/threads/:agentId/messages` | the user's thread with the orchestrator or anyone on the project → `{projectId, agentId, busy, messages: [{id, from: 'user'\|agentId, kind: text\|error, text, runId, at}]}` (last 200, oldest first) |
 | `POST /projects/:id/threads/:agentId/messages` `{text}` | one turn → 202 `{message, runId}`; the reply arrives as a `thread.message` event (and in GET). The turn is a run in the project folder that resumes the thread's last session: an agent gets its composed prompt + tools (+ its team on this project, granted secrets, ask_user); the **orchestrator** runs big picture — its brain + altitude, no tools, no secrets, no ask tool, caps 3 turns, and a fresh summary of the whiteboard, features, latest health and open questions in every message. One turn at a time per thread (409); an agent already on a run is 409 too; not on the project → 409. Answer an ask on the asks endpoint. Text is secret-scrubbed before it's stored |
 | `GET /projects/:id/reports[?archived=1]` | the Reports tray: `{reports (newest first, no body), unread}` — archived ones only with `?archived=1` |
@@ -170,6 +170,13 @@ Past `maxSendBacks` the item **fails** for the user (`review.changes` with `fina
 `stage` (build|review|merge), `gates`, `gateIndex`, `sendBacks`, `notes` (last reviewer notes), `reviews` ([{reviewer, gate, verdict,
 notes, runId, at}]), `buildRunId`. `checklist.item` carries `stage` + `holder` (who has it now) when the item has gates.
 
+**Lifecycle** (F1b, `src/office/lifecycle.ts`): a project's `status` moves on its own from the event log — `needs` while an agent waits
+on the user (an open ask), `live` while a run or checklist work is in flight, else `idle` (`draft` / `archived` are the user's and never
+touched; a fresh project stays `live` "on set" until its first work; after a restart only projects that were ever worked on are re-read).
+Overall `progress` = features shipped / total when the features folder has any, else the current goal's % (the newest running goal, else the
+newest); `target` labels it. Events `project.status {status}` and `project.progress {pct, shipped, total, target?, goalId?, goalPct?}`
+(only on change); `projects.progress` follows (dispatch no longer writes the goal % there).
+
 **Worktrees** (F1b, `src/git/worktrees.ts`): in a git project (a commit, on a branch) every checklist item works in its **own
 checkout** `$AI_STUDIO_HOME/worktrees/<projectId>/<item-slug>-<id8>` on its own branch `studio/<item-slug>-<id8>` from the main
 branch's tip — chosen over `<project>/.ai-studio/worktrees` so the project folder stays exactly as the user knows it (no extra
@@ -210,7 +217,7 @@ with credentials stripped). GitHub visibility (`gh repo view <owner/repo> --json
 a health check, only for a GitHub remote, only when `gh` is installed — never on GET.
 
 Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read` / `report.archived` (U1), `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
-`goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`, `stage`, `holder`), `progress` (project stream; also sets `project.progress`).
+`goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`, `stage`, `holder`), `progress` (the goal's %, project stream).
 F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix, gate?, note?}`,
 `review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`,
-`item.merged {itemId, goalId, branch, commit?}`.
+`item.merged {itemId, goalId, branch, commit?}`, `project.status {status}`, `project.progress {pct, shipped, total, target?, goalId?, goalPct?}`.

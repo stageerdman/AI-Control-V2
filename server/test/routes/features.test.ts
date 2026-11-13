@@ -90,7 +90,10 @@ describe('features API', () => {
     expect(r.body).toMatchObject({ description: 'Verified-buyer reviews.', pct: null, owner: null });
     expect((await h.call('DELETE', `/projects/aurora/features/${f.id}`)).status).toBe(204);
     expect((await list()).map((x) => [x.name, x.order])).toEqual([['Later', 1]]);
-    const last = h.events.after('project', 'aurora').at(-1);
+    const last = h.events
+      .after('project', 'aurora')
+      .filter((e) => e.type === 'feature.changed')
+      .at(-1);
     expect(last?.payload).toMatchObject({ featureId: f.id, deleted: true });
     expect((await h.call('GET', `/projects/aurora/features/${f.id}`)).status).toBe(404);
   });

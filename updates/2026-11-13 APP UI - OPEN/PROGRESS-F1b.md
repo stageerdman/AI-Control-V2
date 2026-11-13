@@ -8,7 +8,7 @@ Resume notes. Plan: `update v1.md` (Overnight final build → F1b). Backend docs
    dispatch build → review(s) → done with bounded send-backs, events `handoff` / `review.*`.
 2. ✅ Agent toolkits — `toolsmith` roles (QA, Quality), `~/.ai-studio/toolkits/<agentId>/` via `--add-dir`, `tools/<agent>/`.
 3. ✅ Git worktrees per item — parallel-safe runs, merge back on accept, conflicts → calm send-back.
-4. ☐ Project lifecycle & progress — live / needs / idle automatically, overall progress (features + goal) + target.
+4. ✅ Project lifecycle & progress — live / needs / idle automatically, overall progress (features + goal) + target.
 5. ☐ Gaps — goal replies in the orchestrator thread, report follow-ups carry the report, turn caps.
 6. ☐ Live check (real runner, once).
 
@@ -29,3 +29,7 @@ Resume notes. Plan: `update v1.md` (Overnight final build → F1b). Backend docs
   **Choice:** checkouts under the data dir, not `<project>/.ai-studio/worktrees` (project folder stays clean, no ignore rule needed).
   Tests: `test/git/worktrees.test.ts` (temp repos), `test/crew/worktrees-flow.test.ts` (parallel, conflict → fix, unresolved, reviews in
   the checkout, failed build keeps its branch).
+- **4** `src/office/lifecycle.ts` on `bus.subscribeAll` (run/ask/goal/item/feature events → re-read the db): status needs/live/idle
+  (draft/archived untouched), overall progress (features shipped/total, else current goal %), migration 18 `projects.target`
+  (`PATCH /projects/:id {target}`), events `project.status` / `project.progress`, office view `status` + `progress`. Tests:
+  `test/office/lifecycle.test.ts`; exact-sequence tests now ignore the lifecycle's own lines.

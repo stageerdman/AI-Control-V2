@@ -353,6 +353,8 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE checklist_items ADD COLUMN workspace TEXT;
   ALTER TABLE checklist_items ADD COLUMN merge_tries INTEGER NOT NULL DEFAULT 0;
   `,
+  /* 18 — overall progress (F1b): an optional target label the progress counts towards ("v1.0"). */
+  `ALTER TABLE projects ADD COLUMN target TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {

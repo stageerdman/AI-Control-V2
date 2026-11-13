@@ -193,7 +193,6 @@ export function createDispatch(deps: {
     const g = work.goal(goalId);
     if (!g) return;
     emit(g.projectId, { type: 'progress', payload: { pct: g.pct, label: clip(g.summary, 120) } });
-    store.projects.update(g.projectId, { progress: g.pct });
     if (g.status !== 'running') return;
     const open = g.items.some((i) => i.status === 'todo' || i.status === 'running');
     if (open) return;

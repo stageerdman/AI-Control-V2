@@ -19,7 +19,11 @@ function studio(script: (s: RunSpec) => FakeStep[], seen?: RunSpec[]) {
   h.store.projects.update('aurora', { folder: 'aurora' });
   return h;
 }
-const types = (h: ReturnType<typeof testApp>) => h.events.after('project', 'aurora').map((e) => e.type);
+const types = (h: ReturnType<typeof testApp>) =>
+  h.events
+    .after('project', 'aurora')
+    .map((e) => e.type)
+    .filter((t) => !t.startsWith('project.')); // the lifecycle's own lines (test/office/lifecycle.test.ts)
 
 describe('agent runs (FakeRunner end-to-end)', () => {
   let h: ReturnType<typeof testApp>;

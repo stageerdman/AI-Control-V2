@@ -16,6 +16,8 @@ const fields = {
   tile: z.strictObject({ g1: Short, g2: Short, glyph: Short }).optional(),
   teamIds: z.array(Id).optional(),
   agentIds: z.array(Id).optional(),
+  /** What the overall progress counts towards ("v1.0"); null clears it. */
+  target: z.string().trim().max(40).nullable().optional(),
 };
 const ProjectCreate = z.strictObject(fields);
 const ProjectPatch = z.strictObject({ ...fields, name: Name.optional() });

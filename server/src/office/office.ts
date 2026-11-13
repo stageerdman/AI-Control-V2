@@ -9,6 +9,7 @@ import type { Db } from '../db/connection.ts';
 import type { Store } from '../db/store.ts';
 import { rows } from '../db/util.ts';
 import type { EventPayload } from '../domain/events.ts';
+import type { Progress } from './lifecycle.ts';
 
 type Status = EventPayload<'agent.status'>;
 export type AgentState = {
@@ -33,11 +34,20 @@ export type Office = {
   teams: OfficeTeam[];
   solo: string[];
   agents: Record<string, AgentState>;
+  /** live / needs / idle (moves on its own) — or the user's draft / archived. */
+  status: string;
+  /** Overall progress: features shipped / total (else the current goal's %), the target label, the current goal. */
+  progress: Progress | null;
   /** Open the project's event stream with ?after= this id to continue from here without gaps. */
   lastEventId: number;
 };
 
-export function createOffice(deps: { db: Db; store: Store; bootedAt?: string }) {
+export function createOffice(deps: {
+  db: Db;
+  store: Store;
+  bootedAt?: string;
+  progressOf?: (projectId: string) => Progress;
+}) {
   const { db, store } = deps;
   const bootedAt = deps.bootedAt ?? new Date().toISOString();
 
@@ -106,7 +116,17 @@ export function createOffice(deps: { db: Db; store: Store; bootedAt?: string }) 
             .prepare("SELECT COALESCE(MAX(id), 0) AS id FROM events WHERE scope = 'project' AND scope_id = ?")
             .get(projectId) as { id: number }
         ).id ?? 0;
-      return { project: p.id, name: p.name, director: p.orchestratorId, teams, solo, agents, lastEventId };
+      return {
+        project: p.id,
+        name: p.name,
+        director: p.orchestratorId,
+        teams,
+        solo,
+        agents,
+        status: p.status,
+        progress: deps.progressOf?.(p.id) ?? null,
+        lastEventId,
+      };
     },
   };
 }

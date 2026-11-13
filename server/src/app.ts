@@ -20,6 +20,7 @@ import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { createFeatures } from './office/features.ts';
+import { createLifecycle } from './office/lifecycle.ts';
 import { createOffice } from './office/office.ts';
 import { createThreads } from './office/threads.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
@@ -140,6 +141,9 @@ export function buildApp({
     sandbox: config.sandbox,
   });
   dispatch.recover();
+  /* status (live → needs → idle) and overall progress follow the event log on their own */
+  const lifecycle = createLifecycle({ db, store, events });
+  lifecycle.recover();
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
   const features = createFeatures({ db, store, events });
   const threads = createThreads({
@@ -159,6 +163,7 @@ export function buildApp({
       runtime.setBaseUrl(`http://${a.family === 'IPv6' ? `[${a.address}]` : a.address}:${a.port}`);
   });
   app.addHook('preClose', async () => {
+    lifecycle.stop();
     for (const res of open) res.end();
     await runtime.shutdown();
   });
@@ -195,6 +200,6 @@ export function buildApp({
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));
   app.register(reportRoutes({ reports }));
-  app.register(officeRoutes({ office: createOffice({ db, store }) }));
+  app.register(officeRoutes({ office: createOffice({ db, store, progressOf: lifecycle.progressOf }) }));
   return app;
 }
