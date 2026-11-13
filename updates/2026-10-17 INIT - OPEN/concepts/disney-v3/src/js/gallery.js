@@ -1,6 +1,6 @@
 /* ============================================================
-   gallery.js — #gallery dev route: every role × pose × facing × size,
-   all builds / hair / accessories, extras, and every emblem × 7 hues.
+   gallery.js — #gallery dev route: every agent × pose × facing × size,
+   all looks (bodies / antennas / faces / hats / tools / hues), extras, and every emblem × 7 hues.
    Public: renderGallery(section)   section = '' (all) | roster | poses |
            facings | sizes | zoom | looks | extras | emblems
    Dev-only; not linked from the studio nav.
@@ -14,7 +14,7 @@ function renderGallery(section = '') {
     <nav>${GALLERY_SECTIONS.map(s => `<a href="#gallery/${s}"${s === section ? ' aria-current="page"' : ''}>${s}</a>`).join('')}<a href="#gallery">all</a><a href="#projects">← studio</a></nav></header>
     <main class="gal-body"></main>`;
   const body = host.querySelector('.gal-body');
-  const cast = [...AGENTS, DIRECTOR];
+  const cast = castOrder();
   const sec = (id, title, note) => {
     const s = document.createElement('section'); s.className = 'gal-sec'; s.id = 'gal-' + id;
     s.innerHTML = `<h2>${title}</h2>${note ? `<p>${note}</p>` : ''}`; body.appendChild(s); return s;
@@ -23,9 +23,9 @@ function renderGallery(section = '') {
   const cell = (r, el, cap) => { const c = document.createElement('figure'); c.className = 'gal-cell'; c.appendChild(el); if (cap) c.insertAdjacentHTML('beforeend', `<figcaption>${cap}</figcaption>`); r.appendChild(c); return c; };
 
   if (only.includes('roster')) {
-    const s = sec('roster', 'Roster at 48px (legibility) · colour / greyscale', 'Each role must be nameable from headgear + tool alone.');
+    const s = sec('roster', 'Roster at 48px (legibility) · colour / greyscale', 'Studio crew first. Each costume must be readable from hat + tool alone.');
     const r1 = row(s), r2 = row(s, 'gray'), r3 = row(s);
-    cast.forEach(a => { cell(r1, hero(a, { size: 'xs' }), a.role); cell(r2, hero(a, { size: 'xs' }), a.role); cell(r3, hero(a, { size: 'sm' }), a.name); });
+    cast.forEach(a => { cell(r1, hero(a, { size: 'xs' }), roleName(a.role)); cell(r2, hero(a, { size: 'xs' }), roleName(a.role)); cell(r3, hero(a, { size: 'sm' }), a.name); });
   }
   if (only.includes('zoom')) {
     const s = sec('zoom', 'Hero zoom size (xl 360) — front, looking at you');
@@ -36,14 +36,14 @@ function renderGallery(section = '') {
     const s = sec('poses', 'Every role × every pose (sm 96, three-quarter)', 'Seated poses (typing, chilling) sit on a desk stub here; the Office supplies real desks.');
     const head = row(s, 'gal-poses-head'); head.innerHTML = '<span></span>' + POSES.map(p => `<span>${p}</span>`).join('');
     cast.forEach(a => {
-      const r = row(s, 'gal-poses'); r.insertAdjacentHTML('beforeend', `<span class="gal-rl">${a.role}</span>`);
+      const r = row(s, 'gal-poses'); r.insertAdjacentHTML('beforeend', `<span class="gal-rl">${escapeHtml(a.name)}</span>`);
       POSES.forEach(p => { const c = cell(r, hero(a, { size: 'sm', pose: p })); if (['typing', 'chilling'].includes(p)) c.classList.add('desk'); });
     });
   }
   if (only.includes('facings')) {
     const s = sec('facings', 'Facings × dir (md 128): ¾ right · side right · front · ¾ left · side left');
     cast.forEach(a => {
-      const r = row(s); r.insertAdjacentHTML('beforeend', `<span class="gal-rl">${a.role}</span>`);
+      const r = row(s); r.insertAdjacentHTML('beforeend', `<span class="gal-rl">${escapeHtml(a.name)}</span>`);
       [['three-quarter', 'right'], ['side', 'right'], ['front', 'right'], ['three-quarter', 'left'], ['side', 'left']].forEach(([f, d]) => cell(r, hero(a, { size: 128, facing: f, dir: d })));
       cell(r, hero(a, { size: 128, pose: 'walking', facing: 'side' }), 'walk');
       cell(r, hero(a, { size: 128, pose: 'talking', facing: 'side', dir: 'left' }), 'talk ←');
@@ -54,15 +54,18 @@ function renderGallery(section = '') {
     ['a-baron', 'a-twinkle'].forEach(id => { const r = row(s, 'gal-bottom'); [40, 48, 56, 64, 72, 96, 160, 360].forEach(px => cell(r, hero(agentById(id), { size: px }), px + 'px')); });
   }
   if (only.includes('looks')) {
-    const s = sec('looks', 'Identity: builds × hair (no role gear) · accessories · builds in gear');
+    const s = sec('looks', 'Looks (independent of role): bodies × antennas · faces · hats · tools · hues');
     BUILDS.forEach(b => { const r = row(s); r.insertAdjacentHTML('beforeend', `<span class="gal-rl">${b}</span>`);
       HAIR.forEach((h, i) => cell(r, hero({ name: b, hue: HUES[i % 7], build: b, hair: h }, { size: 'sm' }), h)); });
     const r2 = row(s); r2.insertAdjacentHTML('beforeend', '<span class="gal-rl">extra</span>');
     ACCESSORIES.forEach((acc, i) => cell(r2, hero({ name: acc, hue: HUES[(i + 3) % 7], build: 'hero', hair: 'tuft', accessory: acc }, { size: 'sm', facing: 'front' }), acc));
-    const r3 = row(s); r3.insertAdjacentHTML('beforeend', '<span class="gal-rl">gear</span>');
-    BUILDS.forEach(b => ['Frontend', 'DevOps', 'Quality'].forEach(role => cell(r3, hero({ name: b, hue: 'sky', build: b, hair: 'swoop', role }, { size: 'sm' }), `${b} · ${role}`)));
+    const base = { hat: 'none', tool: 'none', body: 'hero', antenna: 'swoop', face: 'none', hue: 'sky' };
+    const r3 = row(s); r3.insertAdjacentHTML('beforeend', '<span class="gal-rl">hats</span>');
+    Object.keys(HATS).forEach((h, i) => cell(r3, hero({ name: h, look: Object.assign({}, base, { hat: h, decal: hatDecal(h), hue: HUES[i % 7] }) }, { size: 'sm', facing: 'front' }), lookSlot('hat').name(h)));
+    const r5 = row(s); r5.insertAdjacentHTML('beforeend', '<span class="gal-rl">tools</span>');
+    Object.keys(TOOLS).forEach((t, i) => cell(r5, hero({ name: t, look: Object.assign({}, base, { tool: t, hue: HUES[(i + 2) % 7] }) }, { size: 'sm' }), lookSlot('tool').name(t)));
     const r4 = row(s); r4.insertAdjacentHTML('beforeend', '<span class="gal-rl">hues</span>');
-    HUES.forEach(hk => cell(r4, hero({ name: hk, hue: hk, build: 'hero', hair: 'curl', role: 'Research' }, { size: 'sm' }), COLOR_NAMES[hk]));
+    HUES.forEach(hk => cell(r4, hero({ name: hk, look: Object.assign({}, base, { hat: 'mortarboard', tool: 'book', decal: 'Research', antenna: 'curl', hue: hk }) }, { size: 'sm' }), COLOR_NAMES[hk]));
   }
   if (only.includes('extras')) {
     const s = sec('extras', 'Captain · ghost · holding · seated · role override · turn demo');
@@ -73,8 +76,8 @@ function renderGallery(section = '') {
     cell(r, hero(semi, { size: 'md', captain: true, armband: PALETTE.sun, facing: 'front' }), 'captain md (armband)');
     cell(r, hero(agentById('a-lint'), { size: 'md', captain: true, armband: PALETTE.mint, pose: 'salute' }), 'captain salute');
     cell(r, hero({}, { size: 'md', ghost: true }), 'ghost / + New');
-    cell(r, hero(tw, { size: 'md' }), 'Twinkle · Design');
-    cell(r, hero(tw, { size: 'md', role: 'Research' }), 'role override → Research');
+    cell(r, hero(tw, { size: 'md' }), 'Twinkle');
+    cell(r, hero({ name: 'Random', look: randomLook() }, { size: 'md' }), 'randomLook()');
     const r2 = row(s, 'gal-bottom');
     HOLDINGS.forEach(h => cell(r2, hero(agentById('a-scar'), { size: 128, pose: h === 'envelope' ? 'carrying' : h === 'pen' ? 'writing' : h === 'binder' ? 'reading' : 'idle', holding: h }), 'holding ' + h));
     const r3 = row(s, 'gal-bottom');
