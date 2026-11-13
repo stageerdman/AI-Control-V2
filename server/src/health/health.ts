@@ -110,6 +110,8 @@ export function createHealth(deps: {
     ).map(toReport);
 
   return {
+    /** The latest stored report, no disk or git access (the orchestrator's chat summary). */
+    latest: (projectId: string): HealthReport | null => history(projectId, 1)[0] ?? null,
     /** Latest report + history, and the git status right now (local only — no network on reads). */
     async get(projectId: string) {
       const { dir } = folderOf(projectId);

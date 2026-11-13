@@ -97,6 +97,15 @@ export const EVENT_SCHEMAS = {
     owner: id.nullable().optional(),
     deleted: z.literal(true).optional(),
   }),
+  /** Project conversations (U1): a message in the user's thread with an agent (the orchestrator or anyone on the project). */
+  'thread.message': z.strictObject({
+    agentId: id,
+    messageId: id,
+    from: z.enum(['user', 'agent']),
+    kind: z.enum(['text', 'error']),
+    text: text(20_000),
+    runId: id.optional(),
+  }),
   progress: z.strictObject({ pct: z.number().int().min(0).max(100), label: text(120).optional() }),
   tokens: z.strictObject({ agentId: id, runId: id.optional(), input: count, output: count }),
   /** A headless agent run (B5) began / ended. */

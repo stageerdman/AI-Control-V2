@@ -51,7 +51,7 @@ src/
                      creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
                      prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
   health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
-  office/            what the office screen needs: features.ts (features folder)
+  office/            what the office screen needs: features.ts (features folder), threads.ts (project conversations)
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -83,6 +83,8 @@ Bodies are strict — unknown keys are 422.
 | `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git}` — `git` is live and local only (no network) |
 | `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
 | `GET POST /projects/:id/features` · `GET PATCH DELETE /projects/:id/features/:featureId` | the features folder: `{name, status: now\|planned\|shipped (default planned), order (1-based in its status; default last), pct?, owner? (agent or team id), description, vision}` (plain text blocks); list = Now, Planned, Shipped, each in order; moves keep every group dense; event `feature.changed` (`deleted: true` on delete) |
+| `GET /projects/:id/threads/:agentId/messages` | the user's thread with the orchestrator or anyone on the project → `{projectId, agentId, busy, messages: [{id, from: 'user'\|agentId, kind: text\|error, text, runId, at}]}` (last 200, oldest first) |
+| `POST /projects/:id/threads/:agentId/messages` `{text}` | one turn → 202 `{message, runId}`; the reply arrives as a `thread.message` event (and in GET). The turn is a run in the project folder that resumes the thread's last session: an agent gets its composed prompt + tools (+ its team on this project, granted secrets, ask_user); the **orchestrator** runs big picture — its brain + altitude, no tools, no secrets, no ask tool, caps 3 turns, and a fresh summary of the whiteboard, features, latest health and open questions in every message. One turn at a time per thread (409); an agent already on a run is 409 too; not on the project → 409. Answer an ask on the asks endpoint. Text is secret-scrubbed before it's stored |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |

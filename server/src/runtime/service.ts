@@ -24,6 +24,9 @@ export type StartRun = {
   task: string;
   caps?: Partial<Caps>;
   resumeRunId?: string;
+  /** A big-picture run (the orchestrator's office chat): this system prompt instead of the composed one,
+      no tools at all, no secrets, no ask tool — it answers in its reply. */
+  bigPicture?: { systemPrompt: string };
 };
 type Live = { run: Run; handle: RunHandle; token: string; secrets: string[] };
 type Waiter = (a: Ask) => void;
@@ -200,7 +203,8 @@ export function createRuntime(deps: RuntimeDeps) {
     }
 
     const caps: Caps = { ...DEFAULT_CAPS, ...req.caps };
-    const granted = deps.envFor(projectId);
+    const big = req.bigPicture;
+    const granted = big ? {} : deps.envFor(projectId);
     const secrets = Object.values(granted).filter(Boolean);
     const runId = randomUUID();
     const token = randomUUID();
@@ -248,14 +252,15 @@ export function createRuntime(deps: RuntimeDeps) {
       {
         runId,
         cwd,
-        systemPrompt: composePrompt({ agent, team, project: { name: project.name } }),
+        systemPrompt: big?.systemPrompt ?? composePrompt({ agent, team, project: { name: project.name } }),
         task: req.task,
         model: deps.model,
         caps,
         env: runEnv(deps.parentEnv ?? process.env, granted),
         secretValues: secrets,
+        ...(big ? { tools: [] } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
-        ...(baseUrl ? { askBridge: { url: `${baseUrl}/internal/runs/${runId}/asks`, token } } : {}),
+        ...(baseUrl && !big ? { askBridge: { url: `${baseUrl}/internal/runs/${runId}/asks`, token } } : {}),
       },
       {
         emit: (e) => onRunEvent(l, e),

@@ -18,6 +18,7 @@ import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { createFeatures } from './office/features.ts';
+import { createThreads } from './office/threads.ts';
 import { accessRoutes } from './routes/access.ts';
 import { agentRoutes } from './routes/agents.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
@@ -33,6 +34,7 @@ import { roleRoutes } from './routes/roles.ts';
 import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
 import { teamRoutes } from './routes/teams.ts';
+import { threadRoutes } from './routes/threads.ts';
 import { trashRoutes } from './routes/trash.ts';
 import { fakeRunner } from './runtime/fake.ts';
 import type { Runner } from './runtime/runner.ts';
@@ -120,6 +122,15 @@ export function buildApp({
   dispatch.recover();
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
   const features = createFeatures({ db, store, events });
+  const threads = createThreads({
+    db,
+    store,
+    events,
+    runtime,
+    features,
+    health,
+    secretValues: secretValuesOf(secrets),
+  });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -160,5 +171,6 @@ export function buildApp({
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health }));
   app.register(featureRoutes({ features }));
+  app.register(threadRoutes({ threads }));
   return app;
 }

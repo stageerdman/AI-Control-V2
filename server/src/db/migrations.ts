@@ -265,6 +265,22 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX features_by_project ON features(project_id, status, position);
   `,
+
+  /* 11 — project conversations (U1): one thread per (project, agent) — the user chatting with the
+     project's orchestrator or any agent on it. Each user message starts/resumes that agent's run. */
+  `
+  CREATE TABLE thread_messages (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id   TEXT NOT NULL,                 -- the thread (no FK: history outlives a deleted agent)
+    sender     TEXT NOT NULL CHECK (sender IN ('user', 'agent')),
+    kind       TEXT NOT NULL CHECK (kind IN ('text', 'error')),
+    text       TEXT NOT NULL,                 -- secrets redacted before it is stored
+    run_id     TEXT,                          -- the run this turn started (user) / came from (agent)
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX thread_messages_by_thread ON thread_messages(project_id, agent_id, created_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
