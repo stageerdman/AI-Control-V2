@@ -37,11 +37,11 @@ function reducedMotion() { return matchMedia('(prefers-reduced-motion:reduce)').
 
 /* ---------- feedback ---------- */
 let _toastTimer = null;
-function toast(msg) {
+function toast(msg, ms = 2800) {
   const t = document.getElementById('toast');
   t.innerHTML = msg; t.classList.add('show');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), ms);
 }
 function fireConfetti() {
   if (reducedMotion()) return;
