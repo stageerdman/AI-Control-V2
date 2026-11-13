@@ -345,12 +345,28 @@ export type EventPayloads = {
   };
   'feature.changed': {
     featureId: string;
-    name?: string;
-    status?: 'next' | 'now' | 'done';
-    pct?: number;
-    owner?: string;
-    blocked?: boolean;
+    name: string;
+    status: 'now' | 'planned' | 'shipped';
+    order: number;
+    pct?: number | null;
+    owner?: string | null;
+    deleted?: true;
   };
+  /** A message in the user's thread with an agent (U1 project conversations). */
+  'thread.message': {
+    agentId: string;
+    messageId: string;
+    from: 'user' | 'agent';
+    kind: 'text' | 'error';
+    text: string;
+    runId?: string;
+    /** The report this turn filed (the reply is one line pointing at it). */
+    reportId?: string;
+  };
+  /** Reports: title only, never the body. */
+  'report.filed': { reportId: string; projectId: string; authorAgentId: string; title: string };
+  'report.read': { reportId: string; read: boolean };
+  'report.archived': { reportId: string; archived: boolean };
   progress: { pct: number; label?: string };
   tokens: { agentId: string; runId?: string; input: number; output: number };
   'run.started': { runId: string; agentId: string; teamId?: string; task: string };
@@ -381,6 +397,10 @@ export const EVENT_TYPES = [
   'goal.changed',
   'checklist.item',
   'feature.changed',
+  'thread.message',
+  'report.filed',
+  'report.read',
+  'report.archived',
   'progress',
   'tokens',
   'run.started',
