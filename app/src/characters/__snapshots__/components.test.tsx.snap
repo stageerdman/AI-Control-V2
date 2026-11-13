@@ -1,0 +1,418 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`<Hero> / <Emblem> > emblem snapshot: decorative 1`] = `
+"<span style="display: contents;"><span class="emblem" aria-hidden="true" style="--team:#8be88b;width:48px;height:48px"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <circle class="cloth" cx="32" cy="32" r="30"></circle>
+    <circle class="line" cx="32" cy="32" r="27"></circle>
+    <circle class="stitch" cx="32" cy="32" r="23.5"></circle>
+    <path class="thread" d="M18 18 L32 28 L46 18 L36 32 L46 46 L32 36 L18 46 L28 32Z"></path>
+    <path class="cloth halo" d="M32 10 L36 28 L54 32 L36 36 L32 54 L28 36 L10 32 L28 28Z"></path>
+    <path class="thread" d="M32 10 L36 28 L54 32 L36 36 L32 54 L28 36 L10 32 L28 28Z"></path>
+    <path class="cloth detail" d="M32 10 L32 32 L28 28Z M54 32 L32 32 L36 28Z M32 54 L32 32 L36 36Z M10 32 L32 32 L28 36Z"></path>
+    <circle class="cloth" cx="32" cy="32" r="2.6"></circle></svg></span></span>"
+`;
+
+exports[`<Hero> / <Emblem> > emblem snapshot: id + small (no stitch) 1`] = `
+"<span style="display: contents;"><span class="emblem em-sm" role="img" aria-label="Enchanted Keep emblem" style="--team:#ff6f73;width:24px;height:24px"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <path class="cloth" d="M7 7 H57 V30 C57 46 46 56 32 61 C18 56 7 46 7 30Z"></path>
+    <path class="line" d="M10.5 10.5 H53.5 V30 C53.5 44 44 52.5 32 57.3 C20 52.5 10.5 44 10.5 30Z"></path>
+    <path class="stitch" d="M14 14 H50 V30 C50 41.5 42 48.5 32 53.2 C22 48.5 14 41.5 14 30Z"></path>
+    <path class="thread" d="M20 37 H44 V44 Q32 50 20 44Z M20 37 V30 H25 V37Z M39 37 V30 H44 V37Z M28 37 V26 H36 V37Z"></path>
+    <path class="thread" d="M19 30 L22.5 23 L26 30Z M38 30 L41.5 23 L45 30Z M27 26 L32 17 L37 26Z"></path>
+    <path class="cloth" d="M29.5 47 V42.5 Q32 39.5 34.5 42.5 V47Z"></path>
+    <path class="thread detail" d="M45 15.5 L46 18 L48.5 19 L46 20 L45 22.5 L44 20 L41.5 19 L44 18Z"></path></svg></span></span>"
+`;
+
+exports[`<Hero> / <Emblem> > emblem snapshot: pip 1`] = `"<span style="display: contents;"><span class="captain-pip" aria-hidden="true" style="--team: #2fd3c3;"><svg viewBox="-10 -10 20 20" focusable="false"><path d="M0 -7 L2.1 -2.3 L7 -2.2 L3.2 1.1 L4.4 6 L0 3.3 L-4.4 6 L-3.2 1.1 L-7 -2.2 L-2.1 -2.3Z"></path></svg></span></span>"`;
+
+exports[`<Hero> / <Emblem> > emblem snapshot: team 1`] = `
+"<span style="display: contents;"><span class="emblem" role="img" aria-label="Moonshot emblem" style="--team:#9b6cff;width:88px;height:88px"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <path class="cloth" d="M20 3 H44 L61 20 V44 L44 61 H20 L3 44 V20Z"></path>
+    <path class="line" d="M21.5 6.5 H42.5 L57.5 21.5 V42.5 L42.5 57.5 H21.5 L6.5 42.5 V21.5Z"></path>
+    <path class="stitch" d="M23 10 H41 L54 23 V41 L41 54 H23 L10 41 V23Z"></path>
+    <ellipse class="line" cx="32" cy="34" rx="18" ry="5.5" transform="rotate(-18 32 34)" style="stroke-width:2"></ellipse>
+    <path class="cloth halo" d="M32 12 C38 18 39 28 37 40 H27 C25 28 26 18 32 12Z M27 33 L21 42 L27 41Z M37 33 L43 42 L37 41Z"></path>
+    <path class="thread" d="M32 12 C38 18 39 28 37 40 H27 C25 28 26 18 32 12Z M27 33 L21 42 L27 41Z M37 33 L43 42 L37 41Z"></path>
+    <circle class="cloth" cx="32" cy="25" r="3.3"></circle>
+    <path class="thread" d="M28.5 42 H35.5 L32 50.5Z"></path>
+    <path class="cloth halo detail" d="M15.5 39.4 A18 5.5 -18 0 0 21 43" style="fill:none;stroke-width:4"></path></svg></span></span>"
+`;
+
+exports[`<Hero> / <Emblem> > hero snapshot: captain xs (pip) 1`] = `
+"<span style="display: contents;"><div class="hero bot b-sprout size-xs pose-idle face-3q dir-r lod-xs is-captain tool-on" aria-hidden="true" data-hero="1" data-name="Pixel Pete" data-id="a-pete" data-hue="teal" data-build="sprout" data-hair="spikes" data-acc="freckles" data-look="{&quot;hat&quot;:&quot;headphones&quot;,&quot;tool&quot;:&quot;stylus&quot;,&quot;decal&quot;:&quot;Frontend&quot;,&quot;body&quot;:&quot;sprout&quot;,&quot;antenna&quot;:&quot;spikes&quot;,&quot;face&quot;:&quot;freckles&quot;,&quot;hue&quot;:&quot;teal&quot;}" data-role="Frontend" data-mouth="smile" data-eyes="open" data-hold="" data-band="sun" style="--hpx:48px;width:36px;height:48px;--ol:5px;--hue:#2fd3c3;--head-y:8.67%;--dl:-2s;">
+  <svg viewBox="0 0 120 160" aria-hidden="true" focusable="false">
+    <ellipse class="h-shadow" cx="60" cy="152" rx="18" ry="4.5"></ellipse><ellipse class="h-cring" cx="60" cy="152" rx="27" ry="6" fill="none" stroke="#ffc24b" stroke-width="2"></ellipse>
+    <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px 121px">
+      <g class="h-legs h-base"><g class="h-glow" style="transform-origin:60px 133px"><ellipse cx="60" cy="133" rx="10" ry="5" fill="#57fbeb" opacity=".45"></ellipse>
+    <ellipse cx="60" cy="132" rx="5" ry="2.75" fill="#fff" opacity=".85"></ellipse></g><ellipse class="o" cx="60" cy="124" rx="12" ry="4.4" fill="#8e86ad"></ellipse>
+        <ellipse cx="60" cy="124.6" rx="6" ry="1.8" fill="#57fbeb"></ellipse></g>
+      <g class="h-arm h-arm-b" transform="translate(74 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-tool"><g transform="rotate(8)"><path class="o" fill="#2fd3c3" d="M-5 -36 H5 V5 H-5Z"></path>
+      <path class="h-fine" d="M-1.6 -35 V4" stroke="#07ab9b" stroke-width="1.2"></path>
+      <path class="o" fill="#b9773f" d="M-5 -36 L0 -49 L5 -36Z"></path>
+      <path fill="#241a44" d="M-1.8 -44.2 L0 -49 L1.8 -44.2Z"></path>
+      <rect class="o" x="-5" y="4" width="10" height="5" fill="#c9c3dd"></rect>
+      <rect class="o" x="-5" y="9" width="10" height="5" rx="2.5" fill="#ff9ecf"></rect></g></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+      <g class="h-neck"><rect class="o" x="54" y="94" width="12" height="8" rx="4" fill="#8e86ad"></rect>
+    <rect class="h-fine" x="56.5" y="96" width="2.4" height="4" rx="1.2" fill="#fff" opacity=".35"></rect></g>
+      <g class="h-torso"><defs><clipPath id="hc1"><path d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z"></path></clipPath></defs>
+    <path class="o" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="#2fd3c3"></path>
+    <g clip-path="url(#hc1)">
+      <ellipse class="h-fine" cx="53.6" cy="105.6" rx="6.4" ry="4.84" fill="#fff" opacity=".22"></ellipse>
+      <path d="M42.4 116.81 H77.6 V122.05 H42.4Z" fill="#11b5a5" opacity=".35"></path>
+      <g class="h-outfit"><path class="o2" fill="#2fd3c3" d="M42.4 114.19 H77.6 V117.86 H42.4Z"></path>
+      <g class="h-trim"><circle cx="51.2" cy="104.24" r="1.19" fill="#2fd3c3"></circle><circle cx="51.2" cy="107.9" r="1.19" fill="#ffc24b"></circle></g></g>
+    </g>
+    <path class="o h-torso-line" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="none"></path><g class="h-badge" transform="translate(63.84 107.8) scale(0.69)"><g class="h-badge-in"><circle class="o2" r="7" fill="#2fd3c3"></circle><path d="M-2.2 -3 L-4.6 0 L-2.2 3 M2.2 -3 L4.6 0 L2.2 3 M0.9 -3.6 L-0.9 3.6" fill="none" stroke="#241a44" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></g></g></g>
+      <g class="h-head" transform="translate(60 98.1)"><g class="h-tilt"><g transform="translate(0 -32.1) scale(1.07)">
+    <g class="h-hair-back"><rect class="o" x="-36" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><rect class="o" x="27" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><path class="h-ant" d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#241a44" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#8e86ad" stroke-width="2.2" stroke-linecap="round"></path><circle class="o h-bulb" cx="-14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="-15.28" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle><circle class="o h-bulb" cx="14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="12.72" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle></g>
+    <path class="o h-shell" d="M-30 0 C-30 -40 30 -40 30 0 C30 40 -30 40 -30 0Z" fill="#2fd3c3"></path>
+    <ellipse class="h-sheen" cx="-15" cy="-19" rx="9" ry="5" transform="rotate(-28 -15 -19)" fill="#fff" opacity=".32"></ellipse>
+    <g class="h-hair"></g>
+    <g class="h-face">
+      <rect class="o2 h-screen" x="-23" y="-15" width="46" height="34" rx="13" fill="#1c1636"></rect>
+      <path class="h-fine h-glare" d="M-17 -9 C-14 -12 -9 -12.5 -5 -12.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".22"></path>
+      <g transform="translate(-10 -9.5)"><rect class="h-brow near" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(10 -9.5)"><rect class="h-brow far" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(-10 2)"><g class="h-eye near">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M-5 -4 L4 0.5 L-5 5"></path>
+    </g></g><g transform="translate(10 2)"><g class="h-eye far">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M5 -4 L-4 0.5 L5 5"></path>
+    </g></g>
+      <ellipse class="h-blush near" cx="-17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <ellipse class="h-blush far" cx="17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <g class="h-acc-f"><g fill="#ff9ecf" opacity=".8"><circle cx="-19" cy="8" r="1.1"></circle><circle cx="-16" cy="10.5" r="1.1"></circle><circle cx="-19.5" cy="12" r="1.1"></circle><g class="h-acc-far"><circle cx="16" cy="10.5" r="1.1"></circle><circle cx="19" cy="8" r="1.1"></circle><circle cx="19.5" cy="12" r="1.1"></circle></g></g></g>
+      <g class="h-mouths" transform="translate(0 13.2) scale(.5) translate(0 -17)">
+    <path class="h-mouth m-l" data-m="smile" d="M-7.5 13 Q0 21 7.5 13"></path>
+    <path class="h-mouth m-l" data-m="focus" d="M-5 15.5 Q0 18 5 15.5"></path>
+    <path class="h-mouth m-f" data-m="talkA" d="M-6 13 Q0 13.5 6 13 Q5.5 22 0 22 Q-5.5 22 -6 13Z"></path>
+    <path class="h-mouth m-l" data-m="talkB" d="M-4.5 15.5 Q0 18.5 4.5 15.5"></path>
+    <path class="h-mouth m-l" data-m="worried" d="M-6 19 Q0 13 6 19"></path>
+    <g class="h-mouth" data-m="grin"><path class="m-f" d="M-9.5 12 Q0 13.5 9.5 12 Q9 25 0 25 Q-9 25 -9.5 12Z"></path><path d="M-4.5 21.5 Q0 18 4.5 21.5 Q2.5 24 0 24 Q-2.5 24 -4.5 21.5Z" fill="#ff6f73"></path></g>
+    <circle class="h-mouth m-f" data-m="o" cx="1" cy="17" r="2.8"></circle>
+    <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="18" r="2.8" fill="#ff6f73"></circle><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"></path></g>
+    <path class="h-mouth m-l" data-m="flat" d="M-4.5 16 L4.5 16"></path>
+    <path class="h-mouth m-l" data-m="wavy" d="M-7 16 Q-3.5 13 0 16 Q3.5 19 7 16"></path></g>
+    </g>
+    <text class="h-q" x="0" y="11" text-anchor="middle">+</text>
+    <g class="h-headgear" transform="translate(0 0)"><path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="#241a44" stroke-width="10" stroke-linecap="round"></path>
+      <path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="#2fd3c3" stroke-width="5" stroke-linecap="round"></path>
+      <path class="h-fine" d="M-22 -28 C-14 -36 -4 -38 4 -38" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".55"></path>
+      <rect class="o" x="-41" y="-12" width="14" height="25" rx="7" fill="#2fd3c3"></rect>
+      <rect class="o" x="27" y="-12" width="14" height="25" rx="7" fill="#2fd3c3"></rect>
+      <rect class="h-fine" x="-38" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"></rect>
+      <rect class="h-fine" x="30" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"></rect></g>
+    <g class="h-acc"></g>
+  </g></g></g>
+      <g class="h-desk"></g>
+      <g class="h-arm h-arm-f" transform="translate(46 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-prop"></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+    </g></g></g>
+  </svg><div class="h-fx" aria-hidden="true"><span class="fx-pip"><span class="captain-pip" aria-hidden="true" style="--team: #ffc24b;"><svg viewBox="-10 -10 20 20" focusable="false"><path d="M0 -7 L2.1 -2.3 L7 -2.2 L3.2 1.1 L4.4 6 L0 3.3 L-4.4 6 L-3.2 1.1 L-7 -2.2 L-2.1 -2.3Z"></path></svg></span></span><span class="fx-bang">!</span>
+    <span class="fx-z"><i>z</i><i>z</i><i>Z</i></span><span class="fx-spark"><i>✦</i><i>✦</i><i>✦</i></span><span class="fx-think"><i></i><i></i><i></i></span></div></div></span>"
+`;
+
+exports[`<Hero> / <Emblem> > hero snapshot: ghost 1`] = `
+"<span style="display: contents;"><div class="hero bot b-sprout size-md pose-idle face-3q dir-r ghost" aria-hidden="true" data-hero="1" data-name="Pixel Pete" data-id="a-pete" data-hue="teal" data-build="sprout" data-hair="spikes" data-acc="freckles" data-look="{&quot;hat&quot;:&quot;none&quot;,&quot;tool&quot;:&quot;none&quot;,&quot;decal&quot;:&quot;none&quot;,&quot;body&quot;:&quot;sprout&quot;,&quot;antenna&quot;:&quot;spikes&quot;,&quot;face&quot;:&quot;freckles&quot;,&quot;hue&quot;:&quot;teal&quot;}" data-role="" data-mouth="smile" data-eyes="open" data-hold="" style="--hpx:160px;width:120px;height:160px;--ol:3px;--hue:#2fd3c3;--head-y:8.67%;--dl:-2s;">
+  <svg viewBox="0 0 120 160" aria-hidden="true" focusable="false">
+    <ellipse class="h-shadow" cx="60" cy="152" rx="18" ry="4.5"></ellipse><ellipse class="h-cring" cx="60" cy="152" rx="27" ry="6" fill="none" stroke="#ffc24b" stroke-width="2"></ellipse>
+    <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px 121px">
+      <g class="h-legs h-base"><g class="h-glow" style="transform-origin:60px 133px"><ellipse cx="60" cy="133" rx="10" ry="5" fill="#57fbeb" opacity=".45"></ellipse>
+    <ellipse cx="60" cy="132" rx="5" ry="2.75" fill="#fff" opacity=".85"></ellipse></g><ellipse class="o" cx="60" cy="124" rx="12" ry="4.4" fill="#8e86ad"></ellipse>
+        <ellipse cx="60" cy="124.6" rx="6" ry="1.8" fill="#57fbeb"></ellipse></g>
+      <g class="h-arm h-arm-b" transform="translate(74 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-tool"></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+      <g class="h-neck"><rect class="o" x="54" y="94" width="12" height="8" rx="4" fill="#8e86ad"></rect>
+    <rect class="h-fine" x="56.5" y="96" width="2.4" height="4" rx="1.2" fill="#fff" opacity=".35"></rect></g>
+      <g class="h-torso"><defs><clipPath id="hc1"><path d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z"></path></clipPath></defs>
+    <path class="o" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="#2fd3c3"></path>
+    <g clip-path="url(#hc1)">
+      <ellipse class="h-fine" cx="53.6" cy="105.6" rx="6.4" ry="4.84" fill="#fff" opacity=".22"></ellipse>
+      <path d="M42.4 116.81 H77.6 V122.05 H42.4Z" fill="#11b5a5" opacity=".35"></path>
+      <g class="h-outfit"></g>
+    </g>
+    <path class="o h-torso-line" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="none"></path></g>
+      <g class="h-head" transform="translate(60 98.1)"><g class="h-tilt"><g transform="translate(0 -32.1) scale(1.07)">
+    <g class="h-hair-back"><rect class="o" x="-36" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><rect class="o" x="27" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><path class="h-ant" d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#241a44" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#8e86ad" stroke-width="2.2" stroke-linecap="round"></path><circle class="o h-bulb" cx="-14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="-15.28" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle><circle class="o h-bulb" cx="14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="12.72" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle></g>
+    <path class="o h-shell" d="M-30 0 C-30 -40 30 -40 30 0 C30 40 -30 40 -30 0Z" fill="#2fd3c3"></path>
+    <ellipse class="h-sheen" cx="-15" cy="-19" rx="9" ry="5" transform="rotate(-28 -15 -19)" fill="#fff" opacity=".32"></ellipse>
+    <g class="h-hair"></g>
+    <g class="h-face">
+      <rect class="o2 h-screen" x="-23" y="-15" width="46" height="34" rx="13" fill="#1c1636"></rect>
+      <path class="h-fine h-glare" d="M-17 -9 C-14 -12 -9 -12.5 -5 -12.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".22"></path>
+      <g transform="translate(-10 -9.5)"><rect class="h-brow near" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(10 -9.5)"><rect class="h-brow far" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(-10 2)"><g class="h-eye near">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M-5 -4 L4 0.5 L-5 5"></path>
+    </g></g><g transform="translate(10 2)"><g class="h-eye far">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M5 -4 L-4 0.5 L5 5"></path>
+    </g></g>
+      <ellipse class="h-blush near" cx="-17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <ellipse class="h-blush far" cx="17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <g class="h-acc-f"><g fill="#ff9ecf" opacity=".8"><circle cx="-19" cy="8" r="1.1"></circle><circle cx="-16" cy="10.5" r="1.1"></circle><circle cx="-19.5" cy="12" r="1.1"></circle><g class="h-acc-far"><circle cx="16" cy="10.5" r="1.1"></circle><circle cx="19" cy="8" r="1.1"></circle><circle cx="19.5" cy="12" r="1.1"></circle></g></g></g>
+      <g class="h-mouths" transform="translate(0 13.2) scale(.5) translate(0 -17)">
+    <path class="h-mouth m-l" data-m="smile" d="M-7.5 13 Q0 21 7.5 13"></path>
+    <path class="h-mouth m-l" data-m="focus" d="M-5 15.5 Q0 18 5 15.5"></path>
+    <path class="h-mouth m-f" data-m="talkA" d="M-6 13 Q0 13.5 6 13 Q5.5 22 0 22 Q-5.5 22 -6 13Z"></path>
+    <path class="h-mouth m-l" data-m="talkB" d="M-4.5 15.5 Q0 18.5 4.5 15.5"></path>
+    <path class="h-mouth m-l" data-m="worried" d="M-6 19 Q0 13 6 19"></path>
+    <g class="h-mouth" data-m="grin"><path class="m-f" d="M-9.5 12 Q0 13.5 9.5 12 Q9 25 0 25 Q-9 25 -9.5 12Z"></path><path d="M-4.5 21.5 Q0 18 4.5 21.5 Q2.5 24 0 24 Q-2.5 24 -4.5 21.5Z" fill="#ff6f73"></path></g>
+    <circle class="h-mouth m-f" data-m="o" cx="1" cy="17" r="2.8"></circle>
+    <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="18" r="2.8" fill="#ff6f73"></circle><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"></path></g>
+    <path class="h-mouth m-l" data-m="flat" d="M-4.5 16 L4.5 16"></path>
+    <path class="h-mouth m-l" data-m="wavy" d="M-7 16 Q-3.5 13 0 16 Q3.5 19 7 16"></path></g>
+    </g>
+    <text class="h-q" x="0" y="11" text-anchor="middle">+</text>
+    <g class="h-headgear" transform="translate(0 0)"></g>
+    <g class="h-acc"></g>
+  </g></g></g>
+      <g class="h-desk"></g>
+      <g class="h-arm h-arm-f" transform="translate(46 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-prop"></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+    </g></g></g>
+  </svg><div class="h-fx" aria-hidden="true"><span class="fx-pip"></span><span class="fx-bang">!</span>
+    <span class="fx-z"><i>z</i><i>z</i><i>Z</i></span><span class="fx-spark"><i>✦</i><i>✦</i><i>✦</i></span><span class="fx-think"><i></i><i></i><i></i></span></div></div></span>"
+`;
+
+exports[`<Hero> / <Emblem> > hero snapshot: idle sm 1`] = `
+"<span style="display: contents;"><div class="hero bot b-sprout size-sm pose-idle face-3q dir-r tool-on" aria-hidden="true" data-hero="1" data-name="Pixel Pete" data-id="a-pete" data-hue="teal" data-build="sprout" data-hair="spikes" data-acc="freckles" data-look="{&quot;hat&quot;:&quot;headphones&quot;,&quot;tool&quot;:&quot;stylus&quot;,&quot;decal&quot;:&quot;Frontend&quot;,&quot;body&quot;:&quot;sprout&quot;,&quot;antenna&quot;:&quot;spikes&quot;,&quot;face&quot;:&quot;freckles&quot;,&quot;hue&quot;:&quot;teal&quot;}" data-role="Frontend" data-mouth="smile" data-eyes="open" data-hold="" style="--hpx:96px;width:72px;height:96px;--ol:3px;--hue:#2fd3c3;--head-y:8.67%;--dl:-2s;">
+  <svg viewBox="0 0 120 160" aria-hidden="true" focusable="false">
+    <ellipse class="h-shadow" cx="60" cy="152" rx="18" ry="4.5"></ellipse><ellipse class="h-cring" cx="60" cy="152" rx="27" ry="6" fill="none" stroke="#ffc24b" stroke-width="2"></ellipse>
+    <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px 121px">
+      <g class="h-legs h-base"><g class="h-glow" style="transform-origin:60px 133px"><ellipse cx="60" cy="133" rx="10" ry="5" fill="#57fbeb" opacity=".45"></ellipse>
+    <ellipse cx="60" cy="132" rx="5" ry="2.75" fill="#fff" opacity=".85"></ellipse></g><ellipse class="o" cx="60" cy="124" rx="12" ry="4.4" fill="#8e86ad"></ellipse>
+        <ellipse cx="60" cy="124.6" rx="6" ry="1.8" fill="#57fbeb"></ellipse></g>
+      <g class="h-arm h-arm-b" transform="translate(74 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-tool"><g transform="rotate(8)"><path class="o" fill="#2fd3c3" d="M-5 -36 H5 V5 H-5Z"></path>
+      <path class="h-fine" d="M-1.6 -35 V4" stroke="#07ab9b" stroke-width="1.2"></path>
+      <path class="o" fill="#b9773f" d="M-5 -36 L0 -49 L5 -36Z"></path>
+      <path fill="#241a44" d="M-1.8 -44.2 L0 -49 L1.8 -44.2Z"></path>
+      <rect class="o" x="-5" y="4" width="10" height="5" fill="#c9c3dd"></rect>
+      <rect class="o" x="-5" y="9" width="10" height="5" rx="2.5" fill="#ff9ecf"></rect></g></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+      <g class="h-neck"><rect class="o" x="54" y="94" width="12" height="8" rx="4" fill="#8e86ad"></rect>
+    <rect class="h-fine" x="56.5" y="96" width="2.4" height="4" rx="1.2" fill="#fff" opacity=".35"></rect></g>
+      <g class="h-torso"><defs><clipPath id="hc1"><path d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z"></path></clipPath></defs>
+    <path class="o" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="#2fd3c3"></path>
+    <g clip-path="url(#hc1)">
+      <ellipse class="h-fine" cx="53.6" cy="105.6" rx="6.4" ry="4.84" fill="#fff" opacity=".22"></ellipse>
+      <path d="M42.4 116.81 H77.6 V122.05 H42.4Z" fill="#11b5a5" opacity=".35"></path>
+      <g class="h-outfit"><path class="o2" fill="#2fd3c3" d="M42.4 114.19 H77.6 V117.86 H42.4Z"></path>
+      <g class="h-trim"><circle cx="51.2" cy="104.24" r="1.19" fill="#2fd3c3"></circle><circle cx="51.2" cy="107.9" r="1.19" fill="#ffc24b"></circle></g></g>
+    </g>
+    <path class="o h-torso-line" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="none"></path><g class="h-badge" transform="translate(63.84 107.8) scale(0.69)"><g class="h-badge-in"><circle class="o2" r="7" fill="#2fd3c3"></circle><path d="M-2.2 -3 L-4.6 0 L-2.2 3 M2.2 -3 L4.6 0 L2.2 3 M0.9 -3.6 L-0.9 3.6" fill="none" stroke="#241a44" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></g></g></g>
+      <g class="h-head" transform="translate(60 98.1)"><g class="h-tilt"><g transform="translate(0 -32.1) scale(1.07)">
+    <g class="h-hair-back"><rect class="o" x="-36" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><rect class="o" x="27" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><path class="h-ant" d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#241a44" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#8e86ad" stroke-width="2.2" stroke-linecap="round"></path><circle class="o h-bulb" cx="-14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="-15.28" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle><circle class="o h-bulb" cx="14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="12.72" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle></g>
+    <path class="o h-shell" d="M-30 0 C-30 -40 30 -40 30 0 C30 40 -30 40 -30 0Z" fill="#2fd3c3"></path>
+    <ellipse class="h-sheen" cx="-15" cy="-19" rx="9" ry="5" transform="rotate(-28 -15 -19)" fill="#fff" opacity=".32"></ellipse>
+    <g class="h-hair"></g>
+    <g class="h-face">
+      <rect class="o2 h-screen" x="-23" y="-15" width="46" height="34" rx="13" fill="#1c1636"></rect>
+      <path class="h-fine h-glare" d="M-17 -9 C-14 -12 -9 -12.5 -5 -12.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".22"></path>
+      <g transform="translate(-10 -9.5)"><rect class="h-brow near" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(10 -9.5)"><rect class="h-brow far" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(-10 2)"><g class="h-eye near">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M-5 -4 L4 0.5 L-5 5"></path>
+    </g></g><g transform="translate(10 2)"><g class="h-eye far">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M5 -4 L-4 0.5 L5 5"></path>
+    </g></g>
+      <ellipse class="h-blush near" cx="-17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <ellipse class="h-blush far" cx="17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <g class="h-acc-f"><g fill="#ff9ecf" opacity=".8"><circle cx="-19" cy="8" r="1.1"></circle><circle cx="-16" cy="10.5" r="1.1"></circle><circle cx="-19.5" cy="12" r="1.1"></circle><g class="h-acc-far"><circle cx="16" cy="10.5" r="1.1"></circle><circle cx="19" cy="8" r="1.1"></circle><circle cx="19.5" cy="12" r="1.1"></circle></g></g></g>
+      <g class="h-mouths" transform="translate(0 13.2) scale(.5) translate(0 -17)">
+    <path class="h-mouth m-l" data-m="smile" d="M-7.5 13 Q0 21 7.5 13"></path>
+    <path class="h-mouth m-l" data-m="focus" d="M-5 15.5 Q0 18 5 15.5"></path>
+    <path class="h-mouth m-f" data-m="talkA" d="M-6 13 Q0 13.5 6 13 Q5.5 22 0 22 Q-5.5 22 -6 13Z"></path>
+    <path class="h-mouth m-l" data-m="talkB" d="M-4.5 15.5 Q0 18.5 4.5 15.5"></path>
+    <path class="h-mouth m-l" data-m="worried" d="M-6 19 Q0 13 6 19"></path>
+    <g class="h-mouth" data-m="grin"><path class="m-f" d="M-9.5 12 Q0 13.5 9.5 12 Q9 25 0 25 Q-9 25 -9.5 12Z"></path><path d="M-4.5 21.5 Q0 18 4.5 21.5 Q2.5 24 0 24 Q-2.5 24 -4.5 21.5Z" fill="#ff6f73"></path></g>
+    <circle class="h-mouth m-f" data-m="o" cx="1" cy="17" r="2.8"></circle>
+    <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="18" r="2.8" fill="#ff6f73"></circle><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"></path></g>
+    <path class="h-mouth m-l" data-m="flat" d="M-4.5 16 L4.5 16"></path>
+    <path class="h-mouth m-l" data-m="wavy" d="M-7 16 Q-3.5 13 0 16 Q3.5 19 7 16"></path></g>
+    </g>
+    <text class="h-q" x="0" y="11" text-anchor="middle">+</text>
+    <g class="h-headgear" transform="translate(0 0)"><path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="#241a44" stroke-width="10" stroke-linecap="round"></path>
+      <path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="#2fd3c3" stroke-width="5" stroke-linecap="round"></path>
+      <path class="h-fine" d="M-22 -28 C-14 -36 -4 -38 4 -38" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".55"></path>
+      <rect class="o" x="-41" y="-12" width="14" height="25" rx="7" fill="#2fd3c3"></rect>
+      <rect class="o" x="27" y="-12" width="14" height="25" rx="7" fill="#2fd3c3"></rect>
+      <rect class="h-fine" x="-38" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"></rect>
+      <rect class="h-fine" x="30" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"></rect></g>
+    <g class="h-acc"></g>
+  </g></g></g>
+      <g class="h-desk"></g>
+      <g class="h-arm h-arm-f" transform="translate(46 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-prop"></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+    </g></g></g>
+  </svg><div class="h-fx" aria-hidden="true"><span class="fx-pip"></span><span class="fx-bang">!</span>
+    <span class="fx-z"><i>z</i><i>z</i><i>Z</i></span><span class="fx-spark"><i>✦</i><i>✦</i><i>✦</i></span><span class="fx-think"><i></i><i></i><i></i></span></div></div></span>"
+`;
+
+exports[`<Hero> / <Emblem> > hero snapshot: typing seated md, labelled 1`] = `
+"<span style="display: contents;"><div class="hero bot b-sprout size-md pose-typing face-3q dir-r seated" role="img" aria-label="Pixel Pete, Frontend, writing code" data-hero="1" data-name="Pixel Pete" data-id="a-pete" data-hue="teal" data-build="sprout" data-hair="spikes" data-acc="freckles" data-look="{&quot;hat&quot;:&quot;headphones&quot;,&quot;tool&quot;:&quot;stylus&quot;,&quot;decal&quot;:&quot;Frontend&quot;,&quot;body&quot;:&quot;sprout&quot;,&quot;antenna&quot;:&quot;spikes&quot;,&quot;face&quot;:&quot;freckles&quot;,&quot;hue&quot;:&quot;teal&quot;}" data-role="Frontend" data-mouth="focus" data-eyes="open" data-hold="" style="--hpx:160px;width:120px;height:160px;--ol:3px;--hue:#2fd3c3;--head-y:19.92%;--dl:-2s;">
+  <svg viewBox="0 0 120 160" aria-hidden="true" focusable="false">
+    <ellipse class="h-shadow" cx="60" cy="152" rx="18" ry="4.5"></ellipse><ellipse class="h-cring" cx="60" cy="152" rx="27" ry="6" fill="none" stroke="#ffc24b" stroke-width="2"></ellipse>
+    <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px 121px">
+      <g class="h-legs h-base"><g class="h-glow" style="transform-origin:60px 133px"><ellipse cx="60" cy="133" rx="10" ry="5" fill="#57fbeb" opacity=".45"></ellipse>
+    <ellipse cx="60" cy="132" rx="5" ry="2.75" fill="#fff" opacity=".85"></ellipse></g><ellipse class="o" cx="60" cy="124" rx="12" ry="4.4" fill="#8e86ad"></ellipse>
+        <ellipse cx="60" cy="124.6" rx="6" ry="1.8" fill="#57fbeb"></ellipse></g>
+      <g class="h-arm h-arm-b" transform="translate(74 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#01a595"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-tool"><g transform="rotate(8)"><path class="o" fill="#2fd3c3" d="M-5 -36 H5 V5 H-5Z"></path>
+      <path class="h-fine" d="M-1.6 -35 V4" stroke="#07ab9b" stroke-width="1.2"></path>
+      <path class="o" fill="#b9773f" d="M-5 -36 L0 -49 L5 -36Z"></path>
+      <path fill="#241a44" d="M-1.8 -44.2 L0 -49 L1.8 -44.2Z"></path>
+      <rect class="o" x="-5" y="4" width="10" height="5" fill="#c9c3dd"></rect>
+      <rect class="o" x="-5" y="9" width="10" height="5" rx="2.5" fill="#ff9ecf"></rect></g></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+      <g class="h-neck"><rect class="o" x="54" y="94" width="12" height="8" rx="4" fill="#8e86ad"></rect>
+    <rect class="h-fine" x="56.5" y="96" width="2.4" height="4" rx="1.2" fill="#fff" opacity=".35"></rect></g>
+      <g class="h-torso"><defs><clipPath id="hc1"><path d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z"></path></clipPath></defs>
+    <path class="o" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="#2fd3c3"></path>
+    <g clip-path="url(#hc1)">
+      <ellipse class="h-fine" cx="53.6" cy="105.6" rx="6.4" ry="4.84" fill="#fff" opacity=".22"></ellipse>
+      <path d="M42.4 116.81 H77.6 V122.05 H42.4Z" fill="#11b5a5" opacity=".35"></path>
+      <g class="h-outfit"><path class="o2" fill="#2fd3c3" d="M42.4 114.19 H77.6 V117.86 H42.4Z"></path>
+      <g class="h-trim"><circle cx="51.2" cy="104.24" r="1.19" fill="#2fd3c3"></circle><circle cx="51.2" cy="107.9" r="1.19" fill="#ffc24b"></circle></g></g>
+    </g>
+    <path class="o h-torso-line" d="M49.6 99 H70.4 C74.4 99 76 100.57 76 103.19 C76 113.67 69.6 121 60 121 C50.4 121 44 113.67 44 103.19 C44 100.57 45.6 99 49.6 99Z" fill="none"></path><g class="h-badge" transform="translate(63.84 107.8) scale(0.69)"><g class="h-badge-in"><circle class="o2" r="7" fill="#2fd3c3"></circle><path d="M-2.2 -3 L-4.6 0 L-2.2 3 M2.2 -3 L4.6 0 L2.2 3 M0.9 -3.6 L-0.9 3.6" fill="none" stroke="#241a44" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></g></g></g>
+      <g class="h-head" transform="translate(60 98.1)"><g class="h-tilt"><g transform="translate(0 -32.1) scale(1.07)">
+    <g class="h-hair-back"><rect class="o" x="-36" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><rect class="o" x="27" y="-8" width="9" height="16" rx="4" fill="#8e86ad"></rect><path class="h-ant" d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#241a44" stroke-width="5" stroke-linecap="round"></path>
+    <path d="M-8 -25 L-14 -40 M8 -25 L14 -40" fill="none" stroke="#8e86ad" stroke-width="2.2" stroke-linecap="round"></path><circle class="o h-bulb" cx="-14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="-15.28" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle><circle class="o h-bulb" cx="14" cy="-42" r="4" fill="#57fbeb"></circle>
+    <circle class="h-fine" cx="12.72" cy="-43.28" r="1.28" fill="#fff" opacity=".8"></circle></g>
+    <path class="o h-shell" d="M-30 0 C-30 -40 30 -40 30 0 C30 40 -30 40 -30 0Z" fill="#2fd3c3"></path>
+    <ellipse class="h-sheen" cx="-15" cy="-19" rx="9" ry="5" transform="rotate(-28 -15 -19)" fill="#fff" opacity=".32"></ellipse>
+    <g class="h-hair"></g>
+    <g class="h-face">
+      <rect class="o2 h-screen" x="-23" y="-15" width="46" height="34" rx="13" fill="#1c1636"></rect>
+      <path class="h-fine h-glare" d="M-17 -9 C-14 -12 -9 -12.5 -5 -12.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".22"></path>
+      <g transform="translate(-10 -9.5)"><rect class="h-brow near" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(10 -9.5)"><rect class="h-brow far" x="-4.5" y="-1.2" width="9" height="2.4" rx="1.2" fill="#e8fcff"></rect></g>
+      <g transform="translate(-10 2)"><g class="h-eye near">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M-5 -4 L4 0.5 L-5 5"></path>
+    </g></g><g transform="translate(10 2)"><g class="h-eye far">
+    <g class="h-glance"><g class="h-pupil">
+      <ellipse class="h-white" rx="9" ry="10.6" fill="#7fe7ff" opacity=".26"></ellipse>
+      <rect class="h-orb" x="-5.6" y="-7.6" width="11.2" height="15.2" rx="5.6" fill="#e8fcff"></rect>
+      <circle class="h-catch" cx="-1.9" cy="-3.6" r="1.7" fill="#fff"></circle>
+    </g></g>
+    <g transform="translate(0 -11)"><rect class="h-lid" x="-11" y="0" width="22" height="22.5" fill="#1c1636"></rect></g>
+    <path class="h-shut h-shut-s" d="M-5.5 1 Q0 5 5.5 1"></path><path class="h-shut h-shut-h" d="M-5.5 3 Q0 -5 5.5 3"></path>
+    <path class="h-shut h-shut-x" d="M5 -4 L-4 0.5 L5 5"></path>
+    </g></g>
+      <ellipse class="h-blush near" cx="-17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <ellipse class="h-blush far" cx="17.5" cy="12" rx="3.4" ry="2" fill="#ff9ecf"></ellipse>
+      <g class="h-acc-f"><g fill="#ff9ecf" opacity=".8"><circle cx="-19" cy="8" r="1.1"></circle><circle cx="-16" cy="10.5" r="1.1"></circle><circle cx="-19.5" cy="12" r="1.1"></circle><g class="h-acc-far"><circle cx="16" cy="10.5" r="1.1"></circle><circle cx="19" cy="8" r="1.1"></circle><circle cx="19.5" cy="12" r="1.1"></circle></g></g></g>
+      <g class="h-mouths" transform="translate(0 13.2) scale(.5) translate(0 -17)">
+    <path class="h-mouth m-l" data-m="smile" d="M-7.5 13 Q0 21 7.5 13"></path>
+    <path class="h-mouth m-l" data-m="focus" d="M-5 15.5 Q0 18 5 15.5"></path>
+    <path class="h-mouth m-f" data-m="talkA" d="M-6 13 Q0 13.5 6 13 Q5.5 22 0 22 Q-5.5 22 -6 13Z"></path>
+    <path class="h-mouth m-l" data-m="talkB" d="M-4.5 15.5 Q0 18.5 4.5 15.5"></path>
+    <path class="h-mouth m-l" data-m="worried" d="M-6 19 Q0 13 6 19"></path>
+    <g class="h-mouth" data-m="grin"><path class="m-f" d="M-9.5 12 Q0 13.5 9.5 12 Q9 25 0 25 Q-9 25 -9.5 12Z"></path><path d="M-4.5 21.5 Q0 18 4.5 21.5 Q2.5 24 0 24 Q-2.5 24 -4.5 21.5Z" fill="#ff6f73"></path></g>
+    <circle class="h-mouth m-f" data-m="o" cx="1" cy="17" r="2.8"></circle>
+    <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="18" r="2.8" fill="#ff6f73"></circle><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"></path></g>
+    <path class="h-mouth m-l" data-m="flat" d="M-4.5 16 L4.5 16"></path>
+    <path class="h-mouth m-l" data-m="wavy" d="M-7 16 Q-3.5 13 0 16 Q3.5 19 7 16"></path></g>
+    </g>
+    <text class="h-q" x="0" y="11" text-anchor="middle">+</text>
+    <g class="h-headgear" transform="translate(0 0)"><path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="#241a44" stroke-width="10" stroke-linecap="round"></path>
+      <path d="M-31 0 C-33 -50 33 -50 31 0" fill="none" stroke="#2fd3c3" stroke-width="5" stroke-linecap="round"></path>
+      <path class="h-fine" d="M-22 -28 C-14 -36 -4 -38 4 -38" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".55"></path>
+      <rect class="o" x="-41" y="-12" width="14" height="25" rx="7" fill="#2fd3c3"></rect>
+      <rect class="o" x="27" y="-12" width="14" height="25" rx="7" fill="#2fd3c3"></rect>
+      <rect class="h-fine" x="-38" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"></rect>
+      <rect class="h-fine" x="30" y="-7" width="4" height="14" rx="2" fill="#fff" opacity=".45"></rect></g>
+    <g class="h-acc"></g>
+  </g></g></g>
+      <g class="h-desk"><path class="o" fill="#c9c3dd" d="M54 120 L102 120 L97 126 L58 126Z"></path>
+      <path class="o" fill="#8e86ad" d="M93 87 L102 90 L103 120 L94 120Z"></path>
+      <path d="M92.5 89 L93.5 118" stroke="#2fd3c3" stroke-width="1.6" opacity=".9"></path>
+      <circle cx="98" cy="104" r="2" fill="#fff6e9" opacity=".85"></circle></g>
+      <g class="h-arm h-arm-f" transform="translate(46 104)"><g class="h-sh">
+    <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"></line><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="#11b5a5"></line></g>
+      <g class="h-hnd"><g class="h-hj"><g class="h-up"><g class="h-prop"></g></g><circle class="o h-hand" r="6.2" fill="#57fbeb"></circle><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"></path></g></g>
+    </g><circle class="o2 h-joint" r="4.2" fill="#8e86ad"></circle></g></g>
+    </g></g></g>
+  </svg><div class="h-fx" aria-hidden="true"><span class="fx-pip"></span><span class="fx-bang">!</span>
+    <span class="fx-z"><i>z</i><i>z</i><i>Z</i></span><span class="fx-spark"><i>✦</i><i>✦</i><i>✦</i></span><span class="fx-think"><i></i><i></i><i></i></span></div></div></span>"
+`;
