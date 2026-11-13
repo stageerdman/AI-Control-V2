@@ -1,0 +1,88 @@
+/* ============================================================
+   studio.css — Projects · Access · Blueprint (ported from v2)
+   ============================================================ */
+/* ---------- Projects ---------- */
+.result-count{color:rgba(255,246,233,.7);font-weight:700;font-size:13px}
+.shelf{margin-bottom:26px}
+.shelf-head{display:flex;align-items:baseline;gap:12px;margin:0 0 4px;color:var(--cream)}
+.shelf-head h2{margin:0;font-size:18px;letter-spacing:-.01em}
+.shelf-head .cnt{font-size:12px;font-weight:800;color:rgba(255,246,233,.55);letter-spacing:.08em;text-transform:uppercase}
+.shelf-hr{height:1px;background:rgba(255,255,255,.12);margin:8px 0 16px}
+.shelf.active-shelf{background:linear-gradient(180deg,rgba(255,246,233,.06),transparent);border-radius:var(--r-lg);padding:14px;margin:-14px -14px 26px}
+.shelf-grid{display:grid;gap:16px}
+.shelf.active-shelf .shelf-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.shelf.db-shelf .shelf-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.logo-tile{width:58px;height:58px;border-radius:16px;display:grid;place-items:center;flex:none;box-shadow:var(--shadow-sm)}
+.logo-tile.sm{width:40px;height:40px;border-radius:12px}
+.logo-tile svg{width:60%;height:60%}
+.pcard{background:var(--cream);border-radius:var(--r-md);padding:18px;cursor:pointer;text-align:left;font-family:inherit;
+  border:2px solid transparent;box-shadow:var(--shadow-sm);transition:transform .18s,border-color .18s;position:relative;width:100%}
+.pcard:hover{transform:translateY(-4px)}
+.pcard:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.pcard.live{border-color:var(--teal)}
+.pcard.needs{border-color:var(--coral)}
+.pcard h3{margin:0 0 2px;font-size:17px}
+.pcard .note{font-size:13px;color:var(--ink);font-weight:600;margin-top:4px}
+/* mini-cast: real heroes at xs, standing on a little dark stage strip */
+.pcard .mini-cast{display:flex;align-items:flex-end;gap:2px;margin:12px 0 10px;min-height:56px;padding:22px 10px 2px;border-radius:12px;
+  background:linear-gradient(180deg,#2e2156,#241a44)}
+.pcard .mini-cast .hero{margin-right:-6px}
+.plus-chip{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:rgba(255,246,233,.12);border:2px dashed rgba(255,246,233,.3);font-size:11px;font-weight:900;color:var(--cream);margin:0 0 8px 10px}
+.micro-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.micro-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:var(--ink-soft);background:#fff;border:1px solid var(--line);border-radius:8px;padding:3px 8px}
+.pcard-db{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.9);border-radius:var(--r-md);padding:12px 14px;cursor:pointer;text-align:left;font-family:inherit;border:2px solid transparent;box-shadow:var(--shadow-sm);transition:transform .15s,border-color .15s;width:100%}
+.pcard-db:hover{transform:translateY(-3px)}
+.pcard-db:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.pcard-db h3{margin:0;font-size:15px}
+.pcard-db .sub{font-size:12px;color:var(--ink-soft);font-weight:700}
+
+/* ---------- Access ---------- */
+.vault{background:linear-gradient(180deg,#2a1f52,#211840);color:var(--cream);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow)}
+.vault h2{margin:0 0 2px;font-size:19px;display:flex;align-items:center;gap:10px}
+.vault .sub{color:rgba(255,246,233,.6);font-size:13px;font-weight:600;margin:0 0 16px}
+.access-entry{display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:14px;background:rgba(255,255,255,.055);margin-bottom:10px;transition:.18s}
+.access-entry:hover{background:rgba(255,255,255,.1)}
+.access-entry .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:none;font-weight:900;font-size:15px;color:#2a1a10}
+.access-entry .body{flex:1;min-width:0}
+.access-entry b{font-size:15px}
+.access-entry .val{font-family:var(--mono);font-size:12px;color:rgba(255,246,233,.6);letter-spacing:1px;margin-left:8px}
+.access-entry .serves{font-size:13px;color:rgba(255,246,233,.75);font-weight:600;margin-top:3px}
+.access-entry .afford{display:flex;gap:12px;margin-top:9px;flex-wrap:wrap}
+.access-entry .afford button,.access-entry .afford a{appearance:none;background:transparent;border:0;color:var(--sun);font-family:inherit;font-weight:800;font-size:12px;cursor:pointer;text-decoration:none;padding:2px}
+.access-entry .afford button:focus-visible,.access-entry .afford a:focus-visible{outline:2px solid var(--sun);outline-offset:2px;border-radius:4px}
+.access-entry .expand{margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);font-size:13px;color:rgba(255,246,233,.8);font-weight:600}
+.masklock{font-size:12px;color:rgba(255,246,233,.55);display:inline-flex;gap:6px;align-items:center;margin-top:6px}
+.keytag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:4px 9px;border-radius:8px;background:var(--cream);color:var(--ink);border:1px solid var(--line)}
+.keytag .d{width:14px;height:14px;border-radius:4px;display:grid;place-items:center;font-size:9px;color:#2a1a10;font-weight:900}
+.keytag.locked{opacity:.45}
+.toggle-row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;background:var(--cream);border:2px solid var(--line);margin-bottom:9px}
+.toggle-row .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;flex:none;font-weight:900;color:#2a1a10}
+.toggle-row .t{flex:1;min-width:0}
+.toggle-row .t b{font-size:14px}
+.toggle-row .t .sv{font-size:12px;color:var(--ink-soft);font-weight:700}
+.toggle-row .t .vl{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.toggle-row .state{font-size:11px;font-weight:800;color:var(--ink-soft)}
+.toggle-row.on .state{color:#0b7d72}
+
+/* ---------- Blueprint ---------- */
+.bp-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;align-items:start}
+@media (max-width:980px){.bp-grid{grid-template-columns:1fr}}
+.tree{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:13px}
+.tree li{padding:4px 0}
+.tree .node{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:10px;transition:.12s}
+.tree .node:hover{background:var(--cream)}
+.tree .glyph{flex:none}
+.tree .path{font-weight:800;color:var(--ink)}
+.tree .desc{color:var(--ink-soft);font-family:var(--font);font-weight:600;font-size:12.5px;background:transparent;border:1px solid transparent;border-radius:8px;padding:3px 6px;cursor:text;flex:1;min-width:120px}
+.tree .desc:hover{border-color:var(--line)}
+.tree .desc:focus{outline:0;border-color:var(--sun-deep);background:#fff}
+.tree ul{list-style:none;margin:0;padding-left:22px;border-left:1px dashed var(--line)}
+.principle-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.principle-card{background:var(--cream);border-radius:14px;padding:14px;box-shadow:var(--shadow-sm)}
+.principle-card .tag{font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;display:inline-block;margin-bottom:8px}
+.principle-card p{margin:0;font-size:13px;font-weight:600}
+.fresh-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:var(--cream);box-shadow:var(--shadow-sm);margin-bottom:10px}
+.fresh-row .st{margin-left:auto;font-size:12px;font-weight:800;display:flex;align-items:center;gap:6px}
+.fresh-row .st.ok{color:#2b8a3e}
+.fresh-row .st.stale{color:#c03540}
+.bp-mascot{width:64px;height:64px;display:grid;place-items:end center}

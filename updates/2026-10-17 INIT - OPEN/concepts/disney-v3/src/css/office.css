@@ -1,0 +1,9 @@
+/* ============================================================
+   office.css — The Office. PLACEHOLDER from Foundation;
+   the Office builder (phase O) owns this file.
+   ============================================================ */
+#office{position:fixed;inset:0;z-index:5;color:var(--cream);overflow:auto}
+.office-stub{max-width:640px;margin:8vh auto;padding:24px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
+.office-stub>a{align-self:flex-start}
+.office-stub h1{margin:8px 0 0;font-size:28px}
+.office-stub p{margin:0;color:var(--cream-72);font-weight:600}
