@@ -49,3 +49,19 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   user's own staged/dirty work alone in an adopted repo.
 - **Filesystem work inside the db transaction, last.** Running the (sync) scaffold as the final step of
   `store.tx` means any failure rolls back the record; the only manual cleanup is removing a folder we created.
+
+### Secrets & access (B3)
+- **Values in one file, metadata in the db.** The db never holds a value (only `has_value` +
+  last-4), so a db file, backup or restore snapshot can't leak one. Consequence: credential
+  delete is not undoable — an undo snapshot would have to keep the value.
+- **Do the file write inside the db transaction.** If the `.env` write throws, the metadata
+  rolls back; the two stores can't disagree after a failure.
+- **Own a managed block, not the whole file.** The project `.env` sync rewrites only its marked
+  block: ungranting removes the key on the next sync, hand-written lines stay.
+- **Leak tests use canaries and check every channel.** Random values through every endpoint
+  and error path; assert neither the value nor its non-last-4 part shows in bodies, headers,
+  trace-level logs or the sqlite bytes (WAL included). Mutation-check the test (log `req.body`)
+  so it's known to bite.
+- **Body-parser messages can echo input.** V8's `JSON.parse` errors quote the body; Fastify 5
+  already swaps in a fixed message — keep it that way (tested).
+- **No last-4 for short values** (< 12 chars): 4 of 8 characters gives too much away.

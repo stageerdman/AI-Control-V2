@@ -121,3 +121,11 @@ Tailwind components, wire to this API).
   - Decisions: the first `updates/` folder is a real INIT update (so updates/ is committable); adopt
     appends `.env` to a `.gitignore` that lacks it (append-only — the only edit it ever makes);
     `.env` is created empty and never committed; GitHub stays out (opt-in later).
+- ✅ **B3 — Secrets & access** (2026-11-13): Key Cabinet (`/credentials`: create/edit/replace-key/
+  delete/import), per-project grants (`/projects/:id/access`, none by default) and sync into the
+  project's `.env` (managed block, 0600, `.gitignore` ensured). Values only in `~/.ai-control/.env`;
+  db = metadata + last-4. 24 tests (124 total), incl. leak tests over bodies, headers, trace logs and
+  sqlite bytes. Notes: `PROGRESS-B3.md`.
+  - Decisions: credential delete is **not restorable** (a snapshot would hold the value); `envVar` is
+    fixed at creation; no last-4 for values under 12 chars; sync rewrites one managed block so
+    ungranting removes the key and hand-written lines stay; `envFor(projectId)` is the in-process hand-off to B5.
