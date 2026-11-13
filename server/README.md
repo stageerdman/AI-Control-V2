@@ -52,6 +52,8 @@ src/
   crew/              the studio crew: structured.ts (JSON contracts + one repair), setup-chat.ts,
                      creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
                      prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
+  crew/team.ts       F1c: a captain's split (team-split contract), member + integration tasks, rework parsing
+  apps/              F1c: run-command.ts (how a project starts: .project `run:` / package.json), app-runner.ts (start/stop its app)
   git/               worktrees.ts: one checkout + branch per checklist item, merge back, never lose work
   health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
   reports/           reports.ts: who may file, file_report (stamped, secrets masked, ≤ 2 per run), list/read/archive
@@ -88,7 +90,10 @@ Bodies are strict — unknown keys are 422.
 | `PUT /projects/:id/collaboration` | set it by hand (the whole design) → `{collaboration, designed: true}`; 422 malformed, 409 a gate names someone not on the project; event `collaboration.changed` |
 | `POST /projects/:id/collaboration/design` `{ask?}` | the orchestrator (re)designs it for the people on the project now (crew contract `collaboration`) → `{reply, collaboration}`; saved + `collaboration.changed` |
 | `POST /projects/:id/health` `{caps?}` | health check: a read-only run in the project folder grades modularity / cleanliness / reusability (A–F, `good`, `fix`) + git/GitHub status → the report (201), event `health.checked` |
-| `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git}` — `git` is live and local only (no network) |
+| `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git, app: {status, url, command}}` — `git` is live and local only (no network); `app` = the project's app right now (F1c) |
+| `GET /projects/:id/app` | the project's app (F1c): `{status: stopped\|running\|exited, command (null = nobody recorded how it starts), source: '.project'\|'package.json'\|null, url (the first local address it printed, else null), pid, startedAt, exitCode, log (last ≤ 200 lines, ANSI stripped, every known secret value masked)}` |
+| `POST /projects/:id/app/start` · `POST /projects/:id/app/stop` | start it (202; 409 when it's already running or no command is known) · stop it (the whole process group; SIGTERM, SIGKILL after 3 s) → the view. Runs `/bin/sh -c <command>` in the project folder on this Mac with the minimal run env (PATH, HOME…; never the server's env — the app reads its own `.env`), `BROWSER=none`; one app per project; every app stops when the server shuts down. Event `app.status {status, url?, exitCode?}` |
+| `PATCH /projects/:id/app` `{command}` | set how it starts: writes the `run: <command>` line in the project's `.project` (one line, ≤ 300; 409 without a `.project`) → the view |
 | `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
 | `GET POST /projects/:id/features` · `GET PATCH DELETE /projects/:id/features/:featureId` | the features folder: `{name, status: now\|planned\|shipped (default planned), order (1-based in its status; default last), pct?, owner? (agent or team id), description, vision}` (plain text blocks); list = Now, Planned, Shipped, each in order; moves keep every group dense; event `feature.changed` (`deleted: true` on delete) |
 | `GET /projects/:id/office` | the office on load: `{project, name, director (orchestrator id), teams: [{id, name, color, emblem, captain, members}], solo, agents: {agentId: {status, activity?, runId?, since?}}, status, progress: {pct, shipped, total, target, goal: {id, text, pct, status} \| null}, lastEventId}` — the prototype's office-config shape + each agent's latest `agent.status` (a "working"/"waiting" whose run ended or that predates this server's start reads `idle`; never reported = `idle`). Then open `/projects/:id/events?after=<lastEventId>` |
@@ -151,6 +156,13 @@ session, issues listed); a second miss is 502.
   `parallel: true` lets an item start alongside the one before it (git projects: each item has its own worktree, so the orchestrator is
   told independent items may run side by side, ≤ 2 per project); if an earlier item fails, later ones are skipped
 
+- `dispatch` (F1c) also gets `The project right now: {hasCode, run}` and `Features: [{id, name, status, about}]`, and may answer
+  `feature: {id} | {name, description}` (+ `ships?: false`) — see Teams & features below. An empty project (only the scaffold) is told
+  its first item sets up the stack, records `run:` in `.project`, and fills CLAUDE.md's "Project-specific rules".
+- `team-split` (F1c) → `{mode: team|self, summary, subtasks: [{text, assignee, brief, parallel?}] (≤ 4)}` — the captain, in the item's
+  checkout with the health check's read-only tools, caps 8 turns; `team`: 1–4 sub-tasks, each for one member of THIS team (one each),
+  not all the captain's. A second miss (or a failed run) is not an error: the captain does the item itself.
+
 - `collaboration` → `{reply, collaboration}` (see Collaboration below; validated against the project's staffing)
 
 - `health` → `{modularity, cleanliness, reusability: {grade: A–F, good, fix}, summary}` — the one crew run that works IN a
@@ -193,6 +205,28 @@ branch…), the item **fails** with the work kept on its branch (named in the no
 committed on the branch and the checkout removed (`… — work kept on branch studio/…` when there was work). Not a git repo yet → items
 work in the project folder as before (in order unless `parallel`). Item fields: `workspace {cwd, branch, base, main} | null`, `mergeTries`.
 
+**Teams & features** (F1c, `src/crew/team.ts`; the user's rule: teams are the primary unit, captains lead them). An item for a team's
+captain, in a git project, on a team with ≥ 2 members, is a small **team task**: (1) the captain splits it (`team-split`, prompt: split
+when it saves time or matches a member's job; small items it does itself) → event `team.split {itemId, goalId, captainId, teamId, mode,
+summary, subtasks: [{itemId, agentId, text}], round}` and per sub-task `handoff` kind `delegate` (captain → member). (2) Each sub-task is
+a checklist item with `parentId` (never on the whiteboard's top level — it hangs under `subtasks`), worked by the member with its team
+context ("Your job on this team") in its **own checkout branched off the team item's branch**; sub-tasks share the project's parallel cap
+(the waiting team item holds no seat), run side by side unless `parallel: false`. Accepted → merged into the team item's checkout (one at a
+time) → `handoff` kind `deliver` (member → captain); a conflict → `merge-fix` back to that member (same bounds as main). (3) When every
+part has ended the team item goes to `teamPhase: 'integrate'`: the captain's run in its checkout sees each part (summary, or "did NOT
+finish" — it finishes those itself), checks it fits together and runs, commits; it may send parts back **once**
+(`{"rework": [{assignee, notes}]}` at the end of its reply → new sub-tasks "Rework: …" with `notes`, `team.split` round 1, `handoff` kind
+`rework` captain → member). (4) Then it's the captain's build: the project's gates (reviewer rework resumes the integration session), then
+merged into main (`item.merged`). Cancelling the goal stops the members' parts first, then the team item. Item fields: `parentId`,
+`teamPhase: null|members|integrate`, `teamRounds`, `teamPlan` (the captain's split in a sentence, also for `self`), `subtasks`
+(sub-task items). `checklist.item` + `parentId?`, `teamPhase?`; `handoff` + `parentId?`, kinds `delegate`, `deliver`. Migration 20.
+**Features:** a goal links to a feature (`featureId`, `ships`): an existing one (Planned → Now) or a new one in Now with its
+description; while the goal runs the feature's `pct` follows the goal; when every item has landed (goal done) and no other running goal
+works on it, the feature moves to **Shipped** (pct 100) → `feature.changed` + `feature.shipped {featureId, goalId, name}`; overall
+progress follows (shipped / total). Failed/cancelled goals leave the feature where it is; `ships: false` never ships it.
+**Real-app prompts:** every build brief says "do not push" (the studio merges) and to record `run: <command>` in `.project` when the
+work sets up how the app starts.
+
 **Toolkits** (F1b): an agent whose role is a `toolsmith` (quality / test; seed QA + Quality, migration 16) gets a persistent toolkit
 folder `$AI_STUDIO_HOME/toolkits/<agentId>/` (0700, created on its first run; inside the data dir, never anywhere else) — the ONLY extra
 directory its runs may reach (`--add-dir`; `--restricted` confines the file tools to cwd + that dir). Its prompt gains a "Your toolkit"
@@ -223,3 +257,4 @@ Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read
 F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix, gate?, note?}`,
 `review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`,
 `item.merged {itemId, goalId, branch, commit?}`, `thread.message` + `goalId?`, `project.status {status}`, `project.progress {pct, shipped, total, target?, goalId?, goalPct?}`.
+F1c: `team.split`, `handoff` kinds `delegate`/`deliver` + `parentId?`, `checklist.item` + `parentId?`/`teamPhase?`, `feature.shipped {featureId, goalId, name}`, `app.status {status, url?, exitCode?}`.
