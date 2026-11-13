@@ -10,8 +10,12 @@
      setLook(el, {x,y} | 'viewer' | null)       glowing eyes slide on the screen
      heroHeadAnchor(el) → {x, y} px inside el (antenna/gear top, for overlays)
      castOf(agent, mood, size)                  v2 shim
-     POSES, FACINGS, BUILDS, HAIR, ACCESSORIES, HOLDINGS, ROLE_GEAR, HERO_SIZES,
+     POSES, FACINGS, BUILDS, HAIR, ACCESSORIES, HOLDINGS, ROLE_GEAR (= costume kits), HERO_SIZES,
      MOOD_TO_POSE, POSE_TEXT, MAT
+   v5 look (independent of role): HATS, TOOLS, LOOK_SLOTS, lookSlot(id), hatDecal(hat),
+     lookFromLegacy(agent), randomLook(prev), lookAnchors(look, px)
+     agent.look = {hat, tool, body, antenna, face, hue, decal?} — absent → derived from
+     the v4 fields (role gear, build, hair, accessory, hue).
    opts: size 'xs'|'sm'|'md'|'xl'|px · pose · facing 'side'|'three-quarter'|'front'
          dir 'right'|'left' · look · seated · props · holding
          'mug'|'envelope'|'paper'|'binder'|'pen'|'none' · role (override)
@@ -305,7 +309,112 @@ const ROLE_GEAR = {
       <path class="h-fine" d="M-7 -36 L-3 -14" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".55"/>`,
     badge: () => `<path d="M0 -4.4 L4.4 3.6 H-4.4Z" fill="${HERO_INK}"/>`,
   },
+  /* v5 system-crew kits (not roles): technician belt + clipboard, inventor loupe + blueprint, conductor baton */
+  Technician: {
+    accent: 'sun-deep', top: 0, look: 'tool belt, clipboard',
+    outfit: x => `<path ${O2} fill="${MAT.wood}" d="${x.T('M-2 26 H42 V33 H-2Z')}"/>
+      <path ${O2} fill="${shade(MAT.wood, -28)}" d="${x.T('M4 30 H13 V40 C13 41 12 42 11 42 H6 C5 42 4 41 4 40Z M27 30 H36 V39 H27Z')}"/>
+      <path class="o2 h-trim" fill="${PALETTE.sun}" d="${x.T('M16.5 25 H23.5 V34 H16.5Z')}"/>`,
+    tool: x => `<g transform="rotate(-8)"><rect ${O} x="-13" y="-44" width="26" height="36" rx="3.5" fill="${MAT.wood}"/>
+      <rect ${O2} x="-10" y="-40" width="20" height="29" rx="1.5" fill="${MAT.paper}"/>
+      <rect ${O} x="-6.5" y="-48" width="13" height="8" rx="2.5" fill="${MAT.steel}"/>
+      <path class="h-fine" d="M-3 -32 H7 M-3 -25.5 H7 M-3 -19 H4" stroke="${MAT.steel}" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M-8 -32.5 L-6.6 -31 L-4.6 -34 M-8 -26 L-6.6 -24.5 L-4.6 -27.5" fill="none" stroke="${x.accent}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></g>`,
+    badge: () => `<circle cx="1.6" cy="-1.6" r="2.4" fill="none" stroke="${HERO_INK}" stroke-width="1.5"/><path d="M-0.2 0.2 L-3.6 3.6" stroke="${HERO_INK}" stroke-width="2" stroke-linecap="round"/>`,
+  },
+  Inventor: {
+    accent: 'teal', top: -48, look: 'inventor\'s loupe headband, blueprint',
+    outfit: x => `<path ${O2} fill="${MAT.paper}" d="${x.T('M23 9 H36 V23 C36 24 35 25 34 25 H25 C24 25 23 24 23 23Z')}"/>
+      <g class="h-trim"><rect x="${_r(x.X(25.5))}" y="${_r(x.Y(4))}" width="${_r(2.6 * x.sx)}" height="${_r(8 * x.sy)}" rx="1" fill="${PALETTE.coral}"/>
+      <rect x="${_r(x.X(30))}" y="${_r(x.Y(5.5))}" width="${_r(2.6 * x.sx)}" height="${_r(6.5 * x.sy)}" rx="1" fill="${PALETTE.sky}"/></g>`,
+    headgear: x => `<path d="M-30 -10 C-20 -26 20 -26 30 -10" fill="none" stroke="${HERO_INK}" stroke-width="8" stroke-linecap="round"/>
+      <path d="M-30 -10 C-20 -26 20 -26 30 -10" fill="none" stroke="${x.cloth}" stroke-width="4" stroke-linecap="round"/>
+      <path d="M21 -17 L19 -30" stroke="${HERO_INK}" stroke-width="5" stroke-linecap="round"/><path d="M21 -17 L19 -30" stroke="${MAT.steel}" stroke-width="2.2" stroke-linecap="round"/>
+      <circle ${O} cx="17" cy="-37" r="10" fill="${MAT.metal}"/>
+      <circle ${O2} cx="17" cy="-37" r="6.2" fill="${x.accent}" opacity=".85"/>
+      <circle cx="15" cy="-39.4" r="2.2" fill="#fff" opacity=".85"/>
+      <circle ${O} cx="-13" cy="-30" r="6.4" fill="${MAT.paper}"/>
+      <rect ${O2} x="-16.4" y="-25" width="6.8" height="4.6" rx="1.4" fill="${MAT.steel}"/>
+      <path class="h-fine" d="M-15.5 -30.5 L-14 -33 L-12 -29 L-10.5 -31.5" fill="none" stroke="${PALETTE.sun}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>`,
+    tool: () => `<g transform="rotate(8)"><path ${O} fill="${PALETTE.sky}" d="M3 -44 H24 V-12 H3Z"/>
+      <path class="h-fine" d="M7 -38 H20 M7 -32 H20 M7 -26 H20 M7 -20 H20 M11 -42 V-14 M17 -42 V-14" stroke="#fff" stroke-width="1" opacity=".55"/>
+      <path class="h-fine" d="M8 -36 L14 -30 L19 -36" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" opacity=".9"/>
+      <rect ${O} x="-5" y="-48" width="10" height="44" rx="5" fill="${shade(PALETTE.sky, -18)}"/>
+      <ellipse ${O2} cx="0" cy="-47" rx="5" ry="2.4" fill="${shade(PALETTE.sky, 30)}"/></g>`,
+    badge: () => `<path d="M0 -4.6 C2.8 -4.6 4 -2.4 4 -0.8 C4 1 2.4 1.8 2.2 3 H-2.2 C-2.4 1.8 -4 1 -4 -0.8 C-4 -2.4 -2.8 -4.6 0 -4.6Z" fill="${HERO_INK}"/><path d="M-1.6 4.6 H1.6" stroke="${HERO_INK}" stroke-width="1.3" stroke-linecap="round"/>`,
+  },
+  Conductor: {
+    accent: 'grape', top: 0, look: 'conductor\'s baton',
+    tool: () => `<g transform="rotate(16)"><rect ${O} x="-1.8" y="-50" width="3.6" height="46" rx="1.8" fill="${MAT.paper}"/>
+      <ellipse ${O} cx="0" cy="-5" rx="3.8" ry="5.6" fill="${MAT.wood}"/></g>
+      <g class="h-fine"><path d="M14 -46 V-36" stroke="${PALETTE.sun}" stroke-width="1.6"/><ellipse cx="11.6" cy="-36" rx="3" ry="2.2" fill="${PALETTE.sun}"/></g>`,
+  },
 };
+
+/* ============================================================
+   LOOK (v5) — the costume is independent of the role.
+   agent.look = {hat, tool, body, antenna, face, hue, decal?}
+   hat/tool/decal pick a kit's headgear/tool/chassis decal; body = build;
+   antenna = "hair"; face = accessory. LOOK_SLOTS drives the in-game editor.
+   ============================================================ */
+const HATS = {
+  none: ['No hat'], headphones: ['Headphones', 'Frontend'], goggles: ['Welding goggles', 'Backend'], beret: ['Beret', 'Design'],
+  detective: ['Detective cap', 'QA'], headlamp: ['Headlamp', 'Data'], hardhat: ['Hard hat', 'DevOps'], mortarboard: ['Mortarboard', 'Research'],
+  newsboy: ['Newsboy cap', 'Writer'], captain: ['Captain\'s cap', 'Release'], helm: ['Knight\'s helm', 'Quality'],
+  director: ['Director\'s cap', 'Director'], inventor: ['Inventor\'s loupe', 'Inventor'],
+};
+const TOOLS = {
+  none: ['Empty hands'], stylus: ['Giant stylus', 'Frontend'], cog: ['Big cog', 'Backend'], palette: ['Paint palette', 'Design'],
+  magnifier: ['Magnifier', 'QA'], pickaxe: ['Pickaxe', 'Data'], wrench: ['Wrench', 'DevOps'], book: ['Open book', 'Research'],
+  quill: ['Quill', 'Writer'], flag: ['Flag', 'Release'], broom: ['Broom-lance', 'Quality'], megaphone: ['Megaphone', 'Director'],
+  clipboard: ['Clipboard', 'Technician'], blueprint: ['Blueprint', 'Inventor'], baton: ['Baton', 'Conductor'],
+};
+const BODY_NAMES = { hero: 'Classic', sprout: 'Mini', bruiser: 'Chunky', lanky: 'Tall' };
+const ANTENNA_NAMES = { none: 'Classic', tuft: 'Bulb', spikes: 'Twin', swoop: 'Swoop', bob: 'Big ears', bun: 'Dome', curl: 'Spring' };
+const FACE_NAMES = { none: 'Plain', glasses: 'Glasses', shades: 'Shades', monocle: 'Monocle', mustache: 'Mustache', bow: 'Bow', freckles: 'Freckles', flower: 'Flower' };
+/* top → bottom = the order the editor's arrows stand next to the bot */
+const LOOK_SLOTS = [
+  { id: 'antenna', label: 'Antenna', options: HAIR, name: v => ANTENNA_NAMES[v] || v },
+  { id: 'hat', label: 'Hat', options: Object.keys(HATS), name: v => (HATS[v] || [v])[0] },
+  { id: 'face', label: 'Face', options: ACCESSORIES, name: v => FACE_NAMES[v] || v },
+  { id: 'body', label: 'Body', options: BUILDS, name: v => BODY_NAMES[v] || v },
+  { id: 'tool', label: 'Tool', options: Object.keys(TOOLS), name: v => (TOOLS[v] || [v])[0] },
+  { id: 'hue', label: 'Colour', options: HUES, name: v => COLOR_NAMES[v] || v },
+];
+const lookSlot = id => LOOK_SLOTS.find(s => s.id === id);
+const hatDecal = hat => (HATS[hat] && HATS[hat][1]) || 'none';
+const _ROLE_HAT = Object.fromEntries(Object.entries(HATS).filter(([, v]) => v[1]).map(([k, v]) => [v[1], k]));
+const _ROLE_TOOL = Object.fromEntries(Object.entries(TOOLS).filter(([, v]) => v[1]).map(([k, v]) => [v[1], k]));
+/* v4 agents (role-driven gear) → explicit look that renders identically */
+function lookFromLegacy(a = {}) {
+  const r = a.role && ROLE_GEAR[String(a.role)] ? String(a.role) : null;
+  return { hat: (r && _ROLE_HAT[r]) || 'none', tool: (r && _ROLE_TOOL[r]) || 'none', decal: r || 'none',
+    body: BUILD_DEF[a.build] ? a.build : 'hero', antenna: HAIR.includes(a.hair) ? a.hair : 'none',
+    face: ACCESSORIES.includes(a.accessory) ? a.accessory : 'none', hue: a.hue || 'sun' };
+}
+/* a fresh random costume (looks only — never the name). Hats/tools are rarely empty. */
+function randomLook(prev) {
+  const pick = (list, avoid) => { const l = list.length > 1 ? list.filter(v => v !== avoid) : list; return l[Math.floor(Math.random() * l.length)]; };
+  const geared = l => l.filter(v => v !== 'none');
+  const p = prev || {};
+  const hat = Math.random() < 0.12 ? 'none' : pick(geared(Object.keys(HATS)), p.hat);
+  return { hat, tool: Math.random() < 0.1 ? 'none' : pick(geared(Object.keys(TOOLS)), p.tool), decal: hatDecal(hat),
+    body: pick(BUILDS, p.body), antenna: pick(HAIR, p.antenna), face: Math.random() < 0.35 ? 'none' : pick(ACCESSORIES, p.face), hue: pick(HUES, p.hue) };
+}
+/* where each slot sits on the bot, as px from the top of a hero of height px
+   (the editor stands its arrows at these heights; spaced ≥ gap apart) */
+function lookAnchors(look, px, gap = 38) {
+  const g = BUILD_DEF[(look && look.body)] || BUILD_DEF.hero; const k = g.head.r / 30; const s = px / 160;
+  const ant = HAIR.includes(look && look.antenna) ? look.antenna : 'none';
+  const ys = [
+    ['antenna', g.head.cy + (ANT_TOP[ant] + 4) * k], ['hat', g.head.cy - 24 * k], ['face', g.head.cy + 3 * k],
+    ['body', g.torso.y + g.torso.h * 0.42], ['tool', g.sh + 24], ['hue', Math.max(g.torso.y + g.torso.h + 12, 140)],
+  ].map(([id, y]) => [id, y * s]);
+  for (let i = 1; i < ys.length; i++) ys[i][1] = Math.max(ys[i][1], ys[i - 1][1] + gap);
+  const over = ys[ys.length - 1][1] - (px - 6);
+  if (over > 0) for (let i = ys.length - 1; i >= 0; i--) { const lim = i === ys.length - 1 ? px - 6 : ys[i + 1][1] - gap; ys[i][1] = Math.min(ys[i][1], lim); }
+  return Object.fromEntries(ys.map(([id, y]) => [id, Math.round(y)]));
+}
 
 /* ---------- "hair" = antenna style (head-local, drawn behind the shell) ---------- */
 const ANT_TOP = { none: -48, tuft: -50, spikes: -47, swoop: -46, bob: -40, bun: -42, curl: -52 };
@@ -347,10 +456,10 @@ function _acc(name, x) {
 }
 
 /* ---------- pose props ---------- */
-function _implement(role, hold) {
+function _implement(tool, hold) {
   if (hold === 'pen') return `<g transform="rotate(28)"><rect ${O} x="-2.8" y="-16" width="5.6" height="24" rx="2.6" fill="${PALETTE.coral}"/><path ${O2} fill="${MAT.paper}" d="M-2.8 8 L2.8 8 L0 15Z"/><path fill="${PALETTE.coral}" d="M-1 12 L1 12 L0 15Z"/></g>`;
-  if (role === 'Writer') return `<g transform="rotate(26)"><path ${O} fill="${MAT.paper}" d="M0 8 C-9 0 -10 -16 1 -27 C7 -17 8 -2 0 8Z"/><path d="M0 8 V-24" stroke="${MAT.steel}" stroke-width="1.2"/><path fill="${HERO_INK}" d="M-1.2 8 L1.2 8 L0 15Z"/></g>`;
-  const body = role === 'Frontend' ? PALETTE.teal : PALETTE.sun;
+  if (tool === 'quill') return `<g transform="rotate(26)"><path ${O} fill="${MAT.paper}" d="M0 8 C-9 0 -10 -16 1 -27 C7 -17 8 -2 0 8Z"/><path d="M0 8 V-24" stroke="${MAT.steel}" stroke-width="1.2"/><path fill="${HERO_INK}" d="M-1.2 8 L1.2 8 L0 15Z"/></g>`;
+  const body = tool === 'stylus' ? PALETTE.teal : PALETTE.sun;
   return `<g transform="rotate(28)"><rect ${O} x="-3" y="-17" width="6" height="25" fill="${body}"/><path ${O2} fill="${MAT.wood}" d="M-3 8 L3 8 L0 15Z"/><path fill="${HERO_INK}" d="M-1 12 L1 12 L0 15Z"/><rect ${O2} x="-3" y="-21" width="6" height="4" rx="1.5" fill="${PALETTE.rose}"/></g>`;
 }
 function _handProp(kind, x) {
@@ -369,8 +478,8 @@ function _handProp(kind, x) {
       <path class="o2" fill="none" d="M-17 -14 L0 -2 L17 -14"/><rect class="h-trim" x="-11" y="1" width="16" height="4.5" rx="1" fill="${MAT.paper}"/></g>`;
     case 'paper': return `<g transform="translate(6 -6) rotate(-6)"><path ${O2} fill="${MAT.paper}" d="M-11 -28 H6 L11 -23 V2 H-11Z"/><path class="o2" fill="${shade(MAT.paper, -20)}" d="M6 -28 V-23 H11Z"/>
       <path class="h-fine" d="M-7 -20 H6 M-7 -14 H7 M-7 -8 H4" stroke="${MAT.steel}" stroke-width="1.3" stroke-linecap="round"/></g>`;
-    case 'pen': return _implement(x.role, 'pen');
-    case 'implement': return _implement(x.role, null);
+    case 'pen': return _implement(x.toolId, 'pen');
+    case 'implement': return _implement(x.toolId, null);
     default: return '';
   }
 }
@@ -396,26 +505,39 @@ function _px(size) { return typeof size === 'number' ? size : (HERO_SIZES[size] 
 function _sizeName(px) { return px < 64 ? 'xs' : px < 128 ? 'sm' : px < 260 ? 'md' : 'xl'; }
 function _faceCls(f) { return f === 'front' ? 'face-front' : f === 'side' ? 'face-side' : 'face-3q'; }
 function _norm(agent = {}, opts = {}) {
-  const role = opts.ghost ? null : (opts.role || agent.role || null);
+  /* look: explicit agent.look wins; else derived from v4 fields; opts.role re-dresses (legacy) */
+  const base = agent.look ? Object.assign(lookFromLegacy(agent), agent.look) : lookFromLegacy(agent);
+  if (opts.role && ROLE_GEAR[opts.role] && !opts.ghost) Object.assign(base, { hat: _ROLE_HAT[opts.role] || 'none', tool: _ROLE_TOOL[opts.role] || 'none', decal: opts.role });
+  const L = Object.assign({}, base);
+  if (!HATS[L.hat]) L.hat = 'none'; if (!TOOLS[L.tool]) L.tool = 'none';
+  if (L.decal == null) L.decal = hatDecal(L.hat);
+  if (!ROLE_GEAR[L.decal]) L.decal = 'none';
+  if (opts.ghost) Object.assign(L, { hat: 'none', tool: 'none', decal: 'none' });
+  const roleLabel = opts.ghost ? '' : (opts.role || (typeof roleName === 'function' ? roleName(agent.role) : agent.role) || '');
   return {
-    name: agent.name || 'New agent', id: agent.id || '',
-    hueKey: agent.hue || 'sun', build: BUILD_DEF[agent.build] ? agent.build : 'hero',
-    hair: HAIR.includes(agent.hair) ? agent.hair : 'none',
-    accessory: ACCESSORIES.includes(agent.accessory) ? agent.accessory : 'none',
-    role: ROLE_GEAR[role] ? role : null, roleLabel: role || '',
+    name: agent.name || 'New agent', id: agent.id || '', look: L,
+    hueKey: L.hue || 'sun', build: BUILD_DEF[L.body] ? L.body : 'hero',
+    hair: HAIR.includes(L.antenna) ? L.antenna : 'none',
+    accessory: ACCESSORIES.includes(L.face) ? L.face : 'none',
+    hatKit: HATS[L.hat][1] || null, toolKit: TOOLS[L.tool][1] || null, decalKit: L.decal !== 'none' ? L.decal : null,
+    roleLabel: String(roleLabel),
   };
 }
 function _ctx(n) {
-  const c = hueHex(n.hueKey); const g = BUILD_DEF[n.build]; const gear = n.role ? ROLE_GEAR[n.role] : null;
-  const accent = gear ? hueHex(gear.accent) : c;
+  const c = hueHex(n.hueKey); const g = BUILD_DEF[n.build];
   const sx = g.torso.w / 40, sy = g.torso.h / 42;
   const X = v => v * sx + g.torso.x, Y = v => v * sy + g.torso.y;
-  return {
-    c, dark: shade(c, -30), light: shade(c, 40), hueKey: n.hueKey, role: n.role, build: n.build,
-    accent, cloth: shade(accent, -70), MAT, g, gear, sx, sy, X, Y,
+  const x = {
+    c, dark: shade(c, -30), light: shade(c, 40), hueKey: n.hueKey, build: n.build, toolId: n.look.tool,
+    MAT, g, sx, sy, X, Y,
     T: d => _tp(d, sx, sy, g.torso.x, g.torso.y),
     TC: (cx, cy, r, attrs) => `<circle cx="${_r(X(cx))}" cy="${_r(Y(cy))}" r="${_r(r * (sx + sy) / 2)}" ${attrs}/>`,
   };
+  /* each costume part reads its own kit's accent */
+  const part = kit => { const gear = kit ? ROLE_GEAR[kit] : null; const accent = gear ? hueHex(gear.accent) : c; return Object.assign({}, x, { gear, accent, cloth: shade(accent, -70) }); };
+  x.hx = part(n.hatKit); x.tx = part(n.toolKit); x.dx = part(n.decalKit);
+  x.accent = x.dx.accent; x.cloth = x.dx.cloth; x.gear = x.dx.gear;
+  return x;
 }
 function _holdFor(pose, opts) {
   if (opts.holding && opts.holding !== 'none') return opts.holding;
@@ -426,7 +548,7 @@ function _seatedFor(pose, opts) { return opts.seated != null ? !!opts.seated : !
 
 function _anchorY(x, n, seated) {
   const { head } = x.g; const k = head.r / 30;
-  const gearTop = x.gear ? x.gear.top - 2 : 0;
+  const hg = x.hx.gear; const gearTop = hg && hg.headgear ? hg.top - 2 : 0;
   const top = head.cy + Math.min(-30, ANT_TOP[n.hair] || -48, gearTop) * k;
   return top - 2 + (seated ? 18 : 0);
 }
@@ -478,9 +600,9 @@ function _legs(x) {
 }
 function _torso(x, uid, band) {
   const g = x.g; const d = x.T(CHASSIS[x.build]);
-  const gear = x.gear; const s = _r(Math.min(1, Math.min(g.torso.w, g.torso.h) / 32));
+  const gear = x.dx.gear; const s = _r(Math.min(1, Math.min(g.torso.w, g.torso.h) / 32));
   const chest = { x: _r(g.torso.x + g.torso.w * 0.62), y: _r(g.torso.y + g.torso.h * 0.4) };
-  const badge = gear ? `<g class="h-badge" transform="translate(${chest.x} ${chest.y}) scale(${s})"><g class="h-badge-in"><circle ${O2} r="7" fill="${x.accent}"/>${gear.badge(x)}</g></g>` : '';
+  const badge = gear && gear.badge ? `<g class="h-badge" transform="translate(${chest.x} ${chest.y}) scale(${s})"><g class="h-badge-in"><circle ${O2} r="7" fill="${x.dx.accent}"/>${gear.badge(x.dx)}</g></g>` : '';
   const star = 'M0 -5 L1.5 -1.6 L5 -1.6 L2.2 0.7 L3.2 4.2 L0 2.2 L-3.2 4.2 L-2.2 0.7 L-5 -1.6 L-1.5 -1.6Z';
   const bandSVG = band ? `<path class="o2" fill="${band}" d="${x.T('M-2 31 H42 V38 H-2Z')}"/>` : '';
   const bandStar = band ? `<g class="h-capstar" transform="translate(${_r(x.X(10))} ${_r(x.Y(34.5))}) scale(${_r(1.15 * s)})"><circle r="6.4" fill="${band}" stroke="${HERO_INK}" stroke-width="1.8"/><path d="${star}" fill="${PALETTE.sun}" stroke="${HERO_INK}" stroke-width="1.1"/></g>` : '';
@@ -489,7 +611,7 @@ function _torso(x, uid, band) {
     <g clip-path="url(#hc${uid})">
       <ellipse class="h-fine" cx="${_r(g.torso.x + g.torso.w * 0.3)}" cy="${_r(g.torso.y + g.torso.h * 0.3)}" rx="${_r(g.torso.w * 0.2)}" ry="${_r(g.torso.h * 0.22)}" fill="#fff" opacity=".22"/>
       <path d="${x.T('M-2 34 H42 V44 H-2Z')}" fill="${x.dark}" opacity=".35"/>
-      <g class="h-outfit">${gear ? gear.outfit(x) : ''}</g>${bandSVG}
+      <g class="h-outfit">${gear && gear.outfit ? gear.outfit(x.dx) : ''}</g>${bandSVG}
     </g>
     <path class="o h-torso-line" d="${d}" fill="none"/>${badge}${bandStar}</g>`;
 }
@@ -525,7 +647,7 @@ function _head(x, n) {
     <g class="h-mouth" data-m="tongue"><circle cx="3.6" cy="18" r="2.8" fill="${PALETTE.coral}"/><path class="m-l" d="M-5 15.5 Q0 17 5 15.5"/></g>
     <path class="h-mouth m-l" data-m="flat" d="M-4.5 16 L4.5 16"/>
     <path class="h-mouth m-l" data-m="wavy" d="M-7 16 Q-3.5 13 0 16 Q3.5 19 7 16"/></g>`;
-  const gearSVG = x.gear ? x.gear.headgear(x) : '';
+  const hg = x.hx.gear; const gearSVG = hg && hg.headgear ? hg.headgear(x.hx) : '';
   return `<g class="h-head" transform="translate(${head.cx} ${_r(head.cy + x.g.bottom * k)})"><g class="h-tilt"><g transform="translate(0 ${_r(-x.g.bottom * k)}) scale(${k})">
     <g class="h-hair-back">${_antenna(n.hair, x)}</g>
     <path class="o h-shell" d="${SHELL[x.g.shape]}" fill="${x.c}"/>
@@ -556,7 +678,7 @@ function _classes(n, o) {
   if (o.captain) cls.push('is-captain');
   if (seated) cls.push('seated');
   if (o.ghost) cls.push('ghost');
-  if (pd.tool && n.role) cls.push('tool-on');
+  if (pd.tool && n.toolKit) cls.push('tool-on');
   if (o.moving) cls.push('moving');
   return { cls: cls.join(' '), px, pose, pd, seated };
 }
@@ -580,7 +702,7 @@ function heroSVG(agent, opts = {}) {
   const showBand = (o.captain || o.armband) && st.px >= 100 ? (o.armband ? hueHex(o.armband) : PALETTE.sun) : null;
   const hand = hold ? _handProp(hold, x) : '';
   const desk = o.props === false ? '' : _deskProp(st.pd.desk, x.g);
-  const tool = x.gear ? x.gear.tool(x) : '';
+  const tg = x.tx.gear; const tool = tg && tg.tool ? tg.tool(x.tx) : '';
   const look = o.facing === 'front' ? { x: 0, y: 0 } : (o.look === 'viewer' ? { x: 0, y: 0 } : o.look);
   const lookCss = look ? `--lx:${look.x};--ly:${look.y};` : '';
   const ay = _anchorY(x, n, st.seated);
@@ -589,7 +711,7 @@ function heroSVG(agent, opts = {}) {
   const aria = o.label ? ` role="img" aria-label="${escapeAttr(_label(n, pose))}"` : ' aria-hidden="true"';
   const sr = o.label && (st.pd.fx === 'bang' || pose === 'sleeping') ? `<span class="sr-only">${pose === 'sleeping' ? 'sleeping' : 'needs your input'}</span>` : '';
   const shadowRing = `<ellipse class="h-cring" cx="60" cy="152" rx="27" ry="6" fill="none" stroke="${PALETTE.sun}" stroke-width="2"/>`;
-  return `<div class="${st.cls}"${aria} data-hero="${uid}" data-name="${escapeAttr(n.name)}" data-id="${escapeAttr(n.id)}" data-hue="${n.hueKey}" data-build="${n.build}" data-hair="${n.hair}" data-acc="${n.accessory}" data-role="${escapeAttr(n.roleLabel)}" data-mouth="${st.pd.mouth}" data-eyes="${st.pd.eyes || 'open'}" data-hold="${hold || ''}"${o.armband ? ` data-band="${escapeAttr(o.armband)}"` : ''} style="--hpx:${st.px}px;width:${_r(st.px * 0.75)}px;height:${st.px}px;--ol:${_r(ol)}px;--hue:${x.c};--head-y:${_r(ay / 160 * 100)}%;--dl:${delay}s;${lookCss}">
+  return `<div class="${st.cls}"${aria} data-hero="${uid}" data-name="${escapeAttr(n.name)}" data-id="${escapeAttr(n.id)}" data-hue="${n.hueKey}" data-build="${n.build}" data-hair="${n.hair}" data-acc="${n.accessory}" data-look="${escapeAttr(JSON.stringify(n.look))}" data-role="${escapeAttr(n.roleLabel)}" data-mouth="${st.pd.mouth}" data-eyes="${st.pd.eyes || 'open'}" data-hold="${hold || ''}"${o.armband ? ` data-band="${escapeAttr(o.armband)}"` : ''} style="--hpx:${st.px}px;width:${_r(st.px * 0.75)}px;height:${st.px}px;--ol:${_r(ol)}px;--hue:${x.c};--head-y:${_r(ay / 160 * 100)}%;--dl:${delay}s;${lookCss}">
   <svg viewBox="0 0 120 160" aria-hidden="true" focusable="false">
     <ellipse class="h-shadow" cx="60" cy="152" rx="${g.base === 'wheel' ? 22 : 18}" ry="4.5"/>${shadowRing}
     <g class="h-flip"><g class="h-rig"><g class="h-body" style="transform-origin:60px ${pivot}px">
@@ -617,7 +739,7 @@ function _state(el) {
   if (!el._hero) {
     const d = el.dataset;
     el._hero = {
-      agent: { name: d.name, id: d.id, hue: d.hue, build: d.build, hair: d.hair, accessory: d.acc, role: d.role },
+      agent: { name: d.name, id: d.id, hue: d.hue, build: d.build, hair: d.hair, accessory: d.acc, role: d.role, look: (() => { try { return JSON.parse(d.look || 'null'); } catch (_) { return null; } })() || undefined },
       opts: { size: parseFloat(el.style.getPropertyValue('--hpx')) || 96, pose: POSES.find(p => el.classList.contains('pose-' + p)) || 'idle',
         facing: el.classList.contains('face-front') ? 'front' : el.classList.contains('face-side') ? 'side' : 'three-quarter',
         dir: el.classList.contains('dir-l') ? 'left' : 'right', captain: el.classList.contains('is-captain'), ghost: el.classList.contains('ghost'),
@@ -639,7 +761,7 @@ function setPose(el, pose, o = {}) {
   POSES.forEach(p => el.classList.remove('pose-' + p));
   el.classList.add('pose-' + opts.pose);
   el.classList.toggle('seated', seated);
-  el.classList.toggle('tool-on', !!(pd.tool && n.role));
+  el.classList.toggle('tool-on', !!(pd.tool && n.toolKit));
   el.classList.toggle('moving', !!opts.moving);
   el.dataset.mouth = pd.mouth; el.dataset.eyes = pd.eyes || 'open';
   const hold = _holdFor(opts.pose, opts); el.dataset.hold = hold || '';
