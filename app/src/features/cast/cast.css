@@ -463,3 +463,6 @@
 .rl-row .switch{transform:scale(.85)}
 /* loading / error states inside the cast stage */
 .cast-state{flex:1;display:grid;place-items:center;min-height:300px}
+/* the squad's giant emblem stays faint: the prototype's shared zFade (→ opacity 1, fill both) overrode .sq-mark's .08 */
+.zoom .sq-mark{animation-name:sqMarkIn}
+@keyframes sqMarkIn{from{opacity:0}to{opacity:.08}}
