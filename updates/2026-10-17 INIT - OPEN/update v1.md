@@ -135,7 +135,12 @@ direction. Playful visuals, consistent component system, accessibility pass.
   Agent Creator mints missing agents); office without top bar (door = leave, safe = Access,
   GitHub in health report, pager bottom-left), per-project offices from config.
   Verbatim: `concepts/disney-v3/user-feedback-v5.md`. Tests: cast 68 ok, office self-test all pass.
-- ⏭️ **Next (gate):** user reviews v5 live → refinements → Phase 2 stack/architecture spike.
+- ✅ **v6 (2026-11-13):** project setup is a standalone space (`#new/<draft>`, drafts resume from
+  "In setup" cards); chat with the orchestrator at the team step reshapes the plan live; plans are
+  whole teams first (specialists only rarely), captains come from each team's design (new teams
+  designed by the Agent Creator); global pager lists offices that need you; fix: office no longer
+  breaks after deleting an agent. Verbatim: `concepts/disney-v3/user-feedback-v6.md`.
+- ⏭️ **Next (gate):** user reviews v6 live → refinements → Phase 2 stack/architecture spike.
 
 ## Decisions
 

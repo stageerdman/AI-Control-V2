@@ -66,7 +66,7 @@ nav.stages a:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 
 main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);position:relative}
 .scene{position:absolute;inset:0 var(--stage-pad) var(--stage-pad);display:none;
-  animation:sceneIn .5s var(--ease-out);overflow:auto}
+  animation:sceneIn .5s var(--ease-out);overflow:auto;padding-bottom:120px}  /* room for the global pager (bottom-left) */
 .scene.active{display:block}
 .scene:focus{outline:none}
 @keyframes sceneIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
@@ -539,16 +539,65 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
    studio-new.css — New project / Adopt flow (studio-new.js).
    One sheet: dark stage (the crew acts here) over a cream body.
    ============================================================ */
-.sheet.np-sheet{max-width:min(94vw,720px);padding:0;overflow:hidden auto;display:flex;flex-direction:column}
-.np-head{display:flex;align-items:center;gap:12px;padding:16px 18px 0;background:#241a44;color:var(--cream)}
-.np-dots{display:flex;gap:6px;list-style:none;margin:0;padding:0}
-.np-dots li{width:22px;height:6px;border-radius:999px;background:rgba(255,246,233,.18);transition:background .3s}
-.np-dots li.done{background:var(--teal)}
-.np-dots li.now{background:var(--sun)}
-.np-steplbl{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,246,233,.6)}
-.np-x{margin-left:auto;appearance:none;border:0;background:rgba(255,255,255,.08);color:var(--cream);width:34px;height:34px;border-radius:50%;cursor:pointer;font:inherit;font-weight:800}
-.np-x:hover{background:rgba(255,255,255,.16)}
-.np-x:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+/* the page: roomy, centred; the team step adds the chat column */
+.np-page{max-width:980px;margin:0 auto;padding-bottom:28px;color:var(--cream)}
+.np-page.with-chat{max-width:1320px}
+.np-pagehead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:4px 0 16px}
+.np-pagehead h1{margin:2px 0 0;font-size:clamp(22px,2.6vw,30px);letter-spacing:-.02em}
+.np-steps{display:flex;gap:4px;list-style:none;margin:0;padding:6px;border-radius:999px;background:rgba(255,255,255,.07)}
+.np-steps li{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:800;color:rgba(255,246,233,.5)}
+.np-steps li i{width:8px;height:8px;border-radius:50%;background:rgba(255,246,233,.25)}
+.np-steps li.done{color:rgba(255,246,233,.8)}
+.np-steps li.done i{background:var(--teal)}
+.np-steps li.now{background:var(--cream);color:var(--ink)}
+.np-steps li.now i{background:var(--sun-deep)}
+.np-grid{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+.with-chat .np-grid{grid-template-columns:minmax(0,1fr) 380px}
+.np-card{border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow);background:linear-gradient(180deg,#ffffff,#fff9f0);color:var(--ink)}
+.np-pagefoot{display:flex;align-items:center;gap:12px;margin-top:12px;color:rgba(255,246,233,.6)}
+.np-pagefoot .hint{color:rgba(255,246,233,.55)}
+.np-del{margin-left:auto;appearance:none;border:0;background:none;font:inherit;font-size:12.5px;font-weight:800;color:rgba(255,246,233,.6);cursor:pointer;padding:6px 8px;border-radius:8px}
+.np-del:hover{color:var(--coral)}
+.np-del:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.np-opt{text-transform:none;letter-spacing:0;font-weight:700;color:rgba(91,82,128,.7);margin-left:6px}
+.np-namefields{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.np-namefields[hidden]{display:none}
+.np-tile-empty{background:transparent!important;border:2px dashed rgba(255,246,233,.35);box-shadow:none}
+.np-dcard .np-tile-empty{border-color:rgba(36,26,68,.25)}
+
+/* chat column — reuses the office chat look (op-head / op-log / op-composer from office.css) */
+.np-chat{display:flex;flex-direction:column;height:min(640px,calc(100vh - 230px));min-height:420px;border-radius:var(--r-lg);overflow:hidden;
+  background:linear-gradient(180deg,#fffaf2,#fff3e2);box-shadow:var(--shadow);color:var(--ink)}
+
+/* the plan on stage: orchestrator, then squads under their emblems */
+.np-planstage{justify-content:flex-start;align-items:flex-end;gap:22px;min-height:250px;padding-top:24px}
+.np-groups{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 18px;flex:1;min-width:0}
+.np-group{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 10px 2px;border-radius:16px;background:rgba(255,255,255,.05)}
+.np-group.np-spec{background:none;border:1px dashed rgba(255,246,233,.22)}
+.np-ghead{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:var(--cream)}
+.np-ghead i{font-style:normal;color:#1b1135;background:var(--mint);border-radius:999px;padding:1px 6px;font-size:10px}
+.np-emb{display:inline-grid;place-items:center;width:26px;height:26px}
+.np-gmem{display:flex;align-items:flex-end;gap:2px;padding-top:16px}
+.np-newteam{box-shadow:0 0 0 2px rgba(139,232,139,.5)}
+
+/* "In setup" cards on Projects */
+.draft-shelf .shelf-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.np-dcard{position:relative;display:flex;align-items:stretch;border-radius:var(--r-md);background:rgba(255,255,255,.9);box-shadow:var(--shadow-sm);border:2px dashed rgba(255,155,61,.45)}
+.np-dresume{flex:1;min-width:0;appearance:none;border:0;background:none;font:inherit;color:var(--ink);text-align:left;cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-md)}
+.np-dresume:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.np-dcard:hover{transform:translateY(-2px);transition:transform .15s}
+.np-dtext{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.np-dtext b{font-size:15px}
+.np-dtext span{font-size:12px;font-weight:700;color:var(--ink-soft)}
+.np-ddots{display:flex;gap:3px;flex:none}
+.np-ddots i{width:12px;height:4px;border-radius:2px;background:rgba(36,26,68,.14)}
+.np-ddots i.done{background:var(--teal)}
+.np-ddots i.now{background:var(--sun-deep)}
+.np-ddel{appearance:none;border:0;background:none;color:var(--ink-soft);font:inherit;font-weight:800;width:40px;cursor:pointer;border-radius:0 var(--r-md) var(--r-md) 0}
+.np-ddel:hover{color:#c03540;background:rgba(255,111,115,.1)}
+.np-ddel:focus-visible{outline:3px solid var(--grape);outline-offset:-3px}
+.toast-undo{appearance:none;border:0;background:var(--sun);color:#4a2600;font:inherit;font-weight:900;font-size:13px;padding:5px 12px;border-radius:999px;cursor:pointer;margin-left:6px}
+.toast-undo:focus-visible{outline:3px solid var(--cream);outline-offset:2px}
 
 /* the stage */
 .np-stage{position:relative;display:flex;align-items:flex-end;justify-content:center;gap:28px;min-height:220px;padding:18px 24px 22px;
@@ -603,8 +652,6 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 .np-folder:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
 .np-fpath{font-family:var(--mono);font-size:13px;font-weight:700}
 .np-fmeta{margin-left:auto;font-size:12px;font-weight:700;color:var(--ink-soft)}
-.np-namefield{margin-top:16px}
-.np-namefield[hidden]{display:none}
 
 /* step 3: setup checklist */
 .np-prog{margin:16px 0 12px}
@@ -621,19 +668,17 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 @keyframes np-spin{to{transform:rotate(360deg)}}
 
 /* step 4: proposal */
-.np-teamstage{justify-content:flex-start;gap:18px;padding-top:86px}
-.np-bubble{position:absolute;left:24px;right:24px;top:16px;background:var(--cream);color:var(--ink);font-size:14px;font-weight:700;line-height:1.35;
-  padding:10px 14px;border-radius:16px;box-shadow:var(--shadow-sm);z-index:2}
-.np-bubble::after{content:"";position:absolute;left:52px;bottom:-8px;border:9px solid transparent;border-top-color:var(--cream);border-bottom:0}
-.np-squad{display:flex;align-items:flex-end;gap:6px;margin:0 auto;flex-wrap:nowrap}
-.np-new .hero{animation:np-pop .5s var(--spring)}
 .np-creator{animation:np-in .6s var(--ease-out)}
 @keyframes np-in{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
 
+@media (max-width:1100px){
+  .with-chat .np-grid{grid-template-columns:1fr}
+  .np-chat{height:460px}
+}
 @media (max-width:640px){
+  .np-steps li span{display:none}
   .np-choices{grid-template-columns:1fr}
   .np-stage{gap:10px}
-  .np-squad{gap:0}
   .np-checks li b{min-width:120px}
   .np-fmeta{display:none}
 }
@@ -1397,16 +1442,15 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 @media (prefers-reduced-motion:reduce){
   .o-cam{transition:opacity .2s}
   .o-cam.opening,.o-bang b,.o-bubble,.o-bubble i,.o-actor[class*=" r-"] .hero,.ot-art *,.o-desk *,.typing i,.o-pager,.o-actor.assembling .hero,.o-actor.assembled .hero{animation:none!important}
-  .o-podglow{transition:none}
   .o-body{transition:none}
   .ob-card,.o-list,.o-panel,.o-scrim{transition:none}
 }
 
 
-/* ---------------- v5: the pager (bottom-left) ---------------- */
-.o-pagerwrap{position:absolute;left:14px;bottom:14px;z-index:6}
-.o-stagewrap.zooming .o-pagerwrap{display:none}
-@media (max-width:899px){.o-pagerwrap{bottom:84px}}
+/* ---------------- the pager (global, bottom-left; office-pager.js) ---------------- */
+.o-pagerwrap{position:fixed;left:14px;bottom:14px;z-index:60}
+.o-pagerwrap[hidden]{display:none}
+@media (max-width:899px){.o-pagerwrap.in-office{bottom:84px}}
 .o-pager{position:relative;width:248px;display:flex;align-items:stretch;gap:8px;padding:10px 10px 10px 12px;border-radius:20px;
   background:linear-gradient(180deg,#3a2f5c,#241a44);box-shadow:0 0 0 2px var(--ink),inset 0 2px 0 rgba(255,255,255,.12),0 10px 24px rgba(10,4,30,.45)}
 .o-pager::before{content:"";position:absolute;left:18px;top:-9px;width:18px;height:11px;border-radius:5px 5px 0 0;background:#3a2f5c;box-shadow:0 0 0 2px var(--ink)}
@@ -1430,14 +1474,6 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 .o-pager.wiggle{animation:o-wiggle .5s ease-in-out}
 @keyframes o-wiggle{20%{transform:rotate(-3deg)}45%{transform:rotate(2.5deg)}70%{transform:rotate(-1.5deg)}}
 
-/* pager focus: a soft glow on the pod, a way back */
-.o-podglow{position:absolute;z-index:1;border-radius:40px;pointer-events:none;opacity:0;transition:opacity .35s;
-  background:radial-gradient(closest-side,rgba(255,226,140,.38),rgba(255,226,140,0));box-shadow:0 0 0 calc(4*var(--ui)) rgba(255,194,75,.85)}
-.o-podglow.on{opacity:1}
-.o-unfocus{position:absolute;left:14px;top:14px;z-index:6}
-.o-unfocus[hidden]{display:none}
-.o-stagewrap.zooming .o-unfocus{display:none}
-
 /* the safe's dial turns once when you open Access */
 .ot-art #safeDial{transform-box:fill-box;transform-origin:center}
 .ot-art #safeDial.spin{animation:o-dial .6s var(--ease-out)}
@@ -1459,6 +1495,7 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 .ob-pi{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:rgba(36,26,68,.07);font-weight:900;flex:none}
 .ob-pv{flex:1;min-width:0;font-weight:600;color:var(--ink-soft)}
 .ob-pv code{font-family:var(--mono);font-size:12.5px;background:rgba(155,108,255,.1);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.o-pg-name .logo-tile{width:18px;height:18px;border-radius:6px;flex:none}
 
 /* ==== css/gallery.css ==== */
 /* gallery.css — #gallery dev route only */
@@ -1506,6 +1543,7 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
     <section class="scene" id="scene-cast" tabindex="-1" aria-label="Cast"></section>
     <section class="scene" id="scene-access" tabindex="-1" aria-label="Access"></section>
     <section class="scene" id="scene-blueprint" tabindex="-1" aria-label="Blueprint"></section>
+    <section class="scene" id="scene-new" tabindex="-1" aria-label="Project setup"></section>
   </main>
 </div>
 
@@ -3131,7 +3169,8 @@ function officeLayout(cfg) {
            wsTok(n), wsDemoSize(),
            wsAg(id)        the roster entry behind an office actor ('pixel' = the
                            project's orchestrator, PROJECTS[i].orchestrator → a-pixel)
-           wsPager()       who needs you, grouped per team/solo agent, minus visits
+           wsPagerOffices() the pager: offices that need you, minus visited asks (PAGER.seen)
+           wsPagerVisited(projectId) you went there and left — its asks are seen
            wsUse(projectId) swap WS to that project's office (Aurora demo, or a fresh
                            office built from PROJECTS[i].office); state kept per project
    Separation: config = who sits where (layout derives the floor plan) ·
@@ -3307,8 +3346,6 @@ const WS = {
   github: _wsGithub(),
   /* apps run on this computer — never an online test URL */
   run: { where: '~/dev/aurora', cmd: 'npm run app', built: '1h ago' },
-  /* pager: ask ids you already went to look at (and left alone) */
-  pager: { seen: {} },
   /* the health board: grade + what's good + what to fix, in plain words */
   checkup: { when: '2h ago', items: [
     { key: 'modularity', name: 'Modularity', grade: 'B', good: 'Screens, data and styles live in their own modules. Most files do one job.', fix: 'checkout.ts and search.ts each do two jobs — split them so each can be fixed on its own.' },
@@ -3375,18 +3412,30 @@ const WS = {
 };
 
 const wsAgent = id => (id === 'pixel' || id === 'director') ? WS.director : WS.agents.find(a => a.id === id);
-/* the pager's entries: one per team (or solo agent) with an ask you haven't been to see.
-   Visiting and leaving without answering marks those asks seen; a NEW ask brings it back. */
-function wsPager() {
-  const by = {};
-  WS.pending.forEach(ask => {
-    if (WS.pager.seen[ask.id]) return;
-    const a = wsAgent(ask.agentId); if (!a || !a.onProject) return;
-    const key = a.teamId ? 'team:' + a.teamId : 'agent:' + a.id;
-    (by[key] = by[key] || { key, teamId: a.teamId || null, agentId: a.id, asks: [] }).asks.push(ask);
-  });
-  return Object.values(by);
+/* ---------- the pager: one page per OFFICE that needs you (v6) ----------
+   Sources: every office's pending asks (the one in WS + the ones kept in
+   _WS_STORE), and projects with no office state yet but status 'needs'
+   (their note is the ask). An ask you already went to see — you opened that
+   office and left without answering — is in PAGER.seen and stays quiet; a
+   NEW ask brings the office back. Entry: { projectId, asks:[{id, agentId?, short}] } */
+const PAGER = { seen: {} };
+const _pgKey = (pid, askId) => pid + ':' + askId;
+function wsPendingFor(pid) {
+  if (WS.project === pid) return WS.pending;
+  const st = _WS_STORE[pid]; if (st) return st.ws.pending || [];
+  const p = projById(pid);
+  return p && p.status === 'needs' ? [{ id: 'needs', short: p.note || 'Needs you' }] : [];
 }
+function wsPagerOffices() {
+  /* Aurora + offices built from a config own their asks; other projects page only via status 'needs' */
+  return PROJECTS.filter(p => p.id === 'aurora' || p.office || p.status === 'needs').map(p => {
+    const pid = p.id;
+    const asks = wsPendingFor(pid).filter(a => !PAGER.seen[_pgKey(pid, a.id)]);
+    return asks.length ? { projectId: pid, asks } : null;
+  }).filter(Boolean);
+}
+/* you opened that office and left: everything it was asking is seen */
+function wsPagerVisited(pid) { wsPendingFor(pid).forEach(a => { PAGER.seen[_pgKey(pid, a.id)] = true; }); }
 const wsOnProject = () => WS.agents.filter(a => a.onProject);
 const wsFeature = id => WS.features.find(f => f.id === id);
 /* teams in the office, in config order */
@@ -3490,7 +3539,6 @@ function _wsFresh(p) {
     grants: { gh: true, anthropic: true },
     github: Object.assign(g, { pushedAgo: 'just now', branch: 'main', fresh: false }),
     run: { where: p.folder || '~/dev/' + p.id, cmd: 'npm run app', built: 'not yet' },
-    pager: { seen: {} },
     checkup: { when: 'not yet', items: [] },
     office: { demo: { t: 0 } },
     director: { id: 'pixel', seat: 'director', at: 'director', home: 'director', onProject: true,
@@ -3574,9 +3622,10 @@ function renderProjects() {
     const q = projQuery.trim().toLowerCase();
     const m = p => !q || p.name.toLowerCase().includes(q) || (p.note || '').toLowerCase().includes(q);
     const a = active.filter(m), d = db.filter(m);
-    el.querySelector('#resCount').textContent = `${a.length} on set · ${d.length} in the back lot`;
+    const dr = (typeof npVisibleDrafts === 'function' ? npVisibleDrafts() : []).filter(x => !q || (x.name || 'untitled').toLowerCase().includes(q));
+    el.querySelector('#resCount').textContent = `${dr.length ? dr.length + ' in setup · ' : ''}${a.length} on set · ${d.length} in the back lot`;
     const sh = el.querySelector('#shelves');
-    if (a.length === 0 && d.length === 0) {
+    if (a.length === 0 && d.length === 0 && !dr.length) {
       sh.innerHTML = '';
       const es = document.createElement('div'); es.className = 'empty-state';
       es.appendChild(hero({ name: 'Scout', role: 'QA', hue: 'rose', build: 'sprout', hair: 'bob' }, { size: 120, pose: 'thinking' }));
@@ -3584,7 +3633,12 @@ function renderProjects() {
       const b = document.createElement('button'); b.className = 'btn btn-hero'; b.textContent = '＋ New project'; b.onclick = () => openNewProject();
       es.appendChild(b); sh.appendChild(es); return;
     }
-    sh.innerHTML = `
+    sh.innerHTML = `${dr.length ? `
+      <section class="shelf draft-shelf">
+        <div class="shelf-head"><h2>In setup</h2><span class="cnt">${dr.length} draft${dr.length > 1 ? 's' : ''}</span></div>
+        <div class="shelf-hr"></div>
+        <div class="shelf-grid" id="draftGrid"></div>
+      </section>` : ''}
       <section class="shelf active-shelf">
         <div class="shelf-head"><h2>On set today</h2><span class="cnt">${a.length} active</span></div>
         <div class="shelf-hr"></div>
@@ -3595,6 +3649,7 @@ function renderProjects() {
         <div class="shelf-hr"></div>
         <div class="shelf-grid" id="dbGrid"></div>
       </section>`;
+    const dg0 = sh.querySelector('#draftGrid'); if (dg0) dr.forEach(x => dg0.appendChild(npDraftCard(x)));
     const ag = sh.querySelector('#activeGrid');
     a.forEach(p => ag.appendChild(activeCard(p)));
     if (!a.length) ag.innerHTML = '<p class="hint" style="color:rgba(255,246,233,.6)">Nothing on set matches.</p>';
@@ -3819,20 +3874,19 @@ function renderTree(ul, nodes) {
 <script data-module="js/studio-new.js">
 "use strict";
 /* ============================================================
-   studio-new.js — New project / Adopt a folder (v5 C2).
-   Five calm steps, one primary action each, the studio crew as the cast:
-     0 Start      — New project · Adopt a folder
-     1 Name       — name (+ auto logo tile); adopt = pick a folder first
-     2 Orchestrator — character select from orchestrators()
-     3 Setup      — the Project Setter ticks off the scaffold (adopt: reads first,
-                    adds only what's missing)
-     4 Team       — the orchestrator proposes a squad; one proposal asks the
-                    Agent Creator for a new agent, who joins the Cast + team
-   Finish → PROJECTS gets the new project (with an `office` config, spec-office-config
-   shape) → go('office/<id>').
-   Public: openNewProject(mode?), npDemo()  (?demo=new-<0..5> / adopt-<0..5>)
-   Reads: AGENTS, TEAMS, FUNNY_NAMES, PROJECTS, agentById(), orchestrators()?,
-          hero(), emblem(), logoTile(), tileGlyph(), openSheet()/closeSheet().
+   studio-new.js — the project-setup space (v6 N1–N4).
+   A studio-level page at #new/<draftId> (the studio nav stays). Drafts live in
+   memory: leave mid-way and the draft keeps its step; Projects shows it as an
+   "In setup" card that resumes exactly there. Steps:
+     0 Start · 1 Name · 2 Orchestrator · 3 Setup (Project Setter) · 4 Team
+   Team step: the orchestrator proposes WHOLE TEAMS first (captains are each
+   team's own); single agents only as labelled specialists or for very small
+   projects. A side chat with the orchestrator edits the plan live (simple
+   intent matching). Only a brand-new team is designed by the Agent Creator —
+   name, emblem, captain — and it joins the Cast.
+   Public: NP_DRAFTS, renderNewProject(id), npLeave(), openNewProject(mode?),
+           npDraftCard(d), npDeleteDraft(id), npDemo()
+   Demo hooks: ?demo=new-<0..4> · adopt-<0..4> · new-chat · new-small · drafts
    ============================================================ */
 
 const NP_STEPS = ['Start', 'Name', 'Orchestrator', 'Setup', 'Team'];
@@ -3846,81 +3900,131 @@ const NP_FOLDERS = [
   { path: '~/Desktop/sketchbook', name: 'Sketchbook', meta: 'Python · no git yet · 31 files', has: [] },
   { path: '~/dev/aurora-storefront', name: 'Aurora Storefront', meta: 'Already in AI Studio', managed: true },
 ];
-
-/* system agents, defensively (the shared contract lands in data-cast.js) */
-const NP_FALLBACK = {
-  setter: { id: 'a-setter', name: 'Project Setter', role: 'DevOps', hue: 'sun', build: 'bruiser', hair: 'none', accessory: 'none' },
-  creator: { id: 'a-creator', name: 'Agent Creator', role: 'Design', hue: 'grape', build: 'lanky', hair: 'curl', accessory: 'glasses' },
+/* why each team gets picked, in the orchestrator's words */
+const NP_TEAM_WHY = {
+  'ship-it': 'the Ship-It Squad builds features end to end',
+  polish: 'the Polish Patrol keeps it tidy as it grows',
+  engine: 'the Engine Room owns releases and deploys',
+  expedition: 'the Expedition maps the unknown before anyone builds',
 };
-function npSetter() { return agentById('a-setter') || NP_FALLBACK.setter; }
-function npCreator() { return agentById('a-creator') || NP_FALLBACK.creator; }
-function npOrchs() {
-  const list = typeof orchestrators === 'function' ? orchestrators() : [];
-  return list.length ? list : [agentById('pixel')];
-}
-const npNick = a => (typeof shortName === 'function' ? shortName(a) : a.name);
+/* alternative team line-ups the orchestrator cycles through ("another team") */
+const NP_ALTS = {
+  new: [['ship-it', 'polish'], ['ship-it'], ['expedition', 'ship-it'], ['ship-it', 'engine']],
+  adopt: [['expedition', 'ship-it'], ['polish', 'engine'], ['polish']],
+};
+const NP_SMALL = /\b(small|tiny|little|solo|just me|weekend|quick|prototype|side project|hobby|mvp)\b/i;
+/* words people use for a role → the Cast role it maps to (else it's a new specialty) */
+const NP_ROLE_WORDS = [
+  [/\b(data|sql|analytics?|metrics?)\b/i, 'Data'], [/\b(design|ux|ui|visual)\b/i, 'Design'],
+  [/\b(qa|test(s|ing|er)?|quality assurance)\b/i, 'QA'], [/\b(research|investigat\w*)\b/i, 'Research'],
+  [/\b(devops|infra\w*|deploy\w*|ops)\b/i, 'DevOps'], [/\b(docs?|writer|writing|documentation)\b/i, 'Writer'],
+  [/\b(release\w*|changelog)\b/i, 'Release'], [/\b(front ?end|react|css)\b/i, 'Frontend'],
+  [/\b(back ?end|api|server)\b/i, 'Backend'], [/\b(lint|clean ?up|refactor\w*)\b/i, 'Quality'],
+];
+
+/* ---------------- system agents (contract: data-cast.js) ---------------- */
+const npSetter = () => agentById('a-setter');
+const npCreator = () => agentById('a-creator');
+const npOrchs = () => orchestrators();
+const npNick = a => (a ? (typeof shortName === 'function' ? shortName(a) : a.name) : '');
 const npSlug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'new-project';
-function npTile(name) {
-  let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  const [g1, g2] = NP_TILES[h % NP_TILES.length];
-  return { g1, g2, glyph: NP_GLYPHS[(h >>> 3) % NP_GLYPHS.length] };
+const npHash = s => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+function npTile(name) { const h = npHash(name); const [g1, g2] = NP_TILES[h % NP_TILES.length]; return { g1, g2, glyph: NP_GLYPHS[(h >>> 3) % NP_GLYPHS.length] }; }
+const npOrchOf = d => agentById(d.orch) || npOrchs()[0];
+const npTeamShort = t => t.name.replace(/^The /, '');
+
+/* ============================================================ drafts */
+const NP_DRAFTS = [];
+let NP = null;            /* the draft on screen */
+let _npSeq = 0;
+function npNewDraft(mode) {
+  const d = { id: 'd' + (++_npSeq), mode: mode || null, step: mode ? 1 : 0, name: '', about: '', folder: null,
+    orch: npOrchs()[0].id, setupI: -1, setupDone: false, timer: null, plan: null, chat: [], alt: 0, busy: false, created: Date.now() };
+  NP_DRAFTS.push(d); return d;
+}
+const npDraft = id => NP_DRAFTS.find(d => d.id === id);
+/* a draft only "exists" for Projects once you've chosen new/adopt */
+const npVisibleDrafts = () => NP_DRAFTS.filter(d => d.mode);
+function openNewProject(mode) { const d = npNewDraft(mode); go('new/' + d.id); }
+
+/* router hooks (app.js) */
+function renderNewProject(id) {
+  let d = npDraft(id);
+  if (!d) { d = npNewDraft(); history.replaceState(null, '', '#new/' + d.id); }
+  if (NP && NP !== d) npStop(NP);
+  NP = d; npRender();
+}
+function npLeave() {
+  if (!NP) return;
+  npStop(NP);
+  if (!NP.mode) NP_DRAFTS.splice(NP_DRAFTS.indexOf(NP), 1);   /* nothing chosen yet → nothing to keep */
+  NP = null;
+}
+function npStop(d) {
+  if (!d) return;
+  if (d.timer) { clearTimeout(d.timer); d.timer = null; }
+  if (d.pending) { const f = d.pending; d.pending = null; f(); }   /* a mint in flight still lands */
 }
 
-/* team proposals the orchestrator can make. `mint` = ask the Agent Creator. */
-function npProposals(mode) {
-  const fromTeam = (id, why) => { const t = teamById(id); return t && { team: id, name: t.name, color: t.color, emblem: t.emblem, why, members: t.members.map(m => m.agent) }; };
-  const list = mode === 'adopt' ? [
-    { name: 'The Archaeologists', color: 'teal', emblem: 'compass', why: 'Existing code — learn it before changing it.',
-      members: ['a-lint', 'a-doc', 'a-scar'], mint: { role: 'Migration', line: 'a Migration specialist to map the old code' } },
-    fromTeam('polish', 'Tidy first: de-dupe, document, then build.'),
-    fromTeam('ship-it', 'It already works — go straight to new features.'),
-  ] : [
-    { name: 'The First Draft', color: 'sky', emblem: 'starship', why: 'Small and fast: build it, test it, ship it.',
-      members: ['a-semic', 'a-pete', 'a-scar'], mint: { role: 'Voice', line: 'a Voice specialist — nobody in the Cast does speech yet' } },
-    fromTeam('ship-it', 'They already work well together — reuse them.'),
-    fromTeam('expedition', 'Not sure what to build yet? Research first.'),
-  ];
-  return list.filter(Boolean).map(p => Object.assign(p, { members: p.members.filter(id => agentById(id)) }));
+/* delete with undo (from the page or a Projects card) */
+function npDeleteDraft(id) {
+  const i = NP_DRAFTS.findIndex(d => d.id === id); if (i < 0) return;
+  const [d] = NP_DRAFTS.splice(i, 1); npStop(d);
+  if (NP === d) NP = null;
+  if (currentRoute().startsWith('new/')) go('projects'); else if (APP.stage === 'projects') renderProjects();
+  toast(`Draft “${escapeHtml(d.name || 'Untitled')}” deleted <button type="button" class="toast-undo">Undo</button>`, 6000);
+  const u = document.querySelector('#toast .toast-undo');
+  if (u) u.onclick = () => { NP_DRAFTS.splice(Math.min(i, NP_DRAFTS.length), 0, d); document.getElementById('toast').classList.remove('show'); if (APP.stage === 'projects') renderProjects(); toast('Draft restored'); };
 }
 
-/* ---------------- state ---------------- */
-let NP = null;
-function npReset(mode) {
-  NP = { mode: mode || null, step: mode ? 1 : 0, name: '', folder: null, orch: npOrchs()[0].id,
-    prop: 0, setupI: -1, setupDone: false, timer: null, phase: 'propose', minted: null, teamId: null };
+/* "In setup" card on Projects: calm — tile, name, step + orchestrator, resume / delete */
+function npDraftCard(d) {
+  const o = npOrchOf(d); const el = document.createElement('div'); el.className = 'np-dcard';
+  const tile = d.name ? logoTile(Object.assign({}, npTile(d.name)), true) : '<span class="logo-tile sm np-tile-empty" aria-hidden="true"></span>';
+  el.innerHTML = `<button type="button" class="np-dresume">${tile}
+      <span class="np-dtext"><b>${escapeHtml(d.name || 'Untitled project')}</b>
+      <span>${d.mode === 'adopt' ? 'Adopting' : 'New'} · ${NP_STEPS[d.step]}${d.step >= 2 ? ' · ' + escapeHtml(npNick(o)) : ''}</span></span>
+      <span class="np-ddots" aria-hidden="true">${NP_STEPS.map((_, i) => `<i class="${i < d.step ? 'done' : i === d.step ? 'now' : ''}"></i>`).join('')}</span></button>
+    <button type="button" class="np-ddel" aria-label="Delete draft ${escapeAttr(d.name || 'Untitled project')}">✕</button>`;
+  el.querySelector('.np-dresume').onclick = () => go('new/' + d.id);
+  el.querySelector('.np-dresume').setAttribute('aria-label', `Resume ${d.name || 'untitled project'} — step ${d.step + 1} of 5, ${NP_STEPS[d.step]}`);
+  el.querySelector('.np-ddel').onclick = () => npDeleteDraft(d.id);
+  return el;
 }
 
-function openNewProject(mode) {
-  npReset(mode);
-  const root = document.createElement('div'); root.className = 'np';
-  openSheet(root, 'Start a project', { cls: 'np-sheet', onClose: npStop });
-  npRender();
-}
-function npStop() { if (NP && NP.timer) { clearTimeout(NP.timer); NP.timer = null; } }
+/* ============================================================ page */
 function npGo(step) {
-  npStop(); NP.step = step; NP.phase = 'propose';
-  if (step < 3) { NP.setupI = -1; NP.setupDone = false; }  /* changed name/orchestrator → set up again */
+  npStop(NP); NP.step = step;
+  if (step < 3) { NP.setupI = -1; NP.setupDone = false; NP.plan = null; NP.chat = []; }  /* changed basics → set up again */
   npRender();
 }
-
-/* ---------------- render ---------------- */
 function npRender() {
-  const root = document.querySelector('.np'); if (!root) return;
-  const s = NP.step;
+  const root = document.getElementById('scene-new'); if (!root || !NP) return;
+  const d = NP, s = d.step;
   root.innerHTML = `
-    <header class="np-head">
-      <ol class="np-dots" aria-label="Steps">${NP_STEPS.map((l, i) => `<li class="${i < s ? 'done' : i === s ? 'now' : ''}"${i === s ? ' aria-current="step"' : ''}><span class="sr-only">${l}${i < s ? ' (done)' : ''}</span></li>`).join('')}</ol>
-      <span class="np-steplbl">${NP_STEPS[s]}</span>
-      <button class="np-x" type="button" aria-label="Close">✕</button>
-    </header>
-    <div class="np-stage" aria-hidden="${s === 2 ? 'false' : 'true'}"></div>
-    <div class="np-body"></div>
-    <footer class="np-foot"></footer>`;
-  root.querySelector('.np-x').onclick = closeSheet;
-  /* each step returns what should take focus (default: its heading) */
-  const target = [npStart, npName, npOrch, npSetup, npTeam][s](root.querySelector('.np-stage'), root.querySelector('.np-body'), root.querySelector('.np-foot'));
-  const h = root.querySelector('.np-body h2'); h.tabIndex = -1;
-  setTimeout(() => { const t = target && target.isConnected ? target : h; if (t.isConnected) t.focus(); }, 60);
+    <div class="np-page${s === 4 ? ' with-chat' : ''}">
+      <header class="np-pagehead">
+        <div><div class="kicker">${d.mode === 'adopt' ? 'Adopting a folder' : 'New project'} · in setup</div>
+          <h1>${escapeHtml(d.name || 'Untitled project')}</h1></div>
+        <span class="spacer"></span>
+        <ol class="np-steps" aria-label="Setup steps">${NP_STEPS.map((l, i) => `<li class="${i < s ? 'done' : i === s ? 'now' : ''}"${i === s ? ' aria-current="step"' : ''}><i aria-hidden="true"></i><span>${l}</span></li>`).join('')}</ol>
+      </header>
+      <div class="np-grid">
+        <section class="np-card" aria-label="${NP_STEPS[s]}">
+          <div class="np-stage"></div>
+          <div class="np-body"></div>
+          <footer class="np-foot"></footer>
+        </section>
+        ${s === 4 ? '<aside class="np-chat" aria-label="Chat with the orchestrator"></aside>' : ''}
+      </div>
+      <div class="np-pagefoot">${d.mode ? '<span class="hint">Saved as you go — leave anytime, it waits on Projects.</span><button type="button" class="np-del">Delete draft</button>' : ''}</div>
+    </div>`;
+  const del = root.querySelector('.np-del'); if (del) del.onclick = () => npDeleteDraft(d.id);
+  const card = root.querySelector('.np-card');
+  const target = [npStart, npName, npOrch, npSetup, npTeam][s](card.querySelector('.np-stage'), card.querySelector('.np-body'), card.querySelector('.np-foot'));
+  if (s === 4) npChatMount(root.querySelector('.np-chat'));
+  const h = card.querySelector('.np-body h2'); h.tabIndex = -1;
+  setTimeout(() => { const t = target && target.isConnected ? target : h; if (t && t.isConnected) t.focus({ preventScroll: true }); }, 60);
 }
 function npFoot(foot, { back, primary, label, disabled, extra }) {
   foot.innerHTML = '';
@@ -3932,15 +4036,14 @@ function npFoot(foot, { back, primary, label, disabled, extra }) {
     foot.appendChild(p); return p;
   }
 }
-/* a character standing on the stage, with an optional name plate */
+/* a character on the stage, with an optional name plate */
 function npActor(agent, opts = {}, plate) {
   const w = document.createElement('div'); w.className = 'np-actor' + (opts.cls ? ' ' + opts.cls : '');
   w.appendChild(hero(agent, Object.assign({ size: 112 }, opts)));
   if (plate) w.insertAdjacentHTML('beforeend', `<span class="np-plate">${plate}</span>`);
   return w;
 }
-
-const npPlate = (a, kind) => a.name === kind ? kind : `${escapeHtml(a.name)}<small>${kind}</small>`;
+const npPlate = (a, kind) => `${escapeHtml(a.name)}<small>${kind}</small>`;
 
 /* 0 — Start */
 function npStart(stage, body, foot) {
@@ -3949,7 +4052,7 @@ function npStart(stage, body, foot) {
     npActor(npOrchs()[0], { pose: 'idle', facing: 'front', size: 128 }, npPlate(npOrchs()[0], 'Orchestrator')),
     npActor(npCreator(), { pose: 'idle', dir: 'left' }, npPlate(npCreator(), 'Agent Creator')));
   body.innerHTML = `<h2>Start a project</h2>
-    <p class="np-sub">The Project Setter sets it up, your orchestrator picks the team.</p>
+    <p class="np-sub">The Project Setter sets it up, then your orchestrator picks the teams.</p>
     <div class="np-choices">
       <button type="button" class="np-choice" data-mode="new"><span class="np-ic" aria-hidden="true">＋</span><b>New project</b><span>Start fresh in a new folder</span></button>
       <button type="button" class="np-choice" data-mode="adopt"><span class="np-ic" aria-hidden="true">⇢</span><b>Adopt a folder</b><span>Bring existing code under AI Studio</span></button>
@@ -3959,27 +4062,31 @@ function npStart(stage, body, foot) {
   return body.querySelector('.np-choice');
 }
 
-/* 1 — Name (+ folder for adopt) */
+/* 1 — Name (+ folder for adopt) + an optional one-liner the orchestrator reads */
 function npName(stage, body, foot) {
   const adopt = NP.mode === 'adopt';
   stage.innerHTML = `<div class="np-tilewrap"><span class="np-tile"></span><b class="np-tname"></b><span class="np-tpath"></span></div>`;
   body.innerHTML = `<h2>${adopt ? 'Which folder?' : 'Name your project'}</h2>
     ${adopt ? `<div class="np-folders" role="radiogroup" aria-label="Folders on this computer">${NP_FOLDERS.map((f, i) => `
-      <button type="button" role="radio" class="np-folder" data-i="${i}" aria-checked="${NP.folder === i}" ${f.managed ? 'aria-disabled="true"' : ''} tabindex="-1">
+      <button type="button" role="radio" class="np-folder" aria-checked="${NP.folder === i}" ${f.managed ? 'aria-disabled="true"' : ''} tabindex="-1">
         <span class="np-fic" aria-hidden="true">📁</span><span class="np-fpath">${escapeHtml(f.path)}</span><span class="np-fmeta">${escapeHtml(f.meta)}</span></button>`).join('')}</div>` : ''}
-    <div class="field np-namefield"${adopt && NP.folder == null ? ' hidden' : ''}><label for="npName">Project name</label><input id="npName" autocomplete="off" placeholder="e.g. Kite Notes" value="${escapeAttr(NP.name)}"></div>`;
-  const input = body.querySelector('#npName');
+    <div class="np-namefields"${adopt && NP.folder == null ? ' hidden' : ''}>
+      <div class="field"><label for="npName">Project name</label><input id="npName" autocomplete="off" placeholder="e.g. Kite Notes" value="${escapeAttr(NP.name)}"></div>
+      <div class="field"><label for="npAbout">What is it? <span class="np-opt">optional — your orchestrator reads this</span></label><input id="npAbout" autocomplete="off" placeholder="e.g. a tiny weekend app for sharing recipes" value="${escapeAttr(NP.about)}"></div>
+    </div>`;
+  const input = body.querySelector('#npName'), about = body.querySelector('#npAbout');
+  const btn = npFoot(foot, { back: 0, primary: () => { if (!btn.disabled) npGo(2); }, label: 'Continue' });
   const sync = () => {
     const nm = NP.name.trim();
-    const t = npTile(nm || '?');
-    stage.querySelector('.np-tile').outerHTML = logoTile(Object.assign({ name: nm }, t)).replace('logo-tile', 'logo-tile np-tile');
+    stage.querySelector('.np-tile').outerHTML = nm ? logoTile(Object.assign({}, npTile(nm))).replace('logo-tile', 'logo-tile np-tile') : '<span class="logo-tile np-tile np-tile-empty" aria-hidden="true"></span>';
     stage.querySelector('.np-tname').textContent = nm || (adopt ? 'Pick a folder' : 'Your project');
     stage.querySelector('.np-tpath').textContent = adopt ? (NP.folder != null ? NP_FOLDERS[NP.folder].path : '') : (nm ? '~/dev/' + npSlug(nm) : '');
     btn.disabled = !nm || (adopt && NP.folder == null);
+    document.querySelector('.np-pagehead h1').textContent = nm || 'Untitled project';
   };
-  const btn = npFoot(foot, { back: 0, primary: () => { if (!btn.disabled) npGo(2); }, label: 'Continue' });
   input.oninput = () => { NP.name = input.value; sync(); };
-  input.onkeydown = e => { if (e.key === 'Enter' && !btn.disabled) npGo(2); };
+  about.oninput = () => { NP.about = about.value; };
+  [input, about].forEach(el => el.onkeydown = e => { if (e.key === 'Enter' && !btn.disabled) npGo(2); });
   if (adopt) {
     const radios = [...body.querySelectorAll('.np-folder')];
     const pick = i => {
@@ -3987,14 +4094,14 @@ function npName(stage, body, foot) {
       const prevAuto = NP.folder != null && NP.name === NP_FOLDERS[NP.folder].name;
       NP.folder = i; if (!NP.name || prevAuto) NP.name = NP_FOLDERS[i].name;
       radios.forEach((r, j) => r.setAttribute('aria-checked', j === i));
-      input.value = NP.name; body.querySelector('.np-namefield').hidden = false; sync();
+      input.value = NP.name; body.querySelector('.np-namefields').hidden = false; sync();
     };
-    const first = NP.folder != null ? NP.folder : 0; radios[first].tabIndex = 0;
+    radios[NP.folder != null ? NP.folder : 0].tabIndex = 0;
     radios.forEach((r, i) => {
       r.onclick = () => pick(i);
       r.onkeydown = e => {
-        const d = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]; if (!d) return;
-        e.preventDefault(); const j = (i + d + radios.length) % radios.length;
+        const dd = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]; if (!dd) return;
+        e.preventDefault(); const j = (i + dd + radios.length) % radios.length;
         radios.forEach(x => x.tabIndex = -1); radios[j].tabIndex = 0; radios[j].focus();
         if (!NP_FOLDERS[j].managed) pick(j);
       };
@@ -4010,41 +4117,40 @@ function npOrch(stage, body, foot) {
   if (!list.some(o => o.id === NP.orch)) NP.orch = list[0].id;
   stage.classList.add('np-pick'); stage.setAttribute('role', 'radiogroup'); stage.setAttribute('aria-label', 'Orchestrators');
   const btn = npFoot(foot, { back: 1, primary: () => npGo(3), label: '' });
+  body.innerHTML = `<h2>Who runs ${escapeHtml(NP.name)}?</h2>
+    <p class="np-sub">The orchestrator keeps the big picture and picks the teams.${list.length > 1 ? ' Use ← → to choose.' : ''}</p>
+    <p class="np-quote"></p>`;
   const draw = () => {
     stage.innerHTML = '';
     list.forEach(o => {
       const on = o.id === NP.orch;
       const b = document.createElement('button'); b.type = 'button'; b.className = 'np-actor np-orch' + (on ? ' on' : '');
-      b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; b.dataset.id = o.id;
+      b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1;
       b.appendChild(hero(o, { size: on ? 136 : 108, pose: on ? 'waving' : 'idle', facing: on ? 'front' : 'three-quarter' }));
       b.insertAdjacentHTML('beforeend', `<span class="np-plate">${escapeHtml(o.name)}</span>`);
       b.onclick = () => { NP.orch = o.id; draw(); stage.querySelector('.on').focus(); };
       b.onkeydown = e => {
-        const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]; if (!d) return;
-        e.preventDefault(); const i = list.indexOf(o); NP.orch = list[(i + d + list.length) % list.length].id; draw(); stage.querySelector('.on').focus();
+        const dd = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]; if (!dd) return;
+        e.preventDefault(); const i = list.indexOf(o); NP.orch = list[(i + dd + list.length) % list.length].id; draw(); stage.querySelector('.on').focus();
       };
       stage.appendChild(b);
     });
-    const o = agentById(NP.orch) || list[0];
+    const o = npOrchOf(NP);
     body.querySelector('.np-quote').textContent = npOrchLine(o);
     btn.innerHTML = 'Continue with ' + escapeHtml(npNick(o));
   };
-  body.innerHTML = `<h2>Who runs ${escapeHtml(NP.name)}?</h2>
-    <p class="np-sub">The orchestrator keeps the big picture and picks the team. ${list.length > 1 ? 'Use ← → to choose.' : 'You can add more orchestrators in the Cast.'}</p>
-    <p class="np-quote"></p>`;
   draw();
   return stage.querySelector('.on');
 }
 function npOrchLine(o) {
-  const p = (o && o.prompt) || '';
-  const parts = p.split(/(?<=\.)\s/); const first = /^You are\b/.test(parts[0]) && parts[1] ? parts[1] : parts[0];
-  return first ? '“' + first + '”' : '“Big picture only: I set the goals, pick the team, and keep everyone moving.”';
+  const parts = ((o && o.prompt) || '').split(/(?<=\.)\s/); const first = /^You are\b/.test(parts[0]) && parts[1] ? parts[1] : parts[0];
+  return first ? '“' + first + '”' : '';
 }
 
 /* 3 — Setup by the Project Setter */
-function npSetupItems() {
-  const adopt = NP.mode === 'adopt'; const f = adopt ? NP_FOLDERS[NP.folder] : null; const has = k => !!(f && f.has.includes(k));
-  const slug = npSlug(NP.name); const items = [];
+function npSetupItems(d) {
+  const adopt = d.mode === 'adopt'; const f = adopt ? NP_FOLDERS[d.folder] : null; const has = k => !!(f && f.has.includes(k));
+  const slug = npSlug(d.name); const items = [];
   if (adopt) items.push({ label: 'Read the folder', detail: f.has.length ? 'found ' + f.has.map(k => ({ git: 'git', gitignore: '.gitignore', issues: 'issues.txt' }[k])).join(', ') : 'plain folder, nothing to keep' });
   else items.push({ label: 'Project folder', detail: '~/dev/' + slug });
   items.push(
@@ -4057,133 +4163,333 @@ function npSetupItems() {
   return items;
 }
 function npSetup(stage, body, foot) {
-  const items = npSetupItems(); const setter = npSetter(); const o = agentById(NP.orch) || npOrchs()[0];
-  stage.append(npActor(setter, { pose: NP.setupDone ? 'salute' : 'writing', holding: 'binder', dir: 'right', size: 128, cls: 'np-setter' }));
-  stage.insertAdjacentHTML('beforeend', `<div class="np-tilewrap sm">${logoTile(Object.assign({}, npTile(NP.name)))}<b>${escapeHtml(NP.name)}</b></div>`);
-  body.innerHTML = `<h2>${NP.setupDone ? 'All set up' : `${escapeHtml(npNick(setter))}${setter.name === 'Project Setter' ? '' : ', the Project Setter,'} is setting up ${escapeHtml(NP.name)}`}</h2>
-    <p class="np-sub">${NP.mode === 'adopt' ? 'It reads the folder first and only adds what is missing.' : 'The standard AI Studio scaffold, nothing more.'}</p>
+  const d = NP; const items = npSetupItems(d); const setter = npSetter(); const o = npOrchOf(d);
+  stage.append(npActor(setter, { pose: d.setupDone ? 'salute' : 'writing', holding: 'binder', dir: 'right', size: 128, cls: 'np-setter' }));
+  stage.insertAdjacentHTML('beforeend', `<div class="np-tilewrap sm">${logoTile(Object.assign({}, npTile(d.name)))}<b>${escapeHtml(d.name)}</b></div>`);
+  body.innerHTML = `<h2>${d.setupDone ? 'All set up' : `${escapeHtml(npNick(setter))}, the Project Setter, is setting up ${escapeHtml(d.name)}`}</h2>
+    <p class="np-sub">${d.mode === 'adopt' ? 'It reads the folder first and only adds what is missing.' : 'The standard AI Studio scaffold, nothing more.'}</p>
     <div class="progress np-prog" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100"><div class="fill"></div></div>
     <ul class="np-checks">${items.map(it => `<li><span class="np-tick" aria-hidden="true"></span><b>${escapeHtml(it.label)}</b><span class="np-detail">${escapeHtml(it.detail)}</span></li>`).join('')}</ul>`;
-  const btn = npFoot(foot, { back: NP.setupDone ? null : 2, primary: () => npGo(4), label: `Call in ${escapeHtml(npNick(o))} →`, disabled: !NP.setupDone });
+  const btn = npFoot(foot, { back: d.setupDone ? null : 2, primary: () => npGo(4), label: `Call in ${escapeHtml(npNick(o))} →`, disabled: !d.setupDone });
   const lis = [...body.querySelectorAll('.np-checks li')]; const prog = body.querySelector('.np-prog');
   const paint = () => {
-    lis.forEach((li, j) => { li.className = j < NP.setupI || NP.setupDone ? (items[j].kept ? 'done kept' : 'done') : j === NP.setupI ? 'doing' : ''; });
-    const pct = NP.setupDone ? 100 : Math.round(Math.max(0, NP.setupI) / items.length * 100);
+    lis.forEach((li, j) => { li.className = j < d.setupI || d.setupDone ? (items[j].kept ? 'done kept' : 'done') : j === d.setupI ? 'doing' : ''; });
+    const pct = d.setupDone ? 100 : Math.round(Math.max(0, d.setupI) / items.length * 100);
     prog.querySelector('.fill').style.width = pct + '%'; prog.setAttribute('aria-valuenow', pct);
   };
   paint();
-  if (NP.setupDone) return btn;
+  if (d.setupDone) return btn;
   const tick = () => {
-    NP.setupI++;
-    if (NP.setupI >= items.length) {
-      NP.setupDone = true; NP.timer = null;
-      announce(`${NP.name} is set up.`);
-      const h = body.querySelector('h2'); h.textContent = 'All set up';
+    if (NP !== d) { d.timer = null; return; }
+    d.setupI++;
+    if (d.setupI >= items.length) {
+      d.setupDone = true; d.timer = null;
+      announce(`${d.name} is set up.`);
+      body.querySelector('h2').textContent = 'All set up';
       stage.querySelector('.np-setter').replaceWith(npActor(setter, { pose: 'salute', dir: 'right', size: 128, cls: 'np-setter' }));
       paint(); btn.disabled = false; foot.querySelector('.btn-ghost')?.remove(); btn.focus(); sparkle(50, 30); return;
     }
     paint();
-    NP.timer = setTimeout(tick, reducedMotion() ? 140 : 520);
+    d.timer = setTimeout(tick, reducedMotion() ? 140 : 520);
   };
-  NP.timer = setTimeout(tick, reducedMotion() ? 100 : 380);
+  d.timer = setTimeout(tick, reducedMotion() ? 100 : 380);
 }
 
-/* 4 — Team proposal (+ Agent Creator) */
+/* ============================================================ 4 — Team (the plan) */
+/* plan = { teams: [teamId], specialists: [agentId], small: bool } — captains always come from TEAMS */
+function npInitialPlan(d) {
+  if (NP_SMALL.test(d.about || '')) return { teams: [], specialists: npSmallCrew(), small: true };
+  return { teams: NP_ALTS[d.mode === 'adopt' ? 'adopt' : 'new'][0].slice(), specialists: [], small: false };
+}
+function npSmallCrew() { return ['a-pete', 'a-semic'].filter(id => agentById(id)); }
+const npPlanTeams = p => p.teams.map(teamById).filter(Boolean);
+function npPlanAgents(p) {
+  const ids = []; npPlanTeams(p).forEach(t => t.members.forEach(m => { if (!ids.includes(m.agent)) ids.push(m.agent); }));
+  p.specialists.forEach(id => { if (!ids.includes(id)) ids.push(id); }); return ids;
+}
+function npPlanWhy(p, d) {
+  if (p.small && !p.teams.length) return `It’s a small one, so a whole team would be overkill — ${p.specialists.map(id => npNick(agentById(id))).join(' and ')} can carry it.`;
+  const ts = npPlanTeams(p);
+  const bits = ts.map(t => NP_TEAM_WHY[t.id] || `${t.name} — ${(t.blurb || 'designed for this').replace(/\.$/, '').toLowerCase()}`);
+  let s = ts.length ? (ts.length === 1 ? `One team: ${bits[0]}.` : `${ts.length} teams: ${bits.slice(0, -1).join(', ')} and ${bits[bits.length - 1]}.`) : 'No teams yet.';
+  s = s.charAt(0).toUpperCase() + s.slice(1);
+  if (p.specialists.length) s += ` Plus ${p.specialists.map(id => npNick(agentById(id))).join(' and ')} as specialist${p.specialists.length > 1 ? 's' : ''}.`;
+  return s;
+}
+
 function npTeam(stage, body, foot) {
-  const props = npProposals(NP.mode); const P = props[NP.prop % props.length];
-  const o = agentById(NP.orch) || npOrchs()[0]; const creator = npCreator();
-  stage.classList.add('np-teamstage');
-  const say = NP.phase === 'propose'
-    ? (P.mint ? `${P.why} And I'll ask the Agent Creator for ${P.mint.line}.` : P.why)
-    : NP.phase === 'minting' ? `${npNick(creator)}, can you design us a ${P.mint.role}?` : `Welcome, ${npNick(NP.minted)}! The team is ready.`;
-  stage.append(npActor(o, { pose: NP.phase === 'minted' ? 'celebrating' : 'talking', dir: 'right', size: 120, cls: 'np-lead' }));
-  stage.insertAdjacentHTML('beforeend', `<div class="np-bubble">${escapeHtml(say)}</div>`);
-  const row = document.createElement('div'); row.className = 'np-squad'; stage.appendChild(row);
-  P.members.forEach((id, i) => row.appendChild(npActor(agentById(id), { size: 92, dir: 'left', pose: NP.phase === 'minted' ? 'waving' : 'idle', captain: i === 0 }, escapeHtml(npNick(agentById(id))))));
-  if (P.mint) {
-    if (NP.phase === 'minted') row.appendChild(npActor(NP.minted, { size: 92, dir: 'left', pose: 'celebrating', cls: 'np-new' }, escapeHtml(npNick(NP.minted)) + ' <i>new</i>'));
-    else row.appendChild(npActor({ name: 'New agent' }, { size: 92, ghost: true, cls: 'np-ghost' }, 'New ' + escapeHtml(P.mint.role)));
-    /* the Agent Creator steps in to build, then leaves — not a team member */
-    if (NP.phase === 'minting') row.appendChild(npActor(creator, { size: 92, dir: 'left', pose: 'pressing', cls: 'np-creator' }, escapeHtml(npNick(creator))));
+  const d = NP; if (!d.plan) d.plan = npInitialPlan(d);
+  if (!d.chat.length) d.chat.push({ from: d.orch, text: `I’ve read the brief for ${d.name}. ${npPlanWhy(d.plan, d)} Ask me why, swap a team, add or drop a specialist — or I can have ${npNick(npCreator())} design a brand-new team.` });
+  npDrawPlan(stage, body);
+  return npFoot(foot, { back: null, primary: npFinish, label: 'Accept the plan →' });
+}
+/* the stage: orchestrator left, then each team as a squad under its emblem, then specialists */
+function npDrawPlan(stage, body) {
+  const d = NP, p = d.plan, o = npOrchOf(d);
+  stage.className = 'np-stage np-planstage';
+  stage.innerHTML = '';
+  stage.appendChild(npActor(o, { pose: d.busy ? 'thinking' : 'talking', dir: 'right', size: 116, cls: 'np-lead' }, npPlate(o, 'Orchestrator')));
+  const row = document.createElement('div'); row.className = 'np-groups'; stage.appendChild(row);
+  const placed = new Set();
+  npPlanTeams(p).forEach(t => {
+    const g = document.createElement('div'); g.className = 'np-group' + (t._new ? ' np-newteam' : '');
+    g.innerHTML = `<div class="np-ghead"><span class="np-emb"></span><b>${escapeHtml(npTeamShort(t))}</b>${t._new ? '<i>new</i>' : ''}</div><div class="np-gmem"></div>`;
+    if (typeof emblem === 'function') g.querySelector('.np-emb').appendChild(emblem(t, 26));
+    const mem = g.querySelector('.np-gmem');
+    t.members.forEach(m => {
+      const a = agentById(m.agent); if (!a) return;
+      const dup = placed.has(a.id); placed.add(a.id);
+      mem.appendChild(npActor(a, { size: 76, dir: 'left', pose: 'idle', captain: t.captain === a.id, ghost: dup }, escapeHtml(npNick(a))));
+    });
+    row.appendChild(g);
+  });
+  if (p.specialists.length) {
+    const g = document.createElement('div'); g.className = 'np-group np-spec';
+    g.innerHTML = `<div class="np-ghead"><b>${p.small && !p.teams.length ? 'Just these two' : 'Specialists'}</b></div><div class="np-gmem"></div>`;
+    p.specialists.forEach(id => { const a = agentById(id); if (a) g.querySelector('.np-gmem').appendChild(npActor(a, { size: 76, dir: 'left', pose: a._fresh ? 'celebrating' : 'idle' }, escapeHtml(npNick(a)) + (a._fresh ? ' <i>new</i>' : ''))); });
+    row.appendChild(g);
   }
-  const n = P.members.length + (P.mint ? 1 : 0);
-  body.innerHTML = `<h2>${NP.phase === 'minted' ? 'Team ready: ' + escapeHtml(P.name) : escapeHtml(npNick(o)) + ' proposes ' + escapeHtml(P.name)}</h2>
-    <p class="np-sub">${NP.phase === 'minted'
-      ? `${escapeHtml(npNick(creator))}${creator.name === 'Agent Creator' ? '' : ' (Agent Creator)'} designed <b>${escapeHtml(NP.minted.name)}</b> (${escapeHtml(P.mint.role)}) — now in your Cast. Rename or restyle them anytime.`
-      : `${n} agents${P.team ? ' · an existing team' : ' · a new team'}${P.mint ? ' · 1 designed by the Agent Creator' : ''}. Agents are shared — this project runs its own copies.`}</p>`;
-  if (NP.phase === 'minting') { npFoot(foot, { primary: () => {}, label: 'Designing…', disabled: true }); return; }
-  if (NP.phase === 'minted') return npFoot(foot, { primary: npFinish, label: 'Open the office →' });
-  let swap = null;
-  if (props.length > 1) { swap = document.createElement('button'); swap.type = 'button'; swap.className = 'btn btn-ghost'; swap.textContent = '↻ Swap'; swap.setAttribute('aria-label', `Swap for another proposal (${NP.prop % props.length + 1} of ${props.length})`); swap.onclick = () => { NP.prop++; npRender(); setTimeout(() => document.querySelector('.np-swap')?.focus(), 70); }; swap.classList.add('np-swap'); }
-  return npFoot(foot, { back: null, extra: swap, primary: () => npAccept(P), label: 'Accept team' });
+  if (d.busy === 'creator') row.appendChild(npActor(npCreator(), { size: 84, dir: 'left', pose: 'pressing', cls: 'np-creator' }, escapeHtml(npNick(npCreator()))));
+  const ts = npPlanTeams(p), n = npPlanAgents(p).length;
+  const caps = ts.map(t => npNick(agentById(t.captain))).filter(Boolean);
+  body.innerHTML = `<h2>${escapeHtml(npNick(o))}’s plan for ${escapeHtml(d.name)}</h2>
+    <p class="np-sub">${!ts.length && p.small ? `No team — ${n} agents, briefed by ${escapeHtml(npNick(o))} directly. This project runs its own copies — no shared memory.</p>` : ''}${!ts.length && p.small ? '' : `${ts.length ? `${ts.length} team${ts.length > 1 ? 's' : ''}` : 'No teams'}${p.specialists.length ? ` · ${p.specialists.length} specialist${p.specialists.length > 1 ? 's' : ''}` : ''} · ${n} agents.
+    ${caps.length ? `Captains come from each team’s own design (${caps.map(escapeHtml).join(', ')}).` : ''} This project runs its own copies — no shared memory.</p>`}`;
 }
-function npAccept(P) {
-  if (!P.mint) { npFinish(); return; }
-  NP.phase = 'minting'; npRender();
-  NP.timer = setTimeout(() => {
-    NP.minted = npMint(P.mint.role, P.members); NP.phase = 'minted'; npRender();
-    sparkle(62, 30); announce(`${NP.minted.name} joined the Cast.`);
-  }, reducedMotion() ? 200 : 1500);
+
+/* ---------------- chat with the orchestrator ---------------- */
+function npChatMount(el) {
+  const d = NP, o = npOrchOf(d);
+  el.innerHTML = `<header class="op-head"><div class="op-portrait"></div>
+      <div class="op-who"><b>${escapeHtml(o.name)}</b><span class="op-role">Orchestrator</span><span class="op-status">Planning ${escapeHtml(d.name)}’s teams</span></div></header>
+    <div class="op-log" role="log" aria-live="polite"></div>
+    <form class="op-composer"><input autocomplete="off" placeholder="Message ${escapeAttr(npNick(o))}…" aria-label="Message ${escapeAttr(o.name)}"><button class="btn btn-hero btn-sm" type="submit">Send</button></form>`;
+  el.querySelector('.op-portrait').appendChild(hero(o, { size: 72, pose: 'talking', facing: 'front', props: false }));
+  const log = el.querySelector('.op-log'); d.chat.forEach(m => npBubble(log, m));
+  el.querySelector('form').onsubmit = e => {
+    e.preventDefault(); const inp = el.querySelector('input'); const v = inp.value.trim();
+    if (!v || d.busy) { inp.focus(); return; }
+    inp.value = ''; npSay(v);
+  };
 }
-/* the Agent Creator designs a new agent: a real Cast entry */
-function npMint(role, mates_) {
+function npBubble(log, m) {
+  const b = document.createElement('div'); b.className = 'bubble ' + (m.from === 'user' ? 'me' : 'them');
+  const who = m.from === 'user' ? 'You' : npNick(agentById(m.from));
+  b.innerHTML = `<span class="who">${escapeHtml(who)}</span><span class="t">${escapeHtml(m.text)}</span>`;
+  log.appendChild(b); log.scrollTop = log.scrollHeight;
+}
+/* user says something → orchestrator answers (and maybe edits the plan) */
+function npSay(text, instant) {
+  const d = NP; d.chat.push({ from: 'user', text });
+  const log = document.querySelector('.np-chat .op-log'); if (log) npBubble(log, d.chat[d.chat.length - 1]);
+  const r = npIntent(d, text);
+  const reply = () => {
+    npPost(d, r);
+    if (!r.mint) { npRedrawPlan(d); return; }
+    /* the Agent Creator steps onto the stage, designs, and the result lands */
+    d.busy = 'creator'; npRedrawPlan(d);
+    d.pending = () => { d.busy = false; r.mint(); npPost(d, r.after); npRedrawPlan(d); if (NP === d) sparkle(45, 32); };
+    const fire = () => { d.timer = null; if (d.pending) { const f = d.pending; d.pending = null; f(); } };
+    if (instant) fire(); else d.timer = setTimeout(fire, reducedMotion() ? 250 : 1400);
+  };
+  if (instant) { reply(); return; }
+  d.busy = true; npRedrawPlan(d);
+  const t = document.createElement('div'); t.className = 'bubble them np-typing'; t.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
+  if (log) { log.appendChild(t); log.scrollTop = log.scrollHeight; }
+  setTimeout(() => { t.remove(); d.busy = false; reply(); }, reducedMotion() ? 150 : 650);
+}
+function npPost(d, r) {
+  if (!r || !r.text) return;
+  const m = { from: r.from || d.orch, text: r.text }; d.chat.push(m);
+  const log = document.querySelector('.np-chat .op-log'); if (log && NP === d) npBubble(log, m);
+}
+function npRedrawPlan(d) {
+  const card = document.querySelector('#scene-new .np-card'); if (!card || !NP || NP !== d || NP.step !== 4) return;
+  npDrawPlan(card.querySelector('.np-stage'), card.querySelector('.np-body'));
+}
+
+/* intent matching: plain words → plan edits + a reply in the orchestrator's voice */
+function npFindTeam(text) {
+  const t = text.toLowerCase();
+  return TEAMS.find(x => { const w = npTeamShort(x).toLowerCase(); return t.includes(w) || t.includes(x.id) || w.split(/[\s-]+/).some(k => k.length > 4 && t.includes(k)); });
+}
+function npFindAgent(text) {
+  const t = text.toLowerCase();
+  const word = w => new RegExp('\\b' + w.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(t);
+  return AGENTS.find(a => kindOf(a) === 'agent' && (word(a.name) || word(npNick(a))));
+}
+function npRoleIn(text) {
+  const hit = NP_ROLE_WORDS.find(([re]) => re.test(text)); if (hit) return { role: hit[1], known: true };
+  const m = /\b(?:for|a|an)\s+([a-z][a-z-]{2,20})\s+(?:specialist|expert|person|agent|team|crew|squad)\b/i.exec(text) || /\b(?:specialist|expert|team|crew)\s+for\s+([a-z][a-z-]{2,20})\b/i.exec(text);
+  return m ? { role: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), known: false } : null;
+}
+/* what a requested new team is FOR ("design a new team for mobile" → Mobile; the verb "design" isn't the topic) */
+function npTeamTopic(raw) {
+  const m = /\bfor\s+(?:a\s+|an\s+|the\s+|our\s+)?([a-z][a-z-]{2,20})/i.exec(raw);
+  if (m) { const hit = NP_ROLE_WORDS.find(([re]) => re.test(m[1])); return { role: hit ? hit[1] : m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase() }; }
+  const r = npRoleIn(raw.replace(/\bdesign(ed)?\b/ig, '')); return r || { role: 'Mobile' };
+}
+function npIntent(d, raw) {
+  const text = raw.toLowerCase(), p = d.plan, cr = npNick(npCreator());
+  const say = s => ({ text: s });
+  const isDrop = /\b(drop|remove|without|no need for|lose|kick|take out|don'?t need)\b/.test(text);
+  const isAdd = /\b(add|need|want|bring|include|plus|also|get us|hire)\b/.test(text);
+  const team = npFindTeam(text), agent = npFindAgent(text);
+  /* captains: never the orchestrator's call for an existing team */
+  if (/\bcaptain/.test(text) && !/\bnew team\b/.test(text)) {
+    const ts = npPlanTeams(p);
+    return say(ts.length ? `Captains aren’t mine to pick — each team chose its own: ${ts.map(t => `${npNick(agentById(t.captain))} for ${npTeamShort(t)}`).join(', ')}. If you want a different captain, change it on the team in the Cast.` : 'No team, no captain — on a project this small I brief everyone directly.');
+  }
+  /* a brand-new team → the Agent Creator designs it (name, emblem, captain) */
+  if (/\b(new|brand[- ]new|fresh|own|design( us)?( a)?|create( a)?)\b.{0,12}\b(team|crew|squad)\b/.test(text)) {
+    const r = npTeamTopic(raw);
+    let made = null;
+    return { text: `Nobody in the Cast covers ${r.role.toLowerCase()} as a team yet. ${cr}, can you design us one?`,
+      mint: () => { made = npDesignTeam(r.role, d); p.teams.push(made.id); p.small = false; },
+      get after() { return { from: npCreator().id, text: `Here’s ${made.name}: ${made.members.map(m => npNick(agentById(m.agent))).join(', ')} — ${npNick(agentById(made.captain))} captains. They’re in the Cast now, so any project can use them.` }; } };
+  }
+  if (/\b(small|tiny|smaller|just two|fewer|minimal|lean)\b/.test(text)) {
+    p.teams = []; p.specialists = npSmallCrew(); p.small = true;
+    return say(`Then let’s not field a whole team. ${p.specialists.map(id => npNick(agentById(id))).join(' and ')} can carry it; I’ll brief them directly.`);
+  }
+  if (/\b(bigger|more people|larger|scale up|full team)\b/.test(text)) {
+    const next = NP_ALTS[d.mode === 'adopt' ? 'adopt' : 'new'][0].find(id => !p.teams.includes(id)) || TEAMS.find(t => !p.teams.includes(t.id))?.id;
+    if (!next) return say('Every team in the Cast is already on it.');
+    if (p.small) p.specialists = []; p.teams.push(next); p.small = false;
+    return say(`More hands, then: ${NP_TEAM_WHY[next] || npTeamShort(teamById(next))}. They come as a whole team, captain included.`);
+  }
+  if (team && isDrop) {
+    if (!p.teams.includes(team.id)) return say(`${team.name} isn’t on the plan.`);
+    p.teams = p.teams.filter(x => x !== team.id);
+    return say(`${team.name} is off. ${p.teams.length ? npPlanWhy(p, d) : 'That leaves no team — tell me what you’d like instead.'}`);
+  }
+  if (team && (isAdd || /\b(instead|swap|switch|rather|use)\b/.test(text))) {
+    if (p.teams.includes(team.id)) return say(`${team.name} is already on it — captained by ${npNick(agentById(team.captain))}.`);
+    if (/\b(instead|swap|switch|rather|replace)\b/.test(text) && p.teams.length && !p.small) { const old = teamById(p.teams[p.teams.length - 1]); p.teams[p.teams.length - 1] = team.id; p.small = false; return say(`Swapped ${npTeamShort(old)} for ${team.name} — ${NP_TEAM_WHY[team.id] || 'they fit this better'}.`); }
+    if (p.small) p.specialists = []; p.teams.push(team.id); p.small = false;
+    return say(`Added ${team.name} — ${NP_TEAM_WHY[team.id] || 'a good fit'}. ${npNick(agentById(team.captain))} stays their captain.`);
+  }
+  if (agent && isDrop) {
+    if (!p.specialists.includes(agent.id)) {
+      const inTeam = npPlanTeams(p).find(t => memberOf(t, agent.id));
+      return say(inTeam ? `${npNick(agent)} comes with ${inTeam.name} — I keep teams whole. Drop the team, or keep them both?` : `${npNick(agent)} isn’t on the plan.`);
+    }
+    p.specialists = p.specialists.filter(x => x !== agent.id);
+    return say(`${npNick(agent)} is off the plan.`);
+  }
+  if (/\b(another|different|other|else|swap|alternative|not (this|that|these))\b/.test(text)) {
+    const alts = NP_ALTS[d.mode === 'adopt' ? 'adopt' : 'new']; d.alt = (d.alt + 1) % alts.length;
+    p.teams = alts[d.alt].slice(); p.small = false; if (p.specialists.every(id => npSmallCrew().includes(id))) p.specialists = [];
+    return say(`Another way to run it: ${npPlanWhy(p, d).replace(/^./, c => c.toLowerCase())}`);
+  }
+  /* a specialist: from the Cast if someone fits, else the Agent Creator designs one */
+  const r = (isAdd || /\bspecialist|expert\b/.test(text)) ? (agent ? { agent } : npRoleIn(raw)) : null;
+  if (r) {
+    const fit = r.agent || (r.known && AGENTS.find(a => kindOf(a) === 'agent' && roleName(a) === r.role && !npPlanAgents(p).includes(a.id)));
+    if (fit) {
+      if (npPlanAgents(p).includes(fit.id)) return say(`${npNick(fit)} is already on the plan.`);
+      p.specialists.push(fit.id);
+      return say(`Good call — ${fit.name} joins as a ${roleName(fit).toLowerCase()} specialist, outside the teams. I’ll brief them myself.`);
+    }
+    let made = null;
+    return { text: `No one in the Cast does ${r.role.toLowerCase()}. ${cr}, can you design a ${r.role} specialist?`,
+      mint: () => { made = npMintAgent(r.role, npPlanAgents(p)); p.specialists.push(made.id); },
+      get after() { return { from: npCreator().id, text: `Done — meet ${made.name}, ${r.role} specialist. Added to the Cast; rename or restyle them anytime.` }; } };
+  }
+  if (/\b(why|how come|reason|explain)\b/.test(text)) {
+    const ts = npPlanTeams(p);
+    return say(ts.length ? `${npPlanWhy(p, d)} I start from whole teams because they already know how to work together — their captain, their rules, how they code. Single agents only come in as specialists.` : npPlanWhy(p, d));
+  }
+  if (/\b(ok|okay|good|great|perfect|looks good|yes|sounds good|thanks)\b/.test(text)) return say('Great — accept the plan when you’re ready and I’ll open the office.');
+  return say(`I can explain why, swap a team (“try the Engine Room instead”), add or drop a specialist (“add a data specialist”), or ask ${cr} for a brand-new team (“design a new team for mobile”).`);
+}
+
+/* ---------------- the Agent Creator ---------------- */
+function npMintAgent(role, mates_) {
   const used = new Set(AGENTS.map(a => a.name));
-  const name = (FUNNY_NAMES.find(n => !used.has(n))) || role + ' Bot';
+  const name = FUNNY_NAMES.find(n => !used.has(n)) || role + ' Bot ' + (AGENTS.length + 1);
   let id = 'a-' + npSlug(name); while (agentById(id)) id += '-2';
-  /* stand out from the squad they join: a hue and hat nobody on it wears */
   const mates = (mates_ || []).map(agentById).filter(Boolean);
-  const hue = ['mint', 'rose', 'coral', 'grape', 'sky', 'teal', 'sun'].find(c => !mates.some(m => (m.look ? m.look.hue : m.hue) === c)) || 'mint';
+  const hue = ['mint', 'rose', 'coral', 'grape', 'sky', 'teal', 'sun'].find(c => !mates.some(m => (m.look ? m.look.hue : m.hue) === c)) || HUES[AGENTS.length % HUES.length];
   const [build, hair] = [['sprout', 'curl'], ['hero', 'spikes'], ['lanky', 'bob'], ['bruiser', 'tuft']][AGENTS.length % 4];
   const a = { id, kind: 'agent', name, nick: name.split(' ').slice(-1)[0], role, hue, build, hair, accessory: 'none',
-    stats: { projects: 1, tokens: 0 }, createdBy: npCreator().id,
-    prompt: `You are a ${role} specialist, designed by the Agent Creator for ${NP.name}. Stay in your lane, ask the orchestrator when the brief is unclear.` };
-  /* the Creator designs a distinct costume (hero.js look slots), picked from the role so it's stable */
-  if (typeof HATS === 'object' && typeof TOOLS === 'object' && typeof setWholeLook === 'function') {
-    let h = 0; for (const ch of role) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    /* regular-crew gear only: no director fedora / megaphone, no setter hard hat */
-    const pick = (o, ok, k) => { const l = ok.filter(x => x in o && !mates.some(m => m.look && (m.look.hat === x || m.look.tool === x))); return l.length ? l[k % l.length] : 'none'; };
-    const hat = pick(HATS, ['headphones', 'goggles', 'headlamp', 'mortarboard', 'newsboy', 'captain', 'beret'], h);
-    setWholeLook(a, { hat, tool: pick(TOOLS, ['stylus', 'cog', 'pickaxe', 'book', 'quill', 'flag', 'palette'], h >>> 4), decal: typeof hatDecal === 'function' ? hatDecal(hat) : undefined, body: build, antenna: hair, face: 'none', hue });
-  }
-  AGENTS.push(a);
-  if (typeof addRole === 'function') addRole(role);  /* a custom role the Creator just invented */
+    stats: { projects: 1, tokens: 0 }, createdBy: npCreator().id, _fresh: true,
+    prompt: `You are a ${role} specialist, designed by the Agent Creator. Stay in your lane; ask the orchestrator when the brief is unclear.` };
+  /* regular-crew gear only (no director fedora / megaphone, no setter hard hat), unlike its mates */
+  const h = npHash(role + name);
+  const pick = (o, ok, k) => { const l = ok.filter(x => x in o && !mates.some(m => m.look && (m.look.hat === x || m.look.tool === x))); return l.length ? l[k % l.length] : 'none'; };
+  const hat = pick(HATS, ['headphones', 'goggles', 'headlamp', 'mortarboard', 'newsboy', 'captain', 'beret'], h);
+  setWholeLook(a, { hat, tool: pick(TOOLS, ['stylus', 'cog', 'pickaxe', 'book', 'quill', 'flag', 'palette'], h >>> 4), decal: hatDecal(hat), body: build, antenna: hair, face: 'none', hue });
+  AGENTS.push(a); addRole(role);
   return a;
 }
-/* create the project + its team + a minimal office config, then walk in */
-function npFinish() {
-  const props = npProposals(NP.mode); const P = props[NP.prop % props.length];
-  const members = P.members.concat(NP.minted ? [NP.minted.id] : []);
-  let id = npSlug(NP.name); while (projById(id)) id += '-2';
-  let teamId = P.team;
-  if (!teamId) {
-    teamId = 't-' + id;
-    TEAMS.push({ id: teamId, name: P.name, color: P.color, emblem: P.emblem, captain: members[0], blurb: P.why, instr: '', code: '',
-      members: members.map(agent => ({ agent, instr: '' })) });
-  }
-  const t = npTile(NP.name);
-  PROJECTS.unshift(Object.assign({ id, name: NP.name.trim(), group: 'active', status: 'live', agents: members.length, pct: 0,
-    orchestrator: NP.orch, github: { connected: true, private: true },
-    folder: NP.mode === 'adopt' ? NP_FOLDERS[NP.folder].path : '~/dev/' + id,
-    note: `Just set up — ${npNick(agentById(NP.orch) || npOrchs()[0])} is planning the first update`,
-    cast: members.slice(0, 4), openable: true,
-    /* spec-office-config.md shape — the office lays itself out from this */
-    office: { project: id, director: NP.orch, teams: [{ id: teamId, members }], solo: [] } }, t));
-  npStop(); closeSheet(); fireConfetti();
-  go('office/' + id);
+/* a whole new team: name, emblem, colour, captain, members — joins the Cast */
+const NP_TEAM_NAMES = ['The Night Shift', 'The Pocket Rockets', 'The Signal Crew', 'The Moonlighters', 'The Tinker Works', 'The Spark Unit'];
+function npDesignTeam(role, d) {
+  const taken = new Set(TEAMS.map(t => t.emblem)); const usedC = new Set(TEAMS.map(t => t.color));
+  const name = NP_TEAM_NAMES.find(n => !TEAMS.some(t => t.name === n)) || `The ${role} Crew`;
+  const em = (EMBLEMS.find(e => !taken.has(e.id)) || EMBLEMS[0]).id;
+  const color = HUES.find(c => !usedC.has(c)) || HUES[TEAMS.length % HUES.length];
+  const lead = npMintAgent(role, npPlanAgents(d.plan));
+  const second = npMintAgent(role, npPlanAgents(d.plan).concat(lead.id));
+  const qa = AGENTS.find(a => kindOf(a) === 'agent' && roleName(a) === 'QA' && !npPlanAgents(d.plan).includes(a.id));
+  const members = [lead.id, second.id].concat(qa ? [qa.id] : []);
+  let id = 't-' + npSlug(name); while (teamById(id)) id += '-2';
+  const t = { id, name, color, emblem: em, captain: lead.id, _new: true,
+    blurb: `${role} from first sketch to shipped build.`,
+    instr: `Own everything ${role.toLowerCase()} on the projects you join. The captain splits the work and reports to the orchestrator.`,
+    code: '', members: members.map(agent => ({ agent, instr: '' })) };
+  TEAMS.push(t);
+  return t;
 }
 
-/* dev hooks: ?demo=new-<0..5> or adopt-<0..5> jumps straight to a step
-   (3 = setup running, 4 = proposal, 5 = after the Agent Creator, 6 = Creator at work) */
+/* ---------------- finish: project + office config, then walk in ---------------- */
+function npFinish() {
+  const d = NP, p = d.plan;
+  const placed = new Set();
+  const teams = npPlanTeams(p).map(t => { const members = t.members.map(m => m.agent).filter(id => agentById(id) && !placed.has(id)); members.forEach(id => placed.add(id)); return { id: t.id, members }; }).filter(t => t.members.length);
+  const solo = p.specialists.filter(id => agentById(id) && !placed.has(id));
+  const all = teams.flatMap(t => t.members).concat(solo);
+  let id = npSlug(d.name); while (projById(id)) id += '-2';
+  AGENTS.forEach(a => { delete a._fresh; }); TEAMS.forEach(t => { delete t._new; });
+  PROJECTS.unshift(Object.assign({ id, name: d.name.trim(), group: 'active', status: 'live', agents: all.length, pct: 0,
+    orchestrator: d.orch, github: { connected: true, private: true },
+    folder: d.mode === 'adopt' ? NP_FOLDERS[d.folder].path : '~/dev/' + id,
+    note: d.about.trim() || `Just set up — ${npNick(npOrchOf(d))} is planning the first update`,
+    cast: all.slice(0, 4), openable: true,
+    /* spec-office-config.md shape — the office lays itself out from this; captains come from TEAMS */
+    office: { project: id, director: d.orch, teams, solo } }, npTile(d.name)));
+  npStop(d); NP_DRAFTS.splice(NP_DRAFTS.indexOf(d), 1); NP = null;
+  fireConfetti(); go('office/' + id);
+}
+
+/* ---------------- dev hooks ----------------
+   ?demo=new-<0..4> / adopt-<0..4>  jump to a step (3 = setup running)
+   ?demo=new-chat   team step after a short chat that changes the plan
+   ?demo=new-small  a "tiny weekend app" → two agents, no team
+   ?demo=drafts     two drafts in setup, shown on Projects                */
 function npDemo() {
-  const m = /[?&]demo=[^&#]*?\b(new|adopt)-(\d)/.exec(location.search); if (!m) return;
-  const mode = m[1], s = +m[2];
-  openNewProject(s === 0 ? null : mode);
-  if (s === 0) return;
-  if (mode === 'adopt') { NP.folder = 1; NP.name = NP_FOLDERS[1].name; } else if (s > 1) NP.name = 'Kite Notes';
-  if (s >= 4) NP.setupDone = true;
-  npGo(Math.min(s, 4));
-  if (s === 5) { NP.minted = npMint(npProposals(mode)[0].mint.role, npProposals(mode)[0].members); NP.phase = 'minted'; npRender(); }
-  if (s === 6) { NP.phase = 'minting'; npRender(); }
+  const m = /[?&]demo=([^&#]*)/.exec(location.search); if (!m) return;
+  const v = decodeURIComponent(m[1]);
+  const fill = (d, mode, s) => {
+    if (mode === 'adopt') { d.folder = 1; d.name = NP_FOLDERS[1].name; } else if (s > 0) d.name = 'Kite Notes';
+    d.step = s; if (s >= 4) d.setupDone = true;
+  };
+  if (v === 'drafts') {
+    const a = npNewDraft('new'); fill(a, 'new', 2); a.name = 'Kite Notes';
+    const b = npNewDraft('adopt'); fill(b, 'adopt', 3); b.setupI = 3; b.orch = 'a-maestro';
+    go('projects'); return;
+  }
+  const k = /^(new|adopt)-(\d|chat|small)$/.exec(v); if (!k) return;
+  const d = npNewDraft(k[1]);
+  if (k[2] === 'chat' || k[2] === 'small') {
+    fill(d, k[1], 4); if (k[2] === 'small') { d.name = 'Pantry Pal'; d.about = 'a tiny weekend app for sharing recipes'; }
+    go('new/' + d.id);
+    if (k[2] === 'chat') setTimeout(() => { npSay('why these teams?', true); npSay('add a data specialist', true); npSay('and design a brand-new team for mobile', true); }, 30);
+    return;
+  }
+  const s = +k[2]; if (s === 0) d.mode = null; else fill(d, k[1], Math.min(s, 4));
+  go('new/' + d.id);
 }
 
 </script>
@@ -6102,7 +6408,6 @@ Object.assign(THEME_OFFICE, {
      OE.sparkle(x, y)           six soft stars (a new bot is built)
      OE.deskSync(seatId?)       refresh desk(s) from WS
      OE.zoomTo(objectId|null)   OE.fit()
-     OE.focusRect(camRect|null, glowRect)  pager focus on a pod (room stays live)
      OE.actors (id → actor record), OE.W, OE.speed, OE.instant
    ============================================================ */
 
@@ -6469,35 +6774,15 @@ const OE = {
     this.box.style.setProperty('--k', k);
     this._ox = ox; this._oy = oy;
     if (this.zoom.obj) this.zoomTo(this.zoom.obj, true);
-    else if (this.zoom.rect) this.focusRect(this.zoom.rect, this.zoom.glow, true);
   },
   /* fit an object's bounds into the viewport; null = back to the office */
   zoomTo(objId, quiet) {
     if (!this.box) return null;
-    this._glow(null);
     let b = null;
     if (objId) { const o = this.plan.objects[objId] || this.plan.objects.whiteboard; b = { x: o.x - 16, y: o.y - 16, w: o.w + 32, h: o.h + 32 }; }
     this._camTo(b, quiet, { obj: objId, zmax: Infinity });
     this.box.classList.toggle('zoomed', !!objId);
     return true;
-  },
-  /* pager focus: glide to a world rect (a team pod) and glow it; the room stays live.
-     cam/glow are world rects {x,y,w,h}; null = back to the whole office. */
-  focusRect(cam, glow, quiet) {
-    if (!this.box) return null;
-    this.box.classList.remove('zoomed');
-    this._camTo(cam, quiet, { rect: cam, glow, zmax: 1.75 });
-    this._glow(cam ? glow : null, quiet);
-    return true;
-  },
-  _glow(r, quiet) {
-    let g = this.layer && this.layer.querySelector('.o-podglow');
-    if (!r) { if (g) { g.classList.remove('on'); clearTimeout(this._gt); this._gt = setTimeout(() => g.remove(), 400); } return; }
-    clearTimeout(this._gt);
-    if (!g) { g = document.createElement('div'); g.className = 'o-podglow'; g.setAttribute('aria-hidden', 'true'); this.layer.appendChild(g); }
-    g.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
-    /* lights up after the camera lands — never restyles during the move */
-    if (quiet || this.instant || reducedMotion()) g.classList.add('on'); else setTimeout(() => g.classList.add('on'), 520);
   },
   /* the one camera move. b = world rect (null = whole room).
      Perf: during the move the GPU slides the room as ONE flat layer (.moving =
@@ -6513,15 +6798,8 @@ const OE = {
       const cx = b.x + b.w / 2, cy = by + b.h / 2;
       const ccx = (Wv / 2 - this._ox) / this.k, ccy = (H / 2 - this._oy) / this.k;
       tx = ccx - z * cx; ty = ccy - z * cy;
-      /* a pod focus never shows the void beside the room: keep the room covering the view */
-      if (o.rect) {
-        const lo = (Wv - this._ox) / this.k - z * this.W, hi = -this._ox / this.k;
-        if (lo <= hi) tx = Math.max(lo, Math.min(hi, tx));
-        const tlo = (H - this._oy) / this.k - z * 1000, thi = -this._oy / this.k;
-        if (tlo <= thi) ty = Math.max(tlo, Math.min(thi, ty));
-      }
     }
-    this.zoom = { z, tx, ty, obj: o.obj || null, rect: o.rect || null, glow: o.glow || null };
+    this.zoom = { z, tx, ty, obj: o.obj || null };
     const cam = this.cam, box = this.box, zoomedObj = !!o.obj;
     const settle = () => {
       cam.classList.remove('moving');
@@ -7026,22 +7304,25 @@ OB.discardStaged = function () { const f = wsFeature(this.feature); if (!f) retu
 <script data-module="js/office-pager.js">
 "use strict";
 /* ============================================================
-   office-pager.js — the pager, bottom-left of the office (v5).
-   A small playful device that lists who needs you, one page per team (or
-   solo agent). Scroll through the pages (▲ ▼, mouse wheel, arrow keys);
-   press the screen → the camera glides to that team's pod and lights it.
-   Go there and leave without doing anything → it drops off the pager,
-   until a NEW ask arrives. The "!" over the agent stays regardless.
+   office-pager.js — the pager (v6): a small playful device, bottom-left,
+   on every screen (studio + offices). One page per OFFICE that needs you —
+   never teams or desks: you go to the office, and inside it the "!" over an
+   agent shows who. Scroll the pages (▲ ▼, mouse wheel, arrow keys); press the
+   screen → that project's office. Open an office and leave without answering
+   → it drops off the pager until a NEW ask arrives there.
 
-   Public: OPG.mount(el), OPG.refresh(), OPG.go(i), OPG.visited(agentId),
-           OPG.leave()   (the visit is over — what you saw is marked seen)
-   Reads: wsPager() (data-office), OM.focusTeam / OM.focusKey (office-main)
+   Self-mounting on document.body; follows hashchange on its own.
+   Public: OPG.refresh(), OPG.go(i), OPG.enter(projectId), OPG.leave(),
+           OPG.entries()
+   Reads: wsPagerOffices() / wsPagerVisited() (data-office), PROJECTS, OM
    ============================================================ */
 
-const OPG = { el: null, idx: 0, keys: '', visit: null, shown: null, _wheel: 0 };
+const OPG = { el: null, idx: 0, keys: null, shown: null, here: null, _wheel: 0 };
 
-OPG.mount = function (el) {
-  this.el = el; this.idx = 0; this.keys = ''; this.visit = null; this.shown = null;
+OPG.mount = function () {
+  if (this.el) return;
+  const el = this.el = document.createElement('div');
+  el.className = 'o-pagerwrap'; el.id = 'pager';
   el.innerHTML = `
     <div class="o-pager" role="group" aria-roledescription="pager">
       <span class="o-pg-led" aria-hidden="true"></span>
@@ -7052,6 +7333,7 @@ OPG.mount = function (el) {
       </div>
       <span class="sr-only" aria-live="polite" id="opgLive"></span>
     </div>`;
+  document.body.appendChild(el);
   el.querySelector('#opgScreen').onclick = () => this.go(this.idx);
   el.querySelector('#opgUp').onclick = () => this.step(-1);
   el.querySelector('#opgDn').onclick = () => this.step(1);
@@ -7064,10 +7346,13 @@ OPG.mount = function (el) {
     const now = Date.now(); if (now - this._wheel < 220 || Math.abs(e.deltaY) < 4) return;
     this._wheel = now; this.step(e.deltaY > 0 ? 1 : -1);
   }, { passive: false });
+  /* after the router has run (its listener is added later, at boot) */
+  window.addEventListener('hashchange', () => setTimeout(() => this.refresh(), 0));
   this.refresh();
 };
 
-OPG.entries = () => wsPager();
+/* the office you're standing in never pages you — its "!" already does */
+OPG.entries = function () { return wsPagerOffices().filter(e => e.projectId !== this.here); };
 
 OPG.step = function (d) {
   const n = this.entries().length; if (n < 2) return;
@@ -7075,40 +7360,42 @@ OPG.step = function (d) {
 };
 OPG.go = function (i) {
   const e = this.entries()[i]; if (!e) return;
-  this.idx = i;
-  this.visit = { key: e.key, asks: e.asks.map(a => a.id) };
-  OM.focusTeam(e);
-  this._render();
+  go(e.projectId === 'aurora' ? 'office' : 'office/' + e.projectId);
 };
-/* the visit ends (Esc, ← Whole office, another page, a layer, leaving the room):
-   anything you went to see and left alone stays off the pager */
+/* office visits: entering remembers where you are; leaving marks what it asked as seen */
+OPG.enter = function (pid) { this.here = pid; this.refresh(); };
 OPG.leave = function () {
-  if (!this.visit) return;
-  this.visit.asks.forEach(id => { WS.pager.seen[id] = true; });
-  this.visit = null;
-  this.refresh();
-};
-/* you went straight to an agent (clicked them): their asks count as seen */
-OPG.visited = function (agentId) {
-  let hit = false;
-  WS.pending.forEach(a => { if (a.agentId === agentId && !WS.pager.seen[a.id]) { WS.pager.seen[a.id] = true; hit = true; } });
-  if (hit) this.refresh();
+  if (!this.here) return;
+  wsPagerVisited(this.here); this.here = null; this.refresh();
 };
 
 OPG.refresh = function () {
   if (!this.el) return;
+  const h = location.hash;
+  const hide = /^#(new|setup)/.test(h) || (typeof OM !== 'undefined' && OM.mounted && !!OM.layer);
+  this.el.hidden = hide;
+  this.el.classList.toggle('in-office', typeof OM !== 'undefined' && !!OM.mounted);
   const list = this.entries();
-  const keys = list.map(e => e.key + ':' + e.asks.map(a => a.id).join('+')).join('|') + '@' + (OM.focusKey || '');
+  const keys = list.map(e => e.projectId + ':' + e.asks.map(a => a.id).join('+')).join('|');
   if (keys === this.keys) return;
   const first = this.shown == null; this.shown = this.shown || new Set();
-  /* a new ask arrived: turn to its page, one small wiggle (no blinking, no nagging) */
-  const fresh = list.findIndex(e => e.asks.some(a => !this.shown.has(a.id)));
-  list.forEach(e => e.asks.forEach(a => this.shown.add(a.id)));
+  /* a new ask somewhere: turn to that office, one small wiggle (no blinking, no nagging) */
+  const fresh = list.findIndex(e => e.asks.some(a => !this.shown.has(e.projectId + ':' + a.id)));
+  list.forEach(e => e.asks.forEach(a => this.shown.add(e.projectId + ':' + a.id)));
   this.keys = keys;
   if (fresh >= 0) this.idx = fresh;
-  const at = list.findIndex(e => e.key === OM.focusKey); if (at >= 0) this.idx = at;   /* the page you're visiting */
   this.idx = Math.min(this.idx, Math.max(0, list.length - 1));
   this._render(false, fresh >= 0 && !first);
+};
+
+/* one calm line per office */
+OPG._line = function (e) {
+  const p = projById(e.projectId) || {};
+  if (e.asks.length > 1) return `${e.asks.length} need you`;
+  const a = e.asks[0];
+  if (!a.agentId) return a.short;
+  const ag = agentById(a.agentId);
+  return `${ag ? shortName(ag) : 'Someone'} needs you`;
 };
 
 OPG._render = function (stepped, wiggle) {
@@ -7117,26 +7404,26 @@ OPG._render = function (stepped, wiggle) {
   dev.classList.toggle('has', n > 0);
   this.el.querySelector('#opgUp').disabled = n < 2;
   this.el.querySelector('#opgDn').disabled = n < 2;
-  dev.setAttribute('aria-label', n ? `Pager — ${n} ${n === 1 ? 'team needs' : 'teams need'} you` : 'Pager — nobody needs you');
+  dev.setAttribute('aria-label', n ? `Pager — ${n} ${n === 1 ? 'office needs' : 'offices need'} you` : 'Pager — nobody needs you');
   if (!n) {
     scr.disabled = true;
     scr.innerHTML = `<span class="o-pg-top"><span>PAGER</span></span><b class="o-pg-name">All quiet</b><span class="o-pg-what">Nobody needs you</span>`;
     scr.removeAttribute('aria-label');
     return;
   }
-  const e = list[this.idx];
-  const team = e.teamId ? teamById(e.teamId) : null;
-  const name = team ? team.name.replace(/^The /, '') : OP._name(e.agentId);
-  const what = e.asks.map(a => `${OP._short(a.agentId)} · ${a.short}`).join(', ');
-  const here = OM.focusKey === e.key;
+  const e = list[this.idx], p = projById(e.projectId) || { name: e.projectId };
+  const line = this._line(e);
   scr.disabled = false;
-  scr.innerHTML = `<span class="o-pg-top"><span>${n} NEED${n === 1 ? 'S' : ''} YOU</span><span>${this.idx + 1}/${n}</span></span>
-    <b class="o-pg-name">${team ? emblemSVG(team, 16, { decorative: true }) : ''}<span>${escapeHtml(name)}</span></b>
-    <span class="o-pg-what">${escapeHtml(here ? 'You’re here' : what)}</span>`;
-  scr.setAttribute('aria-label', `${here ? 'Showing' : 'Go to'} ${name} — ${e.asks.map(a => `${OP._name(a.agentId)} needs ${a.short}`).join(', ')}. Page ${this.idx + 1} of ${n}.`);
-  if (stepped) this.el.querySelector('#opgLive').textContent = `${name}: ${what}. ${this.idx + 1} of ${n}.`;
+  scr.innerHTML = `<span class="o-pg-top"><span>${n} OFFICE${n === 1 ? '' : 'S'}</span><span>${this.idx + 1}/${n}</span></span>
+    <b class="o-pg-name">${typeof logoTile === 'function' && p.g1 ? logoTile(p, true) : ''}<span>${escapeHtml(p.name)}</span></b>
+    <span class="o-pg-what">${escapeHtml(line)}</span>`;
+  scr.setAttribute('aria-label', `Go to the ${p.name} office — ${line}. Page ${this.idx + 1} of ${n}.`);
+  if (stepped) this.el.querySelector('#opgLive').textContent = `${p.name}: ${line}. ${this.idx + 1} of ${n}.`;
   if (wiggle && !reducedMotion()) { dev.classList.remove('wiggle'); void dev.offsetWidth; dev.classList.add('wiggle'); }
 };
+
+/* mount once the page is there (scripts sit at the end of <body>) */
+if (document.body) OPG.mount(); else document.addEventListener('DOMContentLoaded', () => OPG.mount());
 
 </script>
 <script data-module="js/office-sim.js">
@@ -7153,7 +7440,7 @@ OPG._render = function (stepped, wiggle) {
            OS.wake(id)               the Director brings a sleeper in
            OS.create(need)           the Agent Creator builds a new bot at a free desk
    Dev hooks (URL ?demo=…, not in UI): fast · t<sec> · ask · chat · talk ·
-           ship · end · sleepy · peek · list · creator · pager · focus · safe · door · fresh · orch2 ·
+           ship · end · sleepy · peek · list · creator · pager · safe · door · fresh · orch2 ·
            size2|size6|size12|size20 · selftest
    ============================================================ */
 
@@ -7176,7 +7463,7 @@ OS.start = async function () {
   if (demo.includes('talk')) skip = Math.max(skip, 8);
   if (demo.includes('ship')) skip = Math.max(skip, 47);
   if (demo.includes('creator')) skip = Math.max(skip, 61);
-  if (demo.includes('pager') || demo.includes('focus')) skip = Math.max(skip, 75);
+  if (demo.includes('pager')) skip = Math.max(skip, 75);
   if (demo.includes('end')) skip = Math.max(skip, SIM_ACT1_END + 1);
   if (skip) await this.skipTo(skip);
   else this._schedule(0);
@@ -7187,7 +7474,6 @@ OS._hooks = function (demo) {
   if (demo.includes('pete')) setTimeout(() => OP.open('a-pete', { from: 'scene' }), 30);
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
   if (demo.includes('list')) setTimeout(() => _omToggleList(true), 30);
-  if (demo.includes('focus')) setTimeout(() => OPG.go(0), 30);
   if (demo.includes('safe')) setTimeout(() => _omAccess(), 30);
   if (demo.includes('door')) setTimeout(() => OM.focusActor('obj:door'), 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
@@ -7584,7 +7870,7 @@ function omGo(sub) {
   if (pid === 'aurora') go(sub || 'office'); else go('office/' + pid + (sub && sub !== 'office' ? '/' + sub : ''));
 }
 function closeOffice() {
-  if (OM.focusKey) OM.unfocusTeam(true);
+  OPG.leave();                              /* left without answering → off the pager */
   if (typeof OS !== 'undefined') OS.stop();
   OE.unmount(); OM.mounted = false; OM.project = null;
   document.removeEventListener('keydown', _omKeys);
@@ -7597,6 +7883,7 @@ function _omMount(p) {
   wsUse(p.id);                              /* its own state: Aurora demo or built from p.office */
   wsPrune();                                /* skip agents deleted from the Cast since (Undo brings them back) */
   OM.project = p.id; OM.mounted = true;
+  OPG.enter(p.id);                          /* the pager: you're in this office now */
   /* this project's repo facts (its Director comes from PROJECTS[i].orchestrator via wsAg) */
   const g = _wsGithub(p.id); WS.github.connected = g.connected; WS.github.private = g.private;
   const host = document.getElementById('office');
@@ -7610,8 +7897,6 @@ function _omMount(p) {
         <div class="o-hots" id="oHots"></div>
         <div class="o-scrim" aria-hidden="true"></div>
         <div class="o-layers" id="oLayers"></div>
-        <button class="o-ctl o-unfocus" type="button" id="oUnfocus" hidden>← <span>Whole office</span></button>
-        <div class="o-pagerwrap" id="oPager"></div>
         <div class="o-stagectl">
           <button class="o-ctl" type="button" id="oListBtn" aria-pressed="false" aria-controls="oList">▤ <span>List</span></button>
           <button class="o-ctl" type="button" id="oWideBtn" aria-pressed="false" aria-label="Hide the chat panel">⤢</button>
@@ -7622,13 +7907,11 @@ function _omMount(p) {
     </div>`;
   host.querySelector('#oListBtn').onclick = () => _omToggleList();
   host.querySelector('#oWideBtn').onclick = () => _omWide(!OM.wide);
-  host.querySelector('#oUnfocus').onclick = () => OM.unfocusTeam();
 
   OE.mount(host.querySelector('#oBox'));
   _omHotspots();
   OP.mount(host.querySelector('#oPanel'));
   _omStageA11y();
-  OPG.mount(host.querySelector('#oPager'));
   document.addEventListener('keydown', _omKeys);
   window.addEventListener('resize', _omResize);
   officeRefresh();
@@ -7686,7 +7969,6 @@ function _omStageA11y() {
 }
 OM.clickActor = function (id) {
   const a = wsAgent(id); if (!a) return;
-  OPG.visited(id);
   if (a.activity.kind === 'sleeping') { OP.sleeperPoke(id); return; }
   OP.open(id, { from: 'scene' });
 };
@@ -7712,7 +7994,6 @@ function _omKeys(e) {
   if (e.key === 'Escape' && !typing) {
     if (OM.listOpen) { _omToggleList(false); return; }
     if (OM.layer) { e.preventDefault(); OB.escape(); return; }
-    if (OM.focusKey) { e.preventDefault(); OM.unfocusTeam(); return; }
     if (OP.thread !== 'pixel') { OP.open('pixel'); return; }
   }
   if (typing) return;
@@ -7810,46 +8091,10 @@ OM.showPanel = function () {
 /* ------------------------------------------------------------ layers: office → board → features → feature */
 function _omLayer(sub) {
   const prev = OM.layer; OM.layer = sub;
-  if (sub && OM.focusKey) OM.unfocusTeam(true);
+  OPG.refresh();   /* the pager steps aside while you're zoomed into a board */
   if (!sub) { OB.close(); if (prev && OM.opener && document.contains(OM.opener)) { try { OM.opener.focus({ preventScroll: true }); } catch (e) { } } return; }
   OB.show(sub);
 }
-
-/* ------------------------------------------------------------ pager → team focus
-   The camera glides to a team's pod (or a solo desk) and a soft glow marks it.
-   The room stays live and clickable. Leaving the focus = the visit is over:
-   asks you went to see and left alone drop off the pager (OPG.leave). */
-function _omFocusRect(entry) {
-  const P = THEME_OFFICE.plan;
-  let rugs = entry.teamId ? P.pods.filter(p => p.teamId === entry.teamId).map(p => p.rug) : [];
-  if (!rugs.length) { const r = OE.actors[entry.agentId]; if (!r) return null; rugs = [{ x: r.x - 80, y: r.y - 72, w: 160, h: 136 }]; }
-  const x0 = Math.min(...rugs.map(r => r.x)), x1 = Math.max(...rugs.map(r => r.x + r.w));
-  const y0 = Math.min(...rugs.map(r => r.y)), y1 = Math.max(...rugs.map(r => r.y + r.h));
-  return { glow: { x: x0 - 26, y: y0 - 18, w: x1 - x0 + 52, h: y1 - y0 + 36 }, cam: { x: x0 - 90, y: y0 - 190, w: x1 - x0 + 180, h: y1 - y0 + 230 } };
-}
-OM.focusTeam = function (entry) {
-  if (!entry) return;
-  if (OM.layer) { omGo('office'); setTimeout(() => OM.focusTeam(entry), 80); return; }
-  if (OM.focusKey && OM.focusKey !== entry.key) OPG.leave();
-  const r = _omFocusRect(entry); if (!r) return;
-  OM.focusKey = entry.key;
-  OE.focusRect(r.cam, r.glow);
-  const name = entry.teamId ? teamById(entry.teamId).name : OP._name(entry.agentId);
-  const b = document.getElementById('oUnfocus'); b.hidden = false;
-  b.setAttribute('aria-label', `Leave ${name} — back to the whole office`);
-  document.getElementById('oStage').classList.add('team-focus');
-  announce(`Looking at ${name}. ${entry.asks.map(a => OP._name(a.agentId) + ' needs ' + a.short).join('. ')}.`);
-  OM.focusActor(entry.asks[0].agentId);
-  OPG.refresh();
-};
-OM.unfocusTeam = function (quiet) {
-  if (!OM.focusKey) return;
-  OM.focusKey = null;
-  OPG.leave();
-  const b = document.getElementById('oUnfocus'); if (b) b.hidden = true;
-  const st = document.getElementById('oStage'); if (st) st.classList.remove('team-focus');
-  if (OE.box) OE.focusRect(null, null, quiet);
-};
 
 </script>
 <script data-module="js/office-selftest.js">
@@ -7912,19 +8157,24 @@ async function officeSelftest() {
   await OS.skipTo(25); await wait(50);
   ok(WS.pending.length === 1 && WS.pending[0].agentId === 'a-scar', 'Scarlett raises a "!" at t=23');
   ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '"!" badge visible over Scarlett');
-  ok(wsPager().length === 1 && /Ship-It/.test($('#opgScreen').textContent) && /Stripe/.test($('#opgScreen').textContent), 'pager pages Ship-It: Scarlett needs a Stripe key');
-  /* pager → team focus; leave without doing anything → drops off; a new ask brings it back */
-  $('#opgScreen').click(); await wait(50);
-  ok(OM.focusKey === 'team:ship-it' && OE.zoom.rect && OE.zoom.z > 1.2 && !OE.box.classList.contains('zoomed'), 'pager → camera focuses Ship-It\'s pod (room stays live, z=' + OE.zoom.z.toFixed(2) + ')');
-  ok(!!$('.o-podglow') && !$('#oUnfocus').hidden, 'the pod is highlighted; a way back is offered');
-  ok(/here/i.test($('#opgScreen').textContent), 'pager says you\'re there');
-  key('Escape', document.body); await wait(50);
-  ok(!OM.focusKey && !OE.zoom.rect && $('#oUnfocus').hidden, 'Esc → whole office');
-  ok(wsPager().length === 0 && /All quiet/.test($('#opgScreen').textContent), 'visited and did nothing → off the pager');
-  ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '…but the "!" over Scarlett stays');
-  OP.ask({ id: 'ask-scar-2', agentId: 'a-scar', type: 'decision', short: 'Retry flaky test?', q: 'Retry?', ctx: '', options: ['Yes', 'No'], featureId: 'checkout' }); await wait(30);
-  ok(wsPager().length === 1 && /Retry flaky/.test($('#opgScreen').textContent), 'a new ask brings the team back to the pager');
-  WS.pending = WS.pending.filter(p => p.id !== 'ask-scar-2'); officeRefresh(); await wait(20);
+  /* the pager pages OFFICES (v6): never your own, never teams */
+  const pages = () => OPG.entries().map(e => e.projectId);
+  ok(!pages().includes('aurora') && !/Ship-It/.test($('#opgScreen').textContent), 'pager: the office you\'re in never pages you (its "!" does), and no teams');
+  ok(pages().includes('lumi'), 'pager: Lumi Health (status needs) is on the pager');
+  go('projects'); await wait(300);
+  ok(!$('#pager').hidden && $('#pager').getBoundingClientRect().left < 40, 'pager is global — bottom-left on Projects too');
+  ok(!pages().includes('aurora'), 'left Aurora without answering → Aurora drops off the pager');
+  WS.pending.push({ id: 'ask-away', agentId: 'a-scar', type: 'decision', short: 'Retry flaky test?', options: ['Yes', 'No'] }); OPG.refresh(); await wait(20);
+  ok(pages().includes('aurora') && /Aurora/.test($('#opgScreen').textContent) && /Scarlett needs you/.test($('#opgScreen').textContent), 'a new ask brings Aurora back: "Scarlett needs you"');
+  ok(!!$('#opgScreen .logo-tile') && /2 OFFICES/.test($('#opgScreen').textContent), 'page = project logo + name + one calm line');
+  WS.pending = WS.pending.filter(p => p.id !== 'ask-away');
+  OPG.idx = OPG.entries().findIndex(e => e.projectId === 'lumi'); OPG._render();
+  ok(/Lumi/.test($('#opgScreen').textContent) && /test account/.test($('#opgScreen').textContent), 'pager shows Lumi\'s note');
+  $('#opgScreen').click(); await wait(600);
+  ok(location.hash === '#office/lumi' && OM.project === 'lumi', 'press the pager → that project\'s office');
+  go('office'); await wait(600);
+  ok(!pages().includes('lumi') && OM.project === 'aurora', 'visited Lumi and left → off the pager');
+  ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '…and the "!" over Scarlett is still there in Aurora');
   ok(/Stripe test key/.test($('.o-body[data-id="a-scar"]').getAttribute('aria-label')), 'actor label names the ask');
   ok(/Needs you/.test($('.o-body[data-id="a-scar"] .o-card').textContent), 'hover card says what they need');
 
@@ -8010,15 +8260,11 @@ async function officeSelftest() {
   /* decision ask (Twinkle) answered with a chip */
   OP.ask({ id: 'ask-test', agentId: 'a-twinkle', type: 'decision', short: 'Cart button copy', q: 'Which reads better?', ctx: 'Not blocking', options: ['Add to bag', 'Add to cart'], featureId: 'cleanup' });
   OE.setActivity('a-twinkle', 'needs-input', { short: 'Needs you', detail: 'Cart button copy' }); await wait(30);
-  ok(/Polish/.test($('#opgScreen').textContent), 'pager pages the Polish Patrol');
-  $('#opgScreen').click(); await wait(50);
-  ok(OM.focusKey === 'team:polish', 'pager → Polish Patrol pod');
+  ok(!pages().includes('aurora'), 'a new ask inside the office you\'re in stays off the pager');
   $('.o-body[data-id="a-twinkle"]').click(); await wait(50);
   ok(OP.thread === 'a-twinkle' && !!$('.op-ask.live .chip'), 'click Twinkle in the pod → her ask (decision chips)');
   $('.op-ask.live .chip').click(); await wait(80);
   ok(!WS.pending.length && wsAgent('a-twinkle').activity.kind === 'coding', 'decision chip answers and unblocks');
-  $('#oUnfocus').click(); await wait(50);
-  ok(!OM.focusKey && !wsPager().length, '← Whole office; pager is quiet again');
 
   /* the health report: GitHub + runs locally */
   go('health'); await wait(900);
@@ -8209,6 +8455,7 @@ function route() {
   if (head === 'office' && (!parts[1] || ['board', 'health', 'features', 'feature'].includes(parts[1]))) parts.splice(1, 0, 'aurora');
 
   if (APP.view === 'office' && head !== 'office' && typeof closeOffice === 'function') closeOffice();
+  if (APP.stage === 'new' && head !== 'new' && typeof npLeave === 'function') npLeave();
   if (sheetOpen()) closeSheet();
 
   if (head === 'gallery') {
@@ -8219,10 +8466,13 @@ function route() {
     _showLayer('office'); APP.view = 'office'; APP.sub = parts.slice(2).join('/');
     openOffice(parts[1], APP.sub); return;
   }
-  const stage = STAGES.some(s => s.id === head) ? head : 'projects';
+  /* #new/<draftId> — the project-setup space: a studio page, nav shows Projects */
+  const stage = head === 'new' ? 'new' : STAGES.some(s => s.id === head) ? head : 'projects';
   _showLayer('studio'); APP.view = 'studio'; APP.stage = stage; APP.sub = parts.slice(1).join('/');
   document.querySelectorAll('#stage .scene').forEach(s => s.classList.toggle('active', s.id === 'scene-' + stage));
-  document.querySelectorAll('#nav a').forEach(a => { if (a.dataset.stage === stage) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  const navOn = stage === 'new' ? 'projects' : stage;
+  document.querySelectorAll('#nav a').forEach(a => { if (a.dataset.stage === navOn) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (stage === 'new') renderNewProject(parts[1]);
   if (stage === 'projects') renderProjects();
   if (stage === 'cast') renderCast(parts[1] === 'teams' ? 'teams' : 'agents');
   if (stage === 'access') renderAccess();
@@ -8241,7 +8491,7 @@ window.addEventListener('keydown', e => {
   }
   const free = t === document.body || !t.closest || t.closest('#nav') || t.classList.contains('scene');
   if (!free || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
-  const i = STAGES.findIndex(s => s.id === APP.stage);
+  const i = STAGES.findIndex(s => s.id === APP.stage); if (i < 0) return;
   const j = e.key === 'ArrowRight' ? Math.min(STAGES.length - 1, i + 1) : Math.max(0, i - 1);
   if (j !== i) { e.preventDefault(); go(STAGES[j].id); }
 });
