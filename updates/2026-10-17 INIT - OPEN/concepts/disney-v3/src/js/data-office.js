@@ -20,7 +20,7 @@ const WS = {
   office: { theme: 'office', camera: 'office', thread: 'pixel', demo: { t: 0, act: 1, cursor: 0 } },
 
   director: { id: 'pixel', seat: 'director', at: 'director', onProject: true,
-    activity: { kind: 'planning', label: 'Big picture', detail: 'Keeping Voice search and Checkout on track for v1.0', target: null, featureId: null },
+    activity: { kind: 'planning', label: 'Big picture', short: 'Big picture', detail: 'Keeping Voice search and Checkout on track for v1.0', target: null, featureId: null },
     session: 'running', tokens: { total: 58000 }, tasksDone: 0 },
 
   /* per-project actors. teamId null = solo (hot desk). seat = home desk anchor

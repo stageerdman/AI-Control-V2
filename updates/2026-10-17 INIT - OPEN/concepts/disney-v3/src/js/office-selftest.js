@@ -88,5 +88,18 @@ async function officeSelftest() {
   key('Home'); await wait(10);
   ok(document.activeElement && document.activeElement.dataset.id === 'pixel', 'Home → Pixel');
   ok($('#oList').querySelectorAll('.o-lrow').length >= 10, 'list mirror lists everyone');
+
+  /* decision ask (Twinkle) answered with a chip */
+  OP.ask({ id: 'ask-test', agentId: 'a-twinkle', type: 'decision', short: 'Cart button copy', q: 'Which reads better?', ctx: 'Not blocking', options: ['Add to bag', 'Add to cart'], featureId: 'cleanup' });
+  OE.setActivity('a-twinkle', 'needs-input', { short: 'Needs you', detail: 'Cart button copy' }); await wait(30);
+  $('#oBell').click(); await wait(50);
+  ok(OP.thread === 'a-twinkle' && !!$('.op-ask.live .chip'), 'bell opens the oldest ask (decision chips)');
+  $('.op-ask.live .chip').click(); await wait(80);
+  ok(!WS.pending.length && wsAgent('a-twinkle').activity.kind === 'coding', 'decision chip answers and unblocks');
+
+  /* leave and come back: the story resumes, it does not replay */
+  const pend = WS.pending.length; go('projects'); await wait(200); go('office'); await wait(600);
+  ok(WS.pending.length === pend && wsAgent('a-scar').activity.kind !== 'needs-input', 'reopening resumes (no replayed asks)');
+  ok(!!$('.o-body[data-id="a-merge"]') , 'office rebuilt from state');
   console.log(fails ? `SELFTEST: ${fails} FAILED` : 'SELFTEST: ALL PASS');
 }

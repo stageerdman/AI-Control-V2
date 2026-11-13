@@ -16,6 +16,10 @@ OS._param = function () { const m = /[?&]demo=([^&#]+)/.exec(location.search); r
 OS.start = async function () {
   this.stop(); this.running = true; this.busy = {}; this.lock = {};
   const demo = this._param();
+  /* coming back to the office resumes the story where it was — never replays it */
+  const d = WS.office.demo;
+  if (d.started) { this._settle(); OE.speed = demo.includes('fast') ? 3 : 1; if (d.t > SIM_ACT1_END) this._ambient(); else this._schedule(d.t); return; }
+  d.started = true;
   OE.speed = demo.includes('fast') ? 3 : 1;
   let skip = 0;
   demo.forEach(d => { const m = /^t(\d+)$/.exec(d); if (m) skip = +m[1]; });
@@ -31,13 +35,26 @@ OS.start = async function () {
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
 };
-OS.stop = function () { this.timers.forEach(clearTimeout); this.timers = []; this.running = false; };
+OS.stop = function () {
+  if (this.running && this.t0) WS.office.demo.t = Math.max(WS.office.demo.t || 0, (Date.now() - this.t0) / 1000 * OE.speed);
+  this.timers.forEach(clearTimeout); this.timers = []; this.running = false;
+};
+OS.elapsed = function () { return (Date.now() - this.t0) / 1000 * OE.speed; };
+/* after an interrupted visit: anyone caught mid-errand goes back to a sensible state */
+OS._settle = function () {
+  const transient = ['commit', 'handoff', 'talking', 'deploying', 'arriving', 'leaving', 'writing', 'shipped'];
+  [WS.director, ...wsOnProject()].forEach(a => {
+    if (!transient.includes(a.activity.kind)) return;
+    a.at = a.seat || a.at;
+    a.activity = Object.assign({}, a.activity, a.id === 'pixel' ? { kind: 'planning', short: 'Big picture' } : { kind: 'coding', short: null });
+  });
+};
 OS.replay = function () { toast('↺ Replaying Act 1'); location.reload(); };
 OS._at = function (sec, fn) { this.timers.push(setTimeout(fn, sec * 1000 / OE.speed)); };
 
 /* schedule beats with t > from (seconds) */
 OS._schedule = function (from) {
-  this.t0 = Date.now() - from * 1000;
+  this.t0 = Date.now() - from * 1000 / OE.speed;
   SIM_SCRIPT.filter(b => b.t >= from && !(from > 0 && b.t <= from)).forEach(b => this._at(b.t - from, () => this._run(b)));
   this._at(Math.max(0, SIM_ACT1_END - from), () => this._ambient());
 };
@@ -46,7 +63,8 @@ OS.skipTo = async function (t) {
   for (const b of SIM_SCRIPT.filter(x => x.t <= t)) { if (/trace/.test(location.search)) console.log("beat", b.t, b.do); try { await this._run(b); } catch (e) { console.error("beat failed", b.t, b.do, e && e.message); } }
   OE.instant = false;
   officeRefresh();
-  if (t > SIM_ACT1_END) this._ambient(); else this._schedule(t);
+  WS.office.demo.t = t;
+  if (t > SIM_ACT1_END) { this.t0 = Date.now() - t * 1000; this._ambient(); } else this._schedule(t);
 };
 /* one beat at a time per actor: a new beat waits for that actor's previous one */
 OS._run = function (b) {
