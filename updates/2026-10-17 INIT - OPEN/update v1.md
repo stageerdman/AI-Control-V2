@@ -110,15 +110,18 @@ direction. Playful visuals, consistent component system, accessibility pass.
   principles freshness.
 - ✅ User reviewed disney-v2 (2026-11-13) and gave refinements — verbatim in
   `concepts/disney-v3/user-feedback-v3.md`, organized in `concepts/disney-v3/BRIEF.md`.
-- 🔄 **Phase 1b — Disney v3 refinement (IN PROGRESS, 2026-11-13):**
-  1. UX specs in parallel: agent roster + hero zoom & role-driven looks; teams as
-     groups + squad zoom + captain + original emblems; "The Office" workspace
-     (living office, whiteboard, feature dossier, chat side panel). → `concepts/disney-v3/spec-*.md`
-  2. Foundation build: split v2 into modules under `concepts/disney-v3/src/` +
-     assemble script → single-file HTML; new character + emblem system.
-  3. Parallel builds: Cast/Teams screens; The Office.
-  4. Integrate, verify in browser, user review.
-- ⏭️ **Then (gate):** user reviews disney-v3 → Phase 2 stack/architecture spike.
+- ✅ **Phase 1b — Disney v3 refinement (built 2026-11-13):** three parallel UX
+  specs (`spec-cast.md`, `spec-teams.md`, `spec-office.md`) → `SYNTHESIS.md` →
+  modular source in `concepts/disney-v3/src/` assembled by `build.py` into the
+  single-file `concepts/disney-v3/ai-control-disney-v3.html`. Delivered: character
+  system v3 (`hero()`, 10 role costumes, 17 poses, facings), 10 original team
+  emblems, tidy agent lineup + hero zoom, team roll call + squad zoom (captain,
+  per-team roles, add/remove), and **The Office** (living office scene, side-panel
+  chat per agent, "!" asks, whiteboard zoom with checklist/tokens/who-did-what,
+  features folder with editable feature pages, scripted simulation). Verified:
+  every route error-free in headless Chrome; cast click-test 37/37; office
+  self-test 41/41. Not yet seen live: CSS animation timing (headless doesn't animate).
+- ⏭️ **Next (gate):** user reviews disney-v3 live → refinements → Phase 2 stack/architecture spike.
 
 ## Decisions
 
