@@ -388,8 +388,7 @@ export function createDispatch(deps: {
         work.setItem(it.id, { status: 'todo' }); // raced a hand-started run: queue again
         return;
       }
-      settle(it, { status: 'failed', note: clip(msg, 2000) });
-      await shelve(work.item(it.id) as ChecklistItem);
+      await stop(it, { status: 'failed', note: clip(msg, 2000) });
       pump(it.projectId);
       return;
     }
@@ -407,6 +406,22 @@ export function createDispatch(deps: {
     merging.set(projectId, next);
     return next;
   };
+
+  /** End an item as failed/cancelled. With a checkout: put it away first (work committed on its branch), so
+      the item — and its goal — settle with the branch named. Without one this settles right away. */
+  async function stop(it: ChecklistItem, patch: ItemPatch & { status: 'failed' | 'cancelled' }) {
+    const ws = it.workspace;
+    let note = patch.note === undefined ? it.note : patch.note;
+    if (ws && deps.worktrees) {
+      work.setItem(it.id, { ...patch, status: 'running' }); // still on the board while it's put away
+      const { kept } = await deps.worktrees.close(repoOf(it.projectId), ws, { deleteBranch: true });
+      if (kept) note = clip(`${note ? `${note} — ` : ''}work kept on branch ${ws.branch}`, 2000);
+      settle(work.item(it.id) as ChecklistItem, { ...patch, note });
+      pump(it.projectId);
+      return;
+    }
+    settle(it, patch);
+  }
 
   /** Put a stopped item's checkout away: its work is committed on its branch (kept unless empty/merged). */
   async function shelve(it: ChecklistItem): Promise<void> {
@@ -494,20 +509,19 @@ export function createDispatch(deps: {
   /** A build (or rework) run ended. */
   function afterBuild(it: ChecklistItem, run: Run) {
     if (run.status !== 'succeeded') {
-      settle(it, {
+      void stop(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: clip(run.error ?? run.result ?? '', 2000) || null,
       });
-      void shelve(work.item(it.id) as ChecklistItem);
       return;
     }
     const note = clip(run.result ?? '', 2000) || null;
     if (it.report) {
       const filed = !!deps.filedBy?.(run.id);
-      settle(
-        it,
-        filed ? { status: 'done', note } : { status: 'failed', note: 'Finished without filing the report' },
-      );
+      if (filed) accept(it, { note, buildRunId: run.id });
+      else {
+        void stop(it, { status: 'failed', note: 'Finished without filing the report' });
+      }
       return;
     }
     const gate = it.gates[it.gateIndex];
@@ -523,11 +537,10 @@ export function createDispatch(deps: {
   function afterReview(it: ChecklistItem, run: Run) {
     const gate = it.gates[it.gateIndex] as ItemGate;
     if (run.status !== 'succeeded') {
-      settle(it, {
+      void stop(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: `${name(gate.reviewer)}'s review didn't finish: ${clip(run.error ?? run.status, 1500)}`,
       });
-      void shelve(work.item(it.id) as ChecklistItem);
       return;
     }
     const v = parseVerdict(run.result ?? '');
@@ -578,7 +591,7 @@ export function createDispatch(deps: {
       },
     });
     if (final) {
-      settle(it, {
+      void stop(it, {
         status: 'failed',
         sendBacks,
         reviews,

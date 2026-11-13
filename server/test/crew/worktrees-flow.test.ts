@@ -198,4 +198,51 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
     expect(git(s.repo, 'show', `${g.items[1].workspace.branch}:half.txt`)).toBe('half');
     expect(existsSync(join(s.repo, 'page.html'))).toBe(true);
   });
+
+  it('report items in a git project: their checkout is put away too (live-run regression)', async () => {
+    const s = studio(
+      { summary: 's', items: [{ text: 'Compare hosts', assignee: 'a-prof', brief: 'b', report: true }] },
+      () => [
+        {
+          report: {
+            title: 'Hosting compared',
+            summary: 'Pages wins.',
+            body: '## Answer\n\nPages.',
+            kind: 'research',
+          },
+        },
+        { result: 'Filed.' },
+      ],
+    );
+    h = s.h;
+    h.store.projects.update('aurora', { agentIds: ['a-prof'] });
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Research hosting' });
+    const g = await settled(h, r.body.id);
+    expect(g.items[0]).toMatchObject({ status: 'done', reportId: expect.stringMatching(/^rep_/) });
+    expect(git(s.repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+    expect(git(s.repo, 'branch', '--list', 'studio/*')).toBe('');
+  });
+
+  it('a review that keeps sending it back: failed, checkout put away, work kept on its branch', async () => {
+    const s = studio({ summary: 's', items: [item('Page', 'a-semic', 'ship-it')] }, (spec) => {
+      if (spec.task.startsWith('You are reviewing'))
+        return [{ result: '{"verdict":"changes","notes":"no"}' }];
+      writeFileSync(join(spec.cwd, `page-${Math.random()}.html`), 'p\n');
+      return [{ result: 'built' }];
+    });
+    h = s.h;
+    h.store.projects.update('aurora', {
+      collaboration: {
+        orchestratorTalksTo: 'captains',
+        gates: [{ after: '*', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
+        maxSendBacks: 0,
+        summary: 's',
+      },
+    });
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Page' });
+    const g = await settled(h, r.body.id);
+    expect(g.items[0].status).toBe('failed');
+    expect(g.items[0].note).toMatch(/it needs you[\s\S]*work kept on branch studio\//);
+    expect(existsSync(g.items[0].workspace.cwd)).toBe(false);
+  });
 });
