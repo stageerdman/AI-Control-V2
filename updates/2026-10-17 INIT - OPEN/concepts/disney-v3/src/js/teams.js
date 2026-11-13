@@ -5,7 +5,7 @@
             squadRoute(zoom)        in-place transition when the hash changes
             openSquad(id, {animate}) id = team id | 'new' (draft)
             squadRelayout()         re-fit the formation (resize)
-   Uses cast.js helpers: cxRadios, roleTiles, hueSwatches, roleBadge, cxSaved,
+   Uses cast.js helpers: cxRadios, hueSwatches, cxSaved,
    cxFlip, cxHop, cxPoof, cxCostume, cxTrap, cxPlace, _cxRectUnpushed.
    ============================================================ */
 const SQ = { id: null, team: null, draft: null, sel: null, strip: false, returnTo: null };
@@ -15,6 +15,8 @@ const SQ_SLOTS = [[0, 0], [-22, 4], [22, 4], [-40, 8], [40, 8], [-31, 20], [31, 
 
 const _tEl = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const teamHex = t => hueHex(t.color);
+/* the agent's own custom role (v5: user-defined, may be empty) */
+const _roleOf = a => roleName(a.role) || 'No role yet';
 /* captain first, then member order */
 function orderedMembers(t) {
   const cap = t.members.find(m => m.agent === t.captain);
@@ -261,7 +263,7 @@ function _renderFormation(z, { before = null, walkIn = null, walkFrom = null } =
     const [x, y] = SQ_SLOTS[i]; const step = y === 0 ? 0 : y <= 4 ? 1 : y <= 8 ? 2 : 3; const back = step === 3;
     const isCap = t.captain === m.agent;
     const px = i === 0 ? cap : Math.round(crew * Math.pow(0.94, step - 1));
-    const eff = a.role;
+    const eff = _roleOf(a);
     const b = _tEl('button', 'sq-m' + (back ? ' back' : '') + (isCap ? ' is-cap' : '') + (SQ.sel === m.agent ? ' sel' : '')); b.type = 'button';
     b.dataset.id = m.agent; b.dataset.x = x;
     b.setAttribute('aria-label', `${a.name}, ${eff}${isCap ? ', Captain' : ''}. Edit on this team`);
@@ -402,12 +404,12 @@ function _crewList(z, p) {
   ul.innerHTML = ord.length ? '' : '<li class="zp-empty">No crew yet. The first one you add becomes captain.</li>';
   ord.forEach(m => {
     const a = agentById(m.agent); if (!a) return;
-    const isCap = t.captain === m.agent; const eff = a.role;
+    const isCap = t.captain === m.agent; const eff = _roleOf(a);
     const li = _tEl('li');
     const b = _tEl('button', 'sq-row'); b.type = 'button';
     b.setAttribute('aria-label', `${a.name}, ${eff}${isCap ? ', Captain' : ''}. Edit on this team`);
     b.innerHTML = `<span class="sq-row-fig"></span><span class="sq-row-text"><b>${escapeHtml(a.name)}${isCap ? ` <em>${STAR} Captain</em>` : ''}</b>
-      <span>${roleBadge(eff, 12)}${escapeHtml(eff)}</span>
+      <span>${escapeHtml(eff)}</span>
       ${m.instr ? '' : `<span class="sq-nudge">Give ${escapeHtml(shortName(a))} a job</span>`}</span><i class="chev" aria-hidden="true">›</i>`;
     b.querySelector('.sq-row-fig').appendChild(hero(a, { size: 'xs', facing: 'front' }));
     b.onclick = () => _selectMember(z, m.agent);
@@ -415,7 +417,7 @@ function _crewList(z, p) {
   });
 }
 
-/* emblem picker: 5×2, team hue, hover previews the stage watermark */
+/* emblem picker: 5 per row, team hue, hover previews the stage watermark */
 function _togglePicker(z, p, paintEm) {
   const t = SQ.team; const pk = p.querySelector('.sq-picker'); const btn = p.querySelector('.sq-em-btn');
   if (!pk.hidden) { pk.hidden = true; btn.setAttribute('aria-expanded', 'false'); _paintMark(z, t); btn.focus(); return; }
@@ -455,7 +457,7 @@ function _selectMember(z, agentId) {
   p.innerHTML = `<div class="zp-scroll">
     <div class="zp-top"><button type="button" class="zp-crumb"><span aria-hidden="true">←</span> ${escapeHtml(t.name || 'New team')}</button><span class="zp-saved" aria-hidden="true">Saved ✓</span></div>
     <div class="sq-mhead"><span class="sq-mfig"></span><div><h2 id="sqMember" tabindex="-1">${escapeHtml(a.name)}</h2>
-      <p>${roleBadge(a.role, 14)}${escapeHtml(a.role)} in the cast · <a href="#cast/agent/${escapeAttr(a.id)}" class="zp-link">Open agent page</a></p></div></div>
+      <p>${escapeHtml(_roleOf(a))} in the cast · <a href="#cast/agent/${escapeAttr(a.id)}" class="zp-link">Open agent page</a></p></div></div>
     <section class="zp-sec"><h3 class="zp-label"><label for="sqJob">Job on this team</label></h3>
       <textarea class="zp-area" id="sqJob" rows="4" placeholder="What is ${escapeAttr(first)}’s job on this crew?"></textarea>
       <p class="zp-hint-line">${escapeHtml(first)} runs with: their own brain <span aria-hidden="true">▸</span> what the team does <span aria-hidden="true">▸</span> how the team codes <span aria-hidden="true">▸</span> this job.</p></section>
@@ -598,7 +600,7 @@ function _openStrip(z) {
 }
 function _paintStrip(z) {
   const t = SQ.team; const strip = z.querySelector('.sq-strip');
-  const cands = AGENTS.filter(a => !memberOf(t, a.id));
+  const cands = castOrder().filter(a => !isSystemAgent(a) && !memberOf(t, a.id));
   strip.innerHTML = `<div class="sq-strip-head"><b>Who joins the crew?</b><span>${t.members.length}/${TEAM_MAX} · max ${TEAM_MAX} per crew</span>
       <button type="button" class="btn-glass sq-strip-done">Done</button></div>
     <div class="sq-strip-list" role="list"></div>`;
@@ -607,8 +609,8 @@ function _paintStrip(z) {
   cands.forEach(a => {
     const li = _tEl('div', 'sq-cand-li'); li.setAttribute('role', 'listitem');
     const b = _tEl('button', 'sq-cand'); b.type = 'button'; b.dataset.id = a.id;
-    b.setAttribute('aria-label', `Add ${a.name}, ${a.role}`);
-    b.innerHTML = `<span class="sq-cand-fig"></span><b>${escapeHtml(a.name)}</b><span>${escapeHtml(a.role)}</span>`;
+    b.setAttribute('aria-label', `Add ${a.name}, ${_roleOf(a)}`);
+    b.innerHTML = `<span class="sq-cand-fig"></span><b>${escapeHtml(a.name)}</b><span>${escapeHtml(_roleOf(a))}</span>`;
     b.querySelector('.sq-cand-fig').appendChild(hero(a, { size: 'sm', facing: 'front' }));
     b.addEventListener('mouseenter', () => cxHop(b.querySelector('.hero')));
     b.onclick = e => { e.stopPropagation(); _addFromStrip(z, a.id, b); };

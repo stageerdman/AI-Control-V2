@@ -5,9 +5,11 @@
      #cast                  lineup
      #cast/agent/<id>       hero zoom (deep link)      #cast/agent/new  create mode
      #cast/teams[/<id|new>] → teams.js (renderTeams / squadRoute / openSquad)
-   Public:  renderCast(tab), openHero({name, role})  (voice path)
+   Public:  renderCast(tab), openHero({name, role, kind})  (voice path)
+   v5: studio crew (system agents) lead the lineup; roles are a free combobox;
+   the look is edited in-game — ‹ › arrows beside the big bot + a dice.
    Shared helpers teams.js reuses (one definition, used everywhere):
-     fmtTokens(n), roleBadge(role, px), cxRadios(opts), roleTiles(agent, value, onPick, opts),
+     fmtTokens(n), cxRadios(opts),
      hueSwatches(value, onPick), cxSaved(root), cxFlip(el, fromRect, opts), cxAfter(anim, fn), cxHop(el),
      cxPoof(holder), cxCostume(oldEl, makeNew, done), cxTrap(e, root), cxPlace(z, scene)
    ============================================================ */
@@ -29,10 +31,6 @@ function fmtTokens(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
   if (n >= 1e3) return Math.round(n / 1e3) + 'K';
   return String(n);
-}
-function roleBadge(role, px = 14) {
-  const g = ROLE_GEAR[role]; if (!g) return '';
-  return `<svg class="role-badge" viewBox="-8.6 -8.6 17.2 17.2" width="${px}" height="${px}" aria-hidden="true" focusable="false"><circle r="7.6" fill="${hueHex(g.accent)}" stroke="#241a44" stroke-width="1.4"/>${g.badge()}</svg>`;
 }
 function _cxEl(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
 
@@ -63,25 +61,12 @@ function cxRadios({ label, items, value, onPick, cls = '' }) {
   g.set = set; g.btns = btns;
   return g;
 }
-/* "loadout" tiles: the agent themselves wearing each role's gear */
-function roleTiles(agent, value, onPick, { label = 'Role', castRole = null } = {}) {
-  return cxRadios({
-    label, cls: 'role-tiles', value, onPick,
-    items: ROLES.map(r => ({
-      value: r, label: `Role ${r}${r === castRole ? ', cast role' : ''}. ${ROLE_GEAR[r].look}`, title: ROLE_GEAR[r].look,
-      html: `<span class="rt-fig">${heroSVG(Object.assign({}, agent, { role: r }), { size: 52, facing: 'front' })}</span><span class="rt-name">${r}</span>${r === castRole ? '<span class="rt-cast">cast</span>' : ''}`,
-    })),
-  });
-}
 const _CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 8.5 L6.5 11.5 L12.5 4.5" fill="none" stroke="#241a44" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function hueSwatches(value, onPick, label = 'Colour') {
   return cxRadios({
     label, cls: 'swatches', value, onPick,
     items: HUES.map(h => ({ value: h, label: `${label} ${COLOR_NAMES[h]}`, title: COLOR_NAMES[h], html: `<span class="sw" style="--c:${PALETTE[h]}">${_CHECK}</span>` })),
   });
-}
-function _chips(label, list, value, onPick) {
-  return cxRadios({ label, cls: 'chips', value, onPick, items: list.map(v => ({ value: v, label: `${label} ${v}`, html: escapeHtml(v) })) });
 }
 /* quiet "Saved ✓" pip next to the panel kicker */
 function cxSaved(root) {
@@ -194,9 +179,9 @@ function renderCast(tab = 'agents') {
   _castDemo();
 }
 /* voice path: "make a backend agent called Major Refactor" */
-function openHero({ name = '', role = 'Frontend' } = {}) {
-  CAST.prefill = { name, role: ROLES.includes(role) ? role : 'Frontend' };
-  go('cast/agent/new');
+function openHero({ name = '', role = '', kind = 'agent' } = {}) {
+  CAST.prefill = { name, role: roleName(role) };
+  go(kind === 'orchestrator' ? 'cast/agent/new-orchestrator' : 'cast/agent/new');
 }
 
 /* ============================================================
@@ -207,7 +192,7 @@ const SLOT_W = 168, SLOT_GAP = 24;
 function _renderLineup(body) {
   body.innerHTML = `<div class="lineup-wrap"><div class="lineup" role="list" aria-label="Agents"></div>
     <p class="lineup-none" hidden></p></div>`;
-  CAST.items = AGENTS.map(_slotEl).concat(_ghostSlotEl());
+  CAST.items = _lineupItems();
   CAST.cols = 0;
   _layoutLineup();
   _applySearch(false);
@@ -217,12 +202,16 @@ function _renderLineup(body) {
     if (e.target.closest('.recruit-q')) openHero({ name: CAST.q.trim().slice(0, 22) });
   });
 }
+/* studio crew first (marked .crew), then everyone else, then the recruit ghost */
+function _lineupItems() { return castOrder().map(_slotEl).concat(_ghostSlotEl()); }
+const _roleText = a => isSystemAgent(a) ? KIND_LABEL[kindOf(a)] : (roleName(a.role) || 'No role yet');
 function _slotEl(a) {
-  const li = _cxEl('div', 'slot-li'); li.setAttribute('role', 'listitem');
+  const crew = isSystemAgent(a);
+  const li = _cxEl('div', 'slot-li' + (crew ? ' crew-li' : '')); li.setAttribute('role', 'listitem');
   const b = _cxEl('button', 'slot'); b.type = 'button'; b.dataset.id = a.id; b.tabIndex = -1;
-  b.setAttribute('aria-label', `${a.name}, ${a.role}. Open details`);
+  b.setAttribute('aria-label', `${a.name}, ${_roleText(a)}${crew ? ', studio crew, required' : ''}. Open details`);
   b.innerHTML = `<span class="slot-cone" aria-hidden="true"></span><span class="slot-fig"><span class="slot-pool" aria-hidden="true"></span></span>
-    <span class="slot-name">${escapeHtml(a.name)}</span><span class="slot-role">${roleBadge(a.role, 13)}${escapeHtml(a.role)}</span>`;
+    <span class="slot-name">${escapeHtml(a.name)}</span><span class="slot-role${a.role ? '' : ' none'}">${escapeHtml(_roleText(a))}</span>`;
   b.querySelector('.slot-fig').appendChild(hero(a, { size: 'md' }));
   _wireSlot(b); li.appendChild(b); return li;
 }
@@ -259,12 +248,20 @@ function _layoutLineup() {
   const cols = Math.max(2, Math.min(6, Math.floor((w + gap) / (slotW + gap))));
   if (cols === CAST.cols && lineup.children.length) return;
   CAST.cols = cols;
-  const n = CAST.items.length, rows = Math.ceil(n / cols), per = Math.ceil(n / rows);
+  const crew = CAST.items.filter(li => li.classList.contains('crew-li'));
+  const rest = CAST.items.filter(li => !li.classList.contains('crew-li'));
+  const n = rest.length, rows = Math.ceil(n / cols), per = Math.ceil(n / rows);
+  const chunks = [];
+  for (let i = 0; i < crew.length; i += cols) chunks.push(crew.slice(i, i + cols));
+  const nCrew = chunks.length;
+  for (let r = 0; r < rows; r++) chunks.push(rest.slice(r * per, r * per + per));
   lineup.innerHTML = '';
-  for (let r = 0; r < rows; r++) {
-    const row = _cxEl('div', 'lineup-row'); row.setAttribute('role', 'presentation');
-    row.innerHTML = '<span class="lineup-floor" aria-hidden="true"></span>';
-    const chunk = CAST.items.slice(r * per, r * per + per);
+  for (let r = 0; r < chunks.length; r++) {
+    const row = _cxEl('div', 'lineup-row' + (r < nCrew ? ' crew-row' : '')); row.setAttribute('role', 'presentation');
+    row.innerHTML = '<span class="lineup-floor" aria-hidden="true"></span>'
+      + (r === 0 && nCrew ? '<span class="crew-label" aria-hidden="true">Studio crew <em>Required</em></span>' : '');
+    if (r === nCrew - 1 && nCrew) row.classList.add('crew-last');
+    const chunk = chunks[r];
     chunk.forEach((li, i) => {
       const b = li.querySelector('.slot'); const h = b.querySelector('.hero');
       const k = chunk.length; const mid = (k - 1) / 2;
@@ -306,8 +303,8 @@ function _applySearch(speak) {
   CAST.items.forEach(li => {
     const b = li.querySelector('.slot');
     if (b.classList.contains('slot-ghost')) return;
-    const a = agentById(b.dataset.id);
-    const hit = !q || (a.name + ' ' + a.role).toLowerCase().includes(q);
+    const a = agentById(b.dataset.id); if (!a) return;
+    const hit = !q || (a.name + ' ' + _roleText(a)).toLowerCase().includes(q);
     if (hit) n++;
     li.classList.toggle('away', !hit); li.inert = !hit;
   });
@@ -348,26 +345,30 @@ function _leastUsedHue() {
   const c = Object.fromEntries(HUES.map(h => [h, 0])); AGENTS.forEach(a => { if (a.hue in c) c[a.hue]++; });
   return HUES.reduce((m, h) => (c[h] < c[m] ? h : m), HUES[0]);
 }
-function _draftAgent(pre) {
-  const role = (pre && pre.role) || 'Frontend';
-  return { id: null, name: (pre && pre.name) || '', role, hue: _leastUsedHue(), build: 'hero', hair: 'tuft', accessory: 'none',
-    prompt: PROMPT_TEMPLATES[role], stats: { projects: 0, tokens: 0 } };
+function _draftAgent(pre, kind = 'agent') {
+  const look = kind === 'orchestrator'
+    ? Object.assign(randomLook(), { hat: 'director', tool: 'megaphone', decal: 'Director' })
+    : Object.assign(randomLook(), { hue: _leastUsedHue() });
+  const a = { id: null, kind, name: (pre && pre.name) || '', role: kind === 'orchestrator' ? KIND_LABEL.orchestrator : ((pre && pre.role) || ''),
+    prompt: kind === 'orchestrator' ? (orchestrators()[0] || {}).prompt || '' : '', stats: { projects: 0, tokens: 0 } };
+  setWholeLook(a, look); return a;
 }
 function _slotFor(id) {
-  const li = CAST.items.find(l => l.querySelector('.slot').dataset.id === (id || 'new'));
+  const li = CAST.items.find(l => l.querySelector('.slot').dataset.id === (id && !/^new/.test(id) ? id : 'new'));
   return li ? li.querySelector('.slot') : null;
 }
 function _bigPx(z) {
   const st = z.querySelector('.z-stage');
   const h = st.clientHeight || 600, w = st.clientWidth || 500;
-  return Math.round(Math.max(200, Math.min(380, h * 0.6, w * 0.9 / 0.75)));
+  /* leave room either side for the look arrows */
+  return Math.round(Math.max(200, Math.min(380, h * 0.6, (w - 170) / 0.75)));
 }
 function _bigHero(agent, px) { return hero(agent, { size: px, facing: 'front' }); }
 
 function _openAgent(id, { animate = true } = {}) {
   const scene = document.getElementById('scene-cast');
   let agent;
-  if (id === 'new') { agent = _draftAgent(CAST.prefill); CAST.prefill = null; }
+  if (id === 'new' || id === 'new-orchestrator') { agent = _draftAgent(CAST.prefill, id === 'new' ? 'agent' : 'orchestrator'); CAST.prefill = null; }
   else {
     agent = AGENTS.find(a => a.id === id);
     if (!agent) { history.replaceState(null, '', '#cast'); APP.sub = ''; return; }
@@ -422,14 +423,16 @@ function _openAgent(id, { animate = true } = {}) {
 /* stage + panel for one agent (also used by prev/next) */
 function _paintAgent(z, agent) {
   const fig = z.querySelector('.z-fig'); fig.innerHTML = '';
-  z.style.setProperty('--accent', hueHex((ROLE_GEAR[agent.role] || {}).accent || agent.hue));
-  fig.appendChild(_bigHero(agent, _bigPx(z)));
+  z.style.setProperty('--accent', hueHex(agent.look ? agent.look.hue : agent.hue));
+  const px = _bigPx(z);
+  fig.appendChild(_bigHero(agent, px));
+  fig.appendChild(_lookRig(agent, px));
   const nav = z.querySelector('.z-nav');
-  const i = AGENTS.indexOf(agent);
+  const order = castOrder(); const i = order.indexOf(agent);
   if (i < 0) nav.innerHTML = '';
   else {
     nav.innerHTML = `<button type="button" class="z-step" data-d="-1" aria-label="Previous agent" title="Previous ( [ )">‹</button>
-      <span>${i + 1} / ${AGENTS.length}</span>
+      <span>${i + 1} / ${order.length}</span>
       <button type="button" class="z-step" data-d="1" aria-label="Next agent" title="Next ( ] )">›</button>`;
     nav.querySelectorAll('.z-step').forEach(b => b.onclick = () => _stepAgent(+b.dataset.d));
   }
@@ -439,7 +442,7 @@ function _paintAgent(z, agent) {
 }
 function _stepAgent(d) {
   const z = document.querySelector('#scene-cast .zoom-agent'); if (!z || !CAST.cur || !CAST.cur.id) return;
-  const i = AGENTS.indexOf(CAST.cur); const next = AGENTS[(i + d + AGENTS.length) % AGENTS.length];
+  const order = castOrder(); const i = order.indexOf(CAST.cur); const next = order[(i + d + order.length) % order.length];
   CAST.cur = next; CAST.zoom = next.id; CAST.returnTo = _slotFor(next.id);
   history.replaceState(null, '', '#cast/agent/' + next.id); APP.sub = 'agent/' + next.id;
   _paintAgent(z, next);
@@ -448,40 +451,105 @@ function _stepAgent(d) {
     big.animate([{ transform: `translateX(${d * 40}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
     z.querySelector('.z-panel').animate([{ opacity: 0, transform: 'translateX(12px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
   }
-  announce(`${next.name}, ${next.role}. ${AGENTS.indexOf(next) + 1} of ${AGENTS.length}`);
+  announce(`${next.name}, ${_roleText(next)}. ${order.indexOf(next) + 1} of ${order.length}`);
   z.querySelector('#zhTitle').focus();
 }
 function _refreshBig(hop = true) {
   const z = document.querySelector('#scene-cast .zoom-agent'); if (!z || !CAST.cur) return;
-  const old = z.querySelector('.z-fig .hero'); const n = _bigHero(CAST.cur, _bigPx(z));
-  if (old) old.replaceWith(n); else z.querySelector('.z-fig').appendChild(n);
+  const px = _bigPx(z); const old = z.querySelector('.z-fig .hero'); const n = _bigHero(CAST.cur, px);
+  if (old) old.replaceWith(n); else z.querySelector('.z-fig').prepend(n);
+  const rig = z.querySelector('.lk-rig'); if (rig) rig.replaceWith(_lookRig(CAST.cur, px));
   if (hop) cxHop(n);
 }
 
+/* ============================================================
+   In-game look editor: ‹ › beside the bot at each slot's height + one dice
+   ============================================================ */
+const DICE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.6" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.6" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.6" fill="currentColor"/></svg>';
+function _lookRig(agent, px) {
+  const look = agent.look || (agent.look = lookFromLegacy(agent));
+  const rig = _cxEl('div', 'lk-rig'); rig.setAttribute('role', 'group'); rig.setAttribute('aria-label', 'Look');
+  rig.style.cssText = `--fw:${Math.round(px * 0.75)}px;height:${px}px`;
+  const ys = lookAnchors(look, px);
+  const tagText = sl => `${sl.label}: ${sl.name(look[sl.id])}`;
+  LOOK_SLOTS.forEach(sl => {
+    const row = _cxEl('div', 'lk-row'); row.dataset.slot = sl.id; row.style.top = ys[sl.id] + 'px';
+    row.setAttribute('role', 'group'); row.setAttribute('aria-label', tagText(sl));
+    const low = sl.label.toLowerCase();
+    row.innerHTML = `<button type="button" class="lk-arrow" data-d="-1" aria-label="Previous ${low}" title="Previous ${low}">‹</button>
+      <button type="button" class="lk-arrow" data-d="1" aria-label="Next ${low}" title="Next ${low}">›</button>
+      <span class="lk-tag" aria-hidden="true">${escapeHtml(tagText(sl))}</span>`;
+    row.querySelectorAll('.lk-arrow').forEach(b => b.onclick = () => {
+      const opts = sl.options; const i = Math.max(0, opts.indexOf(look[sl.id]));
+      const v = opts[(i + +b.dataset.d + opts.length) % opts.length];
+      applyLook(agent, sl.id, v);
+      _lookChanged(agent, sl.id);
+      announce(tagText(sl));
+    });
+    rig.appendChild(row);
+  });
+  const dice = _cxEl('button', 'lk-dice', DICE_SVG); dice.type = 'button';
+  dice.setAttribute('aria-label', 'Random look'); dice.title = 'Random look';
+  dice.style.top = Math.max(-46, ys.antenna - 52) + 'px';
+  dice.onclick = () => {
+    setWholeLook(agent, randomLook(agent.look));
+    _lookChanged(agent, null);
+    announce('New look: ' + LOOK_SLOTS.map(sl => sl.name(agent.look[sl.id])).join(', '));
+  };
+  rig.appendChild(dice);
+  return rig;
+}
+/* smooth swap: crossfade the bot, glide the arrow rows to the new heights */
+function _lookChanged(agent, slotId) {
+  const z = document.querySelector('#scene-cast .zoom-agent'); if (!z || CAST.cur !== agent) return;
+  const fig = z.querySelector('.z-fig'); const old = fig.querySelector('.hero'); const px = _bigPx(z);
+  const n = _bigHero(agent, px);
+  if (old) n.style.setProperty('--dl', old.style.getPropertyValue('--dl'));
+  z.style.setProperty('--accent', hueHex(agent.look.hue));
+  if (!old || reducedMotion()) { if (old) old.replaceWith(n); else fig.prepend(n); }
+  else {
+    old.classList.add('lk-out'); old.style.cssText += ';position:absolute;left:0;bottom:0';
+    fig.prepend(n);
+    n.animate([{ opacity: 0, transform: slotId ? 'none' : 'scale(.94)' }, { opacity: 1, transform: 'none' }], { duration: slotId ? 200 : 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    const a = old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, fill: 'forwards' });
+    cxAfter(a, () => old.remove());
+    if (!slotId) cxPoof(fig);
+  }
+  const rig = fig.querySelector('.lk-rig');
+  if (rig) {
+    const ys = lookAnchors(agent.look, px);
+    LOOK_SLOTS.forEach(sl => {
+      const row = rig.querySelector(`.lk-row[data-slot="${sl.id}"]`); if (!row) return;
+      row.style.top = ys[sl.id] + 'px';
+      const t = `${sl.label}: ${sl.name(agent.look[sl.id])}`;
+      row.setAttribute('aria-label', t); row.querySelector('.lk-tag').textContent = t;
+      if (slotId === sl.id) { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+    });
+    rig.querySelector('.lk-dice').style.top = Math.max(-46, ys.antenna - 52) + 'px';
+  }
+  const p = z.querySelector('.z-panel'); if (agent.id && p) cxSaved(p);
+}
+
 function _agentPanel(agent, z) {
-  const isNew = !agent.id;
+  const isNew = !agent.id; const crew = isSystemAgent(agent); const kind = kindOf(agent);
   const p = _cxEl('div', 'z-panel');
   p.innerHTML = `<div class="zp-scroll">
     <h2 class="sr-only" id="zhTitle" tabindex="-1"></h2>
-    <div class="zp-top"><span class="zp-kicker">${isNew ? 'New recruit' : 'Agent'}</span><span class="zp-saved" aria-hidden="true">Saved ✓</span></div>
+    <div class="zp-top"><span class="zp-kicker">${crew ? 'Studio crew' : isNew ? 'New recruit' : 'Agent'}</span><span class="zp-saved" aria-hidden="true">Saved ✓</span></div>
     <div class="zp-name">
-      <input class="zp-title" id="zpName" maxlength="22" placeholder="Name your agent" aria-label="Agent name" aria-describedby="zpNameErr" autocomplete="off" spellcheck="false">
-      <button type="button" class="zp-dice" aria-label="Suggest a funny name" title="Suggest a name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="8.5" r="1.6" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.6" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.6" fill="currentColor"/></svg></button>
+      <input class="zp-title" id="zpName" maxlength="22" placeholder="Name your ${crew ? KIND_LABEL[kind].toLowerCase() : 'agent'}" aria-label="${crew ? KIND_LABEL[kind] : 'Agent'} name" aria-describedby="zpNameErr" autocomplete="off" spellcheck="false">
     </div>
     <p class="zp-err" id="zpNameErr" hidden>Give them a name first</p>
     <p class="zp-caption"></p>
     <p class="zp-stats"></p>
-    <section class="zp-sec zp-role"><h3 class="zp-label">Role</h3><p class="zp-note" hidden></p></section>
-    <section class="zp-sec zp-look"><h3 class="zp-label">Look</h3>
-      <div class="look-row"><span class="zp-sub">Colour</span><div class="lk-hue"></div></div>
-      <div class="look-row"><span class="zp-sub">Build</span><div class="lk-build"></div></div>
-      <div class="look-row"><span class="zp-sub">Hair</span><div class="lk-hair"></div></div>
-      <div class="look-row"><span class="zp-sub">Extra</span><div class="lk-acc"></div></div>
-    </section>
+    ${crew ? `<p class="zp-about">${escapeHtml(KIND_ABOUT[kind])}</p>` : `<section class="zp-sec zp-role"><h3 class="zp-label"><label for="zpRole">Role</label><button type="button" class="zp-hint-btn rl-manage" aria-expanded="false">Edit roles</button></h3>
+      <div class="rc-box"><input class="zp-input rc-input" id="zpRole" role="combobox" aria-expanded="false" aria-controls="zpRoleList" aria-autocomplete="list" autocomplete="off" spellcheck="false" maxlength="28" placeholder="Pick a role or type a new one">
+        <ul class="rc-list" id="zpRoleList" role="listbox" aria-label="Roles" hidden></ul></div>
+      <div class="rl-edit" hidden></div></section>`}
     <section class="zp-sec"><h3 class="zp-label"><label for="zpPrompt">Brain</label><span class="zp-hint">its own system prompt</span></h3>
-      <textarea class="zp-area mono" id="zpPrompt" rows="6" spellcheck="false"></textarea>
-      <div class="zp-tpl" hidden></div></section>
-    <section class="zp-sec zp-teams-sec"><h3 class="zp-label">Teams</h3><ul class="zp-teams" role="list"></ul></section>
+      <textarea class="zp-area mono" id="zpPrompt" rows="6" spellcheck="false" placeholder="${crew ? '' : 'How should this agent think and work?'}"></textarea></section>
+    ${crew ? '' : '<section class="zp-sec zp-teams-sec"><h3 class="zp-label">Teams</h3><ul class="zp-teams" role="list"></ul></section>'}
+    <div class="zp-danger"></div>
   </div>`;
   const $ = s => p.querySelector(s);
   const saved = () => { if (agent.id) cxSaved(p); };
@@ -490,10 +558,13 @@ function _agentPanel(agent, z) {
 
   const caption = () => {
     title.textContent = `${agent.name || 'New agent'}: hero details`;
-    $('.zp-caption').innerHTML = `${roleBadge(agent.role, 16)}<span>${escapeHtml(agent.role)}</span><i aria-hidden="true">·</i><span>${COLOR_NAMES[agent.hue] || agent.hue}</span>`;
-    $('.zp-stats').textContent = agent.id && (agent.stats.projects || agent.stats.tokens)
-      ? `${agent.stats.projects} project${agent.stats.projects === 1 ? '' : 's'} · ${fmtTokens(agent.stats.tokens)} tokens`
-      : 'New recruit · no history yet';
+    $('.zp-caption').innerHTML = crew
+      ? `<span>${escapeHtml(KIND_LABEL[kind])}</span><span class="zp-req">Required</span>`
+      : `<span class="${agent.role ? '' : 'none'}">${escapeHtml(roleName(agent.role) || 'No role yet')}</span>`;
+    const n = agent.id ? (agent.stats && agent.stats.projects) || 0 : 0;
+    $('.zp-stats').textContent = agent.id
+      ? `Used in ${n} project${n === 1 ? '' : 's'} · each project runs its own copy — no shared memory.`
+      : 'New recruit · each project that uses them runs its own copy.';
   };
   caption();
 
@@ -504,65 +575,153 @@ function _agentPanel(agent, z) {
     err.hidden = true; agent.name = t;
     if (!agent.id) {
       agent.id = 'a-' + t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 16) + '-' + Date.now().toString(36).slice(-4);
+      if (agent.role && !crew) addRole(agent.role);
       AGENTS.push(agent); CAST.zoom = agent.id;
       history.replaceState(null, '', '#cast/agent/' + agent.id); APP.sub = 'agent/' + agent.id;
-      $('.zp-kicker').textContent = 'Agent';
+      $('.zp-kicker').textContent = crew ? 'Studio crew' : 'Agent';
       announce(`${t} joined the cast`);
+      _paintDanger();
     }
     caption(); saved();
   };
   name.addEventListener('input', () => commitName(name.value));
   name.addEventListener('blur', () => { if (!name.value.trim() && agent.id) { name.value = agent.name; err.hidden = true; } });
   name.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); name.blur(); } });
-  $('.zp-dice').onclick = () => {
-    const pool = FUNNY_NAMES.filter(n => !AGENTS.some(a => a.name === n));
-    name.value = pool[Math.floor(Math.random() * pool.length)] || FUNNY_NAMES[0];
-    commitName(name.value); _refreshBig(true);
-  };
 
-  /* role: live costume change + prompt follow-along */
-  const tiles = roleTiles(agent, agent.role, r => {
-    const prev = agent.role; agent.role = r;
-    z.style.setProperty('--accent', hueHex(ROLE_GEAR[r].accent));
-    const big = z.querySelector('.z-fig .hero');
-    cxCostume(big, () => _bigHero(agent, _bigPx(z)));
-    announce(`Now ${r}: ${ROLE_GEAR[r].look}.`);
-    const note = $('.zp-note'), tpl = $('.zp-tpl'), area = $('#zpPrompt');
-    if (!agent.prompt.trim() || agent.prompt === PROMPT_TEMPLATES[prev]) {
-      const before = agent.prompt; agent.prompt = PROMPT_TEMPLATES[r]; area.value = agent.prompt;
-      note.hidden = false; tpl.hidden = true;
-      note.innerHTML = `Prompt switched to the ${r} template · <button type="button" class="zp-link">Undo</button>`;
-      note.querySelector('button').onclick = () => { agent.prompt = before; area.value = before; note.hidden = true; saved(); };
-    } else {
-      note.hidden = true; tpl.hidden = false;
-      tpl.innerHTML = `<button type="button" class="zp-chip">Use ${r} template</button>`;
-      tpl.querySelector('button').onclick = () => { agent.prompt = PROMPT_TEMPLATES[r]; area.value = agent.prompt; tpl.hidden = true; saved(); };
-    }
-    caption(); saved();
-  });
-  $('.zp-role').insertBefore(tiles, $('.zp-note'));
-
-  /* look: identity, never changes with role */
-  const look = (key, v) => {
-    agent[key] = v; _refreshBig(true); caption(); saved();
-    tiles.querySelectorAll('.cx-radio').forEach(b => { b.querySelector('.rt-fig').innerHTML = heroSVG(Object.assign({}, agent, { role: b.dataset.value }), { size: 52, facing: 'front' }); });
-  };
-  $('.lk-hue').appendChild(hueSwatches(agent.hue, v => look('hue', v)));
-  $('.lk-build').appendChild(_chips('Build', BUILDS, agent.build, v => look('build', v)));
-  $('.lk-hair').appendChild(_chips('Hair', HAIR, agent.hair, v => look('hair', v)));
-  $('.lk-acc').appendChild(_chips('Extra', ACCESSORIES, agent.accessory, v => look('accessory', v)));
+  if (!crew) _roleCombo(p, agent, () => { caption(); saved(); });
 
   const area = $('#zpPrompt'); area.value = agent.prompt || '';
   const grow = () => { area.style.height = 'auto'; area.style.height = Math.min(area.scrollHeight + 2, 16 * 20 + 28) + 'px'; };
   area.addEventListener('input', () => { agent.prompt = area.value; grow(); clearTimeout(area.t); area.t = setTimeout(saved, 350); });
   requestAnimationFrame(grow);
 
-  const ts = agent.id ? teamsOf(agent.id) : [];
-  $('.zp-teams').innerHTML = ts.length ? ts.map(t => {
-    const ov = memberOf(t, agent.id).role;
-    return `<li><a href="#cast/teams/${escapeAttr(t.id)}" class="zp-team">${emblemSVG(t, 32, { decorative: true })}<span><b>${escapeHtml(t.name)}</b>${t.captain === agent.id ? '<em>★ Captain</em>' : ''}${ov ? `<em>plays ${escapeHtml(ov)} here</em>` : ''}</span><i aria-hidden="true">›</i></a></li>`;
-  }).join('') : '<li class="zp-empty">No team yet — add them from a team’s crew.</li>';
+  if (!crew) {
+    const ts = agent.id ? teamsOf(agent.id) : [];
+    $('.zp-teams').innerHTML = ts.length ? ts.map(t => `<li><a href="#cast/teams/${escapeAttr(t.id)}" class="zp-team">${emblemSVG(t, 32, { decorative: true })}<span><b>${escapeHtml(t.name)}</b>${t.captain === agent.id ? '<em>★ Captain</em>' : ''}</span><i aria-hidden="true">›</i></a></li>`).join('')
+      : '<li class="zp-empty">No team yet — add them from a team’s crew.</li>';
+  }
+
+  /* delete rules (data-cast canDeleteAgent): setter/creator never, orchestrators down to one */
+  function _paintDanger() {
+    const d = $('.zp-danger'); d.innerHTML = '';
+    if (!agent.id) return;
+    const rule = canDeleteAgent(agent);
+    if (rule.ok) {
+      d.innerHTML = `${kind === 'orchestrator' ? '<button type="button" class="zp-link zp-more-orch">+ Another orchestrator</button>' : ''}<button type="button" class="zp-link danger zp-del">Delete ${crew ? 'orchestrator' : 'agent'}</button>`;
+      d.querySelector('.zp-del').onclick = () => _deleteAgentUI(agent);
+    } else {
+      d.innerHTML = `<p class="zp-why">${escapeHtml(rule.why)}</p>${kind === 'orchestrator' ? '<button type="button" class="zp-link zp-more-orch">+ Another orchestrator</button>' : ''}`;
+    }
+    const more = d.querySelector('.zp-more-orch'); if (more) more.onclick = () => go('cast/agent/new-orchestrator');
+  }
+  _paintDanger();
   return p;
+}
+
+/* role = pick an existing one or type a new name (creates it). "Edit roles" renames/deletes. */
+function _roleCombo(p, agent, changed) {
+  const input = p.querySelector('#zpRole'), list = p.querySelector('#zpRoleList');
+  const manage = p.querySelector('.rl-manage'), edit = p.querySelector('.rl-edit');
+  let opts = [], act = -1;
+  const show = () => { input.value = roleName(agent.role); };
+  show();
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); act = -1; };
+  const paint = () => {
+    const q = input.value.trim().toLowerCase();
+    const hits = ROLES.filter(r => !q || r.name.toLowerCase().includes(q));
+    const exact = ROLES.some(r => r.name.toLowerCase() === q);
+    opts = hits.map(r => ({ id: r.id, label: r.name, pick: () => r.name }));
+    if (q && !exact) opts.push({ id: 'new', label: `Create “${input.value.trim()}”`, create: true, pick: () => addRole(input.value).name });
+    list.innerHTML = opts.length ? opts.map((o, i) => `<li role="option" id="rco-${i}" class="rc-opt${o.create ? ' create' : ''}${roleName(agent.role) === o.label ? ' cur' : ''}" aria-selected="${i === act}">${escapeHtml(o.label)}</li>`).join('')
+      : '<li class="rc-none" role="presentation">No roles yet — type one</li>';
+    list.hidden = false; input.setAttribute('aria-expanded', 'true');
+    if (act >= 0) input.setAttribute('aria-activedescendant', 'rco-' + act); else input.removeAttribute('aria-activedescendant');
+  };
+  const choose = o => {
+    const created = !!o.create;
+    const name = o.pick(); const prev = agent.role; agent.role = name; show(); close();
+    if (prev !== name) { changed(); announce(created ? `New role ${name} created and assigned` : `Role: ${name}`); }
+    if (!edit.hidden) _paintRoleEditor();
+  };
+  input.addEventListener('focus', () => { act = -1; paint(); });
+  input.addEventListener('input', () => { act = opts.length ? 0 : -1; paint(); act = Math.min(act, opts.length - 1); paint(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); if (list.hidden) paint();
+      if (!opts.length) return;
+      act = (act + (e.key === 'ArrowDown' ? 1 : -1) + opts.length) % opts.length; paint();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const v = input.value.trim();
+      if (!v) { if (agent.role) { agent.role = ''; changed(); announce('Role cleared'); } close(); return; }
+      const o = act >= 0 ? opts[act] : (opts.find(x => x.label.toLowerCase() === v.toLowerCase()) || opts.find(x => x.create));
+      if (o) choose(o);
+    } else if (e.key === 'Escape' && !list.hidden) { e.preventDefault(); e.stopPropagation(); show(); close(); }
+  });
+  /* blur: an exact existing name sticks; anything else reverts (creating needs an explicit pick) */
+  input.addEventListener('blur', () => setTimeout(() => {
+    if (p.contains(document.activeElement) && list.contains(document.activeElement)) return;
+    const hit = roleByName(input.value);
+    if (hit && hit.name !== agent.role) { agent.role = hit.name; changed(); }
+    show(); close();
+  }, 120));
+  list.addEventListener('mousedown', e => {
+    const li = e.target.closest('.rc-opt'); if (!li) return;
+    e.preventDefault(); choose(opts[+li.id.slice(4)]);
+  });
+
+  function _paintRoleEditor() {
+    edit.innerHTML = '<ul class="rl-list" role="list"></ul><p class="rl-hint">Renaming updates every agent with that role.</p>';
+    const ul = edit.firstElementChild;
+    if (!ROLES.length) ul.innerHTML = '<li class="zp-empty">No roles yet.</li>';
+    ROLES.forEach(r => {
+      const n = roleUsage(r.id).length;
+      const li = _cxEl('li', 'rl-row');
+      li.innerHTML = `<input class="rl-name" value="${escapeAttr(r.name)}" maxlength="28" aria-label="Rename role ${escapeAttr(r.name)}" spellcheck="false">
+        <span class="rl-n">${n ? `${n} agent${n === 1 ? '' : 's'}` : 'unused'}</span>
+        <button type="button" class="rl-del" aria-label="Delete role ${escapeAttr(r.name)}" title="Delete role">×</button>`;
+      const inp = li.querySelector('.rl-name');
+      const commit = () => {
+        const v = inp.value.trim(); if (v === r.name) return;
+        const before = r.name;
+        if (renameRole(r.id, v)) { inp.setAttribute('aria-label', 'Rename role ' + r.name); show(); changed(); announce(`${before} renamed to ${r.name}`); }
+        else { inp.value = r.name; announce(v ? `${v} already exists` : 'A role needs a name'); }
+      };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); commit(); inp.select(); } if (e.key === 'Escape') { e.stopPropagation(); inp.value = r.name; } });
+      inp.addEventListener('blur', commit);
+      li.querySelector('.rl-del').onclick = () => {
+        const rec = deleteRole(r.id); if (!rec) return;
+        show(); changed(); _paintRoleEditor();
+        (edit.querySelector('.rl-name') || manage).focus();
+        announce(`Role ${r.name} deleted`);
+        toast(`Role “${escapeHtml(r.name)}” deleted${rec.agents.length ? ` · ${rec.agents.length} agent${rec.agents.length === 1 ? '' : 's'} now without a role` : ''} <button type="button" class="toast-undo">Undo</button>`, 6000);
+        const u = document.querySelector('#toast .toast-undo');
+        if (u) u.onclick = () => { restoreRole(rec); document.getElementById('toast').classList.remove('show'); show(); changed(); if (!edit.hidden) _paintRoleEditor(); announce(`Role ${r.name} restored`); };
+      };
+      ul.appendChild(li);
+    });
+  }
+  manage.onclick = () => {
+    const open = edit.hidden; edit.hidden = !open; manage.setAttribute('aria-expanded', String(open));
+    manage.textContent = open ? 'Done' : 'Edit roles';
+    if (open) { _paintRoleEditor(); edit.querySelector('.rl-name')?.focus(); }
+  };
+}
+
+function _deleteAgentUI(agent) {
+  const rec = deleteAgent(agent.id); if (!rec) return;
+  go('cast');
+  announce(`${agent.name} deleted.`);
+  setTimeout(() => {
+    toast(`${escapeHtml(agent.name)} deleted <button type="button" class="toast-undo">Undo</button>`, 6000);
+    const u = document.querySelector('#toast .toast-undo');
+    if (u) u.onclick = () => {
+      restoreAgent(rec); document.getElementById('toast').classList.remove('show');
+      announce(`${agent.name} is back.`);
+      const body = document.querySelector('#scene-cast #castBody');
+      if (body && CAST.tab === 'agents' && !CAST.zoom) { CAST.items = _lineupItems(); CAST.cols = 0; _layoutLineup(); _applySearch(false); }
+    };
+  }, 60);
 }
 
 function _closeAgent({ animate = true } = {}) {
@@ -573,7 +732,7 @@ function _closeAgent({ animate = true } = {}) {
   if (!z) { if (world) world.classList.remove('camera-push', 'instant'); scene.classList.remove('zoomed'); return; }
   /* rebuild the lineup with any saved changes (the world stays pushed for now) */
   const body = scene.querySelector('#castBody');
-  CAST.items = AGENTS.map(_slotEl).concat(_ghostSlotEl()); CAST.cols = 0;
+  CAST.items = _lineupItems(); CAST.cols = 0;
   _layoutLineup(); _applySearch(false);
   const slot = _slotFor(agent && agent.id);
   const li = slot && slot.parentElement;
@@ -615,7 +774,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* dev-only: ?demo=<state>#route opens hover/selection states for headless screenshots.
-   hot:N (lineup slot / team row N) · member:<agentId> · strip · picker · search:<q> · role:<Role> */
+   hot:N (lineup slot / team row N) · member:<agentId> · strip · picker · search:<q> · roles (role editor open) · tag:<slot> */
 function _castDemo() {
   const d = new URLSearchParams(location.search).get('demo'); if (!d) return;
   setTimeout(() => {
@@ -628,7 +787,8 @@ function _castDemo() {
     if (k === 'member' && sq) _selectMember(sq, v);
     if (k === 'strip' && sq) _openStrip(sq);
     if (k === 'picker' && sq) sq.querySelector('.sq-em-btn').click();
-    if (k === 'role') document.querySelector(`#scene-cast .zoom .role-tiles [data-value="${v}"]`)?.click();
+    if (k === 'roles') document.querySelector('#scene-cast .zoom .rl-manage')?.click();
+    if (k === 'tag') document.querySelector(`#scene-cast .lk-row[data-slot="${v}"]`)?.classList.add('flash-hold');
     if (k === 'search') { const s = document.getElementById('castSearch'); s.value = v; CAST.q = v; _applySearch(false); }
   }, 400);
 }
