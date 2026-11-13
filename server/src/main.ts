@@ -2,7 +2,7 @@
 import { join } from 'node:path';
 import { buildApp } from './app.ts';
 import { ensureDirs, loadConfig } from './config.ts';
-import { fakeBrain } from './crew/fake-brain.ts';
+import { pacedBrain } from './crew/fake-brain.ts';
 import { openDb } from './db/connection.ts';
 import { createStore } from './db/store.ts';
 import { findGh, ghProbe } from './health/git-status.ts';
@@ -25,7 +25,7 @@ const rt = loadRuntimeConfig();
 /* AI_STUDIO_RUNNER=fake: the free, scripted runner + fake crew brain (UI work, demos) */
 const runner =
   process.env.AI_STUDIO_RUNNER === 'fake'
-    ? fakeRunner(fakeBrain)
+    ? fakeRunner(pacedBrain(Number(process.env.AI_STUDIO_FAKE_PACE_MS) || 0))
     : rt.claudeBin
       ? claudeCliRunner({
           bin: rt.claudeBin,

@@ -52,6 +52,17 @@ function agentDef(brief: string, taken: string[], i = 0) {
   };
 }
 
+/** Demo pacing for the UI (free runner only): `pace` ms between steps so a watcher sees robots work,
+    and an agent task that says "ask me" asks the user first (the pager / "!" path). Off by default. */
+export function pacedBrain(pace: number): (spec: RunSpec) => FakeStep[] {
+  return (spec) => {
+    let steps = fakeBrain(spec);
+    if (!contractOf(spec.task) && /\bask me\b/i.test(spec.task))
+      steps = [{ ask: 'Quick check before I start — go ahead?', options: ['Go ahead', 'Hold on'] }, ...steps];
+    return pace > 0 ? steps.flatMap((s) => [s, { wait: pace }]) : steps;
+  };
+}
+
 export function fakeBrain(spec: RunSpec): FakeStep[] {
   const c = contractOf(spec.task);
   const t = spec.task;
