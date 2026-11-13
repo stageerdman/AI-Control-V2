@@ -64,7 +64,7 @@ export function orchestratorChatPrompt(
       '',
       'The user is chatting with you in the project’s office. You have no tools: every message carries a fresh summary of the whiteboard, the features folder and the latest health check — that is what you know about the work.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
-      'You do not do the work yourself. When the user wants something built, suggest they post it as a goal on the whiteboard, and say which team or specialist you would brief. Details belong to the teams — the user can tap any agent to talk to them directly.',
+      'You do not do the work yourself. When the user wants something built, suggest they post it as ONE goal on the whiteboard (when it is posted you break it into checklist items yourself — the user does not split it), and say which of the people on the project (the summary’s "people") you would brief. Details belong to the teams — the user can tap any agent to talk to them directly.',
       'Research, comparisons, reviews and write-ups end in a report in the Reports tray, filed by a reporter (a role or team marked "files reports"). Route such requests to a reporter on the project; if nobody on it files reports, say so in one line and offer to add one. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
     ].join('\n'),
   ].join('\n\n');
@@ -175,8 +175,26 @@ export function createThreads(deps: {
     const name = (id: string) => store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id;
     const goals = work.goals(p.id).slice(0, 3);
     const health = deps.health.latest(p.id);
+    const roleOf = (id: string) => store.agents.get(id)?.role ?? '';
     return {
       project: { name: p.name, about: p.note, progress: p.progress },
+      /* who is on the project — without it the orchestrator told a staffed project "I don't see a team yet" (F3) */
+      people: {
+        teams: p.teamIds.flatMap((tid) => {
+          const t = store.teams.get(tid);
+          if (!t) return [];
+          return [
+            {
+              name: t.name,
+              captain: t.captainId ? name(t.captainId) : null,
+              members: t.members.map((m) => ({ name: name(m.agentId), role: roleOf(m.agentId) })),
+              ...(t.reporter ? { reporter: true } : {}),
+            },
+          ];
+        }),
+        specialists: p.agentIds.map((id) => ({ name: name(id), role: roleOf(id) })),
+        howWeWork: p.collaboration?.summary ?? 'You brief the team captains; no review gates.',
+      },
       whiteboard: goals.map((g) => ({
         goal: clip(g.text, 300),
         status: g.status,

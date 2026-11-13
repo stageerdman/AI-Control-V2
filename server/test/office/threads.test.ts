@@ -105,6 +105,16 @@ describe('project conversations (threads)', () => {
       { name: 'Voice search', status: 'now', pct: 72, owner: 'Pixel Pete', description: '' },
     ]);
     expect(summary).toMatchObject({ whiteboard: [], health: null, openQuestions: [] });
+    // F3 live: without the staffing the orchestrator told a staffed project "I don't see a team yet"
+    expect(summary.people.teams.map((t: { name: string }) => t.name)).toEqual([
+      'The Ship-It Squad',
+      'The Polish Patrol',
+    ]);
+    expect(summary.people.teams[0]).toMatchObject({ captain: 'Captain Semicolon' });
+    expect(summary.people.teams[0].members).toContainEqual({ name: 'Pixel Pete', role: 'Frontend' });
+    expect(summary.people.specialists.map((s: { name: string }) => s.name)).toContain('Baron von Backup');
+    expect(summary.people.howWeWork).toBeTruthy();
+    expect(spec.systemPrompt).toMatch(/ONE goal/);
     expect((await h.call('GET', url('a-pixel'))).body.messages.at(-1)).toMatchObject({
       from: 'a-pixel',
       text: 'Voice search is the priority; Checkout next.',
