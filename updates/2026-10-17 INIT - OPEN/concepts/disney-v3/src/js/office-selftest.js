@@ -25,10 +25,9 @@ async function officeSelftest() {
   ok(OE.actors['a-scar'].hero.classList.contains('face-front'), 'facing front (looks at you)');
   ok(!!$('.op-ask.live'), 'ask card is live');
   ok(/••••/.test($('.op-ask.live .vl').textContent), 'credential value is masked');
-  $('.op-ask.live .btn-hero').click(); await wait(20);
-  ok(WS.pending.length === 1, 'hand over without grant is refused');
-  $('.op-ask.live .switch').click(); $('.op-ask.live .btn-hero').click(); await wait(80);
-  ok(WS.pending.length === 0, 'grant + hand over resolves the ask');
+  ok(/Grant Stripe/.test($('.op-ask.live .btn-hero').textContent), 'one button grants and hands over');
+  $('.op-ask.live .btn-hero').click(); await wait(80);
+  ok(WS.pending.length === 0 && WS.grants.stripe, 'grant + hand over resolves the ask');
   ok($('.o-body[data-id="a-scar"] .o-bang').hidden, '"!" cleared');
   ok(!/\d/.test($('#oBell').textContent), 'bell cleared');
   ok(wsAgent('a-scar').activity.kind === 'testing', 'Scarlett back to testing');

@@ -54,7 +54,8 @@ OP.open = function (id, o = {}) {
     }
   } else if (a.activity.kind !== 'sleeping') {
     OE.face(id);
-    if (o.from === 'scene' || o.from === 'bell' || o.from === 'wait') this._summary(a, o.from === 'scene');
+    if (a.activity.kind === 'needs-input') { if (o.from === 'scene') this._summary(a, true, true); }
+    else if (o.from === 'scene' || o.from === 'bell' || o.from === 'wait') this._summary(a, o.from === 'scene');
   }
   this._renderThread();
   OM.showPanel();
@@ -71,7 +72,7 @@ OP._short = id => {
 };
 
 /* "tell me what you're doing" — summary bubble in the scene + newest message here */
-OP._summary = function (a, bubble) {
+OP._summary = function (a, bubble, bubbleOnly) {
   const tok = wsTok(a.tokens.total);
   const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
   let text;
@@ -79,7 +80,7 @@ OP._summary = function (a, bubble) {
   else if (a.activity.kind === 'idle') text = `Free! ${a.activity.detail.replace(/^Free!\s*/, '')}. ${tok} tokens on Aurora so far.`;
   else text = `${a.activity.detail} — I've spent ${tok} tokens on Aurora.`;
   const last = (WS.threads[a.id] || []).slice(-1)[0];
-  if (!last || last.kind !== 'summary' || last.text !== text) {
+  if (!bubbleOnly && (!last || last.kind !== 'summary' || last.text !== text)) {
     this.post(a.id, { from: a.id, kind: 'summary', text, stats: `${act.icon} ${act.tag} · ${tok} tokens · ${a.tasksDone} tasks done` });
   }
   if (bubble) {
@@ -110,7 +111,17 @@ OP._append = function (m, stream) {
   const log = this.el.querySelector('#opLog');
   const who = m.from === 'user' ? 'You' + (m.voice ? ' (voice)' : '') : m.from === 'system' ? '' : this._name(m.from);
   let el;
-  if (m.kind === 'system') { el = document.createElement('div'); el.className = 'op-sys'; el.textContent = m.text; }
+  if (m.kind === 'system') {
+    /* consecutive office updates fold into one quiet group so Pixel's own words stay on top */
+    const prev = log.lastElementChild;
+    if (prev && prev.classList.contains('op-sysg')) { prev.querySelector('ul').insertAdjacentHTML('beforeend', `<li>${escapeHtml(m.text)}</li>`); const n = prev.querySelectorAll('li').length; prev.querySelector('.op-sysn').textContent = `${n} office updates`; prev.querySelector('.op-syslast').textContent = m.text; log.scrollTop = log.scrollHeight; return; }
+    if (prev && prev.classList.contains('op-sys')) {
+      const g = document.createElement('details'); g.className = 'op-sysg';
+      g.innerHTML = `<summary><span class="op-sysn">2 office updates</span><span class="op-syslast"></span></summary><ul><li>${escapeHtml(prev.textContent)}</li><li>${escapeHtml(m.text)}</li></ul>`;
+      g.querySelector('.op-syslast').textContent = m.text; prev.replaceWith(g); log.scrollTop = log.scrollHeight; return;
+    }
+    el = document.createElement('div'); el.className = 'op-sys'; el.textContent = m.text;
+  }
   else if (m.kind === 'comm') {
     el = document.createElement('div'); el.className = 'op-comm';
     const c = m.comm || {};
@@ -277,6 +288,11 @@ OP._reply = function (tid, text) {
       }
       this._say('pixel', 'I couldn’t find that line — open the feature and strike it there?'); return this._quick();
     }
+    const sl = /strike (?:line )?(\d+)/.exec(t);
+    if (sl && OB.sheetEl && OB.sheetEl.dataset.kind === 'feature') {
+      const all = [...OB.draft.description, ...OB.draft.vision]; const l = all[+sl[1] - 1];
+      if (l) { OB.stageStrike(OB.feature, l.id); this._say('pixel', `Struck line ${sl[1]} — “${l.text}”. Save it?`); this._quick(['Save it', 'Never mind']); return; }
+    }
     if (/^save it/.test(t)) { if (OB.saveStaged()) this._say('pixel', 'Saved — I’ll brief whoever picks it up.'); else this._say('pixel', 'Nothing staged to save.'); return this._quick(); }
     if (/^never mind/.test(t)) { OB.discardStaged(); this._say('pixel', 'Okay — left it as it was.'); return this._quick(); }
     if (/board|whiteboard|progress|checklist/.test(t)) { this._say('pixel', 'Here’s the board — progress, the live checklist, and who’s done what.'); setTimeout(() => go('board'), 500); return this._quick(); }
@@ -341,13 +357,14 @@ OP._askCard = function (m) {
     const cred = credById(ask.want); const on = !!WS.grants[ask.want];
     const row = document.createElement('div'); row.className = 'toggle-row' + (on ? ' on' : '');
     row.innerHTML = `<div class="ic" style="background:${cred.color}">${cred.mark}</div>
-      <div class="t"><b>${escapeHtml(cred.name)}</b> <span class="vl">${escapeHtml(cred.val)}</span><div class="sv">You grant reach — the value stays masked.</div></div>`;
+      <div class="t"><b>${escapeHtml(cred.name)}</b> <span class="vl">${escapeHtml(cred.val)}</span><div class="sv">${cred.instr ? 'Rule: ' + escapeHtml(cred.instr) : 'You grant reach — the value stays masked.'}</div></div>`;
     const sw = document.createElement('button'); sw.type = 'button'; sw.className = 'switch'; sw.setAttribute('role', 'switch');
     sw.setAttribute('aria-checked', on); sw.setAttribute('aria-label', `Grant ${cred.name} to Aurora`);
     sw.onclick = () => { WS.grants[ask.want] = !WS.grants[ask.want]; const v = WS.grants[ask.want]; sw.setAttribute('aria-checked', v); row.classList.toggle('on', v); };
     row.appendChild(sw); inp.appendChild(row);
-    const hand = document.createElement('button'); hand.type = 'button'; hand.className = 'btn btn-hero btn-sm'; hand.textContent = 'Hand it over';
-    hand.onclick = () => { if (!WS.grants[ask.want]) { toast('Flip the switch to grant reach first'); sw.focus(); return; } this.resolveAsk(ask.id, `${cred.name} granted`); };
+    const hand = document.createElement('button'); hand.type = 'button'; hand.className = 'btn btn-hero btn-sm'; hand.textContent = on ? 'Hand it over' : `Grant ${cred.name} & hand over`;
+    sw.addEventListener('click', () => { hand.textContent = WS.grants[ask.want] ? 'Hand it over' : `Grant ${cred.name} & hand over`; });
+    hand.onclick = () => { if (!WS.grants[ask.want]) { WS.grants[ask.want] = true; sw.setAttribute('aria-checked', true); row.classList.add('on'); toast(`🔑 ${escapeHtml(cred.name)} granted to Aurora`); } this.resolveAsk(ask.id, `${cred.name} granted`); };
     const manage = document.createElement('button'); manage.type = 'button'; manage.className = 'op-link'; manage.textContent = 'Manage all access →';
     manage.onclick = () => openProjectAccess(WS.grants, 'Aurora');
     const r = document.createElement('div'); r.className = 'op-arow'; r.append(hand, manage); inp.appendChild(r);

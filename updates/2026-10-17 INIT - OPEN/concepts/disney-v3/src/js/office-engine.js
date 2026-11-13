@@ -52,18 +52,28 @@ const OE = {
   mount(box) {
     this.box = box; this.actors = {}; this.desks = {};
     const teamIds = wsTeamIds();
-    const podsCtx = teamIds.map((t, i) => ({ id: THEME_OFFICE.pods[i].id, team: teamById(t) }));
-    box.innerHTML = `<div class="o-cam"><div class="o-world">${THEME_OFFICE.art({ pods: podsCtx })}<div class="o-layer"></div><div class="o-fx"></div></div></div>`;
+    /* pods close up to the team's real size (3–4 desks): no empty desks staring back */
+    const podsCtx = teamIds.map((t, i) => {
+      const pod = THEME_OFFICE.pods[i]; const n = Math.max(1, Math.min(4, WS.agents.filter(a => a.teamId === t && a.seat && a.seat.startsWith(pod.id)).length));
+      const s0 = pod.seats[0], sl = pod.seats[n - 1];
+      return { id: pod.id, team: teamById(t), n, rug: { x: s0.x - 84, y: pod.rug.y, w: sl.x - s0.x + 168 + 54, h: pod.rug.h }, flag: { x: sl.x + 112, y: pod.rug.y + pod.rug.h - 8 } };
+    });
+    box.innerHTML = `<div class="o-cam"><div class="o-world">${THEME_OFFICE.art({ pods: podsCtx, title: (projById(WS.project) || {}).name || '' })}<div class="o-layer"></div><div class="o-fx"></div></div></div>`;
     this.cam = box.querySelector('.o-cam'); this.world = box.querySelector('.o-world');
     this.art = box.querySelector('.ot-art'); this.layer = box.querySelector('.o-layer'); this.fxLayer = box.querySelector('.o-fx');
     THEME_OFFICE.sync(this.art, WS);
     /* furniture: pods for present teams (4 desks each), hot desks, Pixel's desk, couch front */
     podsCtx.forEach((p, pi) => {
       const pod = THEME_OFFICE.pods[pi];
-      pod.seats.forEach((s, si) => this._desk(`${pod.id}-${si + 1}`, 'pod', s, p.team.color));
-      this._flag(pod.flag, p.team, p.team.id);
+      pod.seats.slice(0, p.n).forEach((s, si) => this._desk(`${pod.id}-${si + 1}`, 'pod', s, p.team.color));
+      this._flag(p.flag, p.team, p.team.id);
     });
-    THEME_OFFICE.hotDesks.forEach((s, i) => this._desk(`hot-${i + 1}`, 'hot', s, null));
+    /* hot desks appear only when a solo agent sits there */
+    WS.agents.filter(a => a.onProject && /^hot-/.test(a.seat || '')).forEach(a => this._hotDesk(a.seat));
+    THEME_OFFICE.beanbags.forEach((b, i) => {
+      const el = document.createElement('div'); el.className = 'o-prop o-bean'; el.innerHTML = THEME_OFFICE.beanFront(i);
+      this._place(el, b.x, b.y, b.y + 6, THEME_OFFICE.depth(b.y)); this.layer.appendChild(el);
+    });
     this._desk('director', 'boss', THEME_OFFICE.director, 'sun');
     const cf = document.createElement('div'); cf.className = 'o-prop o-couchfront'; cf.innerHTML = THEME_OFFICE.couchFront();
     cf.style.zIndex = 818; this.layer.appendChild(cf);
@@ -91,10 +101,15 @@ const OE = {
     this.layer.append(chair, el);
     this.desks[id] = { id, el, chair, kind, x: s.x, y: s.y, hue, tray: null, stamp: null };
   },
+  _hotDesk(seatId) {
+    if (this.desks[seatId]) return;
+    const i = +seatId.slice(4) - 1; const s = THEME_OFFICE.hotDesks[i]; if (!s) return;
+    this._desk(seatId, 'hot', s, null);
+  },
   _flag(pt, team, id) {
     const el = document.createElement('div'); el.className = 'o-prop o-flag'; el.dataset.team = id;
     el.innerHTML = THEME_OFFICE.flag(team);
-    const em = emblem(team, 52, { decorative: true }); em.classList.add('o-flag-em'); el.appendChild(em);
+    const em = emblem(team, 66, { decorative: true }); em.classList.add('o-flag-em'); el.appendChild(em);
     this._place(el, pt.x, pt.y, pt.y, THEME_OFFICE.depth(pt.y));
     this.layer.appendChild(el);
   },
@@ -105,7 +120,7 @@ const OE = {
     const team = a.teamId ? teamById(a.teamId) : null;
     const isCaptain = team && team.captain === a.id;
     const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
-    const H = a.id === 'pixel' ? 158 : 150;
+    const H = a.id === 'pixel' ? 184 : 176;
     const wrap = document.createElement('div'); wrap.className = 'o-actor'; wrap.dataset.id = a.id;
     const btn = document.createElement('button'); btn.className = 'o-body'; btn.type = 'button'; btn.dataset.id = a.id; btn.tabIndex = -1;
     btn.style.setProperty('--H', H + 'px');
@@ -115,7 +130,7 @@ const OE = {
     btn.insertAdjacentHTML('beforeend', `<span class="o-blanket" style="--bk:${hueHex(ag.hue)}" aria-hidden="true"></span>`);
     btn.insertAdjacentHTML('beforeend', `<span class="o-over" aria-hidden="true">
         <span class="o-bubble" hidden></span>
-        <span class="o-bang" hidden><b>!</b></span>
+        <span class="o-bang" hidden><b>!</b><span>Needs you</span></span>
         <span class="o-tag"><i class="o-ti"></i><span class="o-tt"></span><i class="o-unread" hidden></i></span>
         <span class="o-card"></span>
       </span>`);
@@ -153,8 +168,8 @@ const OE = {
       const r = this.actors[m[1]]; const at = r ? r.data.at : null; const p = r ? { x: r.x, y: r.y } : { x: 800, y: 600 };
       if (at === 'director') return { x: p.x - 104, y: p.y + 12, look: 'right' };
       if (/^hot-/.test(at)) return { x: p.x - 66, y: p.y - 16, look: 'right' };
-      if (/^couch-|^bean-/.test(at)) return { x: p.x + 50, y: p.y + 62, look: 'left' };
-      return { x: p.x - 40, y: p.y + 72, look: 'right' };
+      if (/^couch-|^bean-/.test(at)) return { x: p.x + 70, y: p.y + 40, look: 'left' };
+      return { x: p.x - 66, y: p.y + 64, look: 'right' };
     }
     const o = T.objects[id]; if (o && o.stand) return { ...o.stand };
     return { x: 800, y: 600 };
@@ -236,7 +251,7 @@ const OE = {
     const a = rec.data; const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
     const atDesk = a.at && a.at === a.seat;
     const onCouch = /^couch-|^bean-/.test(a.at || '');
-    const lying = onCouch && a.activity.kind === 'sleeping';
+    const lying = false; /* sleepers sit slumped on their own cushion — reads better than lying (UX review) */
     const seated = !lying && act.seated && (atDesk || onCouch);
     if (!rec.walking) {
       setPose(rec.hero, act.pose, { seated, holding: act.holding || 'none', props: false, moving: false });
@@ -251,6 +266,8 @@ const OE = {
     rec.wrap.classList.toggle('lying', !rec.walking && lying);
     rec.wrap.dataset.kind = a.activity.kind;
     rec.wrap.classList.toggle('asleep', a.activity.kind === 'sleeping');
+    rec.wrap.dataset.family = { sleeping: 'sleep', idle: 'free', 'needs-input': 'needs', 'tests-red': 'red', 'tests-green': 'green', shipped: 'green' }[a.activity.kind] || 'work';
+    rec.wrap.classList.toggle('odd', /^[ABC]-[24]$|^hot-[24]$/.test(a.at || '') && !!seated);
     rec.wrap.classList.toggle('needs', a.activity.kind === 'needs-input');
     rec.btn.querySelector('.o-ti').textContent = act.icon;
     const sh = a.activity.short; rec.btn.querySelector('.o-tt').textContent = sh && sh.length <= 13 ? sh : act.tag;
@@ -290,6 +307,7 @@ const OE = {
 
   /* a desk gets a (new) owner: re-dress it for them */
   adopt(seatId, agentId) {
+    if (/^hot-/.test(seatId)) this._hotDesk(seatId);
     const d = this.desks[seatId]; if (!d) return;
     const ag = agentById(agentId);
     d.el.innerHTML = THEME_OFFICE.desk(d.kind, { hue: d.hue, accent: ag.hue, item: ['mug', 'duck', 'photo', 'cactus', 'plant'][(seatId.length + agentId.length) % 5] });
@@ -301,7 +319,7 @@ const OE = {
     const r = this.actors[id]; if (!r) return;
     this.fxLayer.querySelectorAll('.o-chip').forEach(c => c.remove());
     const b = document.createElement('button'); b.type = 'button'; b.className = 'o-chip'; b.textContent = label;
-    const H = parseFloat(r.btn.style.getPropertyValue('--H')) || 150; const s = THEME_OFFICE.depth(r.y);
+    const H = parseFloat(r.btn.style.getPropertyValue('--H')) || 176; const s = THEME_OFFICE.depth(r.y);
     b.style.transform = `translate(${r.x}px,${r.y - H * s - 8}px)`;
     b.onclick = e => { e.stopPropagation(); b.remove(); onClick(); };
     this.fxLayer.appendChild(b);
@@ -395,9 +413,9 @@ const OE = {
   fit() {
     if (!this.box) return;
     const vp = this.box.parentElement; const W = vp.clientWidth, H = vp.clientHeight;
-    const k = Math.min(W / 1600, H / 1000);
+    const k = Math.min(W / 1600, H / 1062);
     this.k = k;
-    const ox = (W - 1600 * k) / 2, oy = (H - 1000 * k) / 2;
+    const ox = (W - 1600 * k) / 2, oy = (H - 1062 * k) / 2;
     this.box.style.transform = `translate(${ox}px,${oy}px) scale(${k})`;
     this.box.style.setProperty('--k', k);
     this._ox = ox; this._oy = oy;
@@ -414,7 +432,7 @@ const OE = {
       const bx = o.x - 16 * pad, by = o.y + 70 - 16 * pad, bw = o.w + 32 * pad, bh = o.h + 32 * pad;
       z = Math.min((W * 0.94) / (bw * this.k), (H * 0.9) / (bh * this.k));
       const cx = bx + bw / 2, cy = by + bh / 2;
-      tx = 800 - z * cx; ty = 500 - z * cy;
+      tx = 800 - z * cx; ty = 531 - z * cy;
       rect = { x: this._ox + this.k * (z * (o.x) + tx), y: this._oy + this.k * (z * (o.y + 70) + ty), w: o.w * z * this.k, h: o.h * z * this.k };
     }
     this.zoom = { z, tx, ty, obj: objId };

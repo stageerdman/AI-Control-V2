@@ -74,6 +74,8 @@ OB._renderBoard = function (keepFocus) {
   const vitals = Object.entries(WS.checkup.vitals);
   el.innerHTML = `
     <button type="button" class="ob-back" data-key="back">← Office</button>
+    <button type="button" class="ob-clip" data-key="clip" aria-label="Features dossier — ${WS.features.filter(f => f.status === 'shipped').length} shipped, ${WS.features.filter(f => f.status === 'planned').length} planned">
+      <span class="ob-clip-c" aria-hidden="true"></span><b>Features</b><span>${WS.features.filter(f => f.status === 'shipped').length} ✓ · ${WS.features.filter(f => f.status === 'now').length} ● · ${WS.features.filter(f => f.status === 'planned').length} ○</span></button>
     <div class="ob-grid">
       <section class="ob-q ob-prog" aria-labelledby="obP"><h3 id="obP">Progress</h3>
         <div class="ob-ringrow">
@@ -122,6 +124,7 @@ OB._renderBoard = function (keepFocus) {
       ${vitals.map(([k, g]) => { const [word] = _GRADE[g] || _GRADE.B; return `<span class="ob-stamp g-${g}"><b>${g}</b><span>${k}<em>${word}</em></span>${g !== 'A' ? `<button type="button" class="ob-fix" data-key="fix-${k}" data-vital="${k}" title="${escapeAttr(WS.checkup.notes[k])}">Ask Pixel to fix →</button>` : ''}</span>`; }).join('')}
     </div>`;
   el.querySelector('.ob-back').onclick = () => go('office');
+  el.querySelector('.ob-clip').onclick = () => go('features');
   el.querySelectorAll('[data-feat]').forEach(b => b.onclick = () => go('feature/' + b.dataset.feat));
   el.querySelectorAll('[data-agent]').forEach(b => b.onclick = () => OP.open(b.dataset.agent, { from: 'board' }));
   el.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { this.whoMode = b.dataset.mode; this._renderBoard(); el.querySelector(`[data-mode="${this.whoMode}"]`).focus(); });
@@ -182,7 +185,7 @@ OB._renderDossier = function () {
       <div class="ob-propose" id="obPropose" hidden><input aria-label="New feature name" placeholder="Name the feature…" id="obPropIn"><button type="button" class="btn btn-hero btn-sm" id="obPropGo">Add to planned</button></div>
       <h3>Now</h3><ul class="ob-rows">${now.map(f => row(f, '●', 'In progress')).join('')}</ul>
       <h3>Planned <span>up next first</span></h3><ul class="ob-rows">${planned.map(f => row(f, '○', 'Planned')).join('')}</ul>
-      <h3>Shipped</h3><ul class="ob-rows shipped">${shipped.map(f => row(f, '✓', 'Shipped')).join('')}</ul>
+      <h3>Shipped <span>the record — tap to read or edit</span></h3><ul class="ob-chips">${shipped.map(f => `<li><button type="button" class="ob-chipf" data-fid="${f.id}"><span aria-hidden="true">✓</span><span class="sr-only">Shipped:</span> ${escapeHtml(f.name)}${f.star ? ' ★' : ''}</button></li>`).join('')}</ul>
     </div>`;
   s.querySelector('.ob-sbody').scrollTop = scroll;
   s.querySelector('#obX').onclick = () => go('board');

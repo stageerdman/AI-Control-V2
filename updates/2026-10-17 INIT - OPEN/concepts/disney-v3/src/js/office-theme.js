@@ -359,12 +359,12 @@ function _otLounge() {
     <text x="40" y="79" text-anchor="middle" font-size="11" font-weight="900" fill="${OT_INK}" letter-spacing=".14em">FUEL</text>
   </g>
   <!-- beanbags (the nap pile overflow) -->
-  ${[[650, 846, PALETTE.sky], [770, 856, PALETTE.sun]].map(([x, y, c]) => `<g transform="translate(${x} ${y})"><path d="M-44 10 C-50 -16 -30 -40 0 -40 C30 -40 50 -16 44 10 C30 18 -30 18 -44 10Z" fill="${c}" ${_o()}/><path d="M-26 -22 C-14 -30 4 -32 16 -26" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".45"/></g>`).join('')}
+  ${THEME_OFFICE.beanbags.map((b, i) => { const c = [PALETTE.sky, PALETTE.sun, PALETTE.mint][i % 3]; return `<g transform="translate(${b.x} ${b.y})"><path d="M-52 4 C-60 -30 -36 -66 0 -66 C36 -66 60 -30 52 4Z" fill="${shade(c, -16)}" ${_o()}/><path d="M-30 -44 C-18 -54 2 -56 16 -50" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none" opacity=".35"/></g>`; }).join('')}
   <!-- the empty pod-C corner becomes a lounge: round rug, low table, board game -->
   <g id="otLoungeMid">
-    <ellipse cx="740" cy="800" rx="210" ry="62" fill="${PALETTE.grape}" opacity=".32"/>
-    <ellipse cx="740" cy="800" rx="186" ry="50" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="2 10" stroke-linecap="round" opacity=".55"/>
-    <g transform="translate(712 772)">
+    <ellipse cx="760" cy="826" rx="236" ry="64" fill="${PALETTE.grape}" opacity=".32"/>
+    <ellipse cx="760" cy="826" rx="212" ry="52" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="2 10" stroke-linecap="round" opacity=".55"/>
+    <g transform="translate(690 770) scale(.8)">
       <rect x="-70" y="0" width="140" height="18" rx="9" fill="${OT.woodHi}" ${_o(2.5)}/>
       <rect x="-60" y="18" width="8" height="18" fill="${OT.woodLo}" ${_o(2)}/><rect x="52" y="18" width="8" height="18" fill="${OT.woodLo}" ${_o(2)}/>
       <rect x="-40" y="-10" width="56" height="14" rx="2" fill="${PALETTE.sky}" ${_o(2)} transform="rotate(-4)"/>
@@ -373,7 +373,7 @@ function _otLounge() {
       <circle cx="38" cy="-6" r="3" fill="${OT.woodLo}"/><circle cx="46" cy="-8" r="3" fill="${OT.woodLo}"/>
     </g>
     <!-- big monstera -->
-    <g transform="translate(980 872)">
+    <g transform="translate(1004 884)">
       <path d="M-22 0 L-17 -40 H17 L22 0Z" fill="${OT.paper}" ${_o(2.5)}/><path d="M-19 -14 H19" stroke="${PALETTE.sky}" stroke-width="5"/>
       ${[[-50, -96, -30], [44, -100, 28], [-8, -130, 0], [-60, -60, -60], [56, -64, 60]].map(([dx, dy, r]) => `<path d="M0 -40 Q${dx / 2} ${dy / 2 - 10} ${dx} ${dy}" stroke="#2f7a46" stroke-width="3.5" fill="none"/><path d="M${dx} ${dy - 22} C${dx + 24} ${dy - 22} ${dx + 24} ${dy + 22} ${dx} ${dy + 22} C${dx - 24} ${dy + 22} ${dx - 24} ${dy - 22} ${dx} ${dy - 22}Z" transform="rotate(${r} ${dx} ${dy})" fill="#4fb36a" ${_o(2)}/><path d="M${dx} ${dy - 16} V${dy + 16}" transform="rotate(${r} ${dx} ${dy})" stroke="#2f7a46" stroke-width="2"/>`).join('')}
     </g>
@@ -385,12 +385,38 @@ function _otLounge() {
   </g>`;
 }
 
+/* a name plaque pinned to a rug's front edge — team membership in words */
+function _otPlaque(cx, y, text, hue) {
+  const w = Math.max(120, text.length * 11.5 + 30);
+  return `<g transform="translate(${cx} ${y})"><rect x="${-w / 2}" y="-15" width="${w}" height="30" rx="15" fill="${OT.paper}" ${_o(2.5)}/>
+    <circle cx="${-w / 2 + 15}" cy="0" r="6" fill="${hueHex(hue)}" ${_o(2)}/>
+    <text x="8" y="6" text-anchor="middle" font-size="17" font-weight="900" fill="${OT_INK}" letter-spacing=".02em">${escapeHtml(text)}</text></g>`;
+}
+/* the diorama sits on a plinth — the letterbox becomes the shelf it stands on */
+function _otPlinth(title) {
+  return `<g id="otPlinth">
+    <path d="M-30 934 H1630 L1600 992 H0Z" fill="#6b4630" stroke="${OT_INK}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M-30 934 H1630 L1626 944 H-26Z" fill="#8a5a3c"/>
+    <g transform="translate(800 963)"><rect x="-260" y="-17" width="520" height="34" rx="6" fill="#e7b75a" stroke="${OT_INK}" stroke-width="2.5"/>
+      <rect x="-252" y="-11" width="504" height="22" rx="4" fill="none" stroke="#a87a26" stroke-width="1.5"/>
+      <circle cx="-245" cy="0" r="3" fill="#a87a26"/><circle cx="245" cy="0" r="3" fill="#a87a26"/>
+      <text y="6" text-anchor="middle" font-size="16" font-weight="900" fill="#4a2c10" letter-spacing=".16em">${escapeHtml(title.toUpperCase())} · THE OFFICE</text></g>
+  </g>`;
+}
+/* beanbag front lip (drawn over whoever sits in it) */
+function _otBeanFront(i) {
+  const c = [PALETTE.sky, PALETTE.sun, PALETTE.mint][i % 3];
+  return `<svg viewBox="-60 -40 120 70" width="120" height="70" style="left:-60px;top:-40px" aria-hidden="true" focusable="false">
+    <path d="M-50 2 C-54 -14 -40 -24 -26 -18 C-14 -12 14 -12 26 -18 C40 -24 54 -14 50 2 C44 22 -44 22 -50 2Z" fill="${c}" stroke="${OT_INK}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M-34 -6 C-20 -2 -4 -2 6 -4" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".4"/></svg>`;
+}
+
 const _otArt = function (ctx = {}) {
   const pods = (ctx.pods || []).map(p => {
-    const pod = THEME_OFFICE.pods.find(q => q.id === p.id);
-    return pod ? _otRug(pod.rug, p.team ? p.team.color : 'grape') : '';
+    const pod = THEME_OFFICE.pods.find(q => q.id === p.id); const r = p.rug || (pod && pod.rug);
+    return r ? _otRug(r, p.team ? p.team.color : 'grape') + _otPlaque(r.x + r.w / 2 - 27, r.y + r.h, p.team ? p.team.name.replace(/^The /, '') : '', p.team ? p.team.color : 'grape') : '';
   }).join('');
-  return `<svg class="ot-art" viewBox="0 -70 1600 1000" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false"
+  return `<svg class="ot-art" viewBox="0 -70 1600 1062" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false"
       font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
     ${_otDefs()}
     ${_otShell()}
@@ -404,6 +430,8 @@ const _otArt = function (ctx = {}) {
     ${_otConsole()}
     ${pods}
     ${_otRug(THEME_OFFICE.hotRug, 'grape', { neutral: true })}
+    ${_otPlaque(THEME_OFFICE.hotRug.x + THEME_OFFICE.hotRug.w / 2, THEME_OFFICE.hotRug.y + THEME_OFFICE.hotRug.h, 'Solo desks', '#a99bd0')}
+    ${_otPlinth(ctx.title || '')}
     ${_otLounge()}
     ${_otCut()}
   </svg>`;
@@ -491,7 +519,7 @@ function _otGlyph(name, hue) {
    o = { hue (team hue), accent (owner hue), item ('mug'|'duck'|'cactus'|'photo'|'plant'|'telescope'), spare } */
 function _otDesk(kind, o = {}) {
   const wide = kind === 'boss';
-  const L = wide ? -86 : -54, R = wide ? 96 : 68;
+  const L = wide ? -86 : -58, R = wide ? 96 : 72;
   const top = wood => `<path d="M${L + 4} -28 H${R - 4} L${R} -18 H${L}Z" fill="${wood}" ${_o(2.5)}/>`;
   const stripe = kind === 'pod' ? `<rect x="${L}" y="-18" width="${R - L}" height="7" fill="${hueHex(o.hue)}" ${_o(2)}/>` : '';
   const frontC = kind === 'hot' ? '#d7c7ef' : kind === 'boss' ? OT.woodLo : OT.wood;
@@ -504,18 +532,18 @@ function _otDesk(kind, o = {}) {
     plant: `<g transform="translate(${L + 30} -28)"><path d="M-7 0 L-6 -8 H6 L7 0Z" fill="${OT.paper}" ${_o(1.8)}/><path d="M0 -8 C-10 -14 -8 -22 -2 -20 C0 -16 0 -12 0 -8 C2 -16 8 -22 10 -16 C8 -12 4 -10 0 -8" fill="#5fbf73" ${_o(1.6)}/></g>`,
     telescope: `<g transform="translate(${L + 36} -28)"><path d="M-6 0 L0 -12 L6 0" fill="none" ${_o(2)}/><g transform="rotate(-24 0 -14)"><rect x="-16" y="-19" width="30" height="9" rx="2" fill="${PALETTE.sun}" ${_o(2)}/><rect x="12" y="-21" width="6" height="13" rx="1.5" fill="${PALETTE['sun-deep']}" ${_o(1.8)}/></g></g>`,
   };
-  const monX = wide ? 36 : 30;
+  const monX = wide ? 40 : 42;
   return `<svg class="ot-desk-svg" viewBox="${L - 8} -112 ${R - L + 16} 150" width="${R - L + 16}" height="150" style="left:${L - 8}px;top:-112px" aria-hidden="true" focusable="false">
     <ellipse cx="${(L + R) / 2}" cy="26" rx="${(R - L) / 2 + 6}" ry="9" fill="#000" opacity=".14"/>
     <!-- monitor: stand, bezel, screen (glyph), sticky, test lamp -->
     <g class="d-mon">
-      <rect x="${monX + 15}" y="-42" width="8" height="16" fill="${OT.steel}" ${_o(2)}/>
-      <ellipse cx="${monX + 19}" cy="-28" rx="13" ry="3.5" fill="${OT.steel}" ${_o(2)}/>
-      <rect x="${monX - 2}" y="-80" width="42" height="40" rx="5" fill="${OT.bezel}" ${_o(2.5)}/>
-      <g class="d-screen" transform="translate(${monX + 3} -75)"><rect width="32" height="28" rx="2" fill="${OT.screen}"/><g class="d-glyph" transform="translate(0 1)"></g></g>
-      <g class="d-sticky" transform="translate(${monX - 8} -82) rotate(-10)" style="display:none"><rect width="13" height="13" fill="${PALETTE.sun}" ${_o(1.5)}/><path d="M3 5 h7 M3 9 h5" stroke="${OT_INK}" stroke-width="1.3"/></g>
-      <g class="d-star" transform="translate(${monX + 30} -82)" style="display:none"><path d="M0 -7 L2 -2 L7 -2 L3 1 L4.5 6.5 L0 3.5 L-4.5 6.5 L-3 1 L-7 -2 L-2 -2Z" fill="${PALETTE.sun}" ${_o(1.5)}/></g>
-      <g class="d-lamp" transform="translate(${monX + 42} -76)" style="display:none"><rect x="-6" y="-10" width="12" height="22" rx="5" fill="${OT.bezel}" ${_o(2)}/><circle class="d-lamp-l" cx="0" cy="1" r="4.4" fill="#5b5280"/><text class="d-lamp-t" x="0" y="4" text-anchor="middle" font-size="7" font-weight="900" fill="${OT_INK}"></text></g>
+      <rect x="${monX + 12}" y="-38" width="7" height="12" fill="${OT.steel}" ${_o(2)}/>
+      <ellipse cx="${monX + 15.5}" cy="-28" rx="11" ry="3" fill="${OT.steel}" ${_o(2)}/>
+      <rect x="${monX - 1}" y="-66" width="33" height="30" rx="4" fill="${OT.bezel}" ${_o(2.5)}/>
+      <g class="d-screen" transform="translate(${monX + 3} -62) scale(.78)"><rect width="32" height="28" rx="2" fill="${OT.screen}"/><g class="d-glyph" transform="translate(0 1)"></g></g>
+      <g class="d-sticky" transform="translate(${monX - 9} -70) rotate(-10)" style="display:none"><rect width="13" height="13" fill="${PALETTE.sun}" ${_o(1.5)}/><path d="M3 5 h7 M3 9 h5" stroke="${OT_INK}" stroke-width="1.3"/></g>
+      <g class="d-star" transform="translate(${monX + 28} -68)" style="display:none"><path d="M0 -7 L2 -2 L7 -2 L3 1 L4.5 6.5 L0 3.5 L-4.5 6.5 L-3 1 L-7 -2 L-2 -2Z" fill="${PALETTE.sun}" ${_o(1.5)}/></g>
+      <g class="d-lamp" transform="translate(${monX + 38} -54)" style="display:none"><rect x="-6" y="-10" width="12" height="22" rx="5" fill="${OT.bezel}" ${_o(2)}/><circle class="d-lamp-l" cx="0" cy="1" r="4.4" fill="#5b5280"/><text class="d-lamp-t" x="0" y="4" text-anchor="middle" font-size="7" font-weight="900" fill="${OT_INK}"></text></g>
     </g>
     ${top(topC)}
     <rect x="${L}" y="-18" width="${R - L}" height="${wide ? 46 : 42}" rx="3" fill="${frontC}" ${_o(2.5)}/>
@@ -562,12 +590,12 @@ function _otCouchFront() {
 }
 function _otFlag(team) {
   const c = hueHex(team.color);
-  return `<svg class="ot-flag-svg" viewBox="-10 -196 110 206" width="110" height="206" style="left:-10px;top:-196px" aria-hidden="true" focusable="false">
+  return `<svg class="ot-flag-svg" viewBox="-10 -214 130 224" width="130" height="224" style="left:-10px;top:-214px" aria-hidden="true" focusable="false">
     <ellipse cx="0" cy="2" rx="14" ry="5" fill="${OT_INK}"/>
-    <path d="M0 0 V-186" stroke="${OT_INK}" stroke-width="7" stroke-linecap="round"/><path d="M0 -2 V-184" stroke="${OT.metal}" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="0" cy="-188" r="6" fill="${PALETTE.sun}" stroke="${OT_INK}" stroke-width="2.5"/>
-    <path class="f-cloth" d="M3 -180 H90 L76 -146 L90 -112 H3Z" fill="${c}" stroke="${OT_INK}" stroke-width="3" stroke-linejoin="round"/>
-    <path d="M3 -173 H80" stroke="#fff" stroke-width="3" opacity=".35" stroke-linecap="round"/>
+    <path d="M0 0 V-204" stroke="${OT_INK}" stroke-width="7" stroke-linecap="round"/><path d="M0 -2 V-202" stroke="${OT.metal}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="0" cy="-206" r="6" fill="${PALETTE.sun}" stroke="${OT_INK}" stroke-width="2.5"/>
+    <path class="f-cloth" d="M3 -198 H110 L94 -156 L110 -114 H3Z" fill="${c}" stroke="${OT_INK}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M3 -191 H98" stroke="#fff" stroke-width="3" opacity=".35" stroke-linecap="round"/>
     <g class="f-stars"></g>
   </svg>`;
 }
@@ -606,5 +634,5 @@ function _otDeskSync(el, s) {
 
 Object.assign(THEME_OFFICE, {
   art: _otArt, sync: _otSync, desk: _otDesk, chair: _otChair, couchFront: _otCouchFront,
-  flag: _otFlag, glyph: _otGlyph, deskSync: _otDeskSync, door: _otDoorState,
+  flag: _otFlag, glyph: _otGlyph, beanFront: _otBeanFront, deskSync: _otDeskSync, door: _otDoorState,
 });

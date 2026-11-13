@@ -183,6 +183,7 @@ OS.H = {
   async deploy(b) {
     const id = b.actor; await OE.free(id);
     const prev = { ..._osA(id).activity };
+    const home = _osA(id).at;
     await OE.walkTo(id, 'console');
     OE.setActivity(id, 'deploying', { short: 'Preview', detail: 'Deploying a fresh preview', featureId: 'voice' });
     await OE.sleep(900);
@@ -193,7 +194,7 @@ OS.H = {
     OP.system('Fresh preview is up — Test link refreshed.');
     this._tick(id, 4000); _osA(id).tasksDone++;
     await OE.sleep(1200);
-    await OE.walkTo(id, this._seat(id));
+    await OE.walkTo(id, home);
     this._restore(id, prev);
   },
 
@@ -206,7 +207,7 @@ OS.H = {
     OE.setActivity(id, 'shipped', { short: f.name, detail: `Shipped ${f.name}!`, featureId: b.feature });
     if (r) OE.burst(r.x, r.y - 120);
     const flag = document.querySelector(`.o-flag[data-team="${_osA(id).teamId}"] .f-stars`);
-    if (flag) flag.innerHTML += `<path transform="translate(${40 + flag.childElementCount * 16} -128)" d="M0 -7 L2 -2 L7 -2 L3 1 L4.5 6.5 L0 3.5 L-4.5 6.5 L-3 1 L-7 -2 L-2 -2Z" fill="${PALETTE.sun}" stroke="#241a44" stroke-width="2"/>`;
+    if (flag) flag.innerHTML += `<path transform="translate(${16 + flag.childElementCount * 18} -212) scale(1.4)" d="M0 -7 L2 -2 L7 -2 L3 1 L4.5 6.5 L0 3.5 L-4.5 6.5 L-3 1 L-7 -2 L-2 -2Z" fill="${PALETTE.sun}" stroke="#241a44" stroke-width="2"/>`;
     /* everyone awake glances toward the pod and claps once */
     wsOnProject().concat([WS.director]).forEach(a => { if (a.id !== id && a.session !== 'asleep' && a.activity.kind !== 'needs-input') OE.react(a.id, 'clap'); });
     if (!OE.instant) toast(`✨ ${escapeHtml(f.name)} shipped`);
@@ -215,7 +216,7 @@ OS.H = {
     if (OP.thread === 'pixel' && OP.el) OP._quick(['Start it now', 'Wait for checkout', 'Show me the plan']);
     officeChanged();
     await OE.sleep(2600);
-    OE.setActivity(id, 'idle', { short: 'Free', detail: `Free! Last thing I did: shipped ${f.name}` });
+    await this._goIdle(id, `Free! Last thing I did: shipped ${f.name}`);
   },
 
   async whiteboard(b) {
@@ -266,11 +267,23 @@ OS.H = {
     await back;
   },
 };
+/* free agents physically go chill in the lounge (beanbags) — idle reads by location */
+OS._goIdle = async function (id, detail) {
+  OE.setActivity(id, 'idle', { short: 'Free', detail });
+  const a = _osA(id); if (!a || !/^[ABC]-|^hot-/.test(a.at || '')) return;
+  const spot = this._bean(); if (!spot) return;
+  await OE.walkTo(id, spot, { holding: 'mug', pose: 'walking' });
+  OE.setActivity(id, 'idle', { short: 'Free', detail });
+};
+OS._bean = function () {
+  const taken = WS.agents.filter(a => a.onProject).map(a => a.at);
+  for (let i = 1; i <= THEME_OFFICE.beanbags.length; i++) if (!taken.includes('bean-' + i)) return 'bean-' + i;
+  return null;
+};
 OS._couch = function () {
   const taken = WS.agents.filter(a => a.onProject).map(a => a.at);
   for (let i = 1; i <= 3; i++) if (!taken.includes('couch-' + i)) return 'couch-' + i;
-  for (let i = 1; i <= 2; i++) if (!taken.includes('bean-' + i)) return 'bean-' + i;
-  return 'bean-1';
+  return this._bean() || 'couch-3';
 };
 OS._freeHot = function () {
   const taken = WS.agents.filter(a => a.onProject).map(a => a.seat);
