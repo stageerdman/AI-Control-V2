@@ -133,7 +133,13 @@ export type Verdict = { verdict: 'approve' | 'changes'; notes: string };
     (a review that doesn't say "approve" never lets work through; send-backs are bounded anyway). */
 export function parseVerdict(reply: string): Verdict {
   const text = reply.trim();
-  const objects = text.match(/\{[^{}]*"verdict"[^{}]*\}/g) ?? [];
+  /* whole JSON lines first: notes may quote code with braces ({ok:false}) — F1c live: a brace-free match missed
+     a clear approve and cost a send-back round */
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim().replace(/^`+|`+$/g, ''))
+    .filter((l) => l.startsWith('{') && l.endsWith('}') && l.includes('"verdict"'));
+  const objects = [...(text.match(/\{[^{}]*"verdict"[^{}]*\}/g) ?? []), ...lines];
   for (const raw of objects.reverse()) {
     try {
       const v = JSON.parse(raw) as { verdict?: unknown; notes?: unknown };
