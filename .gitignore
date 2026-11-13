@@ -16,3 +16,4 @@ target/
 *.log
 .vscode/
 .idea/
+updates/*/concepts/disney-v3/shots/
