@@ -7,6 +7,7 @@ const Gallery = lazy(() => import('./gallery/Gallery').then((m) => ({ default: m
 
 export const pages: PageRegistry = {
   gallery: Gallery,
+  access: lazy(() => import('./features/access/AccessPage').then((m) => ({ default: m.AccessPage }))),
   reports: lazy(() => import('./features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage }))),
 };
 

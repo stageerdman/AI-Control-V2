@@ -1,0 +1,237 @@
+/* Access — ported from the prototype's studio.css (Access section), same class names. */
+.vault {
+  background: linear-gradient(180deg, #2a1f52, #211840);
+  color: var(--cream);
+  border-radius: var(--r-lg);
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+.vault h2 {
+  margin: 0 0 2px;
+  font-size: 19px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vault .sub {
+  color: rgba(255, 246, 233, 0.6);
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.access-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+  margin-bottom: 10px;
+  transition: 0.18s;
+}
+.access-entry:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.access-entry .ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-weight: 900;
+  font-size: 15px;
+  color: #2a1a10;
+}
+.access-entry .body {
+  flex: 1;
+  min-width: 0;
+}
+.access-entry b {
+  font-size: 15px;
+}
+.access-entry .val {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: rgba(255, 246, 233, 0.6);
+  letter-spacing: 1px;
+  margin-left: 8px;
+}
+.access-entry .val.none {
+  font-family: var(--font);
+  letter-spacing: 0;
+  font-weight: 700;
+  color: var(--coral);
+}
+.access-entry .serves {
+  font-size: 13px;
+  color: rgba(255, 246, 233, 0.75);
+  font-weight: 600;
+  margin-top: 3px;
+}
+.access-entry .afford {
+  display: flex;
+  gap: 12px;
+  margin-top: 9px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.access-entry .afford button,
+.access-entry .afford a {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--sun);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 2px;
+}
+.access-entry .afford button:focus-visible,
+.access-entry .afford a:focus-visible {
+  outline: 2px solid var(--sun);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.access-entry .afford .used {
+  color: rgba(255, 246, 233, 0.5);
+  font-weight: 700;
+  font-size: 12px;
+}
+.access-entry .expand {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  color: rgba(255, 246, 233, 0.8);
+  font-weight: 600;
+  line-height: 1.6;
+}
+.access-entry .expand code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.masklock {
+  font-size: 12px;
+  color: rgba(255, 246, 233, 0.55);
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+.keytag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: var(--cream);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.keytag .d {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  color: #2a1a10;
+  font-weight: 900;
+}
+.keytag.locked {
+  opacity: 0.45;
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border-radius: 14px;
+  background: var(--cream);
+  border: 2px solid var(--line);
+  margin-bottom: 9px;
+}
+.toggle-row .ic {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  font-weight: 900;
+  color: #2a1a10;
+}
+.toggle-row .t {
+  flex: 1;
+  min-width: 0;
+}
+.toggle-row .t b {
+  font-size: 14px;
+}
+.toggle-row .t .sv {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+.toggle-row .t .vl {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.toggle-row .state {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.toggle-row.on .state {
+  color: #0b7d72;
+}
+/* U5 additions: form error, delete confirm, sync summary */
+.af-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 111, 115, 0.14);
+  color: #a3262c;
+  font-size: 13px;
+  font-weight: 700;
+}
+.af-danger {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 4px;
+}
+.af-danger p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.pa-sync {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.pa-result {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--cream);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.6;
+}
+.project-access .pa-result code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
