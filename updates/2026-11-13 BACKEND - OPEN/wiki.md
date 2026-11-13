@@ -104,6 +104,15 @@ Durable knowledge from this update. Status lives in `update v1.md`.
 - **Prompts that put one JSON value per line are parseable by a fake.** The fake crew brain reads the Cast back out of
   the task, so `AI_STUDIO_RUNNER=fake` serves the whole setup → work flow for free (UI work, demos).
 
+### Health check (B7)
+- **Read-only by construction, not by request.** The health run gets no Write/Edit tool at all and Bash is pre-approved only for
+  `ls`/`pwd`/read-only `git` subcommands (dontAsk denies the rest). The prompt saying "don't change files" is a courtesy.
+- **Network only when it earns it.** Local git answers branch/dirty/last commit/remote instantly; `gh repo view` (network,
+  auth) runs only during a check with a GitHub remote and gh installed — reads stay offline.
+- **Strip credentials from remote URLs at the source** (`https://user:token@host` → `https://host`) so no report, event or log can carry them.
+- **One structured-call helper, two shapes of run.** The same `crew.call` serves tool-less big-picture calls (scratch dir) and the
+  read-only workspace run (project dir + allow-list) — contracts, repair and errors stay identical.
+
 ## Claude Code CLI (2.1.322) for headless agents — findings
 - **Isolation flags:** `--restricted` (ignores user/project/local settings → no personal plugins or hooks;
   confines file tools to cwd; Bash only if `--tools` names it), `--strict-mcp-config` + `--mcp-config`

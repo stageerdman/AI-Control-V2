@@ -113,6 +113,23 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
         .map((i) => ({ ...i, text: i.text.slice(0, 300), brief: `Do your part of: ${goal}` }));
       return answer({ summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000), items });
     }
+    case 'health': {
+      const aspect = (grade: string, good: string, fix: string) => ({ grade, good, fix });
+      return [
+        { activity: { kind: 'reading', label: 'Reading CLAUDE.md', target: 'CLAUDE.md' } },
+        { activity: { kind: 'searching', label: 'Searching for **/*' } },
+        ...answer({
+          modularity: aspect('B', 'Small, separate files.', 'Keep new features in their own folders.'),
+          cleanliness: aspect('A', 'No dead code or stray files.', 'Keep issues.txt current.'),
+          reusability: aspect(
+            'B',
+            'Nothing duplicated yet.',
+            'Extract shared pieces once a second caller appears.',
+          ),
+          summary: 'A small, tidy project — healthy so far (fake check).',
+        }),
+      ];
+    }
     default:
       return DEFAULT_SCRIPT;
   }

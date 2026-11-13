@@ -62,6 +62,15 @@ export const EVENT_SCHEMAS = {
     name: text(80),
     by: id.optional(),
   }),
+  /** A health check finished (B7): the three grades + the one-line summary. */
+  'health.checked': z.strictObject({
+    reportId: id,
+    modularity: z.enum(['A', 'B', 'C', 'D', 'F']),
+    cleanliness: z.enum(['A', 'B', 'C', 'D', 'F']),
+    reusability: z.enum(['A', 'B', 'C', 'D', 'F']),
+    summary: text(1000),
+    dirty: z.boolean().optional(),
+  }),
   /** The whiteboard: a goal the orchestrator broke into checklist items (B6 dispatch). */
   'goal.changed': z.strictObject({
     goalId: id,

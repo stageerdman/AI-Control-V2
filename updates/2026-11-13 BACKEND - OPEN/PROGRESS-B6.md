@@ -62,7 +62,8 @@ Diagnosed + fixed at no cost (no re-run):
    (migration 8: `parallel` flag lets an item start with the one before it) and items after a failed one are **skipped**.
    The orchestrator is told so and to keep a one-page task to 1–2 items.
 3. Per-goal run caps (`POST /projects/:id/work {caps}`, migration 7) — needed to run with 8-turn agent runs.
-Not changed (decide with the user): 8 turns is too tight for a run that reads CLAUDE.md + the update plan, writes, keeps the
+Decided afterwards (user): "Orchestrator decides freely" — the specialist/team caps are gone from plan validation (commit
+`572a161`); turn-cap default stays 12. Earlier notes: 8 turns is too tight for a run that reads CLAUDE.md + the update plan, writes, keeps the
 status file current and commits (both capped runs needed ~10); the default stays 12. The teams-first rule (≤ 2 individuals
 without a team) pushed a one-page site onto a whole team — maybe allow 3 for tiny projects.
 Fixtures: `test/fixtures/live-b6-*.jsonl` (setup-chat open / rule-broken / repaired, mint-agent, dispatch, agent-turn-cap).

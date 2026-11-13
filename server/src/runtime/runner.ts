@@ -19,6 +19,8 @@ export type RunSpec = {
   resumeSessionId?: string;
   /** Built-in tools the run may use (all pre-approved). Omitted → the agent set; [] → none (big-picture runs). */
   tools?: readonly string[];
+  /** Pre-approved permission patterns (e.g. `Bash(git log *)`); defaults to `tools`. Ignored without `tools`. */
+  allowedTools?: readonly string[];
   /** Where the ask_user MCP tool reaches the backend (CLI runner only). */
   askBridge?: { url: string; token: string };
 };

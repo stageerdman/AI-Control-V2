@@ -56,7 +56,7 @@ export function cliArgs(
   /* big-picture runs (orchestrator, Agent Creator) pass their own, usually empty, tool list */
   const tools = spec.tools ?? TOOLS;
   const allowed = spec.tools
-    ? [...spec.tools, ...(spec.askBridge ? [ASK_TOOL] : [])]
+    ? [...(spec.allowedTools ?? spec.tools), ...(spec.askBridge ? [ASK_TOOL] : [])]
     : (opts.allowedTools ?? DEFAULT_ALLOWED);
   return [
     '-p',

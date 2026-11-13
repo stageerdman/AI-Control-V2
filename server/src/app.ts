@@ -13,6 +13,8 @@ import { createStore, type Store } from './db/store.ts';
 import { AppError } from './errors.ts';
 import { createBus } from './events/bus.ts';
 import { type EventLog, eventLog } from './events/log.ts';
+import type { GhProbe } from './health/git-status.ts';
+import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { accessRoutes } from './routes/access.ts';
@@ -23,6 +25,7 @@ import { crewRoutes } from './routes/crew.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { healthRoutes } from './routes/health.ts';
+import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { roleRoutes } from './routes/roles.ts';
 import { runRoutes } from './routes/runs.ts';
@@ -57,6 +60,8 @@ export type AppDeps = {
   longPollMs?: number;
   /** Concurrent dispatched runs per project (default 2). */
   maxConcurrent?: number;
+  /** GitHub visibility probe for health checks (network). Default null = never called (main passes gh if installed). */
+  gh?: GhProbe | null;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -80,6 +85,7 @@ export function buildApp({
   onRuntime,
   longPollMs,
   maxConcurrent,
+  gh = null,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   registerCors(app);
@@ -110,6 +116,7 @@ export function buildApp({
     ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
   });
   dispatch.recover();
+  const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -148,5 +155,6 @@ export function buildApp({
   app.register(accessRoutes({ access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
+  app.register(projectHealthRoutes({ health }));
   return app;
 }

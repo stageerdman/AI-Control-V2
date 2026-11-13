@@ -164,3 +164,10 @@ Tailwind components, wire to this API).
     contracts with one in-session repair, then 502 `agent_error`; minting happens on accept, not mid-chat (the chat only
     writes briefs); captains do their item themselves for now (in-team delegation is later); nothing restarts after a
     reboot; `AI_STUDIO_RUNNER=fake` serves the whole flow for free.
+  - Later decision (user): **"Orchestrator decides freely"** — no caps on specialists or teams in plan validation; teams-first
+    stays as prompt guidance; integrity rules stay (ids exist, no captain field, no redundant specialist, someone staffed).
+- ✅ **B7 — Health check** (2026-11-13, FakeRunner only): `POST /projects/:id/health` → one read-only run in the project folder
+  (Read/Glob/Grep + read-only `git`/`ls`, no Write/Edit tool) with the `health` contract (A–F + good/fix for modularity,
+  cleanliness, reusability + summary; one repair, then 502), persisted (migration 9: latest + history), event `health.checked`;
+  `GET /projects/:id/health` adds live local git status (branch, clean/dirty, last commit, remote; GitHub visibility via `gh` only
+  during a check, only with a GitHub remote). 9 tests (219 total). Notes: `PROGRESS-B7.md`.

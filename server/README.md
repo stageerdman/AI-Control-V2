@@ -50,6 +50,7 @@ src/
   crew/              the studio crew: structured.ts (JSON contracts + one repair), setup-chat.ts,
                      creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
                      prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
+  health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -77,6 +78,8 @@ Bodies are strict — unknown keys are 422.
 | `POST /drafts/:id/chat` `{text?}` · `GET /drafts/:id/chat` | one orchestrator turn → `{reply, plan, chat}` (no `text` = the orchestrator opens with a proposal); history `{chat, plan}` |
 | `POST /drafts/:id/accept` | the Agent Creator mints every `newAgents`/`newTeams` brief, the plan resolves to real ids — all or nothing → `{plan, minted: {roles, agents, teams}}`; `/finish` refuses until then |
 | `POST /projects/:id/work` `{goal, caps?: {maxTurns, maxBudgetUsd}}` | the orchestrator breaks the goal into ≤ 8 checklist items for team captains / specialists → the goal (201); items run as agent runs (with `caps`), ≤ 2 at a time per project, one per agent |
+| `POST /projects/:id/health` `{caps?}` | health check: a read-only run in the project folder grades modularity / cleanliness / reusability (A–F, `good`, `fix`) + git/GitHub status → the report (201), event `health.checked` |
+| `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git}` — `git` is live and local only (no network) |
 | `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
@@ -128,5 +131,13 @@ session, issues listed); a second miss is 502.
   `teamId`) or a project specialist (no `teamId`). Items run **in order** (one shared working tree); `parallel: true` lets an
   item start alongside the one before it; if an earlier item fails, later ones are skipped
 
-Events added: `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
+- `health` → `{modularity, cleanliness, reusability: {grade: A–F, good, fix}, summary}` — the one crew run that works IN a
+  project folder: tools Read/Glob/Grep/Bash, Bash pre-approved only for `ls`, `pwd`, `git status|log|diff|show|ls-files|shortlog`
+  (no Write/Edit tool at all), no secrets, caps 15 turns. Commissioned by the project's orchestrator.
+
+**Git / GitHub status** (`src/health/git-status.ts`): branch, clean + change count, last commit, commit count, first remote (URL
+with credentials stripped). GitHub visibility (`gh repo view <owner/repo> --json visibility`, read-only, 10 s) is asked only during
+a health check, only for a GitHub remote, only when `gh` is installed — never on GET.
+
+Events added: `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
 `goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`), `progress` (project stream; also sets `project.progress`).

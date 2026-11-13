@@ -233,6 +233,19 @@ export const MIGRATIONS: readonly string[] = [
   /* 8 — checklist items run in order unless marked parallel (found live: two agents in one working tree
      wrote the same file at once). parallel = may start alongside the item before it. */
   `ALTER TABLE checklist_items ADD COLUMN parallel INTEGER NOT NULL DEFAULT 0;`,
+
+  /* 9 — health reports (B7): one row per finished check — grades + the git/GitHub snapshot */
+  `
+  CREATE TABLE health_reports (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    report     TEXT NOT NULL,                 -- JSON {modularity, cleanliness, reusability, summary}
+    git        TEXT NOT NULL,                 -- JSON GitStatus at check time
+    usage      TEXT NOT NULL,                 -- JSON {attempts, turns, input, output}
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX health_by_project ON health_reports(project_id, created_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

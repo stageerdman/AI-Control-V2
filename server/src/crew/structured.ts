@@ -36,6 +36,8 @@ export type CrewCall<T> = {
   validate: Validate<T>;
   caps?: Caps;
   onEvent?: (e: RunEvent) => void;
+  /** A read-only look at a project (health check): its folder + a read-only tool set. Default: scratch, no tools. */
+  workspace?: { cwd: string; tools: readonly string[]; allowedTools: readonly string[] };
 };
 export type CrewResult<T> = { value: T; attempts: number; outcomes: RunOutcome[] };
 
@@ -84,18 +86,19 @@ export function createCrew(deps: CrewDeps) {
   const { runner } = deps;
 
   const invoke = async (call: CrewCall<unknown>, task: string, resumeSessionId?: string) => {
-    mkdirSync(deps.scratchDir, { recursive: true, mode: 0o700 });
+    if (!call.workspace) mkdirSync(deps.scratchDir, { recursive: true, mode: 0o700 });
     const handle = runner.start(
       {
         runId: randomUUID(),
-        cwd: deps.scratchDir,
+        cwd: call.workspace?.cwd ?? deps.scratchDir,
         systemPrompt: call.systemPrompt,
         task,
         model: deps.model,
         caps: call.caps ?? CREW_CAPS,
         env: runEnv(deps.parentEnv ?? process.env, {}),
         secretValues: [],
-        tools: [],
+        tools: call.workspace?.tools ?? [],
+        ...(call.workspace ? { allowedTools: call.workspace.allowedTools } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
       },
       {

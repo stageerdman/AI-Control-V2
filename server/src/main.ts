@@ -5,6 +5,7 @@ import { ensureDirs, loadConfig } from './config.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
 import { openDb } from './db/connection.ts';
 import { createStore } from './db/store.ts';
+import { findGh, ghProbe } from './health/git-status.ts';
 import { listen } from './listen.ts';
 import { claudeCliRunner } from './runtime/claude-cli.ts';
 import { loadRuntimeConfig } from './runtime/config.ts';
@@ -32,7 +33,18 @@ const runner =
           logDir: join(config.home, 'runs'),
         })
       : unavailableRunner(rt.binError ?? 'Claude Code CLI not found');
-const app = buildApp({ config, db, store, secrets, runner, model: rt.model, logger: true });
+/* GitHub visibility for health checks — only if gh is installed (read-only `gh repo view`) */
+const ghBin = findGh();
+const app = buildApp({
+  config,
+  db,
+  store,
+  secrets,
+  runner,
+  model: rt.model,
+  logger: true,
+  gh: ghBin ? ghProbe(ghBin) : null,
+});
 app.log.info(
   { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, error: rt.binError },
   'Agent runtime',
