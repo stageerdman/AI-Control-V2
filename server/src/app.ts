@@ -44,13 +44,7 @@ export function buildApp({
     const status = (err as { statusCode?: number }).statusCode;
     /* Fastify's own 4xx (bad JSON, wrong content type, body too large…) */
     if (status && status >= 400 && status < 500) {
-      /* never echo a body parser's message: V8's JSON errors quote the body (could be a secret) */
-      const message =
-        err instanceof SyntaxError || /^FST_ERR_CTP_/.test(String((err as { code?: string }).code))
-          ? 'Malformed request body'
-          : err instanceof Error
-            ? err.message
-            : 'Bad request';
+      const message = err instanceof Error ? err.message : 'Bad request';
       return reply.status(status).send({ error: { code: 'bad_request', message } });
     }
     app.log.error(err);
