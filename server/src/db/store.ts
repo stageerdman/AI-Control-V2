@@ -13,7 +13,7 @@ export function createStore(db: Db, opts: { sandbox: string }) {
   const agents = agentsRepo(db, roles);
   const teams = teamsRepo(db, agents);
   const projects = projectsRepo(db, { agents, teams, sandbox: opts.sandbox });
-  const drafts = draftsRepo(db, { agents, sandbox: opts.sandbox });
+  const drafts = draftsRepo(db, { agents, teams, sandbox: opts.sandbox });
   const trash = trashRepo(db, { roles, agents, teams, projects, drafts });
   const credentials = credentialsRepo(db);
   return {

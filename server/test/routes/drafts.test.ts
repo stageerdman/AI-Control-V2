@@ -30,7 +30,13 @@ describe('setup drafts API', () => {
 
   it('saves progress as you go: step, orchestrator, plan, chat', async () => {
     const d = (await h.call('POST', '/drafts', { mode: 'new' })).body;
-    const plan = { teams: ['ship-it'], specialists: ['a-prof'], reason: 'small web app' };
+    const plan = {
+      teams: [{ teamId: 'ship-it', why: 'builds it' }],
+      specialists: [{ agentId: 'a-prof', why: 'research first' }],
+      newAgents: [],
+      newTeams: [],
+      summary: 'small web app',
+    };
     const chat = [
       { from: 'user', text: 'Why these?' },
       { from: 'orchestrator', text: 'Ship-It builds, Professor researches.' },

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { Store } from '../db/store.ts';
+import { PlanSchema } from '../domain/plan.ts';
 import { parse } from '../errors.ts';
 import { Id, IdParams } from './schemas.ts';
 
@@ -14,7 +15,7 @@ const fields = {
 const DraftCreate = z.strictObject({ mode: z.enum(['new', 'adopt']), ...fields });
 const DraftPatch = z.strictObject({
   ...fields,
-  plan: z.json().optional(),
+  plan: PlanSchema.nullable().optional(),
   chat: z
     .array(z.strictObject({ from: z.enum(['user', 'orchestrator']), text: z.string().max(10_000) }))
     .max(500)

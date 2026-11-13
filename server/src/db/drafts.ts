@@ -2,10 +2,12 @@
    leave mid-way and it waits on Projects as an "In setup" card. */
 import { randomUUID } from 'node:crypto';
 import { assertOrchestrator } from '../domain/cast.ts';
+import { assertPlan, type CastView, type Plan, PlanSchema } from '../domain/plan.ts';
 import { invalid, notFound } from '../errors.ts';
 import { SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
 import type { AgentsRepo } from './agents.ts';
 import type { Db } from './connection.ts';
+import type { TeamsRepo } from './teams.ts';
 import { now, row, rows } from './util.ts';
 
 export type ChatMessage = { from: 'user' | 'orchestrator'; text: string };
@@ -30,8 +32,8 @@ export type Draft = {
   about: string;
   folder: string | null;
   orchestratorId: string | null;
-  /** The orchestrator's team proposal — opaque here; B6 owns its shape. */
-  plan: unknown;
+  /** The orchestrator's staffing proposal (src/domain/plan.ts); null until the setup chat starts. */
+  plan: Plan | null;
   chat: ChatMessage[];
   createdAt: string;
   updatedAt: string;
@@ -44,7 +46,14 @@ export type DraftCreate = {
   folder?: string | null;
   orchestratorId?: string | null;
 };
-export type DraftPatch = Partial<Omit<DraftCreate, 'mode'>> & { plan?: unknown; chat?: ChatMessage[] };
+export type DraftPatch = Partial<Omit<DraftCreate, 'mode'>> & { plan?: Plan | null; chat?: ChatMessage[] };
+
+/** A stored plan that no longer parses (hand-edited db, older shape) reads as no plan. */
+const readPlan = (raw: string | null): Plan | null => {
+  if (raw === null) return null;
+  const r = PlanSchema.safeParse(JSON.parse(raw));
+  return r.success ? r.data : null;
+};
 
 const toDraft = (r: DraftRecord): Draft => ({
   id: r.id,
@@ -54,14 +63,27 @@ const toDraft = (r: DraftRecord): Draft => ({
   about: r.about,
   folder: r.folder,
   orchestratorId: r.orchestrator_id,
-  plan: r.plan === null ? null : JSON.parse(r.plan),
+  plan: readPlan(r.plan),
   chat: JSON.parse(r.chat) as ChatMessage[],
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
 
-export function draftsRepo(db: Db, deps: { agents: AgentsRepo; sandbox: string }) {
+/** The Cast as the plan rules see it. */
+export const castView = (agents: AgentsRepo, teams: TeamsRepo): CastView => ({
+  team: (id) => {
+    const t = teams.get(id);
+    return t ? { name: t.name, members: t.members.map((m) => m.agentId) } : null;
+  },
+  agent: (id) => {
+    const a = agents.record(id);
+    return a ? { name: a.name, kind: a.kind } : null;
+  },
+});
+
+export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo; sandbox: string }) {
   const { agents, sandbox } = deps;
+  const cast = castView(agents, deps.teams);
   const record = (id: string) => row<DraftRecord>(db.prepare('SELECT * FROM drafts WHERE id = ?').get(id));
   const requireRecord = (id: string) => {
     const r = record(id);
@@ -114,6 +136,7 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; sandbox: string }
     update(id: string, patch: DraftPatch): Draft {
       const r = requireRecord(id);
       checkOrch(patch.orchestratorId);
+      if (patch.plan) assertPlan(patch.plan, cast);
       db.prepare(
         'UPDATE drafts SET step = ?, name = ?, about = ?, folder = ?, orchestrator_id = ?, plan = ?, chat = ?, updated_at = ? WHERE id = ?',
       ).run(

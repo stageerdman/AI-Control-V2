@@ -41,7 +41,13 @@ describe('Project Setter API', () => {
       about: 'First real project.',
       orchestratorId: 'a-maestro',
     });
-    await h.call('PATCH', `/drafts/${d.id}`, { plan: { teamIds: ['ship-it'], agentIds: ['a-prof'] } });
+    await h.call('PATCH', `/drafts/${d.id}`, {
+      plan: {
+        teams: [{ teamId: 'ship-it', why: 'builds it' }],
+        specialists: [{ agentId: 'a-prof', why: 'research first' }],
+        summary: 'Ship-It builds, the Professor researches.',
+      },
+    });
     const r = await h.call('POST', `/drafts/${d.id}/finish`);
     expect(r.status).toBe(201);
     expect(r.body.project).toMatchObject({
@@ -123,9 +129,11 @@ describe('Project Setter API', () => {
     expect(h.store.drafts.require(d.id).name).toBe('Doomed');
     expect(existsSync(join(h.config.sandbox, 'doomed'))).toBe(false);
 
-    // a bad staffing plan fails inside the tx too, before anything is written
+    // a staffing plan gone stale (its team deleted since) fails before anything is written
     const bad = await draft({ mode: 'new', name: 'Bad Plan' });
-    await h.call('PATCH', `/drafts/${bad.id}`, { plan: { teamIds: ['no-such-team'] } });
+    const plan = { teams: [{ teamId: 'polish', why: 'tidy' }], summary: 'Polish it.' };
+    expect((await h.call('PATCH', `/drafts/${bad.id}`, { plan })).status).toBe(200);
+    h.store.teams.deleteRecord('polish');
     expect((await h.call('POST', `/drafts/${bad.id}/finish`)).status).toBe(422);
     expect(existsSync(join(h.config.sandbox, 'bad-plan'))).toBe(false);
     expect(projectCount()).toBe(9);

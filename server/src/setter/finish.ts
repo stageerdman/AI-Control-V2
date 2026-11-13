@@ -13,6 +13,7 @@ import type { Module } from '../blueprint/modules.ts';
 import type { Project, ProjectCreate } from '../db/projects.ts';
 import type { Store } from '../db/store.ts';
 import { slugify } from '../domain/ids.ts';
+import { pendingBriefs, staffingOf } from '../domain/plan.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox, SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
@@ -27,20 +28,6 @@ export type FinishDeps = {
   today: () => string;
 };
 export type FinishResult = { project: Project; steps: Step[]; commit: string | null };
-
-/** Optional staffing in the draft's plan (B6 owns the full shape): { teamIds?: string[], agentIds?: string[] }. */
-function staffing(plan: unknown): { teamIds?: string[]; agentIds?: string[] } {
-  if (!plan || typeof plan !== 'object') return {};
-  const p = plan as Record<string, unknown>;
-  const strs = (v: unknown) =>
-    Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined;
-  const out: { teamIds?: string[]; agentIds?: string[] } = {};
-  const t = strs(p.teamIds);
-  const a = strs(p.agentIds);
-  if (t) out.teamIds = t;
-  if (a) out.agentIds = a;
-  return out;
-}
 
 const guard = <T>(fn: () => T): T => {
   try {
@@ -73,6 +60,11 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
   const name = draft.name.trim();
   if (!name) throw invalid('The draft needs a name before it can be finished');
   if (running.has(draft.id)) throw conflict('The Project Setter is already working on this draft');
+  if (draft.plan && pendingBriefs(draft.plan) > 0)
+    throw conflict('Accept the plan first — the Agent Creator still has agents or teams to design', {
+      newAgents: draft.plan.newAgents.length,
+      newTeams: draft.plan.newTeams.length,
+    });
 
   const folder = guard(() => toSandboxRelative(sandbox, draft.folder ?? slugify(name, 'project')));
   if (!folder) throw invalid('A project folder cannot be the sandbox root itself');
@@ -91,7 +83,7 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
     note: draft.about.slice(0, 500),
     folder,
     ...(draft.orchestratorId ? { orchestratorId: draft.orchestratorId } : {}),
-    ...staffing(draft.plan),
+    ...(draft.plan ? staffingOf(draft.plan) : {}),
   };
   dryRunCreate(store, input); // folder ownership, orchestrator, teams, specialists
 
