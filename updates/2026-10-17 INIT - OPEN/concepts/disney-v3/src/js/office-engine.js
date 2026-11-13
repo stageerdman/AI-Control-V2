@@ -176,7 +176,7 @@ const OE = {
     setPose(rec.hero, o.pose || 'walking', { seated: false, holding: o.holding || 'none', props: false, moving: true });
     rec.btn.style.setProperty('--lift', '0px');
     rec.wrap.classList.add('walking');
-    if (this.instant || reducedMotion() || document.hidden) {
+    if (this.instant || reducedMotion()) {
       if (!this.instant && reducedMotion()) { rec.wrap.classList.add('blink-out'); await new Promise(r => setTimeout(r, 160)); }
       if (rec.walkTok !== tok) return;
       this._moveNow(rec, to.x, to.y);
@@ -205,10 +205,11 @@ const OE = {
           else { this._moveNow(rec, rec.x + dx / d * move, rec.y + dy / d * move); move = 0; }
         }
         if (i >= pts.length) return res();
-        if (document.hidden) { const e = pts[pts.length - 1]; this._moveNow(rec, e.x, e.y); return res(); }
-        requestAnimationFrame(step);
+        tick();
       };
-      requestAnimationFrame(step);
+      /* rAF when frames are painting; a timer fallback when they aren't (hidden tab, headless) */
+      const tick = () => { let done = false; const go = () => { if (!done) { done = true; step(performance.now()); } }; requestAnimationFrame(go); setTimeout(go, 48); };
+      tick();
     });
   },
 

@@ -1,6 +1,6 @@
 /* ============================================================
    office-selftest.js — DEV ONLY. ?demo=selftest drives the real Office UI
-   end to end (asks, chat, board layers, feature editing, keyboard, voice)
+   end to end (asks, chat, zoom layers, feature editing, keyboard, layout)
    and logs PASS/FAIL lines to the console. Not reachable from the UI.
    Run: Chrome --headless --enable-logging=stderr --virtual-time-budget=60000
         --dump-dom "…/ai-control-disney-v3.html?demo=selftest#office"
@@ -12,29 +12,59 @@ async function officeSelftest() {
   const ok = (cond, name) => { if (!cond) fails++; console.log((cond ? 'PASS ' : 'FAIL ') + name); };
   const key = (k, el = document.activeElement || document.body, extra = {}) => el.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key: k, bubbles: true }, extra)));
 
+  /* calm scene */
+  ok(!$('.o-tag'), 'no status tags above heads');
+  ok([...document.querySelectorAll('.o-hot')].map(h => h.dataset.obj).sort().join() === 'dossier,health,whiteboard', 'only whiteboard, health, features are interactive objects');
+  ok(!$('.c-jacket'), 'no jackets / headless bodies on chairs');
+  ok(!$('#opMic') && !$('#opQuick') && !$('#opWait'), 'chat: no mic, no quick replies, no waiting row');
+  const ob = THEME_OFFICE.plan.objects;
+  ok(ob.outbox.x + ob.outbox.w < ob.dossier.x && ob.console.x + ob.console.w < ob.dossier.x, 'push + deploy sit left, away from the whiteboard');
+
+  /* layout scales from config */
+  const p2 = officeLayout({ teams: [{ id: 'a', members: ['x1', 'x2'] }], solo: [] });
+  ok(p2.W === 1600 && Object.keys(p2.seats).length === 2 && p2.rows.length === 1, 'layout: 2 agents → one row, base room');
+  const big = { teams: Array.from({ length: 5 }, (_, i) => ({ id: 't' + i, members: Array.from({ length: 4 }, (_, j) => `t${i}m${j}`) })), solo: ['s1', 's2'] };
+  const p20 = officeLayout(big);
+  ok(Object.keys(p20.seats).length === 22 && p20.W > 1600 && p20.rows.length === 2, 'layout: 22 agents → room grows, two rows (W=' + p20.W + ')');
+  const inRoom = Object.values(p20.seats).every(s => s.x > 40 && s.x < p20.W - 420);
+  ok(inRoom, 'layout: every desk stays inside the floor (no overflow)');
+  const overlap = p20.pods.some((a, i) => p20.pods.some((b, j) => j > i && a.row === b.row && a.rug.x < b.rug.x + b.rug.w && b.rug.x < a.rug.x + a.rug.w));
+  ok(!overlap, 'layout: pods never overlap');
+
+  /* walking glides (no teleport) */
+  OE.instant = false;
+  const r = OE.actors['a-baron']; const p0 = r.x + ',' + r.y;
+  const walk = OE.walkTo('a-baron', 'console');
+  await wait(300);
+  const mid = r.x + ',' + r.y;
+  await walk;
+  const c = OE.anchor('console');
+  ok(reducedMotion() || (mid !== p0 && Math.abs(r.x - c.x) < 1 && Math.abs(r.y - c.y) < 1 && mid !== r.x + ',' + r.y), 'walks glide continuously to the target');
+  await OE.walkTo('a-baron', wsAgent('a-baron').seat); OE.setActivity('a-baron', 'idle', { detail: 'Feet up' });
+
+  /* the "!" flow */
   await OS.skipTo(25); await wait(50);
   ok(WS.pending.length === 1 && WS.pending[0].agentId === 'a-scar', 'Scarlett raises a "!" at t=23');
   ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '"!" badge visible over Scarlett');
   ok(/1/.test($('#oBell').textContent), 'bell shows 1');
-  ok(!$('#opWait').hidden, 'panel "Waiting on you" row shows');
   ok(/Stripe test key/.test($('.o-body[data-id="a-scar"]').getAttribute('aria-label')), 'actor label names the ask');
+  ok(/Needs you/.test($('.o-body[data-id="a-scar"] .o-card').textContent), 'hover card says what they need');
 
   $('.o-body[data-id="a-scar"]').click(); await wait(50);
   ok(OP.thread === 'a-scar', 'click Scarlett → her thread');
   ok(OE.actors['a-scar'].wrap.classList.contains('held'), 'she stops and faces you');
-  ok(OE.actors['a-scar'].hero.classList.contains('face-front'), 'facing front (looks at you)');
-  ok(!!$('.op-ask.live'), 'ask card is live');
+  ok(!!$('.op-ask.live'), 'ask card is live in the chat');
   ok(/••••/.test($('.op-ask.live .vl').textContent), 'credential value is masked');
   ok(/Grant Stripe/.test($('.op-ask.live .btn-hero').textContent), 'one button grants and hands over');
   $('.op-ask.live .btn-hero').click(); await wait(80);
   ok(WS.pending.length === 0 && WS.grants.stripe, 'grant + hand over resolves the ask');
   ok($('.o-body[data-id="a-scar"] .o-bang').hidden, '"!" cleared');
-  ok(!/\d/.test($('#oBell').textContent), 'bell cleared');
   ok(wsAgent('a-scar').activity.kind === 'testing', 'Scarlett back to testing');
   ok(!/sk_live_[0-9a-z]{4}/i.test(document.getElementById('office').innerHTML), 'only masked secret values in the office DOM');
 
   OP.open('pixel'); await wait(20);
   ok(!OE.actors['a-scar'].held, 'leaving her thread releases her');
+  ok(!(WS.threads.pixel || []).some(m => m.kind === 'system' || m.kind === 'comm'), 'no "office updates" in Pixel\'s chat');
   $('.o-body[data-id="a-query"]').click(); await wait(50);
   ok(OP.thread === 'pixel', 'sleeper click does not open chat');
   ok(!!$('.o-chip'), '"Chat anyway" chip offered');
@@ -43,51 +73,61 @@ async function officeSelftest() {
   ok(OP.thread === 'a-semic', '@Captain routes to Captain\'s thread');
   ok((WS.threads['a-semic'] || []).some(m => m.from === 'a-semic' && m.kind === 'text'), 'Captain answers in his thread');
 
-  $('#opMic').click(); ok($('#opMic').getAttribute('aria-pressed') === 'true', 'mic is one press');
-  await wait(3600);
-  ok((WS.threads['a-semic'] || []).some(m => m.voice), 'voice utterance lands as a message');
+  /* talking shows "…" only */
+  OE.say('a-pete', 'secret words', {}); await wait(30);
+  const bub = $('.o-body[data-id="a-pete"] .o-bubble');
+  ok(!bub.hidden && !/secret/.test(bub.textContent), 'agent talk is a plain "…" bubble');
 
-  OP.open('pixel'); OP._user('Drop crypto from multi-currency.', true); await wait(1800);
-  ok(location.hash === '#feature/multicur' && !!document.querySelector('.ob-line.staged'), 'voice: "drop crypto…" stages a strike on the page');
-  OP._user('Save it', false); await wait(1500);
-  ok(!wsFeature('multicur').description.some(l => /crypto/i.test(l.text)), 'voice: "Save it" applies the edit');
-  OP._user('close', false); await wait(1500);
+  /* voice path on the feature text */
+  OP.open('pixel'); OP._user('Drop crypto from multi-currency.'); await wait(1600);
+  ok(location.hash === '#feature/multicur' && /crypto/i.test(wsFeature('multicur').description) && !/crypto/i.test($('#obDesc').value), 'voice: "drop crypto…" stages the edit in the text block');
+  OP._user('Save it'); await wait(1400);
+  ok(!/crypto/i.test(wsFeature('multicur').description), 'voice: "Save it" applies the edit');
   go('office'); await wait(400);
-  go('board'); await wait(900);
-  ok(!!$('.ob-board.in'), '#board shows the whiteboard');
-  ok(/Tokens/.test($('.ob-board').textContent) && /Who did what/.test($('.ob-board').textContent), 'board has tokens + who did what');
-  $('[data-mode="tokens"]').click(); await wait(20);
-  ok(/More tokens/.test($('.ob-board').textContent), 'who-did-what toggles to tokens with caption');
-  go('features'); await wait(300);
-  ok($('.ob-sheet') && $('.ob-sheet').dataset.kind === 'dossier', '#features shows the dossier');
-  $('[data-fid="multicur"]').click(); await wait(300);
-  ok(location.hash === '#feature/multicur', 'feature row → #feature/multicur');
-  $('.ob-line[data-sec="description"][data-i="1"] [data-act="strike"]').click(); await wait(20);
-  ok($('.ob-line[data-sec="description"][data-i="1"]').classList.contains('struck'), 'strike marks a line');
-  $('[data-add="vision"]').click(); await wait(20);
-  const li = $('.ob-line.added input'); li.value = 'Prices round like locals expect.'; li.dispatchEvent(new Event('input'));
-  li.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(20);
-  key('Escape', $('.ob-line.added input')); await wait(20);
-  key('Escape', $('.ob-sheet')); await wait(50);
-  ok(!!$('.ob-confirm'), 'Esc with unsaved edits asks first');
-  $('.ob-confirm [data-c="keep"]').click(); await wait(20);
-  $('#obSave').click(); await wait(80);
-  const f = wsFeature('multicur');
-  ok(f.description.length === 1 && f.vision.length === 3 && f.revisedAt, 'save removes struck, keeps added');
-  ok(/updated/.test(WS.threads.pixel.slice(-1)[0].text), 'Pixel is briefed');
-  key('Escape', $('.ob-sheet')); await wait(300);
-  ok(location.hash === '#features', 'Esc → dossier');
-  key('Escape', document.body); await wait(300);
-  ok(location.hash === '#board', 'Esc → board');
-  key('Escape', document.body); await wait(400);
-  ok(location.hash === '#office' && !$('.ob-board'), 'Esc → office');
 
+  /* whiteboard: just the number, in-progress features, tasks */
+  go('board'); await wait(900);
+  const card = $('.ob-card');
+  ok(card && card.classList.contains('in'), '#board zooms onto the whiteboard');
+  ok(/%/.test(card.textContent) && /In progress/.test(card.textContent) && /Tasks/.test(card.textContent), 'board shows %, in progress, tasks');
+  ok(!/Who did what|Tokens|Checkup/.test(card.textContent) && !card.querySelector('.ob-as'), 'board has no who-did-what, tokens or A/B/C');
+  ok($('#oStage').classList.contains('zooming') && OE.box.classList.contains('zoomed'), 'scene behind is frozen under the scrim');
+  key('Escape', document.body); await wait(300);
+  ok(location.hash === '#office' && !$('.ob-card'), 'Esc → office');
+
+  /* health report */
+  go('health'); await wait(900);
+  ok(/Modularity/.test($('.ob-card').textContent) && /Cleanliness/.test($('.ob-card').textContent) && /Reusability/.test($('.ob-card').textContent) && /To fix/.test($('.ob-card').textContent), 'health: three areas, each with good + to fix');
+  ok(OE.zoom.obj === 'health', 'health zooms onto the health board');
+  go('office'); await wait(300);
+
+  /* features folder + feature page */
+  go('features'); await wait(900);
+  ok([...document.querySelectorAll('.ob-card h3')].map(h => h.textContent).join() === 'Now,Planned,Shipped', 'features: Now / Planned / Shipped');
+  ok(!$('.ob-own') && document.querySelectorAll('.ob-row').length === WS.features.length, 'features: identical rows, no owners');
+  ok(document.querySelectorAll('.ob-mark.m-shipped').length === WS.features.filter(f => f.status === 'shipped').length, 'shipped rows carry the green mark');
+  $('[data-fid="recs"]').click(); await wait(300);
+  ok(location.hash === '#feature/recs' && $('#obDesc') && $('#obDesc').tagName === 'TEXTAREA' && $('#obVis').tagName === 'TEXTAREA', 'feature: description + vision are text blocks');
+  ok($('#obSave').disabled, 'save disabled until something changes');
+  const ta = $('#obVis'); ta.value = 'Helpful, never pushy. Shows at most three items.'; ta.dispatchEvent(new Event('input'));
+  ok(!$('#obSave').disabled, 'typing enables save');
+  key('Escape', document.body); await wait(50);
+  ok(!!$('.ob-confirm'), 'Esc with unsaved edits asks first');
+  $('.ob-confirm [data-c="save"]').click(); await wait(300);
+  ok(/three items/.test(wsFeature('recs').vision) && /updated/.test(WS.threads.pixel.slice(-1)[0].text), 'save stores the text and briefs Pixel');
+  ok(location.hash === '#features', 'save from confirm → back to features');
+  key('Escape', document.body); await wait(300);
+  ok(location.hash === '#office', 'Esc → office');
+
+  /* keyboard + list */
   OM.focusActor('pixel'); await wait(10);
   key('ArrowLeft'); await wait(10);
   ok(OM.focusId !== 'pixel', 'arrow keys move between people (' + OM.focusId + ')');
   key('Home'); await wait(10);
   ok(document.activeElement && document.activeElement.dataset.id === 'pixel', 'Home → Pixel');
-  ok($('#oList').querySelectorAll('.o-lrow').length >= 10, 'list mirror lists everyone');
+  ok($('#oList').querySelectorAll('.o-lrow').length === 1 + wsOnProject().length, 'list mirror lists everyone');
+  ok(!/Around the office/.test($('#oList').textContent), 'list has no "Around the office"');
+  ok($('#oList .o-dev') && $('#oList .o-dev').querySelectorAll('a').length === 4, 'list has the tiny size switch');
 
   /* decision ask (Twinkle) answered with a chip */
   OP.ask({ id: 'ask-test', agentId: 'a-twinkle', type: 'decision', short: 'Cart button copy', q: 'Which reads better?', ctx: 'Not blocking', options: ['Add to bag', 'Add to cart'], featureId: 'cleanup' });
@@ -100,6 +140,6 @@ async function officeSelftest() {
   /* leave and come back: the story resumes, it does not replay */
   const pend = WS.pending.length; go('projects'); await wait(200); go('office'); await wait(600);
   ok(WS.pending.length === pend && wsAgent('a-scar').activity.kind !== 'needs-input', 'reopening resumes (no replayed asks)');
-  ok(!!$('.o-body[data-id="a-merge"]') , 'office rebuilt from state');
+  ok(!!$('.o-body[data-id="a-merge"]'), 'office rebuilt from state');
   console.log(fails ? `SELFTEST: ${fails} FAILED` : 'SELFTEST: ALL PASS');
 }
