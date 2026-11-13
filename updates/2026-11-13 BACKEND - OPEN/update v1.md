@@ -20,7 +20,14 @@ build it."
   `inject()` makes API tests cheap), zod (validation at every boundary), vitest (tests),
   built-in `node:sqlite` (no native deps) for persistence. Tauri shell + React UI come later
   and talk to this server over HTTP + SSE, so the backend stands on its own.
-- **Agent runtime:** the **Claude Agent SDK** (`@anthropic-ai/claude-agent-sdk`, Claude Code
+- **Agent runtime = Claude Code CLI (user, 2026-11-13):** "It will be using Claude Code CLI in the
+  background". Agents run as headless `claude -p` processes (stream-json in/out) with `cwd` = the
+  project folder, using the Claude Code login already on this Mac — no API key. Composed role prompt
+  via `--append-system-prompt`, tools scoped with `--allowed-tools`/`--permission-mode`, an MCP
+  "ask the user" tool via `--mcp-config` (pauses the run until answered), sessions resumable, token
+  usage read from the stream's result events. Behind the `Runner` interface (FakeRunner for tests).
+  One small live test run in hello-studio is approved.
+- ~~Agent runtime: the Claude Agent SDK~~ (superseded above) — original note: (`@anthropic-ai/claude-agent-sdk`, Claude Code
   as a library) — built-in file/shell tools, runs with `cwd` = the project folder. Default
   model `claude-opus-5-5`. Hidden behind a `Runner` interface with a scripted **FakeRunner**,
   so every test and UI flow runs free and deterministic; live runs are opt-in.
