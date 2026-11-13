@@ -11,6 +11,7 @@ export const castApi = {
     ...studio.roles,
     /** "Files reports": agents holding this role may file reports. */
     setReporter: (id: string, reporter: boolean) => http.patch<Role>(`/roles/${e(id)}`, { reporter }),
+    setToolsmith: (id: string, toolsmith: boolean) => http.patch<Role>(`/roles/${e(id)}`, { toolsmith }),
   },
   teams: {
     ...studio.teams,

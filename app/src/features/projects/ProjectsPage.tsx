@@ -9,7 +9,17 @@ import { DraftCard } from '../setup/DraftCard';
 import { DRAFTS_KEY } from '../setup/drafts';
 import { studioReports } from './api';
 import { LogoTile } from './LogoTile';
-import { backLotTag, castOf, editedAgo, ghBadge, nickOf, type Shelves, shelfCount, shelves } from './model';
+import {
+  backLotTag,
+  castOf,
+  editedAgo,
+  ghBadge,
+  nickOf,
+  progressLine,
+  type Shelves,
+  shelfCount,
+  shelves,
+} from './model';
 import './projects.css';
 
 const newProject = () => go({ name: 'new', draftId: null });
@@ -23,6 +33,17 @@ export function ProjectsPage() {
   const [q, setQ] = useState(lastQuery);
   const search = useRef<HTMLInputElement>(null);
   lastQuery = q;
+
+  /* status + progress move on their own (server lifecycle) and there's no studio-wide stream:
+     fresh on every visit, then a quiet refresh while the page is on screen */
+  const refresh = projects.refetch;
+  useEffect(() => {
+    void refresh();
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh();
+    }, 10000);
+    return () => clearInterval(t);
+  }, [refresh]);
 
   /* "/" jumps to the search (not while typing somewhere) */
   useEffect(() => {
@@ -199,8 +220,10 @@ function ActiveCard({ p, agents, teams }: { p: Project; agents: Agent[]; teams: 
               <Pill tone="live" dot>
                 Live
               </Pill>
-            ) : (
+            ) : p.status === 'needs' ? (
               <Pill tone="needs">❗ Needs input</Pill>
+            ) : (
+              <Pill tone="idle">Idle</Pill>
             )}
           </div>
           <div className="hint">
@@ -223,7 +246,7 @@ function ActiveCard({ p, agents, teams }: { p: Project; agents: Agent[]; teams: 
       </div>
       <Progress value={p.progress} small label={`${p.name} progress`} />
       <div className="hint" style={{ marginTop: 5, fontWeight: 800 }}>
-        {Math.round(p.progress)}% to launch
+        {progressLine(p)}
       </div>
       {p.note && <div className="note">{p.note}</div>}
       <div className="micro-row">

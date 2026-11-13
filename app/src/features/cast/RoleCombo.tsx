@@ -5,7 +5,7 @@ import type { Role } from '../../api/types';
 import { Switch } from '../../ui';
 import { announce } from './fx';
 import { enterChoice, normRole, type RoleOption, roleByName, roleOptions, roleUse } from './model';
-import { deleteRole, ensureRole, renameRole, setRoleReporter } from './store';
+import { deleteRole, ensureRole, renameRole, setRoleReporter, setRoleToolsmith } from './store';
 
 export function RoleCombo({
   roles,
@@ -179,7 +179,11 @@ function RoleEditor({
       <ul className="rl-list">
         {roles.length > 0 && (
           <li className="rl-head" aria-hidden="true">
-            Files reports
+            <span />
+            <span />
+            <span>Files reports</span>
+            <span>Own tools</span>
+            <span />
           </li>
         )}
         {!roles.length && <li className="zp-empty">No roles yet.</li>}
@@ -199,6 +203,8 @@ function RoleEditor({
       </ul>
       <p className="rl-hint">
         Renaming updates every agent with that role. Roles that file reports hand you research and write-ups.
+        Roles that build their own tools write and keep their own checks (tests, linters, crash runs) and
+        reuse them across projects.
       </p>
     </div>
   );
@@ -251,6 +257,14 @@ function RoleRow({ role, onSaved, onDeleted }: { role: Role; onSaved: () => void
         onChange={(on) => {
           void setRoleReporter(role.id, on, onSaved);
           announce(`${role.name} ${on ? 'files reports' : 'no longer files reports'}`);
+        }}
+      />
+      <Switch
+        checked={!!role.toolsmith}
+        label={`${role.name} builds own tools`}
+        onChange={(on) => {
+          void setRoleToolsmith(role.id, on, onSaved);
+          announce(`${role.name} ${on ? 'builds its own tools' : 'no longer builds its own tools'}`);
         }}
       />
       <button

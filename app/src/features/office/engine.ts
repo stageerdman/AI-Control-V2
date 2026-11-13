@@ -350,6 +350,14 @@ export class OfficeEngine {
     const P = this.plan;
     if (id === 'director') return { ...P.director };
     if (P.seats[id]) return { x: P.seats[id].x, y: P.seats[id].y };
+    const near = /^near:(.+)$/.exec(id);
+    if (near) {
+      /* standing beside someone's desk (a handoff), on the room's inner side */
+      /* beside their desk (where they'll do the review — a sleeper wakes up and walks there) */
+      const r = this.actors[near[1]];
+      const at = r ? (P.seats[r.seat] ?? { x: r.x, y: r.y }) : null;
+      if (at) return { x: at.x + (at.x > P.W / 2 ? -78 : 78), y: at.y + 14 };
+    }
     const m = /^couch-(\d)$/.exec(id);
     if (m) return { ...P.couch[(+m[1] - 1) % P.couch.length] };
     const o = OBJECT_ANCHORS.has(id) ? P.objects[id as ObjectId] : undefined;
@@ -490,6 +498,36 @@ export class OfficeEngine {
     if (!ok) return;
     await new Promise((r) => setTimeout(r, 350));
     if (await this.walkTo(id, home)) this.dress(rec);
+  }
+
+  /** A handoff: `from` carries the work to `to`'s desk, `to` turns to take it, `from` walks home
+      (≈ 3–5 s). Calm: at most two at once; reduced motion / busy walker = no walk (the whiteboard
+      and the robots' own poses still say it). */
+  private handing = 0;
+  async handoff(from: string, to: string): Promise<void> {
+    const a = this.actors[from];
+    const b = this.actors[to];
+    if (!a || !b || from === to || reducedMotion() || a.walking || a.held || this.handing >= 2) return;
+    this.handing++;
+    try {
+      const home = a.at;
+      const ok = await this.walkTo(from, `near:${to}`, { pose: 'carrying', holding: 'paper' });
+      if (!ok) return;
+      if (!b.walking && !b.held) {
+        setFacing(b.hero, 'three-quarter', { dir: a.x < b.x ? 'left' : 'right' });
+      }
+      await new Promise((r) => setTimeout(r, 650));
+      if (await this.walkTo(from, home)) this.dress(a);
+      setTimeout(() => {
+        if (!b.walking && !b.held) this.dress(b);
+      }, 900);
+    } finally {
+      this.handing--;
+    }
+  }
+  /** A reviewer approved: one small hop. */
+  approve(id: string): void {
+    this.react(id, 'hop');
   }
 
   /* ---------------------------------------------------------- talk: "…" only */

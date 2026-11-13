@@ -5,8 +5,13 @@ import type { Agent, Draft, Project, Team } from '../../api';
 export const nickOf = (a: Pick<Agent, 'name' | 'nick'> | null | undefined): string =>
   a ? a.nick || a.name : '';
 
-/** On set = live or waiting on you; the back lot = idle, draft, archived. */
-export const isOnSet = (p: Project): boolean => p.status === 'live' || p.status === 'needs';
+/** On set = live or waiting on you — and a real project that went idle this week (the server moves
+    status on its own: a project between goals is idle, not shelved); the back lot = the rest. */
+const RECENT_MS = 7 * 24 * 3600 * 1000;
+export const isOnSet = (p: Project, now = Date.now()): boolean =>
+  p.status === 'live' ||
+  p.status === 'needs' ||
+  (p.status === 'idle' && !!p.folder && now - Date.parse(p.updatedAt) < RECENT_MS);
 
 const norm = (s: string) => s.trim().toLowerCase();
 export const matchesProject = (p: Project, q: string): boolean =>
@@ -19,7 +24,7 @@ export function shelves(projects: Project[], drafts: Draft[], q: string): Shelve
   const ps = projects.filter((p) => matchesProject(p, q));
   return {
     drafts: drafts.filter((d) => matchesDraft(d, q)),
-    onSet: ps.filter(isOnSet),
+    onSet: ps.filter((p) => isOnSet(p)),
     backLot: ps.filter((p) => !isOnSet(p)),
   };
 }
@@ -64,3 +69,7 @@ export function editedAgo(iso: string, now = Date.now()): string {
   for (const [n, u] of units) if (s >= n) return `edited ${Math.floor(s / n)}${u} ago`;
   return 'edited just now';
 }
+
+/** The card's progress line: "64% to v1.0" with a target, else "64% done". */
+export const progressLine = (p: Pick<Project, 'progress' | 'target'>): string =>
+  `${Math.round(p.progress)}% ${p.target?.trim() ? `to ${p.target.trim()}` : 'done'}`;

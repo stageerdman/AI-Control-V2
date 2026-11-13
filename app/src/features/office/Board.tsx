@@ -1,5 +1,7 @@
 /* The things you can zoom into (prototype office-board.js, spec-office §4) — on the real backend:
-     board     whiteboard: the big %, features in progress, the task list (from work)
+     board     whiteboard: the project's % (to its target), features in progress, the task list (stage
+               per row: in review / sent back / merging), "How we work →"
+     how       How we work: the orchestrator's collaboration design + ask it to change it
      health    health board: the latest report (A–F + good / to fix), the repo + GitHub, "Run health check"
      features  features folder: Now / Planned / Shipped (identical rows) + add
      feature   one feature: name, status, Description + Vision as plain text blocks, save / delete
@@ -7,15 +9,26 @@
    The camera zooms onto the object (OfficePage), the scene behind is covered by a still scrim, the
    card fades in. Esc / Back = one layer. */
 import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react';
-import { type Goal, isApiError, type ProjectHealth, studio, useMutation, useQuery } from '../../api';
+import {
+  type Goal,
+  invalidate,
+  isApiError,
+  type ProjectHealth,
+  setQueryData,
+  studio,
+  useMutation,
+  useQuery,
+} from '../../api';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
+import { type Resolve, WorkDesign } from '../collab';
 import { type Report, ReportsList, ReportView } from '../reports';
-import { type Feature, type FeatureStatus, keys, officeApi } from './api';
-import { ASPECTS, boardProgress, boardTasks, nowFeatures } from './state';
+import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
+import { ASPECTS, boardProgress, boardTasks, nowFeatures, taskHover, taskStage } from './state';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
   board: 'whiteboard',
+  how: 'whiteboard',
   health: 'health',
   features: 'dossier',
   feature: 'dossier',
@@ -45,6 +58,10 @@ export type BoardProps = {
   /** Esc from the page: return true when the card handled it (e.g. the unsaved-changes prompt). */
   escapeRef: RefObject<(() => boolean) | null>;
   onFollowUp: (r: Report, agentId: string) => void;
+  /** Agent id → display name (task hovers). */
+  nameOf: (id: string) => string;
+  /** Names / faces / emblems for the collaboration chips. */
+  resolve: Resolve;
 };
 
 /** The card: a non-modal dialog that keeps Tab inside and fades in once the camera has landed. */
@@ -144,6 +161,13 @@ export function Board(p: BoardProps) {
           <Whiteboard {...p} />
         </ZoomCard>
       );
+    case 'how':
+      return (
+        <ZoomCard key={k} kind="how" label="How we work" fresh={fresh}>
+          <Back label="Whiteboard" aria="Back to the whiteboard" onClick={() => p.go('board')} />
+          <HowWeWork {...p} />
+        </ZoomCard>
+      );
     case 'health':
       return (
         <ZoomCard key={k} kind="health" label="Health check report" fresh={fresh}>
@@ -195,39 +219,46 @@ export function Board(p: BoardProps) {
 export const useWork = (pid: string) => useQuery<Goal[]>(keys.work(pid), () => studio.projects.work(pid));
 export const useFeatures = (pid: string) =>
   useQuery<Feature[]>(keys.features(pid), () => officeApi.features(pid));
+export const useProgress = (pid: string) =>
+  useQuery<OfficeProgress | null>(keys.progress(pid), () => officeApi.progress(pid));
 export const useHealth = (pid: string) =>
   useQuery<ProjectHealth>(keys.health(pid), () => studio.projects.health(pid));
 
-function Whiteboard({ pid, dir, go }: BoardProps) {
+function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
   const work = useWork(pid);
   const features = useFeatures(pid);
+  const progress = useProgress(pid);
   const goals = work.data ?? [];
-  const { pct, toward } = boardProgress(goals);
+  const { pct, target, shipped, aria } = boardProgress(goals, progress.data);
   const now = nowFeatures(features.data ?? []);
   const tasks = boardTasks(goals);
   const C = 2 * Math.PI * 58;
   return (
     <div className="ob-wb">
-      <div className="ob-big" role="img" aria-label={`${pct}%${toward ? ` to ${toward}` : ''}`}>
-        <svg viewBox="0 0 140 140" aria-hidden="true">
-          <circle cx="70" cy="70" r="58" fill="none" stroke="#ece8f5" strokeWidth="14" />
-          <circle
-            cx="70"
-            cy="70"
-            r="58"
-            fill="none"
-            stroke="var(--coral)"
-            strokeWidth="14"
-            strokeLinecap="round"
-            transform="rotate(-90 70 70)"
-            strokeDasharray={`${((C * pct) / 100).toFixed(1)} ${C.toFixed(1)}`}
-          />
-        </svg>
-        <b>
-          {pct}
-          <small>%</small>
-        </b>
-        {toward && <span className="ob-toward">to {clip(toward, 20)}</span>}
+      <div className="ob-ring">
+        <div className="ob-big" role="img" aria-label={aria}>
+          <svg viewBox="0 0 140 140" aria-hidden="true">
+            <circle cx="70" cy="70" r="58" fill="none" stroke="#ece8f5" strokeWidth="14" />
+            <circle
+              cx="70"
+              cy="70"
+              r="58"
+              fill="none"
+              stroke="var(--coral)"
+              strokeWidth="14"
+              strokeLinecap="round"
+              transform="rotate(-90 70 70)"
+              strokeDasharray={`${((C * pct) / 100).toFixed(1)} ${C.toFixed(1)}`}
+            />
+          </svg>
+          <b>
+            {pct}
+            <small>%</small>
+          </b>
+          {target && <span className="ob-toward">to {clip(target, 20)}</span>}
+        </div>
+        {shipped && <p className="ob-shipped">{shipped}</p>}
+        <TargetEdit pid={pid} target={target} />
       </div>
       <div className="ob-cols">
         <section aria-labelledby="obN">
@@ -256,30 +287,158 @@ function Whiteboard({ pid, dir, go }: BoardProps) {
             {!tasks.length && (
               <li className="ob-empty">No tasks yet — {dir} writes them here as the plan takes shape.</li>
             )}
-            {tasks.map((t) => (
-              <li key={t.id} className={t.done ? 'done' : ''}>
-                <span className="ob-box" aria-hidden="true">
-                  {t.done && (
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path
-                        d="M3.5 8.5l3 3L12.5 5"
-                        fill="none"
-                        stroke="#fff"
-                        strokeWidth="2.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </span>
-                <span className="sr-only">
-                  {t.done ? 'Done:' : t.status === 'failed' ? 'Failed:' : 'To do:'}
-                </span>{' '}
-                {t.text}
-              </li>
-            ))}
+            {tasks.map((t) => {
+              const st = taskStage(t.item);
+              const hover = taskHover(t.item, nameOf);
+              return (
+                <li key={t.id} className={t.done ? 'done' : ''} title={hover ?? undefined}>
+                  <span className="ob-box" aria-hidden="true">
+                    {t.done && (
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path
+                          d="M3.5 8.5l3 3L12.5 5"
+                          fill="none"
+                          stroke="#fff"
+                          strokeWidth="2.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="sr-only">{st.sr}</span> <span className="ob-tt">{t.text}</span>
+                  {st.tag && <span className={`ob-stage${st.tone ? ` t-${st.tone}` : ''}`}>{st.tag}</span>}
+                  {hover && <span className="sr-only"> — {hover}</span>}
+                </li>
+              );
+            })}
           </ul>
         </section>
+      </div>
+      <button type="button" className="ob-back ob-how" onClick={() => go('how')}>
+        How we work →
+      </button>
+    </div>
+  );
+}
+
+/** The ring's target: a ghost link under it — "Set a target" / "to v1.0 ✎" → a 40-char field. */
+function TargetEdit({ pid, target }: { pid: string; target: string | null }) {
+  const [edit, setEdit] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (edit) ref.current?.focus();
+  }, [edit]);
+  const save = async (raw: string) => {
+    const v = raw.trim().slice(0, 40) || null;
+    if (v === target) return setEdit(false);
+    setBusy(true);
+    try {
+      await studio.projects.update(pid, { target: v });
+      setQueryData<OfficeProgress | null>(keys.progress(pid), (p) => (p ? { ...p, target: v } : null));
+      void invalidate('projects');
+      setEdit(false);
+    } catch (e) {
+      toast(`Couldn’t save the target — ${isApiError(e) ? e.message : 'try again'}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!edit)
+    return (
+      <button type="button" className="ob-target" onClick={() => setEdit(true)}>
+        {target ? 'Change target' : 'Set a target'}
+      </button>
+    );
+  return (
+    <input
+      ref={ref}
+      className="ob-target-in"
+      defaultValue={target ?? ''}
+      maxLength={40}
+      placeholder="e.g. v1.0"
+      aria-label="Target (what the % is towards)"
+      disabled={busy}
+      onBlur={(e) => void save(e.currentTarget.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          void save(e.currentTarget.value);
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          setEdit(false);
+        }
+      }}
+    />
+  );
+}
+
+/* ------------------------------------------------------------ how we work */
+function HowWeWork({ pid, dir, resolve }: BoardProps) {
+  const q = useQuery(keys.collaboration(pid), () => officeApi.collaboration(pid));
+  const [ask, setAsk] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [reply, setReply] = useState<{ text: string; err?: boolean } | null>(null);
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const v = ask.trim();
+    if (!v || busy) return;
+    setBusy(true);
+    setReply(null);
+    try {
+      const r = await officeApi.designCollaboration(pid, v);
+      setQueryData(keys.collaboration(pid), { collaboration: r.collaboration, designed: true });
+      setAsk('');
+      setReply({ text: r.reply });
+    } catch (err) {
+      setReply({ text: isApiError(err) ? err.message : 'That didn’t reach the orchestrator.', err: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ob-how-card">
+      <h2 className="ob-h">How we work</h2>
+      {q.error && !q.data ? (
+        <p className="ob-empty">Couldn’t load how this project works.</p>
+      ) : !q.data ? (
+        <p className="ob-empty">…</p>
+      ) : (
+        <WorkDesign collab={q.data.collaboration} orch={dir} resolve={resolve} title="Right now" />
+      )}
+      <form className="ob-how-ask" onSubmit={send}>
+        <input
+          value={ask}
+          onChange={(e) => setAsk(e.target.value)}
+          placeholder={`Ask ${dir} to change how we work…`}
+          aria-label={`Ask ${dir} to change how we work`}
+          maxLength={500}
+          disabled={busy}
+        />
+        <Button small variant="hero" type="submit" disabled={busy || !ask.trim()}>
+          Send
+        </Button>
+      </form>
+      <div className="op-log ob-how-log" aria-live="polite">
+        {busy && (
+          <div className="bubble them">
+            <span className="sr-only">{dir} is thinking</span>
+            <span className="typing" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+            </span>
+          </div>
+        )}
+        {reply && (
+          <div className={`bubble them${reply.err ? ' err' : ''}`}>
+            <span className="who">{dir}</span>
+            <span className="t">{reply.text}</span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Draft, Project, Team } from '../../api';
-import { backLotTag, castOf, editedAgo, ghBadge, shelfCount, shelves } from './model';
+import { backLotTag, castOf, editedAgo, ghBadge, isOnSet, progressLine, shelfCount, shelves } from './model';
 import { tileFor } from './tile';
 
 const project = (id: string, p: Partial<Project> = {}): Project => ({
@@ -47,6 +47,14 @@ describe('projects home', () => {
     expect(s.backLot.map((p) => p.id)).toEqual(['Muse Docs', 'Pebble', 'Orchard']);
     expect(shelfCount(s)).toBe('1 in setup · 2 on set · 3 in the back lot');
   });
+  it('an idle real project worked on this week stays on set; old or folderless idle → back lot', () => {
+    const now = Date.parse('2026-11-14T08:00:00Z');
+    const idle = (updatedAt: string, folder: string | null) =>
+      project('x', { status: 'idle', folder, updatedAt });
+    expect(isOnSet(idle('2026-11-13T20:00:00Z', 'x'), now)).toBe(true);
+    expect(isOnSet(idle('2026-10-01T20:00:00Z', 'x'), now)).toBe(false);
+    expect(isOnSet(idle('2026-11-13T20:00:00Z', null), now)).toBe(false);
+  });
   it('search matches names and notes, and drafts by name (untitled too)', () => {
     expect(shelves(ps, [], 'checkout').onSet).toHaveLength(1);
     expect(shelfCount(shelves(ps, [draft('d1', ''), draft('d2', 'Kite')], 'UNTITLED'))).toBe(
@@ -78,5 +86,13 @@ describe('projects home', () => {
     expect(tileFor('Kite Notes')).toEqual(tileFor('Kite Notes'));
     // the prototype's shot: Kite Notes = coral→sun quill
     expect(tileFor('Kite Notes')).toEqual({ g1: '#ff6f73', g2: '#ffc24b', glyph: 'quill' });
+  });
+});
+
+describe('progress line', () => {
+  it('to the target when there is one, else done (no made-up "launch")', () => {
+    expect(progressLine({ progress: 63.6, target: 'v1.0' })).toBe('64% to v1.0');
+    expect(progressLine({ progress: 30, target: null })).toBe('30% done');
+    expect(progressLine({ progress: 30, target: '  ' })).toBe('30% done');
   });
 });

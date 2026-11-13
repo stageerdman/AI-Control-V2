@@ -119,6 +119,8 @@ export const officeApi = {
       `/projects/${e(pid)}/collaboration/design`,
       ask ? { ask } : {},
     ),
+  progress: (pid: string) =>
+    http.get<OfficeView>(`/projects/${e(pid)}/office`).then((o) => o.progress ?? null),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
 };
@@ -133,5 +135,6 @@ export const keys = {
   access: (pid: string) => `office:${pid}:access`,
   thread: (pid: string, agentId: string) => `office:${pid}:thread:${agentId}`,
   collaboration: (pid: string) => `office:${pid}:collaboration`,
+  progress: (pid: string) => `office:${pid}:progress`,
   pager: 'pager:asks',
 };

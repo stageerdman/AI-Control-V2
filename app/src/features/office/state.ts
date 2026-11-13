@@ -1,9 +1,9 @@
 /* The office's live state, pure (tested): the backend's statuses + open asks → what each robot is
    doing in the scene (the prototype's ACTIVITY kinds), thread merging, the wall's facts.
    The scene (engine.ts) only renders what deriveActor() says; nothing here touches the DOM. */
-import type { Goal, ProjectHealth, StudioEvent } from '../../api';
+import type { ChecklistItem, Goal, ProjectHealth, StudioEvent } from '../../api';
 import type { Pose } from '../../characters';
-import type { AgentStatus, Feature, OfficeView, ThreadMessage } from './api';
+import type { AgentStatus, Feature, OfficeProgress, OfficeView, ThreadMessage } from './api';
 import type { BoardFacts } from './theme';
 
 /** One row per activity kind (prototype office-engine.js ACTIVITY): pose, prop, monitor glyph. */
@@ -171,20 +171,70 @@ export function mergeMessage(list: ThreadMessage[], m: ThreadMessage): ThreadMes
 
 /* ------------------------------------------------------------ the wall */
 /** The tasks the whiteboard lists: every running goal's items, else the newest goal's (oldest first). */
-export function boardTasks(goals: Goal[]): { id: string; text: string; done: boolean; status: string }[] {
+export function boardTasks(
+  goals: Goal[],
+): { id: string; text: string; done: boolean; status: string; item: ChecklistItem }[] {
   const running = goals.filter((g) => g.status === 'running');
   const shown = running.length ? running : goals.slice(0, 1);
   return shown
     .slice()
     .reverse()
     .flatMap((g) =>
-      g.items.map((i) => ({ id: i.id, text: i.text, done: i.status === 'done', status: i.status })),
+      g.items.map((i) => ({ id: i.id, text: i.text, done: i.status === 'done', status: i.status, item: i })),
     );
 }
-/** The big number: the newest goal's progress, and what it's towards. */
-export function boardProgress(goals: Goal[]): { pct: number; toward: string | null } {
+/** The big number: the project's overall progress (server: features shipped / total, else the
+    current goal's %), labelled by its target ("to v1.0") — never by a goal's text. Falls back to
+    the newest goal's % for an older server. */
+export function boardProgress(
+  goals: Goal[],
+  prog?: OfficeProgress | null,
+): { pct: number; target: string | null; shipped: string | null; aria: string } {
   const g = goals.find((x) => x.status === 'running') ?? goals[0];
-  return g ? { pct: g.pct, toward: g.summary || g.text } : { pct: 0, toward: null };
+  const pct = Math.round(prog ? prog.pct : (g?.pct ?? 0));
+  const target = prog?.target?.trim() || null;
+  const shipped = prog && prog.total > 0 ? `${prog.shipped} of ${prog.total} features shipped` : null;
+  return { pct, target, shipped, aria: target ? `${pct}% to ${target}` : `${pct}% done` };
+}
+
+/** A whiteboard task row's stage, in a few calm words (none while building or done). */
+export function taskStage(i: ChecklistItem): { tag: string | null; tone: 'sun' | null; sr: string } {
+  if (i.status === 'done') return { tag: null, tone: null, sr: 'Done:' };
+  if (i.status === 'failed') return { tag: 'stopped', tone: null, sr: 'Stopped:' };
+  if (i.status === 'cancelled') return { tag: 'stopped', tone: null, sr: 'Stopped:' };
+  if (i.stage === 'review') return { tag: 'in review', tone: null, sr: 'In review:' };
+  if (i.stage === 'merge') return { tag: 'merging', tone: null, sr: 'Merging:' };
+  if ((i.sendBacks ?? 0) > 0) return { tag: `sent back ${i.sendBacks}×`, tone: 'sun', sr: 'Sent back:' };
+  return { tag: null, tone: null, sr: 'To do:' };
+}
+
+/** Who has the item now: the reviewer while in review, else its builder. */
+export const holderOf = (i: ChecklistItem): string =>
+  i.stage === 'review' && i.gates?.[i.gateIndex ?? 0] ? i.gates[i.gateIndex ?? 0].reviewer : i.agentId;
+
+const KIND_WORD: Record<string, string> = {
+  quality: 'quality',
+  'user-test': 'user test',
+  'crash-test': 'crash test',
+  security: 'security',
+  review: 'review',
+};
+export const gateKindWord = (k: string) => KIND_WORD[k] ?? k;
+
+/** The hover line of a task row: who is reviewing, or what the reviewer said. */
+export function taskHover(i: ChecklistItem, nameOf: (id: string) => string): string | null {
+  if (i.status === 'done' || i.status === 'failed') return i.note ?? null;
+  if (i.stage === 'review') {
+    const g = i.gates?.[i.gateIndex ?? 0];
+    return g ? `${nameOf(g.reviewer)} is reviewing (${gateKindWord(g.kind)})` : null;
+  }
+  if ((i.sendBacks ?? 0) > 0 && i.notes) {
+    const last = i.reviews?.filter((r) => r.verdict === 'changes').at(-1);
+    const who = last ? nameOf(last.reviewer) : 'The reviewer';
+    const n = i.notes.length > 120 ? `${i.notes.slice(0, 119)}…` : i.notes;
+    return `${who}: “${n}”`;
+  }
+  return null;
 }
 export const nowFeatures = (features: Feature[]) =>
   features.filter((f) => f.status === 'now').sort((a, b) => a.order - b.order);
@@ -200,10 +250,11 @@ export function boardFacts(d: {
   features?: Feature[];
   health?: ProjectHealth;
   unreadReports?: number;
+  progress?: OfficeProgress | null;
 }): BoardFacts {
   const latest = d.health?.latest;
   return {
-    overall: boardProgress(d.goals ?? []).pct,
+    overall: boardProgress(d.goals ?? [], d.progress).pct,
     now: nowFeatures(d.features ?? []).map((f) => ({ name: f.name, pct: f.pct ?? 0 })),
     tasks: boardTasks(d.goals ?? []),
     fresh: d.health?.git ? d.health.git.clean !== false : true,

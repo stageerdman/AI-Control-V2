@@ -8,6 +8,7 @@ import { type Agent, type ChatMessage, type Draft, invalidate, studio, type Team
 import { Hero } from '../../characters/Hero';
 import { reducedMotion } from '../../design/palette';
 import { go } from '../../shell/router';
+import { briefName, type Resolve, WorkDesign } from '../collab';
 import { nickOf } from '../projects/model';
 import { fireConfetti, sparkle } from './confetti';
 import { DRAFTS_KEY } from './drafts';
@@ -53,6 +54,7 @@ export function TeamStep({
     [d.plan, teams, agents, fresh],
   );
   const minted = fresh.size > 0 && pendingBriefs(d.plan) === 0;
+  const resolve = useMemo(() => planResolver(d, agents, teams), [d, agents, teams]);
   const oNick = nickOf(orch) || 'The orchestrator';
   const cNick = nickOf(creator) || 'The Agent Creator';
 
@@ -171,6 +173,7 @@ export function TeamStep({
             ) : (
               <p className="np-sub">A proposal is on its way — whole teams first.</p>
             )}
+            {view && <WorkDesign collab={d.plan?.collaboration} orch={oNick} resolve={resolve} />}
             {acceptErr && (
               <p className="np-err" role="alert">
                 {acceptErr}
@@ -310,4 +313,29 @@ function ChatLog({
       )}
     </div>
   );
+}
+
+/** Names for the collaboration chips: real agents/teams, or the plan's briefs before accept. */
+export function planResolver(d: Draft, agents: Agent[], teams: Team[]): Resolve {
+  const ph = /^new-(agent|team):(\d+)$/;
+  return {
+    agent: (id) => {
+      const m = ph.exec(id);
+      if (m) {
+        const b = m[1] === 'agent' ? d.plan?.newAgents[+m[2]] : undefined;
+        return b ? { name: briefName(b.brief), ghost: true } : null;
+      }
+      const a = agents.find((x) => x.id === id);
+      return a ? { name: nickOf(a) || a.name, look: a.look } : null;
+    },
+    team: (id) => {
+      const m = ph.exec(id);
+      if (m) {
+        const b = m[1] === 'team' ? d.plan?.newTeams[+m[2]] : undefined;
+        return b ? { id, name: briefName(b.brief) } : null;
+      }
+      const t = teams.find((x) => x.id === id);
+      return t ? { id: t.id, name: t.name, emblem: t.emblem, color: t.color } : null;
+    },
+  };
 }

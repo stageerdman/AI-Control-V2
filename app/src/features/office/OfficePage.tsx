@@ -21,10 +21,11 @@ import { reducedMotion } from '../../design/palette';
 import type { PageProps } from '../../shell/pages';
 import { go, type OfficeSub } from '../../shell/router';
 import { ErrorState, Loading } from '../../ui';
+import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey, takePendingFollowUp } from '../reports';
 import { AccessSheet } from './AccessSheet';
-import { keys, type OfficeView, officeApi, type Thread } from './api';
-import { Board, OBJ_OF, useFeatures, useHealth, useWork } from './Board';
+import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
+import { Board, OBJ_OF, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
@@ -152,6 +153,11 @@ function Office({
   }, [office]);
 
   /* ---------- the wall's data */
+  /* the overall % starts from the office view and follows project.progress */
+  useState(() => {
+    if (office.progress) setQueryData(keys.progress(pid), office.progress);
+  });
+  const progress = useProgress(pid);
   const work = useWork(pid);
   const features = useFeatures(pid);
   const health = useHealth(pid);
@@ -160,8 +166,14 @@ function Office({
   const unread = Math.max(0, (reports.data?.unread ?? 0) - inFlight);
   const facts = useMemo(
     () =>
-      boardFacts({ goals: work.data, features: features.data, health: health.data, unreadReports: unread }),
-    [work.data, features.data, health.data, unread],
+      boardFacts({
+        goals: work.data,
+        features: features.data,
+        health: health.data,
+        unreadReports: unread,
+        progress: progress.data,
+      }),
+    [work.data, features.data, health.data, unread, progress.data],
   );
 
   /* ---------- the scene */
@@ -230,6 +242,16 @@ function Office({
     [],
   );
   const nameOf = useCallback((a: string) => agentsById[a]?.name ?? 'Someone', [agentsById]);
+  const resolve = useMemo<Resolve>(
+    () => ({
+      agent: (a) => (agentsById[a] ? { name: shortOf(agentsById[a]), look: agentsById[a].look } : null),
+      team: (t) => {
+        const x = office.teams.find((y) => y.id === t);
+        return x ? { id: x.id, name: x.name, emblem: x.emblem, color: x.color } : null;
+      },
+    }),
+    [agentsById, office],
+  );
 
   /* ---------- chat panel */
   const [thread, setThread] = useState(director);
@@ -299,6 +321,37 @@ function Office({
           break;
         case 'feature.changed':
           void invalidate(keys.features(pid));
+          break;
+        case 'project.progress': {
+          const { pct, shipped, total, target } = ev.payload;
+          setQueryData<OfficeProgress | null>(keys.progress(pid), (p) => ({
+            pct,
+            shipped,
+            total,
+            target: target !== undefined ? target : (p?.target ?? null),
+            goal: p?.goal ?? null,
+          }));
+          break;
+        }
+        case 'collaboration.changed':
+          void invalidate(keys.collaboration(pid));
+          break;
+        case 'handoff':
+          void invalidate(keys.work(pid));
+          if (
+            e &&
+            liveRef.current.ids.includes(ev.payload.from) &&
+            liveRef.current.ids.includes(ev.payload.to)
+          )
+            void e.handoff(ev.payload.from, ev.payload.to);
+          break;
+        case 'review.approved':
+          void invalidate(keys.work(pid));
+          e?.approve(ev.payload.reviewerId);
+          break;
+        case 'review.changes':
+        case 'item.merged':
+          void invalidate(keys.work(pid));
           break;
         case 'health.checked':
           void invalidate(keys.health(pid));
@@ -613,6 +666,8 @@ function Office({
               dir={shortOf(agentsById[director])}
               go={goSub}
               escapeRef={escapeRef}
+              nameOf={nameOf}
+              resolve={resolve}
               onFollowUp={(r, agentId) => {
                 setContext({ title: r.title, reportId: r.id });
                 goSub('room');

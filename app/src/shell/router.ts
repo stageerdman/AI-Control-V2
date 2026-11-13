@@ -1,12 +1,21 @@
 /* Hash router — the prototype's routes, typed. parseRoute/formatRoute are pure (tested);
    useRoute() re-renders on hashchange; go() navigates.
      #projects · #cast · #cast/teams · #cast/agent/:id · #cast/teams/:id · #access · #blueprint
-     #reports[/:projectId/:reportId] · #new[/:draftId] · #office/:projectId[/board|health|features|feature/:id|reports|report/:id]
+     #reports[/:projectId/:reportId] · #new[/:draftId] · #office/:projectId[/board|how|health|features|feature/:id|reports|report/:id]
      #gallery[/:section]   (dev: every pose / look / emblem)
    Anything unknown lands on #projects. */
 import { useMemo, useSyncExternalStore } from 'react';
 
-export const OFFICE_SUBS = ['room', 'board', 'health', 'features', 'feature', 'reports', 'report'] as const;
+export const OFFICE_SUBS = [
+  'room',
+  'board',
+  'how',
+  'health',
+  'features',
+  'feature',
+  'reports',
+  'report',
+] as const;
 export type OfficeSub = (typeof OFFICE_SUBS)[number];
 
 export type Route =
@@ -60,7 +69,7 @@ export function parseRoute(hash: string): Route {
       if (!b) return { name: 'office', projectId: a, sub: 'room' };
       if ((b === 'feature' || b === 'report') && parts[3])
         return { name: 'office', projectId: a, sub: b, id: parts[3] };
-      if (b === 'board' || b === 'health' || b === 'features' || b === 'reports')
+      if (b === 'board' || b === 'how' || b === 'health' || b === 'features' || b === 'reports')
         return { name: 'office', projectId: a, sub: b };
       return { name: 'office', projectId: a, sub: 'room' };
     }

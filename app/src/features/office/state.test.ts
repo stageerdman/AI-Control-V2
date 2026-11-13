@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Goal, StudioEvent } from '../../api';
+import type { ChecklistItem, Goal, StudioEvent } from '../../api';
 import type { OfficeView, ThreadMessage } from './api';
 import {
   boardFacts,
@@ -7,11 +7,14 @@ import {
   boardTasks,
   changedActors,
   deriveActor,
+  holderOf,
   initLive,
   type Live,
   looksLikeGoal,
   mergeMessage,
   reduce,
+  taskHover,
+  taskStage,
   threadMessageOf,
 } from './state';
 
@@ -242,9 +245,48 @@ describe('the wall', () => {
       ['b1', true],
       ['b2', false],
     ]);
-    expect(boardProgress(goals)).toEqual({ pct: 50, toward: 'summary g2' });
+    expect(boardProgress(goals)).toEqual({ pct: 50, target: null, shipped: null, aria: '50% done' });
     expect(boardTasks([goals[1]]).map((t) => t.text)).toEqual(['a1']);
-    expect(boardProgress([])).toEqual({ pct: 0, toward: null });
+    expect(boardProgress([]).pct).toBe(0);
+  });
+  it('progress: the project’s overall % labelled by its target, never by a goal text', () => {
+    const p = { pct: 64, shipped: 3, total: 8, target: 'v1.0', goal: null };
+    expect(boardProgress([goal('g', 'running', 10, [])], p)).toEqual({
+      pct: 64,
+      target: 'v1.0',
+      shipped: '3 of 8 features shipped',
+      aria: '64% to v1.0',
+    });
+    expect(boardProgress([], { ...p, target: null, total: 0 })).toEqual({
+      pct: 64,
+      target: null,
+      shipped: null,
+      aria: '64% done',
+    });
+    expect(boardFacts({ goals: [], progress: p }).overall).toBe(64);
+  });
+  it('task stages: in review / sent back n× / merging / stopped; hover says who and what', () => {
+    const it = (o: Partial<ChecklistItem>) =>
+      ({ id: 'i', agentId: 'a', status: 'running', stage: 'build', ...o }) as ChecklistItem;
+    const names = (id: string) => ({ a: 'Pete', r: 'Scarlett' })[id] ?? id;
+    const gates = [{ reviewer: 'r', kind: 'quality' as const, why: 'tidy' }];
+    expect(taskStage(it({})).tag).toBeNull();
+    const rev = it({ stage: 'review', gates, gateIndex: 0 });
+    expect(taskStage(rev)).toEqual({ tag: 'in review', tone: null, sr: 'In review:' });
+    expect(holderOf(rev)).toBe('r');
+    expect(taskHover(rev, names)).toBe('Scarlett is reviewing (quality)');
+    const back = it({
+      sendBacks: 2,
+      gates,
+      notes: 'split the filter hook out',
+      reviews: [{ reviewer: 'r', gate: 0, verdict: 'changes', notes: 'x', runId: null, at: '' }],
+    });
+    expect(taskStage(back)).toEqual({ tag: 'sent back 2×', tone: 'sun', sr: 'Sent back:' });
+    expect(holderOf(back)).toBe('a');
+    expect(taskHover(back, names)).toBe('Scarlett: “split the filter hook out”');
+    expect(taskStage(it({ stage: 'merge' })).tag).toBe('merging');
+    expect(taskStage(it({ status: 'failed' })).tag).toBe('stopped');
+    expect(taskStage(it({ status: 'done', stage: 'review' })).tag).toBeNull();
   });
   it('facts: % + in-progress features + tasks + grades + unread sheets', () => {
     const f = boardFacts({
@@ -272,5 +314,24 @@ describe('the wall', () => {
     expect(looksLikeGoal('Can you build the checkout?')).toBe(false);
     expect(looksLikeGoal('how is it going')).toBe(false);
     expect(looksLikeGoal('fix it?')).toBe(false);
+  });
+});
+
+describe('goal lines from the server thread', () => {
+  it('a goal counts as recorded once a non-user line carries its goalId', async () => {
+    const { threadHasGoal } = await import('./Panel');
+    const m = (from: string, goalId: string | null) => ({
+      id: from,
+      from,
+      kind: 'text' as const,
+      text: '',
+      runId: null,
+      reportId: null,
+      goalId,
+      at: '',
+    });
+    expect(threadHasGoal([m('user', 'g1')], 'g1')).toBe(false);
+    expect(threadHasGoal([m('user', 'g1'), m('orch', 'g1')], 'g1')).toBe(true);
+    expect(threadHasGoal([m('orch', 'g2')], 'g1')).toBe(false);
   });
 });

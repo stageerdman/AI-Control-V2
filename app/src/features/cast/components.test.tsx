@@ -9,6 +9,7 @@ const store = vi.hoisted(() => ({
   ensureRole: vi.fn(),
   renameRole: vi.fn(),
   setRoleReporter: vi.fn(),
+  setRoleToolsmith: vi.fn(),
   deleteRole: vi.fn(),
 }));
 vi.mock('./store', () => store);
@@ -73,7 +74,9 @@ describe('Edit roles — rename, delete, Files reports', () => {
     const sw = screen.getAllByRole('switch');
     expect(sw.map((s) => [s.getAttribute('aria-label'), s.getAttribute('aria-checked')])).toEqual([
       ['Frontend files reports', 'false'],
+      ['Frontend builds own tools', 'false'],
       ['Research files reports', 'true'],
+      ['Research builds own tools', 'false'],
     ]);
     expect(screen.getByText('2 agents')).toBeTruthy();
   });
@@ -82,6 +85,12 @@ describe('Edit roles — rename, delete, Files reports', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit roles' }));
     fireEvent.click(screen.getByRole('switch', { name: 'Frontend files reports' }));
     expect(store.setRoleReporter).toHaveBeenCalledWith('r1', true, expect.any(Function));
+  });
+  it('the toolsmith switch saves toolsmith for that role', () => {
+    combo();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit roles' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Research builds own tools' }));
+    expect(store.setRoleToolsmith).toHaveBeenCalledWith('r2', true, expect.any(Function));
   });
   it('rename on Enter (normalised); a taken name reverts', async () => {
     const { onSaved } = combo();

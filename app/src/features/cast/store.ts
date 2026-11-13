@@ -227,6 +227,17 @@ export function setRoleReporter(id: string, reporter: boolean, onSaved?: () => v
   }, failed);
 }
 
+export function setRoleToolsmith(id: string, toolsmith: boolean, onSaved?: () => void) {
+  setQueryData<Role[]>(
+    KEYS.roles,
+    edit<Role>(id, (r) => ({ ...r, toolsmith })),
+  );
+  return enqueue(`role:${id}`, () => castApi.roles.setToolsmith(id, toolsmith)).then((r) => {
+    setQueryData<Role[]>(KEYS.roles, upsert(r));
+    onSaved?.();
+  }, failed);
+}
+
 export async function deleteRole(r: Role, then?: () => void) {
   let res: Deleted;
   try {
