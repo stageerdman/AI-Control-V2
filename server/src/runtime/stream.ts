@@ -167,6 +167,25 @@ export function createStreamParser(secretValues: readonly string[] = []) {
       }
       if (m.type === 'result') {
         const u = m.usage ?? {};
+        /* F3 live: an agent that started something in the background (`npm start` with run_in_background) gets a
+           SECOND result after its real answer — the CLI's reaction to that task ending ("the test server stopped…").
+           The task's answer (summary, verdict, rework line) is the first result; a follow-up only adds its turns,
+           tokens and the (cumulative) cost. */
+        if (final && final.status === 'succeeded') {
+          const prev = final.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+          final = {
+            ...final,
+            turns: (final.turns ?? 0) + (m.num_turns ?? 0),
+            usage: {
+              input: prev.input + (u.input_tokens ?? 0),
+              output: prev.output + (u.output_tokens ?? 0),
+              cacheRead: prev.cacheRead + (u.cache_read_input_tokens ?? 0),
+              cacheWrite: prev.cacheWrite + (u.cache_creation_input_tokens ?? 0),
+            },
+            ...(m.total_cost_usd === undefined ? {} : { costUsd: m.total_cost_usd }),
+          };
+          return out;
+        }
         usage.input = u.input_tokens ?? 0;
         usage.output = u.output_tokens ?? 0;
         usage.cacheRead = u.cache_read_input_tokens ?? 0;
