@@ -47,7 +47,7 @@ function _omMount(p) {
       <section class="o-stagewrap" id="oStage" aria-roledescription="office scene">
         <div class="o-box" id="oBox"></div>
         <div class="o-hots" id="oHots"></div>
-        <div class="o-vignette" aria-hidden="true"></div>
+        <div class="o-scrim" aria-hidden="true"></div>
         <div class="o-layers" id="oLayers"></div>
         <div class="o-stagectl">
           <button class="o-ctl" type="button" id="oListBtn" aria-pressed="false" aria-controls="oList">▤ <span>List</span></button>
@@ -78,24 +78,20 @@ function _omMount(p) {
 }
 function _omResize() { OE.fit(); if (OM.layer) OB.reposition(); }
 
-/* ------------------------------------------------------------ objects on the wall */
+/* ------------------------------------------------------------ the only three interactive objects */
 const OM_HOTS = [
-  { id: 'whiteboard', label: 'Whiteboard — progress, checklist, tokens', act: () => go('board') },
-  { id: 'dossier', label: 'Features dossier — shipped and planned', act: () => go('features') },
-  { id: 'poster', label: 'Health checkup poster', act: () => go('board') },
-  { id: 'clock', label: 'Progress clock', act: () => go('board') },
-  { id: 'outbox', label: 'Outbox — pushes to main', act: () => toast(`📮 Last push ${escapeHtml(WS.github.pushedAgo)} to <span style="font-family:var(--mono)">${escapeHtml(WS.github.branch)}</span>`) },
-  { id: 'printer', label: 'Printer — handoffs waiting', act: () => toast('🖨 Handoffs land here when someone is away. Tray is empty.') },
-  { id: 'door', label: 'Door — who comes and goes', act: () => toast('🚪 Pixel brings people in when the plan needs them.') },
+  { id: 'dossier', label: 'Features — now, planned, shipped', act: () => go('features') },
+  { id: 'whiteboard', label: 'Whiteboard — progress and tasks', act: () => go('board') },
+  { id: 'health', label: 'Health check — modularity, cleanliness, reusability', act: () => go('health') },
 ];
 function _omHotspots() {
   const box = document.querySelector('#oBox .o-world');
   OM_HOTS.forEach(h => {
-    const o = THEME_OFFICE.objects[h.id];
+    const o = THEME_OFFICE.plan.objects[h.id];
     const b = document.createElement('button'); b.type = 'button'; b.className = 'o-hot'; b.dataset.obj = h.id; b.tabIndex = -1;
     b.setAttribute('aria-label', h.label);
     b.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px`;
-    b.innerHTML = `<span class="o-hot-l">${escapeHtml(o.label)}</span>`;
+    b.innerHTML = `<span class="o-hot-l" aria-hidden="true">${escapeHtml(o.label)}</span>`;
     b.onclick = e => { e.stopPropagation(); OM.opener = b; h.act(); };
     box.appendChild(b);
   });
@@ -113,8 +109,6 @@ function _omStageA11y() {
     OM.focusId = t.dataset.id || 'obj:' + t.dataset.obj; _omRoving();
   });
   /* bubbles pause while hovered (spec §2 communication) */
-  stage.addEventListener('mouseover', e => { const b = e.target.closest('.o-actor'); if (b) { const r = OE.actors[b.dataset.id]; if (r) r._hoverBubble = true; } });
-  stage.addEventListener('mouseout', e => { const b = e.target.closest('.o-actor'); if (b) { const r = OE.actors[b.dataset.id]; if (r) { r._hoverBubble = false; if (r._release) { r._release(); r._release = null; } } } });
   _omRoving();
 }
 OM.clickActor = function (id) {
@@ -122,11 +116,9 @@ OM.clickActor = function (id) {
   if (a.activity.kind === 'sleeping') { OP.sleeperPoke(id); return; }
   OP.open(id, { from: 'scene' });
 };
-/* order: Pixel → pod A → B → C → hot desks → couch → objects */
+/* order: Pixel → desks in reading order (row, then x) → couch → objects */
 function _omOrder() {
-  const rank = id => { const a = wsAgent(id); const at = a.at || '';
-    if (id === 'pixel') return 0; const m = /^([ABC])-(\d)/.exec(at); if (m) return 10 + 'ABC'.indexOf(m[1]) * 10 + +m[2];
-    if (/^hot/.test(at)) return 50 + +at.slice(4); if (/^couch|^bean/.test(at)) return 60 + (+at.slice(-1) || 0); return 70; };
+  const rank = id => { if (id === 'pixel') return -1; const r = OE.actors[id]; return r ? Math.round(r.y / 120) * 100000 + r.x : 1e9; };
   const ids = ['pixel', ...wsOnProject().map(a => a.id)].sort((a, b) => rank(a) - rank(b));
   return [...ids, ...OM_HOTS.map(h => 'obj:' + h.id)];
 }
@@ -137,7 +129,7 @@ function _omRoving() {
 }
 OM.focusActor = function (key) { OM.focusId = key; _omRoving(); const el = _omEl(key); if (el) el.focus({ preventScroll: true }); };
 function _omPos(key) {
-  if (key.startsWith('obj:')) { const o = THEME_OFFICE.objects[key.slice(4)]; return { x: o.x + o.w / 2, y: o.y + o.h / 2 }; }
+  if (key.startsWith('obj:')) { const o = THEME_OFFICE.plan.objects[key.slice(4)]; return { x: o.x + o.w / 2, y: o.y + o.h / 2 }; }
   const r = OE.actors[key]; return r ? { x: r.x, y: r.y - 50 } : { x: 0, y: 0 };
 }
 function _omKeys(e) {
@@ -184,7 +176,7 @@ function officeRefresh() {
   document.getElementById('oStage').setAttribute('aria-label', `Office — ${people} people${n ? `, ${n} need${n === 1 ? 's' : ''} you` : ''}. Arrow keys move between people; ! jumps to whoever needs you.`);
   document.getElementById('oStage').setAttribute('role', 'group');
   THEME_OFFICE.sync(OE.art, WS);
-  OE.declutterSoon();
+  Object.values(OE.actors).forEach(r => OE._card(r));
   OP.refresh();
   if (OM.layer) OB.refresh();
 }
@@ -222,22 +214,19 @@ function _omList() {
     const needs = a.activity.kind === 'needs-input';
     return `<li><button type="button" class="o-lrow${needs ? ' needs' : ''}" data-id="${a.id}">
       <span class="o-lface" style="background:${hueHex(ag.hue)}" aria-hidden="true">${escapeHtml(ag.name[0])}</span>
-      <span class="o-lt"><b>${escapeHtml(ag.name)}</b> <span class="o-lrole">${escapeHtml(ag.role)}</span><span class="o-lact">${act.icon} ${escapeHtml(a.activity.detail || a.activity.label)}</span></span>
-      <span class="o-ltok">${wsTok(a.tokens.total)}</span>${needs ? '<span class="o-lneed">❗ Needs you</span>' : ''}</button></li>`;
+      <span class="o-lt"><b>${escapeHtml(ag.name)}</b><span class="o-lact">${act.icon} ${escapeHtml(needs ? 'Needs you' : a.activity.detail || a.activity.label)}</span></span></button></li>`;
   };
   const on = wsOnProject();
   const groups = [['Director', [WS.director]]];
   wsTeamIds().forEach(t => groups.push([teamById(t).name, on.filter(a => a.teamId === t && a.session !== 'asleep')]));
   groups.push(['Solo', on.filter(a => !a.teamId && a.session !== 'asleep')]);
   groups.push(['Off shift', on.filter(a => a.session === 'asleep')]);
-  el.innerHTML = `<div class="o-lhead"><b>Everyone on ${escapeHtml(projById(OM.project).name.split(' ')[0])}</b><button type="button" class="o-ctl" id="oListClose" aria-label="Close list">✕</button></div>
+  const cur = wsDemoSize();
+  el.innerHTML = `<div class="o-lhead"><b>Everyone</b><button type="button" class="o-ctl" id="oListClose" aria-label="Close list">✕</button></div>
     ${groups.filter(g => g[1].length).map(([name, list]) => `<h3>${escapeHtml(name)}</h3><ul>${list.map(row).join('')}</ul>`).join('')}
-    <h3>Around the office</h3><ul class="o-lobj">
-      <li><button type="button" class="o-lrow" data-go="board">🧾 Whiteboard — ${WS.overall}% · checklist · tokens</button></li>
-      <li><button type="button" class="o-lrow" data-go="features">📁 Features — shipped and planned</button></li>
-      <li><button type="button" class="o-lrow" data-go="board">🩺 Checkup — ${Object.entries(WS.checkup.vitals).map(([k, g]) => `${k} ${g}`).join(' · ')}</button></li></ul>`;
+    <nav class="o-dev" aria-label="Demo office size (dev)">Size ${['size2', 'size6', 'size12', 'size20'].map(k => `<a href="?demo=${k}#office"${k === cur ? ' aria-current="true"' : ''}>${k.slice(4)}</a>`).join('')}</nav>`;
   el.querySelector('#oListClose').onclick = () => _omToggleList(false);
-  el.querySelectorAll('.o-lrow').forEach(b => b.onclick = () => { OM.opener = b; if (b.dataset.go) go(b.dataset.go); else OM.clickActor(b.dataset.id); });
+  el.querySelectorAll('.o-lrow').forEach(b => b.onclick = () => { OM.opener = b; OM.clickActor(b.dataset.id); });
 }
 function _omToggleList(force) {
   OM.listOpen = force == null ? !OM.listOpen : force;

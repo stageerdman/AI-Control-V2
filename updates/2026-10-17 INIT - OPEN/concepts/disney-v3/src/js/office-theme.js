@@ -260,8 +260,9 @@ function _otPlinth(plan, title) {
 
 const _otArt = function (plan, ctx = {}) {
   _otCX = plan.W / 2;
-  const rugs = plan.pods.map(p => {
-    const team = p.teamId ? ctx.teams[p.teamId] : null;
+  /* team pods get a rug + name plaque; solo desks stand on the bare floor */
+  const rugs = plan.pods.filter(p => p.teamId).map(p => {
+    const team = ctx.teams[p.teamId];
     const name = team ? team.name.replace(/^The /, '') : 'Solo';
     const r = p.rug;
     return _otRug(r, team ? team.color : 'grape', !team) + _otPlaque(r.x + r.w / 2, r.y + r.h, name, team ? team.color : '#a99bd0');
