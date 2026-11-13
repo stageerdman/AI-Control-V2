@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Route } from '../../shell/router';
 import type { StudioAsk } from './api';
-import { askKey, freshIndex, leftOffice, pagerEntries, pagerHidden, pagerLine } from './pager';
+import { askKey, freshIndex, leftOffice, pagerEntries, pagerHidden, pagerLine } from './pager-logic';
 
 const ask = (
   id: string,

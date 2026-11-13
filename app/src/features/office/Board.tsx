@@ -1,0 +1,682 @@
+/* The things you can zoom into (prototype office-board.js, spec-office §4) — on the real backend:
+     board     whiteboard: the big %, features in progress, the task list (from work)
+     health    health board: the latest report (A–F + good / to fix), the repo + GitHub, "Run health check"
+     features  features folder: Now / Planned / Shipped (identical rows) + add
+     feature   one feature: name, status, Description + Vision as plain text blocks, save / delete
+     reports   the Reports tray → list · report → one report (features/reports)
+   The camera zooms onto the object (OfficePage), the scene behind is covered by a still scrim, the
+   card fades in. Esc / Back = one layer. */
+import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react';
+import { type Goal, isApiError, type ProjectHealth, studio, useMutation, useQuery } from '../../api';
+import type { OfficeSub } from '../../shell/router';
+import { Button, toast } from '../../ui';
+import { type Report, ReportsList, ReportView } from '../reports';
+import { type Feature, type FeatureStatus, keys, officeApi } from './api';
+import { ASPECTS, boardProgress, boardTasks, nowFeatures } from './state';
+
+export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
+  board: 'whiteboard',
+  health: 'health',
+  features: 'dossier',
+  feature: 'dossier',
+  reports: 'reports',
+  report: 'reports',
+};
+const ST_LABEL: Record<FeatureStatus, string> = {
+  now: 'In progress',
+  planned: 'Planned',
+  shipped: 'Shipped',
+};
+const GRADE_WORD: Record<string, string> = {
+  A: 'Great',
+  B: 'Good',
+  C: 'Needs work',
+  D: 'Weak',
+  F: 'Failing',
+};
+
+export type BoardProps = {
+  pid: string;
+  sub: OfficeSub;
+  id?: string;
+  /** The director's short name ("Pixel"). */
+  dir: string;
+  go: (sub: OfficeSub, id?: string) => void;
+  /** Esc from the page: return true when the card handled it (e.g. the unsaved-changes prompt). */
+  escapeRef: RefObject<(() => boolean) | null>;
+  onFollowUp: (r: Report, agentId: string) => void;
+};
+
+/** The card: a non-modal dialog that keeps Tab inside and fades in once the camera has landed. */
+function ZoomCard({
+  kind,
+  label,
+  fresh,
+  children,
+}: {
+  kind: string;
+  label: string;
+  fresh: boolean;
+  children: React.ReactNode;
+}) {
+  const el = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(!fresh);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once per card
+  useEffect(() => {
+    const focus = () => el.current?.querySelector<HTMLElement>('.ob-back')?.focus({ preventScroll: true });
+    if (shown) {
+      focus();
+      return;
+    }
+    const t = setTimeout(
+      () => {
+        setShown(true);
+        setTimeout(focus, 0);
+      },
+      matchMedia('(prefers-reduced-motion:reduce)').matches ? 0 : 480,
+    );
+    return () => clearTimeout(t);
+  }, []);
+  const trap = (e: KeyboardEvent) => {
+    if (e.key !== 'Tab' || !el.current) return;
+    const f = [...el.current.querySelectorAll<HTMLElement>('button,textarea,input,a[href]')].filter(
+      (x) => !(x as HTMLButtonElement).disabled,
+    );
+    if (!f.length) return;
+    const first = f[0];
+    const last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  return (
+    <div
+      ref={el}
+      className={`ob-card ob-k-${kind}${shown ? ' in' : ''}`}
+      role="dialog"
+      aria-modal="false"
+      aria-label={label}
+      onKeyDown={trap}
+    >
+      {children}
+    </div>
+  );
+}
+
+const Back = ({ label, aria, onClick }: { label: string; aria: string; onClick: () => void }) => (
+  <button type="button" className="ob-back" aria-label={aria} onClick={onClick}>
+    ← {label}
+  </button>
+);
+const Mark = ({ st }: { st: FeatureStatus }) => (
+  <span className={`ob-mark m-${st}`} aria-hidden="true">
+    {st === 'shipped' && (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M4 8.5l2.6 2.6L12 5.6"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="2.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )}
+  </span>
+);
+
+export function Board(p: BoardProps) {
+  const obj = OBJ_OF[p.sub];
+  const lastObj = useRef<string | undefined>(undefined);
+  const fresh = lastObj.current !== obj;
+  lastObj.current = obj;
+  const k = `${p.sub}/${p.id ?? ''}`;
+  const office = () => p.go('room');
+  switch (p.sub) {
+    case 'board':
+      return (
+        <ZoomCard key={k} kind="board" label="Whiteboard" fresh={fresh}>
+          <Back label="Office" aria="Back to the office" onClick={office} />
+          <Whiteboard {...p} />
+        </ZoomCard>
+      );
+    case 'health':
+      return (
+        <ZoomCard key={k} kind="health" label="Health check report" fresh={fresh}>
+          <Back label="Office" aria="Back to the office" onClick={office} />
+          <Health pid={p.pid} />
+        </ZoomCard>
+      );
+    case 'features':
+      return (
+        <ZoomCard key={k} kind="features" label="Features" fresh={fresh}>
+          <Back label="Office" aria="Back to the office" onClick={office} />
+          <Folder {...p} />
+        </ZoomCard>
+      );
+    case 'feature':
+      return (
+        <ZoomCard key={k} kind="feature" label="Feature" fresh={fresh}>
+          <FeaturePage {...p} id={p.id ?? ''} />
+        </ZoomCard>
+      );
+    case 'reports':
+      return (
+        <ZoomCard key={k} kind="reports" label="Reports" fresh={fresh}>
+          <ReportsList
+            projectId={p.pid}
+            back={{ label: 'Office', onClick: office }}
+            onOpen={(r) => p.go('report', r.id)}
+          />
+        </ZoomCard>
+      );
+    case 'report':
+      return (
+        <ZoomCard key={k} kind="report" label="Report" fresh={fresh}>
+          <ReportView
+            projectId={p.pid}
+            reportId={p.id ?? ''}
+            onBack={() => p.go('reports')}
+            onArchived={() => p.go('reports')}
+            onFollowUp={p.onFollowUp}
+          />
+        </ZoomCard>
+      );
+    default:
+      return null;
+  }
+}
+
+/* ------------------------------------------------------------ whiteboard */
+export const useWork = (pid: string) => useQuery<Goal[]>(keys.work(pid), () => studio.projects.work(pid));
+export const useFeatures = (pid: string) =>
+  useQuery<Feature[]>(keys.features(pid), () => officeApi.features(pid));
+export const useHealth = (pid: string) =>
+  useQuery<ProjectHealth>(keys.health(pid), () => studio.projects.health(pid));
+
+function Whiteboard({ pid, dir, go }: BoardProps) {
+  const work = useWork(pid);
+  const features = useFeatures(pid);
+  const goals = work.data ?? [];
+  const { pct, toward } = boardProgress(goals);
+  const now = nowFeatures(features.data ?? []);
+  const tasks = boardTasks(goals);
+  const C = 2 * Math.PI * 58;
+  return (
+    <div className="ob-wb">
+      <div className="ob-big" role="img" aria-label={`${pct}%${toward ? ` to ${toward}` : ''}`}>
+        <svg viewBox="0 0 140 140" aria-hidden="true">
+          <circle cx="70" cy="70" r="58" fill="none" stroke="#ece8f5" strokeWidth="14" />
+          <circle
+            cx="70"
+            cy="70"
+            r="58"
+            fill="none"
+            stroke="var(--coral)"
+            strokeWidth="14"
+            strokeLinecap="round"
+            transform="rotate(-90 70 70)"
+            strokeDasharray={`${((C * pct) / 100).toFixed(1)} ${C.toFixed(1)}`}
+          />
+        </svg>
+        <b>
+          {pct}
+          <small>%</small>
+        </b>
+        {toward && <span className="ob-toward">to {clip(toward, 40)}</span>}
+      </div>
+      <div className="ob-cols">
+        <section aria-labelledby="obN">
+          <h3 id="obN">In progress</h3>
+          <ul className="ob-now">
+            {now.length ? (
+              now.map((f) => (
+                <li key={f.id}>
+                  <button type="button" onClick={() => go('feature', f.id)}>
+                    <span className="ob-fn">{f.name}</span>
+                    <span className="ob-pct">{f.pct ?? 0}%</span>
+                    <span className="ob-track">
+                      <i style={{ width: `${f.pct ?? 0}%` }} />
+                    </span>
+                  </button>
+                </li>
+              ))
+            ) : (
+              <li className="ob-empty">Nothing in progress.</li>
+            )}
+          </ul>
+        </section>
+        <section aria-labelledby="obT">
+          <h3 id="obT">Tasks</h3>
+          <ul className="ob-tasks">
+            {!tasks.length && (
+              <li className="ob-empty">No tasks yet — {dir} writes them here as the plan takes shape.</li>
+            )}
+            {tasks.map((t) => (
+              <li key={t.id} className={t.done ? 'done' : ''}>
+                <span className="ob-box" aria-hidden="true">
+                  {t.done && (
+                    <svg viewBox="0 0 16 16" aria-hidden="true">
+                      <path
+                        d="M3.5 8.5l3 3L12.5 5"
+                        fill="none"
+                        stroke="#fff"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </span>
+                <span className="sr-only">
+                  {t.done ? 'Done:' : t.status === 'failed' ? 'Failed:' : 'To do:'}
+                </span>{' '}
+                {t.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ health report */
+function Health({ pid }: { pid: string }) {
+  const health = useHealth(pid);
+  const run = useMutation(() => studio.projects.checkHealth(pid), { invalidate: [keys.health(pid)] });
+  const h = health.data;
+  const latest = h?.latest ?? null;
+  const git = h?.git;
+  const gh = latest?.git.github ?? git?.github;
+  const isGithub = !!git?.remote && /github\.com/i.test(git.remote.url);
+  const vis = gh?.visibility;
+  return (
+    <>
+      <header className="ob-hhead">
+        <h2>Health check</h2>
+        <span>{latest ? `Checked ${ago(latest.createdAt)}` : 'Not checked yet'}</span>
+        <Button
+          small
+          variant="ghost"
+          className="ob-hact"
+          disabled={run.pending}
+          onClick={() => run.mutate(undefined)}
+        >
+          {run.pending ? 'Checking…' : 'Run health check'}
+        </Button>
+      </header>
+      {run.error && (
+        <p className="ob-err" role="alert">
+          {isApiError(run.error) ? run.error.message : 'The check didn’t finish.'}
+        </p>
+      )}
+      <ul className="ob-proj" aria-label="Repository">
+        <li>
+          <span className="ob-pi" aria-hidden="true">
+            ⎇
+          </span>
+          <b>GitHub</b>
+          <span className="ob-pv">
+            {isGithub
+              ? `Connected${vis ? ` · ${vis === 'private' ? '🔒 Private' : vis === 'public' ? '🌐 Public' : vis}` : ''}${gh?.repo ? ` · ${gh.repo}` : ''}`
+              : git?.remote
+                ? `Not on GitHub · ${git.remote.name}`
+                : 'Not connected'}
+          </span>
+        </li>
+        <li>
+          <span className="ob-pi" aria-hidden="true">
+            ⌂
+          </span>
+          <b>Local repo</b>
+          <span className="ob-pv">
+            {!git
+              ? '…'
+              : !git.repo
+                ? 'No git repository yet'
+                : `${git.branch ?? 'detached'} · ${git.commits} commit${git.commits === 1 ? '' : 's'} · `}
+            {git?.repo &&
+              (git.clean ? (
+                <span className="ob-ok">clean</span>
+              ) : (
+                `${git.changes} uncommitted change${git.changes === 1 ? '' : 's'}`
+              ))}
+          </span>
+        </li>
+      </ul>
+      {health.loading && <p className="ob-empty">Loading…</p>}
+      {health.error && !h && <p className="ob-err">Couldn’t load the health report.</p>}
+      {h && !latest && (
+        <p className="ob-empty">
+          No check yet. Run one — it reads the code, changes nothing, and grades it here.
+        </p>
+      )}
+      {latest && <p className="ob-summary">{latest.summary}</p>}
+      {latest && (
+        <ul className="ob-health">
+          {ASPECTS.map(([key, name]) => {
+            const it = latest[key];
+            return (
+              <li key={key}>
+                <div className="ob-hk">
+                  <span className={`ob-grade g-${it.grade}`} aria-hidden="true">
+                    {it.grade}
+                  </span>
+                  <b>{name}</b>
+                  <span className="ob-hw">
+                    {GRADE_WORD[it.grade]}
+                    <span className="sr-only"> (grade {it.grade})</span>
+                  </span>
+                </div>
+                <p>
+                  <span className="ob-hl">Good</span>
+                  {it.good}
+                </p>
+                <p>
+                  <span className="ob-hl">To fix</span>
+                  {it.fix}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------ features folder */
+function Folder({ pid, dir, go }: BoardProps) {
+  const features = useFeatures(pid);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const create = useMutation((n: string) => officeApi.createFeature(pid, { name: n }), {
+    invalidate: [keys.features(pid)],
+  });
+  const list = features.data ?? [];
+  const group = (st: FeatureStatus, title: string) => {
+    const rows = list.filter((f) => f.status === st).sort((a, b) => a.order - b.order);
+    if (!rows.length) return null;
+    return (
+      <>
+        <h3>{title}</h3>
+        <ul className="ob-rows">
+          {rows.map((f) => (
+            <li key={f.id}>
+              <button type="button" className="ob-row" onClick={() => go('feature', f.id)}>
+                <Mark st={f.status} />
+                <span className="sr-only">{ST_LABEL[f.status]}:</span>
+                <span className="ob-rn">{f.name}</span>
+                <span className="ob-chev" aria-hidden="true">
+                  ›
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+  };
+  const submit = async () => {
+    const n = name.trim();
+    if (!n) return;
+    try {
+      const f = await create.mutateAsync(n);
+      setName('');
+      setAdding(false);
+      go('feature', f.id);
+    } catch {
+      /* shown below */
+    }
+  };
+  return (
+    <>
+      <header className="ob-hhead">
+        <h2>Features</h2>
+      </header>
+      <div className="ob-scroll">
+        {features.loading && <p className="ob-empty">Loading…</p>}
+        {features.error && !features.data && <p className="ob-err">Couldn’t load the features.</p>}
+        {features.data && !list.length && (
+          <p className="ob-empty">No features yet. Tell {dir} what to build first.</p>
+        )}
+        {group('now', 'Now')}
+        {group('planned', 'Planned')}
+        {group('shipped', 'Shipped')}
+        {adding ? (
+          <form
+            className="ob-newf"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit();
+            }}
+          >
+            <input
+              // biome-ignore lint/a11y/noAutofocus: the user just asked to add one
+              autoFocus
+              aria-label="New feature name"
+              placeholder="Feature name"
+              value={name}
+              maxLength={120}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setAdding(false);
+                }
+              }}
+            />
+            <Button small variant="hero" type="submit" disabled={!name.trim() || create.pending}>
+              Add
+            </Button>
+          </form>
+        ) : (
+          <button type="button" className="ob-add" onClick={() => setAdding(true)}>
+            + New feature
+          </button>
+        )}
+        {create.error && (
+          <p className="ob-err" role="alert">
+            {isApiError(create.error) ? create.error.message : 'Couldn’t add it.'}
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------ one feature */
+type Draft = { name: string; status: FeatureStatus; description: string; vision: string };
+const draftOf = (f: Feature): Draft => ({
+  name: f.name,
+  status: f.status,
+  description: f.description,
+  vision: f.vision,
+});
+const same = (a: Draft, b: Draft) =>
+  a.name.trim() === b.name.trim() &&
+  a.status === b.status &&
+  a.description === b.description &&
+  a.vision === b.vision;
+
+function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
+  const features = useFeatures(pid);
+  const f = features.data?.find((x) => x.id === id);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [confirm, setConfirm] = useState<null | 'leave' | 'delete'>(null);
+  const [savedAt, setSavedAt] = useState(false);
+  const save = useMutation(
+    (d: Draft) =>
+      officeApi.updateFeature(pid, id, {
+        name: d.name.trim() || (f?.name ?? 'Feature'),
+        description: d.description.trim(),
+        vision: d.vision.trim(),
+        ...(f && d.status !== f.status ? { status: d.status } : {}),
+      }),
+    { invalidate: [keys.features(pid)] },
+  );
+  const del = useMutation(() => officeApi.deleteFeature(pid, id), { invalidate: [keys.features(pid)] });
+  useEffect(() => {
+    if (f && !draft) setDraft(draftOf(f));
+  }, [f, draft]);
+  const d = draft ?? (f ? draftOf(f) : null);
+  const dirty = !!(f && d && !same(d, draftOf(f)));
+  const leave = () => go('features');
+  const onEscape = () => {
+    if (dirty && confirm !== 'leave') {
+      setConfirm('leave');
+      return true;
+    }
+    leave();
+    return true;
+  };
+  const escRef = useRef(onEscape);
+  escRef.current = onEscape;
+  useEffect(() => {
+    escapeRef.current = () => escRef.current();
+    return () => {
+      escapeRef.current = null;
+    };
+  }, [escapeRef]);
+
+  if (features.loading) return <p className="ob-empty">Loading…</p>;
+  if (!f || !d)
+    return (
+      <>
+        <Back label="Features" aria="Back to all features" onClick={leave} />
+        <p className="ob-empty" style={{ marginTop: 16 }}>
+          This feature isn’t here any more.
+        </p>
+      </>
+    );
+  const set = (patch: Partial<Draft>) => {
+    setDraft({ ...d, ...patch });
+    setSavedAt(false);
+  };
+  const doSave = async (then?: () => void) => {
+    try {
+      const nf = await save.mutateAsync(d);
+      setDraft(draftOf(nf));
+      setSavedAt(true);
+      setConfirm(null);
+      then?.();
+    } catch {
+      /* error line below */
+    }
+  };
+  return (
+    <>
+      <Back label="Features" aria="Back to all features" onClick={() => onEscape()} />
+      <header className="ob-hhead">
+        <input
+          className="ob-name"
+          aria-label="Feature name"
+          value={d.name}
+          maxLength={120}
+          onChange={(e) => set({ name: e.target.value })}
+        />
+      </header>
+      <fieldset className="ob-sts" aria-label="Status">
+        {(['now', 'planned', 'shipped'] as const).map((st) => (
+          <button key={st} type="button" aria-pressed={d.status === st} onClick={() => set({ status: st })}>
+            <Mark st={st} />
+            {ST_LABEL[st]}
+          </button>
+        ))}
+      </fieldset>
+      <label className="ob-fl" htmlFor="obDesc">
+        Description
+      </label>
+      <textarea
+        id="obDesc"
+        className="ob-ta"
+        rows={5}
+        value={d.description}
+        onChange={(e) => set({ description: e.target.value })}
+      />
+      <label className="ob-fl" htmlFor="obVis">
+        Vision
+      </label>
+      <textarea
+        id="obVis"
+        className="ob-ta"
+        rows={4}
+        value={d.vision}
+        onChange={(e) => set({ vision: e.target.value })}
+      />
+      {(save.error || del.error) && (
+        <p className="ob-err" role="alert" style={{ marginTop: 12 }}>
+          {isApiError(save.error ?? del.error) ? (save.error ?? del.error)?.message : 'Couldn’t save.'}
+        </p>
+      )}
+      <footer className="ob-foot">
+        {confirm === 'leave' ? (
+          <div className="ob-confirm" role="alert">
+            <span>Unsaved changes.</span>
+            <Button small variant="ghost" onClick={() => setConfirm(null)}>
+              Keep editing
+            </Button>
+            <Button small variant="ghost" onClick={leave}>
+              Discard
+            </Button>
+            <Button small variant="hero" onClick={() => void doSave(leave)}>
+              Save
+            </Button>
+          </div>
+        ) : confirm === 'delete' ? (
+          <div className="ob-confirm" role="alert">
+            <span>Delete “{f.name}”? This can’t be undone.</span>
+            <Button small variant="ghost" onClick={() => setConfirm(null)}>
+              Keep it
+            </Button>
+            <Button
+              small
+              variant="dark"
+              onClick={async () => {
+                try {
+                  await del.mutateAsync(undefined);
+                  toast(`Deleted ${f.name}`);
+                  leave();
+                } catch {
+                  /* error line above */
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <>
+            <Button small variant="ghost" className="ob-del" onClick={() => setConfirm('delete')}>
+              Delete
+            </Button>
+            <span className="ob-saved" aria-live="polite">
+              {dirty ? 'Unsaved' : savedAt ? 'Saved' : ''}
+            </span>
+            <Button small variant="hero" disabled={!dirty || save.pending} onClick={() => void doSave()}>
+              {save.pending ? 'Saving…' : 'Save'}
+            </Button>
+          </>
+        )}
+      </footer>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------ helpers */
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+export function ago(iso: string, now = Date.now()): string {
+  const m = Math.round((now - Date.parse(iso)) / 60000);
+  if (!Number.isFinite(m)) return '';
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.round(h / 24);
+  return days === 1 ? 'yesterday' : `${days} days ago`;
+}
