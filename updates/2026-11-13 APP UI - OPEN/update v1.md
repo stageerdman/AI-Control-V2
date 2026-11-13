@@ -52,3 +52,4 @@ then one live demo run with the user's go.
 
 ## Status
 - ⏳ U0 + U1 starting (parallel), plus a UX spec for the Reports space.
+- ✅ **U1 — Backend gaps** (2026-11-13, FakeRunner only): features CRUD, project conversations (threads), pager asks + seen, `GET /projects/:id/office`, Reports (reporter flags, `file_report` MCP tool, endpoints, events, dispatch report items) — migrations 10–13, 23 new tests (242 total). Notes: `PROGRESS-U1.md`, API: `server/README.md`.

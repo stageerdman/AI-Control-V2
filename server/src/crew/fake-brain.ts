@@ -171,6 +171,15 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           { result: 'Filed the report.' },
         ];
       }
+      /* an office-chat turn: a short, obviously-fake reply that echoes the user */
+      if (/^The user says: /m.test(t)) {
+        const said = field<string>(t, 'The user says:') ?? '';
+        return [
+          { activity: { kind: 'thinking', label: 'Thinking' } },
+          { tokens: { input: 300, output: 40 } },
+          { result: `Got it — “${said.slice(0, 200)}”. (A scripted reply: AI_STUDIO_RUNNER=fake.)` },
+        ];
+      }
       return DEFAULT_SCRIPT;
   }
 }

@@ -192,4 +192,15 @@ describe('project conversations (threads)', () => {
       'My key is ••••',
     ]);
   });
+
+  it('the free fake brain (AI_STUDIO_RUNNER=fake) answers chat turns with an obvious scripted echo', async () => {
+    h = testApp({ seed: true });
+    mkdirSync(join(h.config.sandbox, 'aurora'));
+    h.store.projects.update('aurora', { folder: 'aurora' });
+    const r = await h.call('POST', url('a-pixel'), { text: 'What next?' });
+    await h.runtime.settled(r.body.runId);
+    expect((await h.call('GET', url('a-pixel'))).body.messages.at(-1).text).toBe(
+      'Got it — “What next?”. (A scripted reply: AI_STUDIO_RUNNER=fake.)',
+    );
+  });
 });
