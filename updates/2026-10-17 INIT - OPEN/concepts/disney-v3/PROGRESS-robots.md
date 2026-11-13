@@ -10,8 +10,8 @@ cast.js, teams.js. Don't commit the generated `ai-control-disney-v3.html`.
       lanky=dome on stalk neck+ring); role = headgear + tool + chassis decal + badge
 - [x] R3 interface/pose names kept; seated = hover low (base hidden), walking = glide + lean
 - [x] R4 calm motion: 4.2s hover bob + blink, slow gestures, no leg/arm swinging
-- [ ] Visual QA: gallery sections, #cast, #cast/agent/a-pete, #cast/teams, #cast/teams/ship-it, #office
-- [ ] Polish pass after QA
+- [x] Visual QA: gallery sections, #cast, #cast/agent/a-pete, #cast/teams, #cast/teams/ship-it, #office (shots/r-*.png), no Uncaught errors from hero
+- [x] Polish: dropped elbow bolts (arms read cleaner at desks)
 
 ## Notes / gotchas
 - HAIR names now = antenna styles; ACCESSORIES = screen/shell extras (names unchanged).
@@ -20,5 +20,10 @@ cast.js, teams.js. Don't commit the generated `ai-control-disney-v3.html`.
 - Screenshot helper: headless Chrome with fresh --user-data-dir, --force-prefers-reduced-motion not needed.
   Shots go to shots/r-*.png.
 
-## Next
-Run screenshots of all routes, judge, iterate; then final commit.
+- Office verification was done against the v3 office files (commit 6f51483) + new hero files, built in a
+  scratch copy, because the office builder's WIP (5a2ff3b) currently throws in office-main.js
+  (`THEME_OFFICE.objects` undefined) — not a hero issue.
+- headless: #cast/teams needs ~9s virtual time; use --force-prefers-reduced-motion.
+
+## Status
+DONE. Possible follow-ups: ghost neck/base dashes are a bit fragmented; lanky reads thin at 48px.

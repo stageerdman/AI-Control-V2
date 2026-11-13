@@ -442,7 +442,7 @@ function _arm(side, x, o) {
   const content = isF ? `<g class="h-prop">${o.hand}</g>` : `<g class="h-tool">${o.tool}</g>`;
   return `<g class="h-arm h-arm-${side}" transform="translate(${sx} ${g.sh})"><g class="h-sh">
     <g class="h-ua"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"/><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="${sc}"/></g>
-    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"/><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="${sc}"/><circle class="o2" r="3.4" fill="${MAT.metal}"/></g>
+    <g class="h-el"><g class="h-fa"><line class="h-limb-o" x1="0" y1="0" x2="0" y2="11"/><line class="h-limb" x1="0" y1="0" x2="0" y2="11" stroke="${sc}"/></g>
       <g class="h-hnd"><g class="h-hj"><g class="h-up">${content}</g><circle class="o h-hand" r="6.2" fill="${x.light}"/><path class="h-fine" d="M-3 -2.6 A4 4 0 0 1 1 -4.2" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".7"/></g></g>
     </g><circle class="o2 h-joint" r="4.2" fill="${MAT.steel}"/></g></g>`;
 }
