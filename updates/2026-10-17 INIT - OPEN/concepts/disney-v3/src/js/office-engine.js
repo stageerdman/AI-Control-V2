@@ -401,7 +401,7 @@ const OE = {
   focusRect(cam, glow, quiet) {
     if (!this.box) return null;
     this.box.classList.remove('zoomed');
-    this._camTo(cam, quiet, { rect: cam, glow, zmax: 2.1 });
+    this._camTo(cam, quiet, { rect: cam, glow, zmax: 1.75 });
     this._glow(cam ? glow : null, quiet);
     return true;
   },
@@ -428,6 +428,13 @@ const OE = {
       const cx = b.x + b.w / 2, cy = by + b.h / 2;
       const ccx = (Wv / 2 - this._ox) / this.k, ccy = (H / 2 - this._oy) / this.k;
       tx = ccx - z * cx; ty = ccy - z * cy;
+      /* a pod focus never shows the void beside the room: keep the room covering the view */
+      if (o.rect) {
+        const lo = (Wv - this._ox) / this.k - z * this.W, hi = -this._ox / this.k;
+        if (lo <= hi) tx = Math.max(lo, Math.min(hi, tx));
+        const tlo = (H - this._oy) / this.k - z * 1000, thi = -this._oy / this.k;
+        if (tlo <= thi) ty = Math.max(tlo, Math.min(thi, ty));
+      }
     }
     this.zoom = { z, tx, ty, obj: o.obj || null, rect: o.rect || null, glow: o.glow || null };
     const cam = this.cam, box = this.box, zoomedObj = !!o.obj;

@@ -44,7 +44,7 @@ OS._hooks = function (demo) {
   if (demo.includes('pete')) setTimeout(() => OP.open('a-pete', { from: 'scene' }), 30);
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
   if (demo.includes('list')) setTimeout(() => _omToggleList(true), 30);
-  if (demo.includes('focus')) setTimeout(() => { const e = wsPager()[0]; if (e) OM.focusTeam(e); }, 30);
+  if (demo.includes('focus')) setTimeout(() => OPG.go(0), 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
   if (demo.includes('talk')) setTimeout(() => { const ids = wsOnProject().filter(a => a.session !== 'asleep').map(a => a.id); OE.instant = false; if (ids.length > 1) OE.converse(ids[0], ids[1], 8); }, 30);
 };

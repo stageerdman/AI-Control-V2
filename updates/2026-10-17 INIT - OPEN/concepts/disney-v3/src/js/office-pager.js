@@ -48,6 +48,7 @@ OPG.step = function (d) {
 };
 OPG.go = function (i) {
   const e = this.entries()[i]; if (!e) return;
+  this.idx = i;
   this.visit = { key: e.key, asks: e.asks.map(a => a.id) };
   OM.focusTeam(e);
   this._render();
@@ -78,6 +79,7 @@ OPG.refresh = function () {
   list.forEach(e => e.asks.forEach(a => this.shown.add(a.id)));
   this.keys = keys;
   if (fresh >= 0) this.idx = fresh;
+  const at = list.findIndex(e => e.key === OM.focusKey); if (at >= 0) this.idx = at;   /* the page you're visiting */
   this.idx = Math.min(this.idx, Math.max(0, list.length - 1));
   this._render(false, fresh >= 0 && !first);
 };

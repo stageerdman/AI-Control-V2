@@ -272,6 +272,7 @@ OM.focusTeam = function (entry) {
   document.getElementById('oStage').classList.add('team-focus');
   announce(`Looking at ${name}. ${entry.asks.map(a => OP._name(a.agentId) + ' needs ' + a.short).join('. ')}.`);
   OM.focusActor(entry.asks[0].agentId);
+  OPG.refresh();
 };
 OM.unfocusTeam = function (quiet) {
   if (!OM.focusKey) return;
