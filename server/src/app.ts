@@ -2,6 +2,7 @@
    app on an in-memory db and a temp sandbox and drive it with inject(). */
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import { createAppRunner } from './apps/app-runner.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
@@ -26,6 +27,7 @@ import { createThreads } from './office/threads.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
 import { accessRoutes } from './routes/access.ts';
 import { agentRoutes } from './routes/agents.ts';
+import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { credentialRoutes } from './routes/credentials.ts';
@@ -197,6 +199,13 @@ export function buildApp({
     orchestratorCaps: caps.orchestrator,
   });
   threadsRef = threads;
+  /* the project's own app (its dev server), on the user's Mac; stopped with the server */
+  const apps = createAppRunner({
+    store,
+    events,
+    sandbox: config.sandbox,
+    secretValues: secretValuesOf(secrets),
+  });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -206,7 +215,7 @@ export function buildApp({
   app.addHook('preClose', async () => {
     lifecycle.stop();
     for (const res of open) res.end();
-    await runtime.shutdown();
+    await Promise.all([runtime.shutdown(), apps.stopAll()]);
   });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -236,7 +245,8 @@ export function buildApp({
   app.register(accessRoutes({ access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
-  app.register(projectHealthRoutes({ health }));
+  app.register(projectHealthRoutes({ health, apps }));
+  app.register(appRoutes({ apps }));
   app.register(collaborationRoutes({ collaboration }));
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));

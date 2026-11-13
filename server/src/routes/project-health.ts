@@ -1,6 +1,7 @@
 /* Project health (B7): run a read-only health check, read the latest report + history + git status. */
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import type { AppRunner } from '../apps/app-runner.ts';
 import { parse } from '../errors.ts';
 import type { Health } from '../health/health.ts';
 import { IdParams } from './schemas.ts';
@@ -15,9 +16,16 @@ const CheckBody = z.strictObject({
 });
 
 export const projectHealthRoutes =
-  ({ health }: { health: Health }): FastifyPluginAsync =>
+  ({ health, apps }: { health: Health; apps?: AppRunner }): FastifyPluginAsync =>
   async (app) => {
-    app.get('/projects/:id/health', async (req) => health.get(parse(IdParams, req.params).id));
+    /* + the app (F1c): is it running, where, and how it starts — never its log here */
+    app.get('/projects/:id/health', async (req) => {
+      const { id } = parse(IdParams, req.params);
+      const h = await health.get(id);
+      if (!apps) return h;
+      const { status, url, command } = apps.view(id);
+      return { ...h, app: { status, url, command } };
+    });
     app.post('/projects/:id/health', async (req, reply) => {
       const { id } = parse(IdParams, req.params);
       const { caps } = parse(CheckBody, req.body ?? {});
