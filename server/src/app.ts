@@ -6,10 +6,12 @@ import type { Db } from './db/connection.ts';
 import { createStore, type Store } from './db/store.ts';
 import { AppError } from './errors.ts';
 import { agentRoutes } from './routes/agents.ts';
+import { blueprintRoutes } from './routes/blueprint.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { healthRoutes } from './routes/health.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { roleRoutes } from './routes/roles.ts';
+import { setterRoutes } from './routes/setter.ts';
 import { teamRoutes } from './routes/teams.ts';
 import { trashRoutes } from './routes/trash.ts';
 
@@ -41,5 +43,7 @@ export function buildApp({
   app.register(healthRoutes({ config, db }));
   for (const routes of [roleRoutes, agentRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
+  app.register(blueprintRoutes({ config }));
+  app.register(setterRoutes({ store, config }));
   return app;
 }

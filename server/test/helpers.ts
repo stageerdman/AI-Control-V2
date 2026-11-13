@@ -1,5 +1,5 @@
 /* Test harness: a temp home + sandbox, an in-memory db, an app driven by inject(). */
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildApp } from '../src/app.ts';
@@ -28,6 +28,7 @@ export function testApp(opts: { seed?: boolean } = {}) {
   const t = tempDir();
   const config = testConfig(t.dir);
   ensureDirs(config);
+  writeModules(config.controlHome);
   const db = openDb(':memory:');
   const store = createStore(db, { sandbox: config.sandbox });
   if (opts.seed) seedIfNeeded(store);
@@ -53,4 +54,19 @@ export function testApp(opts: { seed?: boolean } = {}) {
       t.cleanup();
     },
   };
+}
+
+/** A tiny AI Control home: two modules in the shape of the real ones. */
+export function writeModules(controlHome: string): void {
+  const dir = join(controlHome, 'modules');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(
+    join(dir, 'CODING.md'),
+    'How code is written.\n\n# Coding\n\n## Keep it minimal\n- Build only what is needed.\n',
+  );
+  writeFileSync(
+    join(dir, 'STRUCTURE.md'),
+    'How projects are laid out.\n\n# Structure\n\n## Updates\n```\n# not a heading\nupdates/YYYY-MM-DD NAME - OPEN/\n```\n- One folder per update.\n',
+  );
+  writeFileSync(join(dir, 'notes.txt'), 'ignored: not a module');
 }
