@@ -99,4 +99,16 @@ Modularity / cleanliness / reusability report via an agent run + git/GitHub stat
 Tailwind components, wire to this API).
 
 ## Status
-- ⏳ B0 next.
+- ✅ **B0 — Foundation** (2026-11-13): `server/` (TS strict/ESM, Fastify 5, zod 4, vitest 4, biome 2,
+  tsx), zod config + owned dirs, `GET /health`, sandbox guard. 20 tests.
+- ✅ **B1 — Cast & projects domain** (2026-11-13): sqlite schema + migrations, repos per aggregate,
+  pure rules in `src/domain`, REST CRUD for roles/agents/teams/projects/drafts, delete → restore
+  token, first-run seed (prototype cast + 9 projects). 59 tests (79 total). Run notes:
+  `PROGRESS-B0-B1.md`; API: `server/README.md`.
+  - Decisions: **biome** (one dev dep) over eslint+typescript-eslint; **hard delete + restore
+    token** (trash table, 7-day TTL) over soft-delete so no query needs a `deleted_at` filter;
+    agents reference roles by **id** (rename propagates for free); agent `kind` is immutable;
+    deleting an orchestrator hands its projects/drafts to the first other orchestrator
+    (fixes the prototype gap in issues.txt), restore hands them back; 409 = a studio rule blocks
+    it, 422 = malformed input or unknown referenced id.
+- ⏳ B2 next.

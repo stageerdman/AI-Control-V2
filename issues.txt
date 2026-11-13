@@ -4,7 +4,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
-- [ ] BACKEND update in progress (updates/2026-11-13 BACKEND - OPEN): B0 foundation → B7 health check.
+- [ ] BACKEND update in progress (updates/2026-11-13 BACKEND - OPEN): B0 ✅ B1 ✅ — next B2 Project Setter → B7 health check.
 - [ ] Disney v6 (standalone setup space, orchestrator chat, office pager) built — awaiting user review. Gaps: deleting an orchestrator doesn't reassign its projects; Pizza Planet emblem weak at 24px; new-project offices reuse Aurora-flavoured file names in their idle loop.
 - [ ] Lock the stack (Tauri+React vs. web-only) — decide during the INIT update after reviewing UI concepts.
 - [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
