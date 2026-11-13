@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { getQueryData } from '../../api';
 import type { PageProps } from '../../shell/pages';
 import { go } from '../../shell/router';
+import { SceneHead } from '../../ui';
 import { STUDIO_REPORTS_KEY, type StudioReportList } from './api';
 import { setPendingFollowUp } from './followup';
 import { ReportsList } from './ReportsList';
@@ -30,26 +31,31 @@ export function ReportsPage({ route }: PageProps<'reports'>) {
       ?.projectName;
 
   return (
-    <div className="rp-scene">
-      <section className={`rp-card${open ? ' wide' : ''}`} aria-label="Reports">
-        {open ? (
-          <ReportView
-            projectId={projectId as string}
-            reportId={id as string}
-            projectName={projectName || projectId}
-            onBack={() => go({ name: 'reports' })}
-            onFollowUp={(r, agentId) => {
-              setPendingFollowUp({ projectId: r.projectId, agentId, title: r.title, reportId: r.id });
-              go({ name: 'office', projectId: r.projectId, sub: 'room' });
-            }}
-          />
-        ) : (
-          <ReportsList
-            projectId={null}
-            onOpen={(r) => go({ name: 'reports', projectId: r.projectId, id: r.id })}
-          />
-        )}
-      </section>
-    </div>
+    <>
+      <SceneHead kicker="The paperwork" title="Reports from the crew">
+        Research and write-ups from every project, newest first.
+      </SceneHead>
+      <div className="rp-scene">
+        <section className={`rp-card${open ? ' wide' : ''}`} aria-label="Reports">
+          {open ? (
+            <ReportView
+              projectId={projectId as string}
+              reportId={id as string}
+              projectName={projectName || projectId}
+              onBack={() => go({ name: 'reports' })}
+              onFollowUp={(r, agentId) => {
+                setPendingFollowUp({ projectId: r.projectId, agentId, title: r.title, reportId: r.id });
+                go({ name: 'office', projectId: r.projectId, sub: 'room' });
+              }}
+            />
+          ) : (
+            <ReportsList
+              projectId={null}
+              onOpen={(r) => go({ name: 'reports', projectId: r.projectId, id: r.id })}
+            />
+          )}
+        </section>
+      </div>
+    </>
   );
 }

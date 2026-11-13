@@ -20,12 +20,12 @@ import {
 import { reducedMotion } from '../../design/palette';
 import type { PageProps } from '../../shell/pages';
 import { go, type OfficeSub } from '../../shell/router';
-import { ErrorState, Loading } from '../../ui';
+import { ErrorState, Loading, toast } from '../../ui';
 import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey, takePendingFollowUp } from '../reports';
 import { AccessSheet } from './AccessSheet';
 import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
-import { Board, OBJ_OF, useFeatures, useHealth, useProgress, useWork } from './Board';
+import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
@@ -158,6 +158,7 @@ function Office({
     if (office.progress) setQueryData(keys.progress(pid), office.progress);
   });
   const progress = useProgress(pid);
+  const app = useApp(pid);
   const work = useWork(pid);
   const features = useFeatures(pid);
   const health = useHealth(pid);
@@ -351,7 +352,20 @@ function Office({
           break;
         case 'review.changes':
         case 'item.merged':
+        case 'team.split':
           void invalidate(keys.work(pid));
+          break;
+        case 'feature.shipped':
+          /* one calm moment: the folder updates, the director hops, one line */
+          void invalidate(keys.features(pid));
+          void invalidate(keys.work(pid));
+          e?.react(director, 'hop');
+          announce(`Shipped: ${ev.payload.name}`);
+          toast(`✓ ${ev.payload.name} shipped`);
+          break;
+        case 'app.status':
+          void invalidate(keys.app(pid));
+          void invalidate(keys.health(pid));
           break;
         case 'health.checked':
           void invalidate(keys.health(pid));
@@ -677,6 +691,11 @@ function Office({
           )}
         </div>
         <div className="o-stagectl">
+          {app.data?.status === 'running' && app.data.url && (
+            <a className="o-ctl o-openapp" href={app.data.url} target="_blank" rel="noreferrer">
+              ▶ <span>Open app</span>
+            </a>
+          )}
           <button
             className="o-ctl"
             type="button"

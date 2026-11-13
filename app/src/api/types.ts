@@ -287,6 +287,14 @@ export type ChecklistItem = {
   notes?: string | null;
   reviews?: ItemReview[];
   workspace?: { cwd: string; branch: string; base: string; main: string } | null;
+  /** F1c teams: a member's sub-task points at its team item; sub-tasks never sit at a goal's top level. */
+  parentId?: string | null;
+  /** A team item: members building their parts, or the captain integrating them. */
+  teamPhase?: null | 'members' | 'integrate';
+  teamRounds?: number;
+  /** The captain's split in one sentence (also for "self"). */
+  teamPlan?: string | null;
+  subtasks?: ChecklistItem[];
   createdAt: string;
   updatedAt: string;
 };
@@ -300,8 +308,26 @@ export type Goal = {
   /** done / total, 0–100. */
   pct: number;
   caps: Partial<Caps> | null;
+  /** F1c: the feature this goal works on, and whether finishing it ships that feature. */
+  featureId?: string | null;
+  ships?: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+/* ---------- the project's app (run it) ---------- */
+export type AppStatus = 'running' | 'stopped' | 'exited';
+export type ProjectApp = {
+  status: AppStatus;
+  command: string | null;
+  /** Where the command came from (`.project` run: line, package.json…). */
+  source: string | null;
+  url: string | null;
+  pid: number | null;
+  startedAt: string | null;
+  exitCode: number | null;
+  /** Last log lines, secrets masked server-side. */
+  log: string[];
 };
 
 /* ---------- health check ---------- */
@@ -328,7 +354,12 @@ export type HealthReport = {
   usage: { attempts: number; turns: number; input: number; output: number };
   createdAt: string;
 };
-export type ProjectHealth = { latest: HealthReport | null; history: HealthReport[]; git: GitStatus };
+export type ProjectHealth = {
+  latest: HealthReport | null;
+  history: HealthReport[];
+  git: GitStatus;
+  app?: { status: AppStatus; url: string | null; command: string | null };
+};
 
 /* ---------- Blueprint ---------- */
 export type Blueprint = {
@@ -387,16 +418,33 @@ export type EventPayloads = {
     stage?: 'build' | 'review' | 'merge';
     /** Who has it now (only when the item has gates). */
     holder?: string;
+    parentId?: string;
+    teamPhase?: 'members' | 'integrate' | null;
   };
+  /** A captain split a team item into members' sub-tasks (mode 'self' = kept it). */
+  'team.split': {
+    itemId: string;
+    goalId: string;
+    captainId: string;
+    teamId: string;
+    mode: 'team' | 'self';
+    summary: string;
+    subtasks: { itemId: string; agentId: string; text: string }[];
+    round: number;
+  };
+  'feature.shipped': { featureId: string; goalId: string; name: string };
+  'app.status': { status: AppStatus; url?: string; exitCode?: number };
   /** An item passes between desks: to a reviewer, back to its builder (rework / merge-fix). */
   handoff: {
     itemId: string;
     goalId: string;
     from: string;
     to: string;
-    kind: 'review' | 'rework' | 'merge-fix';
+    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver';
     gate?: number;
     note?: string;
+    /** Team handoffs: `itemId` is the sub-task, this is its team item. */
+    parentId?: string;
   };
   'review.approved': { itemId: string; goalId: string; reviewerId: string; gate: number; notes?: string };
   'review.changes': {
@@ -490,6 +538,9 @@ export const EVENT_TYPES = [
   'collaboration.changed',
   'project.status',
   'project.progress',
+  'team.split',
+  'feature.shipped',
+  'app.status',
 ] as const satisfies readonly EventType[];
 
 /** One stored event as the stream sends it (`projectId` or `draftId` names the scope). */

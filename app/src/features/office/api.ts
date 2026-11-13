@@ -1,6 +1,12 @@
 /* The office's endpoints + wire types (server/README.md: office view, threads, features, asks inbox).
    Everything else the office reads (work, health, access, asks, agents, teams) is in api/studio.ts. */
-import { type Collaboration, type CollaborationView, http, type ProjectStatus } from '../../api';
+import {
+  type Collaboration,
+  type CollaborationView,
+  http,
+  type ProjectApp,
+  type ProjectStatus,
+} from '../../api';
 
 const e = encodeURIComponent;
 
@@ -121,6 +127,11 @@ export const officeApi = {
     ),
   progress: (pid: string) =>
     http.get<OfficeView>(`/projects/${e(pid)}/office`).then((o) => o.progress ?? null),
+  app: (pid: string) => http.get<ProjectApp>(`/projects/${e(pid)}/app`),
+  startApp: (pid: string) => http.post<ProjectApp>(`/projects/${e(pid)}/app/start`, {}),
+  stopApp: (pid: string) => http.post<ProjectApp>(`/projects/${e(pid)}/app/stop`, {}),
+  setAppCommand: (pid: string, command: string) =>
+    http.patch<ProjectApp>(`/projects/${e(pid)}/app`, { command }),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
 };
@@ -136,5 +147,6 @@ export const keys = {
   thread: (pid: string, agentId: string) => `office:${pid}:thread:${agentId}`,
   collaboration: (pid: string) => `office:${pid}:collaboration`,
   progress: (pid: string) => `office:${pid}:progress`,
+  app: (pid: string) => `office:${pid}:app`,
   pager: 'pager:asks',
 };

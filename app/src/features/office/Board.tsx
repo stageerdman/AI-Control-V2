@@ -10,9 +10,11 @@
    card fades in. Esc / Back = one layer. */
 import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react';
 import {
+  type ChecklistItem,
   type Goal,
   invalidate,
   isApiError,
+  type ProjectApp,
   type ProjectHealth,
   setQueryData,
   studio,
@@ -232,6 +234,8 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
   const { pct, target, shipped, aria } = boardProgress(goals, progress.data);
   const now = nowFeatures(features.data ?? []);
   const tasks = boardTasks(goals);
+  const goal = goals.find((g) => g.status === 'running') ?? goals[0];
+  const feature = goal?.featureId ? features.data?.find((f) => f.id === goal.featureId) : undefined;
   const C = 2 * Math.PI * 58;
   return (
     <div className="ob-wb">
@@ -283,35 +287,18 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
         </section>
         <section aria-labelledby="obT">
           <h3 id="obT">Tasks</h3>
+          {feature && (
+            <button type="button" className="ob-ships" onClick={() => go('feature', feature.id)}>
+              {goal?.ships ? `Ships “${feature.name}” when done` : `Part of “${feature.name}”`}
+            </button>
+          )}
           <ul className="ob-tasks">
             {!tasks.length && (
               <li className="ob-empty">No tasks yet — {dir} writes them here as the plan takes shape.</li>
             )}
-            {tasks.map((t) => {
-              const st = taskStage(t.item);
-              const hover = taskHover(t.item, nameOf);
-              return (
-                <li key={t.id} className={t.done ? 'done' : ''} title={hover ?? undefined}>
-                  <span className="ob-box" aria-hidden="true">
-                    {t.done && (
-                      <svg viewBox="0 0 16 16" aria-hidden="true">
-                        <path
-                          d="M3.5 8.5l3 3L12.5 5"
-                          fill="none"
-                          stroke="#fff"
-                          strokeWidth="2.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="sr-only">{st.sr}</span> <span className="ob-tt">{t.text}</span>
-                  {st.tag && <span className={`ob-stage${st.tone ? ` t-${st.tone}` : ''}`}>{st.tag}</span>}
-                  {hover && <span className="sr-only"> — {hover}</span>}
-                </li>
-              );
-            })}
+            {tasks.map((t) => (
+              <TaskRow key={t.id} item={t.item} nameOf={nameOf} />
+            ))}
           </ul>
         </section>
       </div>
@@ -319,6 +306,62 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
         How we work →
       </button>
     </div>
+  );
+}
+
+const Tick = () => (
+  <svg viewBox="0 0 16 16" aria-hidden="true">
+    <path
+      d="M3.5 8.5l3 3L12.5 5"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/** A whiteboard task: its stage in a few words; a team item carries the captain's plan in one quiet
+    line and its members' sub-tasks indented under it (who + stage). */
+function TaskRow({
+  item,
+  nameOf,
+  sub,
+}: {
+  item: ChecklistItem;
+  nameOf: (id: string) => string;
+  sub?: boolean;
+}) {
+  const st = taskStage(item);
+  const hover = taskHover(item, nameOf);
+  const done = item.status === 'done';
+  const kids = item.subtasks ?? [];
+  const who = sub ? nameOf(item.agentId).split(/\s+/)[0] : null;
+  return (
+    <li
+      className={`${done ? 'done' : ''}${kids.length || item.teamPlan ? ' ob-team' : ''}`}
+      title={hover ?? undefined}
+    >
+      <span className="ob-box" aria-hidden="true">
+        {done && <Tick />}
+      </span>
+      <span className="sr-only">{st.sr}</span>{' '}
+      <span className="ob-tt">
+        {who && <span className="ob-who">{who} · </span>}
+        {item.text}
+      </span>
+      {st.tag && <span className={`ob-stage${st.tone ? ` t-${st.tone}` : ''}`}>{st.tag}</span>}
+      {hover && <span className="sr-only"> — {hover}</span>}
+      {!sub && item.teamPlan && <span className="ob-plan">{item.teamPlan}</span>}
+      {!sub && kids.length > 0 && (
+        <ul className="ob-sub" aria-label={`${item.text} — the team’s parts`}>
+          {kids.map((k) => (
+            <TaskRow key={k.id} item={k} nameOf={nameOf} sub />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 
@@ -444,6 +487,129 @@ function HowWeWork({ pid, dir, resolve }: BoardProps) {
   );
 }
 
+/* ------------------------------------------------------------ the project's app (run it) */
+export const useApp = (pid: string) => useQuery<ProjectApp>(keys.app(pid), () => officeApi.app(pid));
+
+/** One row on the health card: status + Open app, Start / Stop; Details = run command + last lines. */
+function AppRow({ pid }: { pid: string }) {
+  const app = useApp(pid);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const a = app.data;
+  const act = async (fn: () => Promise<ProjectApp>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      setQueryData(keys.app(pid), await fn());
+    } catch (e) {
+      setErr(isApiError(e) ? e.message : 'That didn’t work — try again.');
+    } finally {
+      setBusy(false);
+      void app.refetch();
+    }
+  };
+  const saveCommand = (raw: string) => {
+    const v = raw.trim();
+    if (!v || v === (a?.command ?? '')) return;
+    void act(() => officeApi.setAppCommand(pid, v));
+  };
+  const running = a?.status === 'running';
+  return (
+    <li className="ob-app">
+      <div className="ob-app-row">
+        <span className="ob-pi" aria-hidden="true">
+          ▶
+        </span>
+        <b>App</b>
+        <span className="ob-pv">
+          {!a ? (
+            app.error ? (
+              'Couldn’t read the app'
+            ) : (
+              '…'
+            )
+          ) : running ? (
+            <>
+              <span className="ob-ok">running</span>
+              {a.url && (
+                <>
+                  {' · '}
+                  <a href={a.url} target="_blank" rel="noreferrer" className="ob-applink">
+                    Open app ↗
+                  </a>
+                </>
+              )}
+            </>
+          ) : a.status === 'exited' ? (
+            `stopped${a.exitCode != null ? ` (exit ${a.exitCode})` : ''}`
+          ) : a.command ? (
+            'not running'
+          ) : (
+            'no run command yet'
+          )}
+        </span>
+        <span className="ob-app-acts">
+          {a && (
+            <Button
+              small
+              variant="ghost"
+              disabled={busy || (!running && !a.command)}
+              onClick={() => void act(() => (running ? officeApi.stopApp(pid) : officeApi.startApp(pid)))}
+            >
+              {busy ? '…' : running ? 'Stop' : 'Start'}
+            </Button>
+          )}
+          <button
+            type="button"
+            className="ob-target"
+            aria-expanded={open}
+            onClick={() => {
+              setOpen((o) => !o);
+              if (!open) void app.refetch();
+            }}
+          >
+            {open ? 'Hide' : 'Details'}
+          </button>
+        </span>
+      </div>
+      {err && (
+        <p className="ob-err" role="alert">
+          {err}
+        </p>
+      )}
+      {open && a && (
+        <div className="ob-app-more">
+          <label className="ob-fl" htmlFor="obRun">
+            Run command{a.source ? <span className="ob-app-src"> · from {a.source}</span> : null}
+          </label>
+          <input
+            id="obRun"
+            className="ob-app-cmd"
+            defaultValue={a.command ?? ''}
+            key={a.command ?? ''}
+            placeholder="e.g. npm run dev"
+            spellCheck={false}
+            disabled={busy}
+            onBlur={(e) => saveCommand(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveCommand(e.currentTarget.value);
+              }
+            }}
+          />
+          {a.log.length > 0 ? (
+            <pre className="ob-app-log">{a.log.slice(-20).join('\n')}</pre>
+          ) : (
+            <p className="ob-empty">No output yet.</p>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 /* ------------------------------------------------------------ health report */
 function Health({ pid }: { pid: string }) {
   const health = useHealth(pid);
@@ -507,6 +673,7 @@ function Health({ pid }: { pid: string }) {
               ))}
           </span>
         </li>
+        <AppRow pid={pid} />
       </ul>
       {health.loading && <p className="ob-empty">Loading…</p>}
       {health.error && !h && <p className="ob-err">Couldn’t load the health report.</p>}

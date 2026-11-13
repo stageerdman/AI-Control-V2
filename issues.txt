@@ -10,6 +10,9 @@ OPEN
 - [ ] Lock the stack (Tauri+React vs. web-only) — decide during the INIT update after reviewing UI concepts.
 - [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
 - [ ] Voice in/out provider choice not finalized (Deepgram vs. Whisper for STT; ElevenLabs for TTS) — validate in a research spike.
+- [ ] Blueprint "Rebuild" / "Rebuild outdated" buttons — need a server endpoint (e.g. POST /projects/:id/claude-md/rebuild); the row says "Rebuild with the rebuild-claude-md routine" for now. (F2)
+- [ ] Health: GitHub visibility toggle (private ↔ public) — needs a server endpoint wrapping `gh repo edit --visibility`; status is shown read-only. (F2)
+- [ ] Access: "new" dot on cabinet entries added after a project was set up — needs a created-vs-granted signal from the server (e.g. grantSeenAt per project). (F2)
 
 RESOLVED
 --------

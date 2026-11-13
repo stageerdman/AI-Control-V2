@@ -11,7 +11,7 @@
 .rp-scene .rp-card {
   position: relative;
   width: min(600px, 100%);
-  max-height: calc(100vh - 190px);
+  max-height: calc(100vh - 290px);
   overflow: auto;
   background: #fdfcf7;
   color: var(--ink);
