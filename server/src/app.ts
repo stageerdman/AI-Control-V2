@@ -3,6 +3,7 @@
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Config } from './config.ts';
+import { createCreator } from './crew/creator.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import type { Db } from './db/connection.ts';
@@ -94,6 +95,7 @@ export function buildApp({
   /* the studio crew (orchestrator, Agent Creator): tool-less runs in a scratch dir, never a project folder */
   const crew = createCrew({ runner, model, scratchDir: join(config.home, 'scratch') });
   const chat = createSetupChat({ store, events, crew });
+  const creator = createCreator({ store, events, crew });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -131,6 +133,6 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: cabinet(store, secrets) }));
   app.register(accessRoutes({ access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(crewRoutes({ chat }));
+  app.register(crewRoutes({ chat, creator }));
   return app;
 }

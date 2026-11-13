@@ -67,6 +67,8 @@ export function planIssues(plan: Plan, cast: CastView): PlanIssue[] {
 
   const hasTeams = plan.teams.length + plan.newTeams.length > 0;
   const individuals = plan.specialists.length + plan.newAgents.length;
+  if (plan.teams.length + plan.newTeams.length > PLAN_MAX.teams)
+    rule('teams', `At most ${PLAN_MAX.teams} teams, new ones included`);
   if (!hasTeams && individuals === 0) rule('', 'The plan staffs nobody — propose at least one team');
   if (hasTeams && individuals > PLAN_MAX.individuals)
     rule('specialists', `Teams first: at most ${PLAN_MAX.individuals} individual specialists next to teams`);

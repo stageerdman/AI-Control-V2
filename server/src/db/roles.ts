@@ -23,6 +23,11 @@ export function rolesRepo(db: Db) {
       if (!r) throw notFound('Role', id);
       return r;
     },
+    /** Case-insensitive lookup by name (the Agent Creator reuses a role before making one). */
+    findByName(rawName: string): Role | null {
+      const hit = byKey(normalizeRoleName(rawName).toLowerCase());
+      return hit ? repo.get(hit.id) : null;
+    },
     /** Body references must point at a real role → 422 otherwise. */
     assertExists(id: string): void {
       if (!exists(db, 'roles', id)) throw invalid(`Unknown role '${id}'`, { roleId: id });

@@ -10,7 +10,7 @@ import type { Db } from './connection.ts';
 import type { TeamsRepo } from './teams.ts';
 import { now, row, rows } from './util.ts';
 
-export type ChatMessage = { from: 'user' | 'orchestrator'; text: string };
+export type ChatMessage = { from: 'user' | 'orchestrator' | 'creator'; text: string };
 export type DraftRecord = {
   id: string;
   mode: 'new' | 'adopt';
