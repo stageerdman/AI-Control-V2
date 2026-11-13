@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readModules } from '../../src/blueprint/modules.ts';
@@ -177,5 +185,105 @@ describe('Project Setter API', () => {
       { folder: 'alpha', git: true, marked: true },
       { folder: 'zeta', git: false, marked: false },
     ]);
+  });
+
+  describe('setup on the draft (Setter first, then the team, then finish)', () => {
+    const plan = { teams: [{ teamId: 'ship-it', why: 'builds it' }], summary: 'Ship-It builds.' };
+    const fileList = (dir: string) => readdirSync(dir).sort();
+
+    it('POST /setup scaffolds + commits, streams the steps, records the folder; again = only what is missing', async () => {
+      const d = await draft({ mode: 'new', name: 'Kite Notes', orchestratorId: 'a-pixel' });
+      const r = await h.call('POST', `/drafts/${d.id}/setup`);
+      expect(r.status).toBe(200);
+      expect(r.body.draft).toMatchObject({ folder: 'kite-notes', setupCommit: r.body.commit });
+      expect(r.body.draft.setupAt).toBeTruthy();
+      expect(r.body.steps.at(-1)).toMatchObject({ step: 'commit', status: 'done' });
+      const streamed = h.events.after('draft', d.id).filter((e) => e.type === 'setup.step');
+      expect(streamed.length).toBeGreaterThanOrEqual(r.body.steps.length);
+      const dir = join(h.config.sandbox, 'kite-notes');
+      const before = fileList(dir);
+
+      const again = await h.call('POST', `/drafts/${d.id}/setup`);
+      expect(again.status).toBe(200);
+      expect(again.body.commit).toBeNull();
+      expect(again.body.draft.setupCommit).toBe(r.body.commit); // the first commit is remembered
+      expect(again.body.steps.every((s: { status: string }) => s.status !== 'done')).toBe(true);
+      expect(fileList(dir)).toEqual(before);
+      expect(git(dir, 'rev-list', '--count', 'HEAD')).toBe('1');
+
+      // the folder can't move now; the team step works as before
+      expect((await h.call('PATCH', `/drafts/${d.id}`, { folder: 'elsewhere' })).status).toBe(409);
+      expect(
+        (await h.call('PATCH', `/drafts/${d.id}`, { folder: 'kite-notes', name: 'Kite Notes', plan })).status,
+      ).toBe(200);
+      expect(
+        (await h.call('GET', '/sandbox/folders')).body.map((f: { folder: string }) => f.folder),
+      ).not.toContain('kite-notes');
+
+      // finish only creates the project: on set, the draft's tile, no new commit
+      const f = await h.call('POST', `/drafts/${d.id}/finish`);
+      expect(f.status).toBe(201);
+      expect(f.body).toMatchObject({ steps: [], commit: r.body.commit });
+      expect(f.body.project).toMatchObject({
+        id: 'kite-notes',
+        folder: 'kite-notes',
+        status: 'live',
+        teamIds: ['ship-it'],
+        tile: { g1: '#ff6f73', g2: '#ffc24b', glyph: 'quill' }, // = the app's / prototype's tile for the name
+      });
+      expect(git(dir, 'rev-list', '--count', 'HEAD')).toBe('1');
+      expect(h.events.after('project', 'kite-notes').some((e) => e.type === 'setup.step')).toBe(true);
+      expect((await h.call('GET', `/drafts/${d.id}`)).status).toBe(404);
+    });
+
+    it('adopt: setup keeps what is there; a second draft cannot claim the same folder', async () => {
+      const dir = join(h.config.sandbox, 'old-blog');
+      mkdirSync(dir);
+      writeFileSync(join(dir, 'CLAUDE.md'), 'keep\n');
+      const a = await draft({ mode: 'adopt', name: 'Old Blog', folder: 'old-blog' });
+      const r = await h.call('POST', `/drafts/${a.id}/setup`);
+      expect(r.body.steps.find((s: { step: string }) => s.step === 'CLAUDE.md').status).toBe('kept');
+      expect(readFileSync(join(dir, 'CLAUDE.md'), 'utf8')).toBe('keep\n');
+      const b = await draft({ mode: 'adopt', name: 'Twin', folder: 'old-blog' });
+      const c = await h.call('POST', `/drafts/${b.id}/setup`);
+      expect(c.status).toBe(409);
+      expect(c.body.error.message).toMatch(/Another draft/);
+    });
+
+    it('deleting a set-up draft never touches the folder (keptFolder); undo brings the draft back set up', async () => {
+      const d = await draft({ mode: 'new', name: 'Keep Me' });
+      await h.call('POST', `/drafts/${d.id}/setup`);
+      const dir = join(h.config.sandbox, 'keep-me');
+      const files = fileList(dir);
+      const del = await h.call('DELETE', `/drafts/${d.id}`);
+      expect(del.body).toMatchObject({ deleted: { kind: 'draft', id: d.id }, keptFolder: 'keep-me' });
+      expect(fileList(dir)).toEqual(files);
+      // the folder is adoptable again
+      expect(
+        (await h.call('GET', '/sandbox/folders')).body.map((f: { folder: string }) => f.folder),
+      ).toContain('keep-me');
+      await h.call('POST', `/trash/${del.body.restoreToken}/restore`);
+      expect((await h.call('GET', `/drafts/${d.id}`)).body).toMatchObject({
+        folder: 'keep-me',
+        setupAt: expect.any(String),
+      });
+      const plain = await draft({ mode: 'new', name: 'Never Set Up' });
+      expect((await h.call('DELETE', `/drafts/${plain.id}`)).body.keptFolder).toBeNull();
+    });
+
+    it('finish refuses a set-up folder that vanished, and pending briefs; setup needs a name', async () => {
+      const noName = await draft({ mode: 'new' });
+      expect((await h.call('POST', `/drafts/${noName.id}/setup`)).status).toBe(422);
+      const d = await draft({ mode: 'new', name: 'Vanish' });
+      await h.call('POST', `/drafts/${d.id}/setup`);
+      await h.call('PATCH', `/drafts/${d.id}`, { plan: { ...plan, newTeams: [{ brief: 'mobile' }] } });
+      expect((await h.call('POST', `/drafts/${d.id}/finish`)).status).toBe(409);
+      await h.call('PATCH', `/drafts/${d.id}`, { plan });
+      rmSync(join(h.config.sandbox, 'vanish'), { recursive: true });
+      const r = await h.call('POST', `/drafts/${d.id}/finish`);
+      expect(r.status).toBe(409);
+      expect(r.body.error.message).toMatch(/gone/);
+      expect(projectCount()).toBe(9);
+    });
   });
 });

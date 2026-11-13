@@ -1,19 +1,24 @@
-/* Draft → project, with the Project Setter's steps streamed live on the draft's
-   event stream (GET /drafts/:id/events) while it works.
+/* The Project Setter on a draft, then draft → project (user's v5 order: the Setter sets the project
+   up first, then the orchestrator enters and picks the team).
 
-   1. validate the draft and dry-run the project insert (rolled back) — every
-      reference/rule error surfaces before anything touches the disk;
-   2. scaffold the folder (async, yields between steps so SSE flushes);
-   3. ONE transaction: create the project, re-file the setup events under it,
-      delete the draft.
-   Any failure leaves no project record; a folder we created for a new project is
-   removed again; the draft stays (and its stream gets `setup.failed`). */
+   setupDraft (POST /drafts/:id/setup): scaffold the folder (new or adopt) with the steps streamed
+   live on the draft's event stream (GET /drafts/:id/events); the draft then owns the folder
+   (`setupAt`). Idempotent and resumable: running it again only adds what's missing.
+   A failed FIRST setup of a new project removes the folder it just created; nothing else is ever
+   removed — not on a later failure, not when the draft is deleted.
+
+   finishDraft (POST /drafts/:id/finish): validate (dry-run the insert, rolled back), then ONE
+   transaction: create the project (on set: status live, the draft's tile), re-file the setup events
+   under it, delete the draft. No scaffolding here — except for a draft that was never set up
+   (API back-compat), which gets its setup first. Any failure leaves no project record. */
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import type { Module } from '../blueprint/modules.ts';
+import type { Draft } from '../db/drafts.ts';
 import type { Project, ProjectCreate } from '../db/projects.ts';
 import type { Store } from '../db/store.ts';
 import { slugify } from '../domain/ids.ts';
 import { pendingBriefs, staffingOf } from '../domain/plan.ts';
+import { tileFor } from '../domain/tile.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox, SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
@@ -53,41 +58,46 @@ function dryRunCreate(store: Store, input: ProjectCreate): void {
 
 /* one Setter per draft at a time (the scaffold awaits; a double click must not run it twice) */
 const running = new Set<string>();
+const guarded = async <T>(id: string, fn: () => Promise<T>): Promise<T> => {
+  if (running.has(id)) throw conflict('The Project Setter is already working on this draft');
+  running.add(id);
+  try {
+    return await fn();
+  } finally {
+    running.delete(id);
+  }
+};
 
-export async function finishDraft(deps: FinishDeps, draftId: string): Promise<FinishResult> {
-  const { store, sandbox, events } = deps;
-  const draft = store.drafts.require(draftId);
+export type SetupResult = { draft: Draft; steps: Step[]; commit: string | null };
+
+/** The draft's folder (sandbox-relative): the one it set up, else what it asked for / its name. */
+function folderOf(deps: FinishDeps, draft: Draft): string {
   const name = draft.name.trim();
-  if (!name) throw invalid('The draft needs a name before it can be finished');
-  if (running.has(draft.id)) throw conflict('The Project Setter is already working on this draft');
-  if (draft.plan && pendingBriefs(draft.plan) > 0)
-    throw conflict('Accept the plan first — the Agent Creator still has agents or teams to design', {
-      newAgents: draft.plan.newAgents.length,
-      newTeams: draft.plan.newTeams.length,
-    });
-
-  const folder = guard(() => toSandboxRelative(sandbox, draft.folder ?? slugify(name, 'project')));
+  if (!name) throw invalid('The draft needs a name before it can be set up');
+  const folder = guard(() => toSandboxRelative(deps.sandbox, draft.folder ?? slugify(name, 'project')));
   if (!folder) throw invalid('A project folder cannot be the sandbox root itself');
+  return folder;
+}
+
+async function runSetup(deps: FinishDeps, draft: Draft): Promise<SetupResult> {
+  const { store, sandbox, events } = deps;
+  const folder = folderOf(deps, draft);
   const abs = guard(() => resolveInSandbox(sandbox, folder));
   const there = existsSync(abs);
-  if (draft.mode === 'new' && there && (!statSync(abs).isDirectory() || readdirSync(abs).length > 0)) {
-    throw conflict(`'${folder}' already exists in the sandbox — adopt it instead, or pick another folder`, {
-      folder,
-    });
+  const again = !!draft.setupAt;
+  if (!again) {
+    if (store.projects.list().some((p) => p.folder === folder))
+      throw conflict(`'${folder}' is already an AI Studio project`, { folder });
+    if (store.drafts.ownerOf(folder, draft.id))
+      throw conflict(`Another draft in setup already owns '${folder}'`, { folder });
+    if (draft.mode === 'new' && there && (!statSync(abs).isDirectory() || readdirSync(abs).length > 0))
+      throw conflict(`'${folder}' already exists in the sandbox — adopt it instead, or pick another folder`, {
+        folder,
+      });
   }
-  if (draft.mode === 'adopt' && (!there || !statSync(abs).isDirectory())) {
+  if (draft.mode === 'adopt' && (!there || !statSync(abs).isDirectory()))
     throw invalid(`Nothing to adopt: '${folder}' is not a folder in the sandbox`, { folder });
-  }
-  const input: ProjectCreate = {
-    name,
-    note: draft.about.slice(0, 500),
-    folder,
-    ...(draft.orchestratorId ? { orchestratorId: draft.orchestratorId } : {}),
-    ...(draft.plan ? staffingOf(draft.plan) : {}),
-  };
-  dryRunCreate(store, input); // folder ownership, orchestrator, teams, specialists
-
-  running.add(draft.id);
+  const name = draft.name.trim();
   try {
     const r = await scaffold({
       sandbox,
@@ -100,15 +110,11 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
       mode: draft.mode,
       onStep: (s) => events.append('draft', draft.id, { type: 'setup.step', payload: s }),
     });
-    const project = store.tx(() => {
-      const p = store.projects.create(input);
-      events.copy({ scope: 'draft', id: draft.id }, { scope: 'project', id: p.id });
-      store.drafts.deleteRecord(draft.id);
-      return p;
-    });
-    return { project, steps: r.steps, commit: r.commit };
+    const saved = store.drafts.markSetUp(draft.id, folder, r.commit ?? draft.setupCommit);
+    return { draft: saved, steps: r.steps, commit: r.commit };
   } catch (e) {
-    if (draft.mode === 'new' && !there) rmSync(abs, { recursive: true, force: true });
+    /* only what THIS run created from nothing goes — never a folder that was there before */
+    if (draft.mode === 'new' && !there && !again) rmSync(abs, { recursive: true, force: true });
     const err = e instanceof SandboxError ? invalid(e.message) : e;
     if (store.drafts.record(draft.id)) {
       const message = err instanceof Error ? err.message : 'Setup failed';
@@ -118,9 +124,57 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
       });
     }
     throw err;
-  } finally {
-    running.delete(draft.id);
   }
+}
+
+/** POST /drafts/:id/setup — the Project Setter sets the draft's folder up (again: only what's missing). */
+export function setupDraft(deps: FinishDeps, draftId: string): Promise<SetupResult> {
+  const draft = deps.store.drafts.require(draftId);
+  folderOf(deps, draft); // name + folder errors before the guard
+  return guarded(draft.id, () => runSetup(deps, deps.store.drafts.require(draftId)));
+}
+
+export async function finishDraft(deps: FinishDeps, draftId: string): Promise<FinishResult> {
+  const { store, sandbox, events } = deps;
+  const draft = store.drafts.require(draftId);
+  const folder = folderOf(deps, draft);
+  if (draft.plan && pendingBriefs(draft.plan) > 0)
+    throw conflict('Accept the plan first — the Agent Creator still has agents or teams to design', {
+      newAgents: draft.plan.newAgents.length,
+      newTeams: draft.plan.newTeams.length,
+    });
+  const name = draft.name.trim();
+  const input: ProjectCreate = {
+    name,
+    note: draft.about.slice(0, 500),
+    folder,
+    status: 'live',
+    tile: tileFor(name),
+    ...(draft.orchestratorId ? { orchestratorId: draft.orchestratorId } : {}),
+    ...(draft.plan ? staffingOf(draft.plan) : {}),
+  };
+
+  return guarded(draft.id, async () => {
+    dryRunCreate(store, input); // folder ownership, orchestrator, teams, specialists — before any disk work
+    let steps: Step[] = [];
+    let commit = draft.setupCommit;
+    if (!draft.setupAt) {
+      const r = await runSetup(deps, draft); // back-compat: a draft that skipped POST /setup
+      steps = r.steps;
+      commit = r.commit;
+    } else {
+      const abs = guard(() => resolveInSandbox(sandbox, folder));
+      if (!existsSync(abs) || !statSync(abs).isDirectory())
+        throw conflict(`The set-up folder '${folder}' is gone — run the setup again`, { folder });
+    }
+    const project = store.tx(() => {
+      const p = store.projects.create(input);
+      events.copy({ scope: 'draft', id: draft.id }, { scope: 'project', id: p.id });
+      store.drafts.deleteRecord(draft.id);
+      return p;
+    });
+    return { project, steps, commit };
+  });
 }
 
 /** Local calendar date, YYYY-MM-DD. */

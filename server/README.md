@@ -77,7 +77,7 @@ Bodies are strict — unknown keys are 422.
 | `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add `{agentId, instr?, at?}` (`at` = put back at an old place, undo) / edit job / remove (captain passes on) |
 | `GET POST /projects` · `GET PATCH /projects/:id` | `orchestratorId`, `teamIds` (teams first), `agentIds` (specialists), `folder` (sandbox-relative) |
 | `DELETE /projects/:id` | 204; forgets the record, never touches the folder |
-| `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (validated — see Plan below), `chat` |
+| `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (validated — see Plan below), `chat`, `setupAt`/`setupCommit` (set by `/setup`; the folder can't change after, 409). `DELETE` never touches the disk: a set-up draft's folder stays and the response says so (`keptFolder`, else null) — adopt it later |
 | `POST /drafts/:id/chat` `{text?}` · `GET /drafts/:id/chat` | one orchestrator turn → `{reply, plan, chat}` (no `text` = the orchestrator opens with a proposal); history `{chat, plan}` |
 | `POST /drafts/:id/accept` | the Agent Creator mints every `newAgents`/`newTeams` brief, the plan resolves to real ids — all or nothing → `{plan, minted: {roles, agents, teams}}`; `/finish` refuses until then |
 | `POST /projects/:id/work` `{goal, caps?: {maxTurns, maxBudgetUsd}}` | the orchestrator breaks the goal into ≤ 8 checklist items for team captains / specialists → the goal (201); items run as agent runs (with `caps`), ≤ 2 at a time per project, one per agent |
@@ -93,11 +93,12 @@ Bodies are strict — unknown keys are 422.
 | `GET /reports[?limit=50]` | studio-wide: the latest non-archived reports across projects (+ `projectName`), newest first, + the `unread` total |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description, body = the markdown text, updatedAt = file mtime) + the scaffold tree the Setter creates |
-| `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
+| `POST /drafts/:id/setup` | the Project Setter, on the draft (user's order: Setter first, then the orchestrator picks the team): scaffold the folder (new or adopt) + local commit, steps live on the draft stream; the draft then owns the folder (hidden from `/sandbox/folders`, no second draft may claim it). Idempotent/resumable: again = only what's missing (`commit: null`). A failed *first* setup of a new project removes the folder it just made; nothing else is ever removed → `{draft, steps, commit}` |
+| `POST /drafts/:id/finish` | draft → project from the set-up folder + the accepted plan, one transaction (on set: `status: live`, tile from the name), the draft's events re-filed under the project, draft deleted; no scaffolding (a draft that skipped `/setup` is set up first — back-compat). 409 while briefs are pending or when the set-up folder is gone → `{project, steps, commit}` (`steps: []` when it was already set up) |
 | `GET /projects/:id/scaffold` | what's on disk vs the expected scaffold, plus git head/commit count and `claudeMdGenerated` (from `.project`) |
 | `GET /sandbox/folders` | top-level sandbox folders not yet under AI Studio (Adopt picker) |
 | `GET /projects/:id/events` | SSE: the project's event log — replay after `Last-Event-ID` / `?after=` (default: all), then live; heartbeats |
-| `GET /drafts/:id/events` | SSE: the Project Setter's `setup.step`s while `POST /drafts/:id/finish` runs (open it first) |
+| `GET /drafts/:id/events` | SSE: the draft's log — the Project Setter's `setup.step`s / `setup.failed` while `/setup` (or a back-compat `/finish`) runs (open it first), the setup chat, the Creator |
 | `POST /projects/:id/runs` | start an agent run `{agentId, teamId?, task, caps?: {maxTurns, maxBudgetUsd}, resumeRunId?}` — headless Claude Code in the project folder; one live run per agent per project |
 | `GET /projects/:id/runs[/:runId]` · `POST /projects/:id/runs/:runId/cancel` | run history (status, usage, `costUsd` = the CLI's API-equivalent estimate, session) · stop a run (kills its process group) |
 | `GET /projects/:id/asks[?status=open]` · `POST /projects/:id/asks/:askId/answer` | questions agents asked via `ask_user` · answer one (the run continues) |

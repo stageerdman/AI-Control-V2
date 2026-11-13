@@ -6,7 +6,7 @@ import type { Config } from '../config.ts';
 import type { Store } from '../db/store.ts';
 import { conflict, parse } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
-import { finishDraft, localDate } from '../setter/finish.ts';
+import { finishDraft, localDate, setupDraft } from '../setter/finish.ts';
 import { isRepo } from '../setter/git.ts';
 import { inspect } from '../setter/scaffold.ts';
 import { IdParams } from './schemas.ts';
@@ -23,7 +23,11 @@ export const setterRoutes =
       today: () => localDate(),
     };
 
-    /* the Project Setter runs: draft → project + scaffold on disk. Steps come back in order (B4 streams them). */
+    /* the Project Setter sets the draft's folder up (new or adopt); steps stream on GET /drafts/:id/events.
+       Idempotent: again = only what's missing. The draft owns the folder from then on. */
+    app.post('/drafts/:id/setup', async (req) => setupDraft(deps, parse(IdParams, req.params).id));
+
+    /* draft → project (from the set-up folder + the accepted plan); a never-set-up draft is set up first. */
     app.post('/drafts/:id/finish', async (req, reply) =>
       reply.status(201).send(await finishDraft(deps, parse(IdParams, req.params).id)),
     );
@@ -37,7 +41,11 @@ export const setterRoutes =
 
     /* top-level sandbox folders not yet under AI Studio — the Adopt picker */
     app.get('/sandbox/folders', async () => {
-      const taken = new Set(store.projects.list().map((p) => p.folder?.split('/')[0]));
+      const taken = new Set(
+        [...store.projects.list().map((p) => p.folder), ...store.drafts.setUpFolders()].map(
+          (f) => f?.split('/')[0],
+        ),
+      );
       if (!existsSync(config.sandbox)) return [];
       return readdirSync(config.sandbox, { withFileTypes: true })
         .filter((d) => d.isDirectory() && !d.name.startsWith('.') && !taken.has(d.name))

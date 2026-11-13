@@ -319,6 +319,13 @@ export const MIGRATIONS: readonly string[] = [
   UPDATE roles SET reporter = 1 WHERE name_key = 'research';
   UPDATE teams SET reporter = 1 WHERE id = 'expedition';
   `,
+  /* 14 — the Setter runs on the draft (U2, user's v5 order: Setter first, then the orchestrator picks the
+     team). setup_at = when the folder was set up (the draft owns it from then on), setup_commit = its
+     commit (null when nothing was added). finish then only creates the project. */
+  `
+  ALTER TABLE drafts ADD COLUMN setup_at TEXT;
+  ALTER TABLE drafts ADD COLUMN setup_commit TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { assertOrchestrator } from '../domain/cast.ts';
 import { assertPlan, type CastView, type Plan, PlanSchema } from '../domain/plan.ts';
-import { invalid, notFound } from '../errors.ts';
+import { conflict, invalid, notFound } from '../errors.ts';
 import { SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
 import type { AgentsRepo } from './agents.ts';
 import type { Db } from './connection.ts';
@@ -21,6 +21,8 @@ export type DraftRecord = {
   orchestrator_id: string | null;
   plan: string | null;
   chat: string;
+  setup_at: string | null;
+  setup_commit: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -35,6 +37,9 @@ export type Draft = {
   /** The orchestrator's staffing proposal (src/domain/plan.ts); null until the setup chat starts. */
   plan: Plan | null;
   chat: ChatMessage[];
+  /** When the Project Setter set up `folder` (POST /drafts/:id/setup); null until then. */
+  setupAt: string | null;
+  setupCommit: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -65,6 +70,8 @@ const toDraft = (r: DraftRecord): Draft => ({
   orchestratorId: r.orchestrator_id,
   plan: readPlan(r.plan),
   chat: JSON.parse(r.chat) as ChatMessage[],
+  setupAt: r.setup_at ?? null,
+  setupCommit: r.setup_commit ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -127,6 +134,8 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
         orchestrator_id: orch,
         plan: null,
         chat: '[]',
+        setup_at: null,
+        setup_commit: null,
         created_at: t,
         updated_at: t,
       });
@@ -136,6 +145,13 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
     update(id: string, patch: DraftPatch): Draft {
       const r = requireRecord(id);
       checkOrch(patch.orchestratorId);
+      if (r.setup_at && patch.folder !== undefined && normFolder(patch.folder) !== r.folder)
+        throw conflict(
+          'The folder is already set up — it can’t move. Delete the draft to start over (the folder stays)',
+          {
+            folder: r.folder,
+          },
+        );
       if (patch.plan) assertPlan(patch.plan, cast);
       db.prepare(
         'UPDATE drafts SET step = ?, name = ?, about = ?, folder = ?, orchestrator_id = ?, plan = ?, chat = ?, updated_at = ? WHERE id = ?',
@@ -166,8 +182,8 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
 
     insertRecord(r: DraftRecord): void {
       db.prepare(
-        `INSERT INTO drafts (id, mode, step, name, about, folder, orchestrator_id, plan, chat, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO drafts (id, mode, step, name, about, folder, orchestrator_id, plan, chat, setup_at, setup_commit, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.mode,
@@ -178,10 +194,30 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
         r.orchestrator_id,
         r.plan,
         r.chat,
+        r.setup_at ?? null,
+        r.setup_commit ?? null,
         r.created_at,
         r.updated_at,
       );
     },
+    /** The Setter finished on this draft: it owns `folder` from now on. */
+    markSetUp(id: string, folder: string, commit: string | null): Draft {
+      db.prepare(
+        'UPDATE drafts SET folder = ?, setup_at = ?, setup_commit = ?, updated_at = ? WHERE id = ?',
+      ).run(folder, now(), commit, now(), id);
+      return repo.require(id);
+    },
+    /** Set-up drafts other than `except` that own `folder`. */
+    ownerOf: (folder: string, except?: string): string | null =>
+      row<{ id: string }>(
+        db
+          .prepare('SELECT id FROM drafts WHERE setup_at IS NOT NULL AND folder = ? AND id != ?')
+          .get(folder, except ?? ''),
+      )?.id ?? null,
+    setUpFolders: (): string[] =>
+      rows<{ folder: string }>(
+        db.prepare('SELECT folder FROM drafts WHERE setup_at IS NOT NULL AND folder IS NOT NULL').all(),
+      ).map((r) => r.folder),
     deleteRecord: (id: string) => db.prepare('DELETE FROM drafts WHERE id = ?').run(id),
   };
   return repo;

@@ -36,5 +36,10 @@ export const draftRoutes =
       const { id } = parse(IdParams, req.params);
       return store.drafts.update(id, parse(DraftPatch, req.body));
     });
-    app.delete('/drafts/:id', async (req) => store.trash.trashDraft(parse(IdParams, req.params).id));
+    /* never touches the disk: a set-up draft's folder stays where it is (`keptFolder`) — adopt it later */
+    app.delete('/drafts/:id', async (req) => {
+      const { id } = parse(IdParams, req.params);
+      const d = store.drafts.require(id);
+      return { ...store.trash.trashDraft(id), keptFolder: d.setupAt ? d.folder : null };
+    });
   };
