@@ -121,7 +121,7 @@ function AccessEntry({
       <div className="body">
         <div className="row" style={{ gap: 0 }}>
           <b>{c.name}</b>
-          <span className="val">{c.envVar}</span>
+          {c.envVar !== c.name && <span className="val">{c.envVar}</span>}
           {val ? <span className="val">{val}</span> : <span className="val none">no key yet</span>}
         </div>
         {c.serves && <div className="serves">{c.serves}</div>}
