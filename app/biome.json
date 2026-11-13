@@ -14,7 +14,8 @@
         "src/characters/emblem-svg.ts",
         "src/characters/*.css",
         "src/design/prototype.css",
-        "src/gallery/gallery.css"
+        "src/gallery/gallery.css",
+        "src/features/cast/cast.css"
       ],
       "formatter": { "enabled": false },
       "linter": {

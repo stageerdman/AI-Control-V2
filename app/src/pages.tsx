@@ -3,10 +3,14 @@
 import { lazy } from 'react';
 import type { PageRegistry, PagerComponent } from './shell/pages';
 
+const Cast = lazy(() => import('./features/cast/CastPage').then((m) => ({ default: m.CastPage })));
 const Gallery = lazy(() => import('./gallery/Gallery').then((m) => ({ default: m.Gallery })));
 
 export const pages: PageRegistry = {
   gallery: Gallery,
+  cast: Cast,
+  'cast.agent': Cast,
+  'cast.team': Cast,
   access: lazy(() => import('./features/access/AccessPage').then((m) => ({ default: m.AccessPage }))),
   blueprint: lazy(() =>
     import('./features/blueprint/BlueprintPage').then((m) => ({ default: m.BlueprintPage })),

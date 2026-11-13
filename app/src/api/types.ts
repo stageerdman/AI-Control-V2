@@ -22,7 +22,8 @@ export type Look = {
 export type AgentKind = 'agent' | 'setter' | 'orchestrator' | 'creator';
 export type DeleteVerdict = { ok: true; why: '' } | { ok: false; why: string };
 
-export type Role = { id: string; name: string; agentCount: number };
+/** reporter: agents holding the role file reports (file_report). */
+export type Role = { id: string; name: string; agentCount: number; reporter: boolean };
 
 export type Agent = {
   id: string;
@@ -67,6 +68,8 @@ export type Team = {
   code: string;
   captainId: string | null;
   members: Member[];
+  /** Runs for this team file reports. */
+  reporter: boolean;
   projectIds: string[];
   createdAt: string;
   updatedAt: string;
@@ -80,6 +83,7 @@ export type TeamCreate = {
   code?: string;
   members?: { agentId: string; instr?: string }[];
   captainId?: string | null;
+  reporter?: boolean;
 };
 export type TeamPatch = Partial<Omit<TeamCreate, 'members' | 'captainId'>> & { captainId?: string };
 
