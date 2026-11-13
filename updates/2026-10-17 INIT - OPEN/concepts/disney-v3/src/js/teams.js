@@ -403,7 +403,7 @@ function _crewList(z, p) {
     b.setAttribute('aria-label', `${a.name}, ${eff}${isCap ? ', Captain' : ''}. Edit on this team`);
     b.innerHTML = `<span class="sq-row-fig"></span><span class="sq-row-text"><b>${escapeHtml(a.name)}${isCap ? ` <em>${STAR} Captain</em>` : ''}</b>
       <span>${roleBadge(eff, 12)}${escapeHtml(eff)}${m.role ? ' <i>on this team</i>' : ''}</span>
-      ${m.instr ? '' : `<span class="sq-nudge">Give ${escapeHtml(a.name.split(' ')[0])} a job</span>`}</span><i class="chev" aria-hidden="true">›</i>`;
+      ${m.instr ? '' : `<span class="sq-nudge">Give ${escapeHtml(shortName(a))} a job</span>`}</span><i class="chev" aria-hidden="true">›</i>`;
     b.querySelector('.sq-row-fig').appendChild(hero(a, { size: 'xs', facing: 'front', role: m.role || undefined }));
     b.onclick = () => _selectMember(z, m.agent);
     li.appendChild(b); ul.appendChild(li);
@@ -445,12 +445,12 @@ function _selectMember(z, agentId) {
   if (SQ.strip) _closeStrip(true);
   SQ.sel = agentId; _lookAtSelected(z);
   const selB = z.querySelector(`.sq-m[data-id="${agentId}"]`); if (selB) cxHop(selB.querySelector('.hero'));
-  const first = a.name.split(' ')[0];
+  const first = shortName(a);
   const p = _tEl('div', 'z-panel drill-in');
   p.innerHTML = `<div class="zp-scroll">
     <div class="zp-top"><button type="button" class="zp-crumb"><span aria-hidden="true">←</span> ${escapeHtml(t.name || 'New team')}</button><span class="zp-saved" aria-hidden="true">Saved ✓</span></div>
     <div class="sq-mhead"><span class="sq-mfig"></span><div><h2 id="sqMember" tabindex="-1">${escapeHtml(a.name)}</h2>
-      <p>${roleBadge(a.role, 14)}${escapeHtml(a.role)} in the cast · <a href="#cast/agent/${escapeAttr(a.id)}" class="zp-link">Open ${escapeHtml(first)}’s page</a></p></div></div>
+      <p>${roleBadge(a.role, 14)}${escapeHtml(a.role)} in the cast · <a href="#cast/agent/${escapeAttr(a.id)}" class="zp-link">Open agent page</a></p></div></div>
     <section class="zp-sec sq-mrole"><h3 class="zp-label">Role on this team</h3>
       <button type="button" class="zp-link sq-reset" hidden></button></section>
     <section class="zp-sec"><h3 class="zp-label"><label for="sqJob">Job on this team</label></h3>

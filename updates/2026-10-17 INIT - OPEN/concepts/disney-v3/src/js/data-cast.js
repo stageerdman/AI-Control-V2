@@ -50,6 +50,10 @@ const AGENTS = [
 ];
 const DIRECTOR = { id: 'director', name: 'Pixel', role: 'Director', hue: 'sun', build: 'hero', hair: 'tuft', accessory: 'none' };
 const agentById = id => (id === 'director' || id === 'pixel') ? DIRECTOR : AGENTS.find(a => a.id === id);
+/* Friendly short name for sentences ("Give Pete a job"). Never the first word blindly:
+   "Sir Lint-a-lot" → "Lint", not "Sir". */
+const AGENT_NICK = { 'a-pete': 'Pete', 'a-semic': 'Captain', 'a-lint': 'Lint', 'a-doc': 'Doc', 'a-baron': 'Baron', 'a-merge': 'Madame M', 'a-prof': 'Professor', 'a-scar': 'Scarlett', 'a-query': 'Querious', 'a-twinkle': 'Twinkle' };
+const shortName = a => (a.id === 'director' || a.id === 'pixel') ? 'Pixel' : (a.nick || AGENT_NICK[a.id] || a.name);
 
 /* Teams (spec-teams §3.1 shape, §3.2 assignments). Rules / jobs for Ship-It and
    Polish are the v2 text verbatim. */
