@@ -282,7 +282,7 @@ OS._mint = function (b, seat) {
     activity: { kind: 'idle', label: 'Just built', detail: 'Just built — reading the brief', target: null, featureId: b.featureId || null },
     session: 'idle', tokens: { total: 0 }, tasksDone: 0, reach: [], locked: [], unread: 0,
     brief: { left: b.left || 'Getting up to speed.', changed: [] } };
-  WS.agents.push(rec); OE.plan.home[id] = seat; WS.config.solo.push(id);
+  WS.agents.push(rec); OE.plan.home[id] = seat; WS.config.solo.push(id); if (WS._config0 && WS._config0 !== WS.config) WS._config0.solo = (WS._config0.solo || []).concat(id);
   return rec;
 };
 OS.H.create = async function (b) {

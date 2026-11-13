@@ -339,6 +339,21 @@ function wsUse(projectId) {
   Object.assign(WS, st.ws);
   THEME_OFFICE.plan = st.plan;
 }
+/* The Cast can change while you're away (an agent deleted, or restored with Undo).
+   Before an office is shown, park actors whose agent no longer exists and bring back
+   any that were restored — never mutate the original config, so Undo round-trips. */
+function wsPrune() {
+  const ok = id => { const a = agentById(id); return !!a && a.id === id; };
+  if (!WS._config0) WS._config0 = WS.config;
+  WS._gone = WS._gone || [];
+  WS._gone = WS._gone.filter(r => { if (ok(r.id)) { WS.agents.push(r); return false; } return true; });
+  WS.agents = WS.agents.filter(r => { if (r.visitor || ok(r.id)) return true; WS._gone.push(r); return false; });
+  const c0 = WS._config0;
+  WS.config = Object.assign({}, c0, {
+    teams: (c0.teams || []).map(t => Object.assign({}, t, { members: (t.members || []).filter(ok) })),
+    solo: (c0.solo || []).filter(ok) });
+  if (Array.isArray(WS.pending)) WS.pending = WS.pending.filter(q => !q.agentId || ok(q.agentId));
+}
 function _wsFresh(p) {
   const cfg = _wsResolve(Object.assign({ teams: [], solo: [] }, p.office, { project: p.id, spare: p.office.spare != null ? p.office.spare : 1 }));
   const plan = officeLayout(cfg);
