@@ -315,7 +315,7 @@ OS.H.create = async function (b) {
   nr.wrap.classList.remove('assembled');
   OE.react(rec.id, 'hop');
   OE.setActivity(rec.id, 'reading', { short: 'The brief', detail: b.first || 'Reading the brief', target: b.target || null, featureId: b.featureId || null });
-  if (!OE.instant) toast(`✨ The Agent Creator built ${escapeHtml(b.name)} — now in your Cast`);
+  if (!OE.instant) toast(`✨ ${escapeHtml(wsAg(cid).name)} the Agent Creator built ${escapeHtml(b.name)} — now in your Cast`);
   announce(`${b.name} was built by the Agent Creator and joined the Cast.`);
   officeChanged();
   /* and out again */

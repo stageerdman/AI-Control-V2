@@ -143,7 +143,7 @@ const OFFICE_PLAN = officeLayout(OFFICE_CONFIG);
    PROJECTS[i].orchestrator. Falls back to Pixel (a-pixel / legacy DIRECTOR). */
 const _WS_LOCAL_AG = {};   /* stand-ins when a roster entry hasn't landed yet */
 function wsDirectorAg() {
-  const p = projById(OFFICE_CONFIG.project) || {};
+  const p = projById((typeof OM !== 'undefined' && OM.project) || OFFICE_CONFIG.project) || {};
   const demo = /[?&]demo=[^&#]*?orch(\d)/.exec(location.search);
   if (demo && typeof orchestrators === 'function') { const o = orchestrators()[+demo[1] - 1]; if (o) return o; }
   return (p.orchestrator && agentById(p.orchestrator)) || agentById('a-pixel') || agentById('director');
@@ -167,8 +167,8 @@ function wsRole(ag) {
   return r ? r.name : (typeof ag.role === 'string' ? ag.role : '');
 }
 /* GitHub + how the app runs: from the project (contract), with calm defaults */
-function _wsGithub() {
-  const g = (projById(OFFICE_CONFIG.project) || {}).github;
+function _wsGithub(projectId) {
+  const g = (projById(projectId || OFFICE_CONFIG.project) || {}).github;
   const o = typeof g === 'object' && g ? g : { connected: g !== false, private: true };
   return { connected: o.connected !== false, private: o.private !== false, pushedAgo: '4 min ago', branch: 'voice-search', fresh: true };
 }

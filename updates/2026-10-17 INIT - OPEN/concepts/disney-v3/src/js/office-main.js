@@ -29,6 +29,8 @@ function closeOffice() {
 
 function _omMount(p) {
   OM.project = p.id; OM.mounted = true;
+  /* this project's repo facts (its Director comes from PROJECTS[i].orchestrator via wsAg) */
+  const g = _wsGithub(p.id); WS.github.connected = g.connected; WS.github.private = g.private;
   const host = document.getElementById('office');
   /* v5: no top bar — the room and the chat fill the screen. The door leaves,
      the safe is Access, the whiteboard + the Director's plaque carry the %. */
