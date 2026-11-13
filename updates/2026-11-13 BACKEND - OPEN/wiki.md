@@ -90,9 +90,14 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   message id: one message streams as several lines with the same usage) and stop the process group.
 - **Sessions:** `--session-id <uuid>` lets us pick the id up front (= runId); `--resume <id>` continues.
 - **Stream-json input:** send one `{type:'user', message:{role:'user', content}}` line, keep stdin open until
-  the `result` line, then close it so the CLI exits.
+  the `result` message, then close it so the CLI exits — detect it by PARSING (`type === 'result'`); the real
+  line starts with other keys (`{"duration_api_ms":…`), so sniffing `^{"type":"result"` leaves the CLI waiting forever.
 - **The shell alias trap:** spawn the resolved binary path, never `claude` via a shell — the user's alias adds
   a personal `--plugin-dir`.
 - **One backend per port:** the Tauri app launches (or reuses) its own backend on :4319; a dev server started
   next to it fails with EADDRINUSE and requests silently go to the app's backend.
+- **Resume works as advertised:** `--resume <session>` with a new task continued the interrupted conversation
+  (it remembered hello.txt) and cost $0.14 for 3 turns, mostly cache reads.
+- **Record real streams as fixtures.** Both bugs we hit (key order, interrupted host) were invisible in
+  hand-written fixtures; the recorded ones now replay in tests.
 

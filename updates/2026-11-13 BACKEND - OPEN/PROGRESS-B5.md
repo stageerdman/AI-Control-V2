@@ -1,4 +1,4 @@
-# PROGRESS — B5 Agent runtime (headless Claude Code CLI)
+# PROGRESS — B5 Agent runtime (headless Claude Code CLI) — ✅ done (178 tests)
 
 Resume notes. Plan: `update v1.md`; lessons: `wiki.md`; API: `server/README.md`.
 
@@ -46,6 +46,21 @@ Resume notes. Plan: `update v1.md`; lessons: `wiki.md`; API: `server/README.md`.
   /projects/hello-studio/runs {agentId:'a-pete', resumeRunId:'47ac8df8-c075-4577-bc37-8fd175b357b9',
   task:'Bash allows plain git commands one at a time; commit hello.txt (no push, no remote).'}`
   — the prompt now also tells agents to run one plain command at a time.
+
+## Live run 2 (approved resume) — run 2e77d9ec…, ✅ committed
+- Port 4319 was free (checked with lsof); my server owned it. `--resume 47ac8df8…` continued the session.
+- Events over SSE: run.started → `git add hello.txt` → `git commit -m "Add hello.txt" …` (both allowed,
+  one command each) → thinking → run.finished (succeeded) → agent.status done. No ask_user this time.
+- hello-studio `git log`: `e62a3c8 Add hello.txt` on top of `3b7fdab AI Studio: set up Hello Studio`;
+  clean tree, no push (no remote).
+- Result line: 3 turns, input 6 + cache read 35,586 + cache write 656, output 296 tokens,
+  **total_cost_usd 0.1389**.
+- Bug found + fixed: the CLI's `result` line is NOT `{"type":"result",…}`-first, so the runner never closed
+  stdin and the CLI sat waiting after finishing. During the run I ended the idle CLI process by hand
+  (the parsed result was already in, so the run recorded "succeeded" with full usage/cost). Fix:
+  close stdin when the parser has the result (`parser.finished()`); regression test replays the real
+  stream through a fake CLI that only exits on stdin EOF.
+- Also added: `src/listen.ts` — EADDRINUSE → `PortInUseError`, main prints "did NOT start" and exits 1.
 
 ## Gotchas
 - Check port 4319 before starting a dev server: the app may already run a backend.
