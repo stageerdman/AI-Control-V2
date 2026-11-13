@@ -222,4 +222,4 @@ Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read
 `goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`, `stage`, `holder`), `progress` (the goal's %, project stream).
 F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix, gate?, note?}`,
 `review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`,
-`item.merged {itemId, goalId, branch, commit?}`, `project.status {status}`, `project.progress {pct, shipped, total, target?, goalId?, goalPct?}`.
+`item.merged {itemId, goalId, branch, commit?}`, `thread.message` + `goalId?`, `project.status {status}`, `project.progress {pct, shipped, total, target?, goalId?, goalPct?}`.
