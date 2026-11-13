@@ -94,6 +94,13 @@ Durable knowledge from this update. Status lives in `update v1.md`.
 - **Queue in the db, schedule on events.** Checklist items are rows (`todo/running/done/failed/cancelled`); a runtime
   `onFinished` hook ticks the item and pumps the next one (≤ cap per project, one per agent). After a restart nothing
   restarts by itself — it would use plan usage unasked.
+- **One working tree = one writer at a time.** Live: two agents dispatched together both wrote `index.html`, and one's
+  `git commit` swept in the other's staged files (one shared index). Checklist items now run in order unless the
+  orchestrator marks one `parallel`; after a failure the rest are skipped instead of burning usage.
+- **The model repairs well from rule bullets.** Live: the orchestrator broke teams-first once; the single in-session repair
+  (cache read, ~600 new tokens) fixed it. Crew calls are cheap: no tools → ~5k input tokens, 1 turn.
+- **A turn cap of 8 is too tight for a real agent run** — reading CLAUDE.md + the update plan, writing, keeping the status
+  file current and committing took ~10 turns. Stopped runs have no result line: keep per-message usage as the fallback.
 - **Prompts that put one JSON value per line are parseable by a fake.** The fake crew brain reads the Cast back out of
   the task, so `AI_STUDIO_RUNNER=fake` serves the whole setup → work flow for free (UI work, demos).
 

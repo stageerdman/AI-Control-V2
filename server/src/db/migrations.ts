@@ -229,6 +229,10 @@ export const MIGRATIONS: readonly string[] = [
 
   /* 7 — per-goal run caps (JSON {maxTurns?, maxBudgetUsd?}) for the runs a goal dispatches */
   `ALTER TABLE goals ADD COLUMN caps TEXT;`,
+
+  /* 8 — checklist items run in order unless marked parallel (found live: two agents in one working tree
+     wrote the same file at once). parallel = may start alongside the item before it. */
+  `ALTER TABLE checklist_items ADD COLUMN parallel INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function migrate(db: DatabaseSync): number {

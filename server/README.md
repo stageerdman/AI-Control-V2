@@ -124,8 +124,9 @@ session, issues listed); a second miss is 502.
   slots (no crew-only gear), role reused by name or created, name unique in the Cast
 - `mint-team` → `{name, blurb, instr, code, emblem, color, members: [{agentId, job} | {newAgent, job}], captain}` —
   emblem/colour from the studio ids, 2–7 members, ≤ 4 new, captain = a member's agentId or a new agent's name
-- `dispatch` → `{summary, items: [{text, assignee, teamId?, brief}]}` — assignee is a project team's captain (with that
-  `teamId`) or a project specialist (no `teamId`)
+- `dispatch` → `{summary, items: [{text, assignee, teamId?, brief, parallel?}]}` — assignee is a project team's captain (with that
+  `teamId`) or a project specialist (no `teamId`). Items run **in order** (one shared working tree); `parallel: true` lets an
+  item start alongside the one before it; if an earlier item fails, later ones are skipped
 
 Events added: `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
 `goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`), `progress` (project stream; also sets `project.progress`).

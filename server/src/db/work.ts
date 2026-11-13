@@ -14,6 +14,8 @@ export type ChecklistItem = {
   brief: string;
   agentId: string;
   teamId: string | null;
+  /** May start alongside the item before it; otherwise it waits for every earlier item. */
+  parallel: boolean;
   status: ItemStatus;
   runId: string | null;
   note: string | null;
@@ -45,6 +47,7 @@ const toItem = (r: Row): ChecklistItem => ({
   brief: r.brief as string,
   agentId: r.agent_id as string,
   teamId: (r.team_id as string) ?? null,
+  parallel: r.parallel === 1,
   status: r.status as ItemStatus,
   runId: (r.run_id as string) ?? null,
   note: (r.note as string) ?? null,
@@ -86,18 +89,18 @@ export function workRepo(db: Db) {
       ).map(toGoal),
     insertGoal(
       g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps'] },
-      list: Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'>[],
+      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'> & { parallel?: boolean })[],
     ): Goal {
       const t = now();
       db.prepare(
         `INSERT INTO goals (id, project_id, text, summary, status, caps, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
       ).run(g.id, g.projectId, g.text, g.summary, g.caps ? JSON.stringify(g.caps) : null, t, t);
       const ins = db.prepare(
-        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
+        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
       );
       list.forEach((i, n) => {
-        ins.run(i.id, g.id, g.projectId, n, i.text, i.brief, i.agentId, i.teamId, t, t);
+        ins.run(i.id, g.id, g.projectId, n, i.text, i.brief, i.agentId, i.teamId, i.parallel ? 1 : 0, t, t);
       });
       return repo.goal(g.id) as Goal;
     },

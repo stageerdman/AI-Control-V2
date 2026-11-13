@@ -24,7 +24,13 @@ const PLAN = {
       teamId: 'ship-it',
       brief: 'Typed endpoint + tests.',
     },
-    { text: 'Tidy the storefront code', assignee: 'a-lint', teamId: 'polish', brief: 'Dead code out.' },
+    {
+      text: 'Tidy the storefront code',
+      assignee: 'a-lint',
+      teamId: 'polish',
+      brief: 'Dead code out.',
+      parallel: true,
+    },
     { text: 'Prepare a preview deploy', assignee: 'a-baron', brief: 'Preview with rollback.' },
   ],
 };
@@ -71,12 +77,14 @@ describe('dispatch: goal → checklist → runs', () => {
       summary: PLAN.summary,
       status: 'running',
     });
+    // in order: the first item alone, then checkout + the parallel tidy together, then the deploy
     expect(r.body.items.map((i: { status: string }) => i.status)).toEqual([
       'running',
       'todo',
-      'running',
+      'todo',
       'todo',
     ]);
+    expect(r.body.items.map((i: { parallel: boolean }) => i.parallel)).toEqual([false, false, true, false]);
     const done = await settled(h, r.body.id);
     expect(done.status).toBe('done');
     expect(done.pct).toBe(100);
@@ -150,7 +158,7 @@ describe('dispatch: goal → checklist → runs', () => {
     expect((await h.call('GET', '/projects/aurora/work')).body).toHaveLength(1);
   });
 
-  it('a failed run fails its item; the rest still run; the goal ends failed', async () => {
+  it('a failed run fails its item; its parallel partner still runs; later items are skipped; the goal ends failed', async () => {
     const s = studio({ dispatch: [PLAN] }, (spec) =>
       spec.task.includes('/checkout') ? [{ fail: 'tests are red' }] : [{ result: 'ok' }],
     );
@@ -159,10 +167,12 @@ describe('dispatch: goal → checklist → runs', () => {
     expect(r.body.caps).toEqual({ maxTurns: 8 });
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('failed');
-    expect(g.items.map((i: { status: string }) => i.status)).toEqual(['done', 'failed', 'done', 'done']);
+    expect(g.items.map((i: { status: string }) => i.status)).toEqual(['done', 'failed', 'done', 'cancelled']);
     expect(g.items[1].note).toBe('tests are red');
-    expect(g.pct).toBe(75);
+    expect(g.items[3].note).toBe('Skipped: an earlier item did not succeed');
+    expect(g.pct).toBe(50);
     const runs = (await h.call('GET', '/projects/aurora/runs')).body as { caps: { maxTurns: number } }[];
+    expect(runs).toHaveLength(3);
     expect(runs.every((x) => x.caps.maxTurns === 8)).toBe(true);
   });
 

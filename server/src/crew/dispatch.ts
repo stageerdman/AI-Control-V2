@@ -29,6 +29,8 @@ export const DispatchSchema = z.strictObject({
         assignee: z.string().trim().min(1).max(80),
         teamId: z.string().trim().min(1).max(80).optional(),
         brief: z.string().trim().min(1).max(4000),
+        /** May run at the same time as the item before it (they touch different files). Default: wait. */
+        parallel: z.boolean().optional(),
       }),
     )
     .min(1)
@@ -150,6 +152,15 @@ export function createDispatch(deps: {
       .join('\n\n');
   }
 
+  /** Checklist order: an item waits for every item before its parallel group; if one of those didn't succeed, it's skipped. */
+  function orderGate(goal: Goal, it: ChecklistItem): 'go' | 'wait' | 'skip' {
+    let start = it.position;
+    while (start > 0 && goal.items[start]?.parallel) start--;
+    const before = goal.items.slice(0, start);
+    if (before.some((b) => b.status === 'failed' || b.status === 'cancelled')) return 'skip';
+    return before.every((b) => b.status === 'done') ? 'go' : 'wait';
+  }
+
   /** Start queued items while the project has room: ≤ cap live, one per agent. */
   function pump(projectId: string) {
     const running = work.projectItems(projectId, 'running');
@@ -159,6 +170,14 @@ export function createDispatch(deps: {
       if (free <= 0) break;
       if (busy.has(it.agentId)) continue;
       const goal = work.goal(it.goalId) as Goal;
+      const gate = orderGate(goal, it);
+      if (gate === 'wait') continue;
+      if (gate === 'skip') {
+        work.setItem(it.id, { status: 'cancelled', note: 'Skipped: an earlier item did not succeed' });
+        announce(work.item(it.id) as ChecklistItem);
+        refreshGoal(it.goalId);
+        continue;
+      }
       try {
         const run = runtime.start(projectId, {
           agentId: it.agentId,
@@ -260,6 +279,7 @@ export function createDispatch(deps: {
             'Assign every item to a team CAPTAIN (set "assignee" to the captain id and "teamId" to their team) or to a specialist (only "assignee").',
             'Never assign to other team members — the captain owns the item for the team.',
             '"text" is the whiteboard line (short); "brief" tells the assignee what done looks like.',
+            'Items run one after another in the same project folder. Set "parallel": true only when an item can safely run at the same time as the one before it (it touches different files). Keep it small: a one-page task is 1–2 items.',
           ].join('\n'),
           `Answer with one JSON object shaped like this: ${json({
             summary: 'The plan in one sentence.',
@@ -269,6 +289,7 @@ export function createDispatch(deps: {
                 assignee: '<captain or specialist id>',
                 teamId: '<team id when the assignee is a captain>',
                 brief: 'What to do and what done looks like.',
+                parallel: false,
               },
             ],
           })}`,
@@ -296,6 +317,7 @@ export function createDispatch(deps: {
               brief: i.brief,
               agentId: i.assignee,
               teamId: i.teamId ?? null,
+              parallel: i.parallel === true,
             })),
           ),
         );

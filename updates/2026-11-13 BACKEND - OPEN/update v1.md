@@ -156,7 +156,10 @@ Tailwind components, wire to this API).
   validated), Agent Creator (`mint-agent` / `mint-team` contracts, roles reused or created, studio look slots +
   emblem ids, captain ∈ members, ≤ 7) minting on `POST /drafts/:id/accept` in one transaction, `/finish` staffs from the
   resolved plan, dispatch (`POST /projects/:id/work` → checklist for captains/specialists → runs, ≤ 2 per project, one
-  per agent; whiteboard = migration 6). 28 tests (206 total). Notes: `PROGRESS-B6.md`.
+  per agent; whiteboard = migration 6). 32 tests (210 total). Live smoke test (approved, once): chat (1 repair in-session) →
+  Creator minted *Ally Alt-Text* → finish → goal; contracts held, tool-less crew runs confirmed, runs stayed in the project and
+  committed; found + fixed: items now run in order (shared working tree), skip after a failure, usage kept for capped runs.
+  Notes: `PROGRESS-B6.md`.
   - Decisions: crew runs are tool-less (`--tools ""`) in `~/.ai-studio/scratch`, caps 3 turns / $0.50; text-JSON
     contracts with one in-session repair, then 502 `agent_error`; minting happens on accept, not mid-chat (the chat only
     writes briefs); captains do their item themselves for now (in-team delegation is later); nothing restarts after a

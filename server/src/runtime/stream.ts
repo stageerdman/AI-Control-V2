@@ -98,6 +98,18 @@ export function createStreamParser(secretValues: readonly string[] = []) {
   let final: RunOutcome | undefined;
   let lastText = '';
   const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  /* per-message usage (last line wins): the fallback when a run is stopped before its result line */
+  const perMessage = new Map<string, Usage>();
+  const streamed = () => {
+    const u = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+    for (const m of perMessage.values()) {
+      u.input += m.input_tokens ?? 0;
+      u.output += m.output_tokens ?? 0;
+      u.cacheRead += m.cache_read_input_tokens ?? 0;
+      u.cacheWrite += m.cache_creation_input_tokens ?? 0;
+    }
+    return u;
+  };
   const scrub = <T>(v: T) => redactSecrets(v, secretValues).value;
 
   return {
@@ -122,6 +134,7 @@ export function createStreamParser(secretValues: readonly string[] = []) {
         const id = m.message.id;
         const fresh = !id || !seenMessages.has(id);
         if (id) seenMessages.add(id);
+        if (id && m.message.usage) perMessage.set(id, m.message.usage);
         if (fresh) {
           turns++;
           const u = m.message.usage;
@@ -172,7 +185,7 @@ export function createStreamParser(secretValues: readonly string[] = []) {
           status: 'failed',
           error: fallbackError,
           turns,
-          usage: { ...usage },
+          usage: streamed(),
           ...(lastText ? { result: lastText } : {}),
           ...(sessionId ? { sessionId } : {}),
         }
