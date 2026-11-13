@@ -33,6 +33,10 @@ brings back things you deleted.
 | `AI_STUDIO_AGENT_SHELL` | `dev` | shell commands agent runs may use, one plain command at a time: `dev` = `git ls cat pwd mkdir npm npx node` (building real apps: install, run tests); `safe` = B5's `git ls cat pwd` |
 | `AI_STUDIO_RUNNER` | (CLI) | `fake` = the free scripted runner + fake crew brain (UI work, demos): the whole setup → work flow runs without Claude |
 
+**One backend per data dir** (F1c): the server takes `<AI_STUDIO_HOME>/server.lock` `{pid, port, startedAt}` before it opens the db; a
+second backend on the same data dir exits with a message naming the holder (its startup recovery would mark the first one's running work
+"interrupted"). A lock whose pid is gone is taken over.
+
 ## Layout
 
 ```
