@@ -23,6 +23,7 @@ export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT
   return {
     name: 'fake',
     start(spec: RunSpec, io: RunIO): RunHandle {
+      const steps = script(spec);
       let cancelled = false;
       let wake: (() => void) | null = null;
       const sleep = (ms: number) =>
@@ -45,7 +46,7 @@ export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT
         });
         io.emit({ kind: 'session', sessionId });
         await sleep(0);
-        for (const step of script(spec)) {
+        for (const step of steps) {
           if (cancelled) return end({ status: 'cancelled' });
           if ('activity' in step)
             io.emit({ kind: 'activity', status: step.status ?? 'working', activity: step.activity });

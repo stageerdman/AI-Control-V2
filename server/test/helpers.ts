@@ -8,6 +8,8 @@ import { openDb } from '../src/db/connection.ts';
 import { createStore } from '../src/db/store.ts';
 import { createBus } from '../src/events/bus.ts';
 import { eventLog } from '../src/events/log.ts';
+import type { Runner } from '../src/runtime/runner.ts';
+import type { Runtime } from '../src/runtime/service.ts';
 import { fileSecretStore } from '../src/secrets/secretStore.ts';
 import { seedIfNeeded } from '../src/seed.ts';
 
@@ -27,7 +29,9 @@ export function testConfig(root: string): Config {
   };
 }
 
-export function testApp(opts: { seed?: boolean; heartbeatMs?: number; dev?: boolean } = {}) {
+export function testApp(
+  opts: { seed?: boolean; heartbeatMs?: number; dev?: boolean; runner?: Runner; longPollMs?: number } = {},
+) {
   const t = tempDir();
   const config = testConfig(t.dir);
   ensureDirs(config);
@@ -35,6 +39,7 @@ export function testApp(opts: { seed?: boolean; heartbeatMs?: number; dev?: bool
   const db = openDb(':memory:');
   const store = createStore(db, { sandbox: config.sandbox });
   if (opts.seed) seedIfNeeded(store);
+  let runtime: Runtime | undefined;
   const secrets = fileSecretStore(join(config.controlHome, '.env'));
   const events = eventLog(db, createBus(), secretValuesOf(secrets));
   const app = buildApp({
@@ -44,10 +49,19 @@ export function testApp(opts: { seed?: boolean; heartbeatMs?: number; dev?: bool
     secrets,
     events,
     dev: opts.dev ?? true,
+    ...(opts.runner ? { runner: opts.runner } : {}),
+    ...(opts.longPollMs === undefined ? {} : { longPollMs: opts.longPollMs }),
+    onRuntime: (rt) => {
+      runtime = rt;
+    },
     ...(opts.heartbeatMs === undefined ? {} : { heartbeatMs: opts.heartbeatMs }),
   });
   /** inject() shorthand: call(method, url, body?) → { status, body } */
-  const call = async (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown) => {
+  const call = async (
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+    url: string,
+    payload?: unknown,
+  ) => {
     const res = await app.inject({
       method,
       url,
@@ -61,6 +75,7 @@ export function testApp(opts: { seed?: boolean; heartbeatMs?: number; dev?: bool
     store,
     events,
     secrets,
+    runtime: runtime as unknown as Runtime,
     db,
     config,
     close: async () => {
