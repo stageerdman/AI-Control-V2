@@ -1,7 +1,8 @@
 /* The A0 health flow, before anything else renders: in the Tauri window the Rust side starts (or
    reuses) the server and returns its /health; in a plain browser (Vite dev in Chrome) we just
    check /health at the API base. Calm "Waking the studio…" while it runs, honest error + Retry.
-   Once running, the gate keeps watching (/health every 5 s while visible): if the server stops
+   Once running, the gate keeps watching (/health every 5 s — also while the window is hidden, so a
+   crash at night is restarted before the morning): if the server stops
    answering, a calm bar says so over the app (nothing unmounts) and, in the app, restarts it once
    on its own; Restart tries again (the Rust side respawns a server that died). */
 import { invoke } from '@tauri-apps/api/core';
@@ -86,7 +87,7 @@ function Watched({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const t = setInterval(async () => {
-      if (busy.current || document.visibilityState !== 'visible') return;
+      if (busy.current) return;
       const ok = await ping(apiBase());
       const next = watchStep(fails.current, ok);
       fails.current = next.fails;

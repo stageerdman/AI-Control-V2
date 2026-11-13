@@ -12,7 +12,8 @@ use std::net::{SocketAddr, TcpStream};
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -34,6 +35,26 @@ pub struct Backend {
     server_dir: PathBuf,
     log_path: PathBuf,
     child: Mutex<Option<Child>>,
+    /// Set on app exit so the supervisor doesn't bring the server back.
+    stopping: AtomicBool,
+    /// When the supervisor restarted a crashed server (for the restart budget).
+    restarts: Mutex<Vec<Instant>>,
+}
+
+/// The supervisor gives up after this many crash-restarts within RESTART_WINDOW (then the UI's
+/// Restart is the way back — `ensure_running` always respawns a dead child).
+const RESTART_BUDGET: usize = 5;
+const RESTART_WINDOW: Duration = Duration::from_secs(600);
+const SUPERVISE_EVERY: Duration = Duration::from_secs(2);
+
+/// Pure: may the supervisor restart now, given earlier restart times? Drops old entries.
+fn may_restart(history: &mut Vec<Instant>, now: Instant) -> bool {
+    history.retain(|t| now.duration_since(*t) < RESTART_WINDOW);
+    if history.len() >= RESTART_BUDGET {
+        return false;
+    }
+    history.push(now);
+    true
 }
 
 impl Backend {
@@ -52,7 +73,36 @@ impl Backend {
             server_dir,
             log_path: PathBuf::from(studio_home).join("logs/app-server.log"),
             child: Mutex::new(None),
+            stopping: AtomicBool::new(false),
+            restarts: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Background thread: a server this app spawned that dies (crash, OOM, killed) is started
+    /// again — the webview's own watch can be suspended (App Nap) while the window is hidden.
+    pub fn supervise(self: &Arc<Self>) {
+        let me = Arc::clone(self);
+        std::thread::spawn(move || loop {
+            sleep(SUPERVISE_EVERY);
+            if me.stopping.load(Ordering::SeqCst) {
+                return;
+            }
+            let Ok(mut child) = me.child.lock() else { return };
+            let died = match child.as_mut() {
+                Some(c) => matches!(c.try_wait(), Ok(Some(_))),
+                None => false,
+            };
+            if !died {
+                continue;
+            }
+            *child = None;
+            let allowed = me.restarts.lock().map(|mut h| may_restart(&mut h, Instant::now())).unwrap_or(false);
+            if allowed && get_health(me.port).is_err() {
+                if let Ok(c) = me.spawn() {
+                    *child = Some(c);
+                }
+            }
+        });
     }
 
     /// Idempotent: returns the health body once the server answers. Serialized by the lock.
@@ -100,6 +150,7 @@ impl Backend {
 
     /// Stop the server if this app spawned it. A reused server is left alone.
     pub fn stop(&self) {
+        self.stopping.store(true, Ordering::SeqCst);
         if let Ok(mut child) = self.child.lock() {
             if let Some(c) = child.take() {
                 kill_group(c);
@@ -250,6 +301,17 @@ mod tests {
     fn no_home_adds_no_relative_dir() {
         let p = with_common_paths(String::new(), "");
         assert!(!p.split(':').any(|x| x.starts_with("/.")));
+    }
+
+    #[test]
+    fn restart_budget_per_window() {
+        let t0 = Instant::now();
+        let mut h = Vec::new();
+        for _ in 0..RESTART_BUDGET {
+            assert!(may_restart(&mut h, t0));
+        }
+        assert!(!may_restart(&mut h, t0 + Duration::from_secs(1)), "budget spent");
+        assert!(may_restart(&mut h, t0 + RESTART_WINDOW + Duration::from_secs(1)), "window passed");
     }
 
     #[test]

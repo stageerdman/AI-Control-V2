@@ -16,8 +16,10 @@ async fn backend_start(state: tauri::State<'_, Arc<Backend>>) -> Result<Started,
 }
 
 pub fn run() {
+    let backend = Arc::new(Backend::from_env());
+    backend.supervise();
     tauri::Builder::default()
-        .manage(Arc::new(Backend::from_env()))
+        .manage(backend)
         .invoke_handler(tauri::generate_handler![backend_start])
         .build(tauri::generate_context!())
         .expect("error while building AI Studio")
