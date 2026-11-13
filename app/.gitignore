@@ -1,0 +1,6 @@
+node_modules/
+dist/
+# Tauri generated schemas/code
+src-tauri/gen/
+# Shared Cargo target is used (~/.cargo-shared-target); never a local one.
+src-tauri/target/
