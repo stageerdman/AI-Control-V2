@@ -5,7 +5,7 @@
    answered on the asks endpoint. Talking to the director: a goal ("Build…", "Research…") or the
    "Start work" button goes on the whiteboard (POST /work); anything else is conversation. */
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { type Goal, isApiError, setQueryData, studio, useQuery } from '../../api';
+import { type Goal, getQueryData, isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
 import { Button } from '../../ui';
 import { keys, officeApi, type Thread, type ThreadMessage } from './api';
@@ -26,8 +26,8 @@ export type PanelProps = {
   teamName: (id: string) => string | null;
   actor: Actor | undefined;
   asks: PendingAsk[];
-  /** "About: <title>" — a follow-up on a report (prefixes the next message). */
-  context: string | null;
+  /** A follow-up on a report: the next message carries `reportId` (the run gets the report). */
+  context: FollowUpContext | null;
   clearContext: () => void;
   open: (id: string) => void;
   openReport: (reportId: string) => void;
@@ -35,6 +35,10 @@ export type PanelProps = {
   answered: (askId: string) => void;
   onGrab: () => void;
 };
+
+export type FollowUpContext = { title: string; reportId: string };
+/* titles of reports followed up here (a user message keeps only the reportId) */
+const aboutTitles = new Map<string, string>();
 
 export const shortOf = (a: { name: string; nick?: string | null } | undefined) =>
   a ? a.nick || a.name.replace(/^(Sir|Dr\.?|The)\s+/i, '').split(/\s+/)[0] : 'them';
@@ -69,6 +73,13 @@ export function Panel(p: PanelProps) {
     local.set(lkey, [...(local.get(lkey) ?? []), m]);
     bump((n) => n + 1);
   };
+  const dropLocal = (mid: string) => {
+    local.set(
+      lkey,
+      (local.get(lkey) ?? []).filter((x) => x.id !== mid),
+    );
+    bump((n) => n + 1);
+  };
 
   const messages = [...(t.data?.messages ?? []), ...(local.get(lkey) ?? [])].sort((a, b) =>
     a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
@@ -96,12 +107,18 @@ export function Panel(p: PanelProps) {
     }
     setText('');
     if (isDir && (asGoal || looksLikeGoal(v)) && !p.context) {
-      addLocal(note('user', v));
+      /* the server records the goal in this thread (the user's line + the plan reply, by goalId);
+         until it lands, the line shows as pending */
+      const mine = note('user', v);
+      addLocal(mine);
       setBusyLocal(true);
       try {
         const g = await studio.projects.startWork(pid, v);
         setQueryData<Goal[]>(keys.work(pid), (prev) => [g, ...(prev ?? []).filter((x) => x.id !== g.id)]);
-        addLocal(note(director, goalLine(g, p.agents)));
+        await t.refetch().catch(() => undefined);
+        dropLocal(mine.id);
+        if (!threadHasGoal(getQueryData<Thread>(key)?.messages ?? [], g.id))
+          addLocal(note(director, goalLine(g, p.agents)));
       } catch (e) {
         addLocal(note(director, isApiError(e) ? e.message : 'That didn’t reach the whiteboard.', 'error'));
       } finally {
@@ -109,10 +126,11 @@ export function Panel(p: PanelProps) {
       }
       return;
     }
-    const body = p.context ? `About the report “${p.context}”: ${v}` : v;
+    const ctx = p.context;
+    if (ctx) aboutTitles.set(ctx.reportId, ctx.title);
     p.clearContext();
     try {
-      const r = await officeApi.say(pid, id, body);
+      const r = await officeApi.say(pid, id, v, ctx?.reportId);
       setQueryData<Thread>(key, (prev) => ({
         projectId: pid,
         agentId: id,
@@ -120,7 +138,7 @@ export function Panel(p: PanelProps) {
         messages: mergeMessage(prev?.messages ?? [], r.message),
       }));
     } catch (e) {
-      addLocal(note('user', body));
+      addLocal({ ...note('user', v), reportId: ctx?.reportId ?? null });
       addLocal(note(id, isApiError(e) ? e.message : 'That message didn’t go through.', 'error'));
     }
   };
@@ -221,7 +239,7 @@ export function Panel(p: PanelProps) {
       </div>
       {p.context && (
         <div className="op-ctx">
-          <span>About: {p.context}</span>
+          <span>About: {p.context.title}</span>
           <button type="button" aria-label="Drop the report context" onClick={p.clearContext}>
             ✕
           </button>
@@ -262,13 +280,15 @@ export function Panel(p: PanelProps) {
 
 function Bubble({ m, who, openReport }: { m: ThreadMessage; who: string; openReport: (id: string) => void }) {
   const me = m.from === 'user';
-  const about = me ? /^About the report “(.+?)”: /.exec(m.text) : null;
+  /* a follow-up: the message keeps its reportId (older ones carried a text prefix) */
+  const legacy = me ? /^About the report “(.+?)”: /.exec(m.text) : null;
+  const aboutTitle = me && m.reportId ? (aboutTitles.get(m.reportId) ?? 'a report') : legacy?.[1];
   return (
     <div className={`bubble ${me ? 'me' : 'them'}${m.kind === 'error' ? ' err' : ''}`}>
       <span className="who">{who}</span>
-      {about && <span className="op-about">About: {about[1]}</span>}
-      <span className="t">{fmt(about ? m.text.slice(about[0].length) : m.text)}</span>
-      {m.reportId && (
+      {aboutTitle && <span className="op-about">About: {aboutTitle}</span>}
+      <span className="t">{fmt(legacy ? m.text.slice(legacy[0].length) : m.text)}</span>
+      {m.reportId && !me && (
         <button type="button" className="op-link" onClick={() => openReport(m.reportId as string)}>
           Open report
         </button>
@@ -348,7 +368,12 @@ function fmt(s: string): React.ReactNode[] {
   return out;
 }
 
-/** The director's one line after a goal lands on the whiteboard. */
+/** True once the server has recorded this goal's lines in the thread. */
+export function threadHasGoal(messages: ThreadMessage[], goalId: string): boolean {
+  return messages.some((m) => m.goalId === goalId && m.from !== 'user');
+}
+
+/** The director's one line after a goal lands on the whiteboard (fallback for an older server). */
 export function goalLine(g: Goal, agents: Record<string, { name: string; nick?: string | null }>): string {
   const who = [...new Set(g.items.map((i) => i.agentId))].map((a) => shortOf(agents[a])).filter(Boolean);
   const names =

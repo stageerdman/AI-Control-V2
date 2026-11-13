@@ -39,7 +39,7 @@ export function ReportsPage({ route }: PageProps<'reports'>) {
             projectName={projectName || projectId}
             onBack={() => go({ name: 'reports' })}
             onFollowUp={(r, agentId) => {
-              setPendingFollowUp({ projectId: r.projectId, agentId, title: r.title });
+              setPendingFollowUp({ projectId: r.projectId, agentId, title: r.title, reportId: r.id });
               go({ name: 'office', projectId: r.projectId, sub: 'room' });
             }}
           />

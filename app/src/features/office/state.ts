@@ -156,6 +156,7 @@ export function threadMessageOf(ev: StudioEvent<'thread.message'>): ThreadMessag
     text: p.text,
     runId: p.runId ?? null,
     reportId: p.reportId ?? null,
+    goalId: p.goalId ?? null,
     at: ev.at,
   };
 }

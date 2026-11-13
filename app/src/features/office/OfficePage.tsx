@@ -27,7 +27,7 @@ import { keys, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useFeatures, useHealth, useWork } from './Board';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
-import { Panel, shortOf } from './Panel';
+import { type FollowUpContext, Panel, shortOf } from './Panel';
 import {
   activityOf,
   boardFacts,
@@ -234,7 +234,7 @@ function Office({
   /* ---------- chat panel */
   const [thread, setThread] = useState(director);
   const threadRef = useRef(director);
-  const [context, setContext] = useState<string | null>(null);
+  const [context, setContext] = useState<FollowUpContext | null>(null);
   const holdT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const showPanel = useCallback(() => {
     const o = officeEl();
@@ -281,7 +281,7 @@ function Office({
     if (!world) return;
     const f = takePendingFollowUp(pid);
     if (f && liveRef.current.ids.includes(f.agentId)) {
-      setContext(f.title);
+      setContext({ title: f.title, reportId: f.reportId });
       openThread(f.agentId, 'report');
     }
   }, [world]);
@@ -614,7 +614,7 @@ function Office({
               go={goSub}
               escapeRef={escapeRef}
               onFollowUp={(r, agentId) => {
-                setContext(r.title);
+                setContext({ title: r.title, reportId: r.id });
                 goSub('room');
                 openThread(agentId, 'report');
               }}

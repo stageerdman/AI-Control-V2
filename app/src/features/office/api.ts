@@ -1,6 +1,6 @@
 /* The office's endpoints + wire types (server/README.md: office view, threads, features, asks inbox).
    Everything else the office reads (work, health, access, asks, agents, teams) is in api/studio.ts. */
-import { http } from '../../api';
+import { type Collaboration, type CollaborationView, http, type ProjectStatus } from '../../api';
 
 const e = encodeURIComponent;
 
@@ -31,6 +31,17 @@ export type OfficeView = {
   solo: string[];
   agents: Record<string, AgentStatus>;
   lastEventId: number;
+  /** F1b lifecycle: moves on its own (live / needs / idle). */
+  status?: ProjectStatus;
+  /** Overall progress: features shipped / total, else the current goal's %; `target` labels it. */
+  progress?: OfficeProgress;
+};
+export type OfficeProgress = {
+  pct: number;
+  shipped: number;
+  total: number;
+  target: string | null;
+  goal: { id: string; text: string; pct: number; status: string } | null;
 };
 
 export type FeatureStatus = 'now' | 'planned' | 'shipped';
@@ -63,6 +74,8 @@ export type ThreadMessage = {
   text: string;
   runId: string | null;
   reportId: string | null;
+  /** The goal this line belongs to (the orchestrator's thread records goals). */
+  goalId?: string | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
@@ -92,12 +105,19 @@ export const officeApi = {
   deleteFeature: (pid: string, fid: string) => http.del<void>(`/projects/${e(pid)}/features/${e(fid)}`),
   thread: (pid: string, agentId: string) =>
     http.get<Thread>(`/projects/${e(pid)}/threads/${e(agentId)}/messages`),
-  say: (pid: string, agentId: string, text: string) =>
+  /** One turn; `reportId` = a follow-up on that report (the run gets the report itself). */
+  say: (pid: string, agentId: string, text: string, reportId?: string) =>
     http.post<{ message: ThreadMessage; runId: string }>(
       `/projects/${e(pid)}/threads/${e(agentId)}/messages`,
-      {
-        text,
-      },
+      reportId ? { text, reportId } : { text },
+    ),
+  collaboration: (pid: string) => http.get<CollaborationView>(`/projects/${e(pid)}/collaboration`),
+  setCollaboration: (pid: string, c: Collaboration) =>
+    http.put<CollaborationView>(`/projects/${e(pid)}/collaboration`, c),
+  designCollaboration: (pid: string, ask?: string) =>
+    http.post<{ reply: string; collaboration: Collaboration }>(
+      `/projects/${e(pid)}/collaboration/design`,
+      ask ? { ask } : {},
     ),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
@@ -112,5 +132,6 @@ export const keys = {
   asks: (pid: string) => `office:${pid}:asks`,
   access: (pid: string) => `office:${pid}:access`,
   thread: (pid: string, agentId: string) => `office:${pid}:thread:${agentId}`,
+  collaboration: (pid: string) => `office:${pid}:collaboration`,
   pager: 'pager:asks',
 };

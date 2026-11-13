@@ -99,9 +99,13 @@ describe('labels + names', () => {
 
 describe('follow-up handoff', () => {
   it('is taken once, only by its project', () => {
-    setPendingFollowUp({ projectId: 'aurora', agentId: 'a-scout', title: 'Payments' });
+    setPendingFollowUp({ projectId: 'aurora', agentId: 'a-scout', title: 'Payments', reportId: 'rep_1' });
     expect(takePendingFollowUp('lumi')).toBeNull();
-    expect(takePendingFollowUp('aurora')).toEqual({ agentId: 'a-scout', title: 'Payments' });
+    expect(takePendingFollowUp('aurora')).toEqual({
+      agentId: 'a-scout',
+      title: 'Payments',
+      reportId: 'rep_1',
+    });
     expect(takePendingFollowUp('aurora')).toBeNull();
   });
 });

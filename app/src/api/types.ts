@@ -23,7 +23,8 @@ export type AgentKind = 'agent' | 'setter' | 'orchestrator' | 'creator';
 export type DeleteVerdict = { ok: true; why: '' } | { ok: false; why: string };
 
 /** reporter: agents holding the role file reports (file_report). */
-export type Role = { id: string; name: string; agentCount: number; reporter: boolean };
+/** toolsmith: agents holding the role (quality / test) keep a persistent toolkit folder of checks. */
+export type Role = { id: string; name: string; agentCount: number; reporter: boolean; toolsmith?: boolean };
 
 export type Agent = {
   id: string;
@@ -104,10 +105,34 @@ export type Project = {
   teamIds: string[];
   /** Specialists (teams come first). */
   agentIds: string[];
+  /** How its people work together (F1b); null = the default (captains, no review gates). */
+  collaboration?: Collaboration | null;
+  /** What `progress` is towards ("v1.0"); null = no label. */
+  target?: string | null;
   createdAt: string;
   updatedAt: string;
 };
-export type ProjectPatch = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt'>>;
+export type ProjectPatch = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'collaboration'>>;
+
+/* ---------- collaboration (F1b): who the orchestrator briefs + review gates ---------- */
+export type GateKind = 'quality' | 'user-test' | 'crash-test' | 'security' | 'review';
+/** After a build item by `after` (team id, agent id or "*") is done, `reviewer` checks it. */
+export type Gate = { after: string; reviewer: string; kind: GateKind; why: string };
+export type Collaboration = {
+  orchestratorTalksTo: 'captains' | 'everyone';
+  gates: Gate[];
+  maxSendBacks: number;
+  summary: string;
+};
+export type CollaborationView = { collaboration: Collaboration; designed: boolean };
+export type ItemReview = {
+  reviewer: string;
+  gate: number;
+  verdict: 'approve' | 'changes';
+  notes: string;
+  runId: string | null;
+  at: string;
+};
 
 export type Plan = {
   teams: { teamId: string; why: string }[];
@@ -115,6 +140,8 @@ export type Plan = {
   newAgents: { brief: string }[];
   newTeams: { brief: string }[];
   summary: string;
+  /** The orchestrator's collaboration design (`new-agent:N` / `new-team:N` before accept). */
+  collaboration?: Collaboration | null;
 };
 export type ChatMessage = { from: 'user' | 'orchestrator' | 'creator'; text: string };
 export type Draft = {
@@ -252,6 +279,14 @@ export type ChecklistItem = {
   status: ItemStatus;
   runId: string | null;
   note: string | null;
+  /** F1b review flow: build → review (gates in order) → merge. Absent on old servers. */
+  stage?: 'build' | 'review' | 'merge';
+  gates?: { reviewer: string; kind: GateKind; why: string }[];
+  gateIndex?: number;
+  sendBacks?: number;
+  notes?: string | null;
+  reviews?: ItemReview[];
+  workspace?: { cwd: string; branch: string; base: string; main: string } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -349,6 +384,40 @@ export type EventPayloads = {
     goalId?: string;
     status?: ItemStatus;
     runId?: string;
+    stage?: 'build' | 'review' | 'merge';
+    /** Who has it now (only when the item has gates). */
+    holder?: string;
+  };
+  /** An item passes between desks: to a reviewer, back to its builder (rework / merge-fix). */
+  handoff: {
+    itemId: string;
+    goalId: string;
+    from: string;
+    to: string;
+    kind: 'review' | 'rework' | 'merge-fix';
+    gate?: number;
+    note?: string;
+  };
+  'review.approved': { itemId: string; goalId: string; reviewerId: string; gate: number; notes?: string };
+  'review.changes': {
+    itemId: string;
+    goalId: string;
+    reviewerId: string;
+    gate: number;
+    notes: string;
+    sendBacks: number;
+    final?: boolean;
+  };
+  'item.merged': { itemId: string; goalId: string; branch: string; commit?: string };
+  'collaboration.changed': { orchestratorTalksTo: 'captains' | 'everyone'; gates: number; summary: string };
+  'project.status': { status: ProjectStatus };
+  'project.progress': {
+    pct: number;
+    shipped: number;
+    total: number;
+    target?: string | null;
+    goalId?: string;
+    goalPct?: number;
   };
   'feature.changed': {
     featureId: string;
@@ -369,6 +438,8 @@ export type EventPayloads = {
     runId?: string;
     /** The report this turn filed (the reply is one line pointing at it). */
     reportId?: string;
+    /** The goal this line belongs to (the orchestrator's thread records every goal). */
+    goalId?: string;
   };
   /** Reports: title only, never the body. */
   'report.filed': { reportId: string; projectId: string; authorAgentId: string; title: string };
@@ -412,6 +483,13 @@ export const EVENT_TYPES = [
   'tokens',
   'run.started',
   'run.finished',
+  'handoff',
+  'review.approved',
+  'review.changes',
+  'item.merged',
+  'collaboration.changed',
+  'project.status',
+  'project.progress',
 ] as const satisfies readonly EventType[];
 
 /** One stored event as the stream sends it (`projectId` or `draftId` names the scope). */
