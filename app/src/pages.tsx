@@ -7,6 +7,7 @@ const Gallery = lazy(() => import('./gallery/Gallery').then((m) => ({ default: m
 
 export const pages: PageRegistry = {
   gallery: Gallery,
+  reports: lazy(() => import('./features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage }))),
 };
 
 /** The global pager (bottom-left). U4 sets it. */
