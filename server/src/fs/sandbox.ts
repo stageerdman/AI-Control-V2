@@ -47,3 +47,8 @@ export function resolveInSandbox(root: string, rel: string): string {
   if (!inside(realRoot, real)) throw new SandboxError(`Path escapes the sandbox via a symlink: ${rel}`);
   return real;
 }
+
+/** Canonical sandbox-relative spelling of `p` ('' = the root itself). Same rules as resolveInSandbox. */
+export function toSandboxRelative(root: string, p: string): string {
+  return relative(realpathSync(root), resolveInSandbox(root, p));
+}

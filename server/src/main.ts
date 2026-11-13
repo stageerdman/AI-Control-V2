@@ -2,11 +2,15 @@
 import { buildApp } from './app.ts';
 import { ensureDirs, loadConfig } from './config.ts';
 import { openDb } from './db/connection.ts';
+import { createStore } from './db/store.ts';
+import { seedIfNeeded } from './seed.ts';
 
 const config = loadConfig();
 ensureDirs(config);
 const db = openDb(config.dbPath);
-const app = buildApp({ config, db, logger: true });
+const store = createStore(db, { sandbox: config.sandbox });
+const app = buildApp({ config, db, store, logger: true });
+if (seedIfNeeded(store)) app.log.info('Seeded the studio with the starter cast and projects');
 
 const shutdown = async () => {
   await app.close();

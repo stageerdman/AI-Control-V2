@@ -3,12 +3,24 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Config } from './config.ts';
 import type { Db } from './db/connection.ts';
+import { createStore, type Store } from './db/store.ts';
 import { AppError } from './errors.ts';
+import { agentRoutes } from './routes/agents.ts';
+import { draftRoutes } from './routes/drafts.ts';
 import { healthRoutes } from './routes/health.ts';
+import { projectRoutes } from './routes/projects.ts';
+import { roleRoutes } from './routes/roles.ts';
+import { teamRoutes } from './routes/teams.ts';
+import { trashRoutes } from './routes/trash.ts';
 
-export type AppDeps = { config: Config; db: Db; logger?: boolean };
+export type AppDeps = { config: Config; db: Db; store?: Store; logger?: boolean };
 
-export function buildApp({ config, db, logger = false }: AppDeps): FastifyInstance {
+export function buildApp({
+  config,
+  db,
+  store = createStore(db, { sandbox: config.sandbox }),
+  logger = false,
+}: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -27,5 +39,7 @@ export function buildApp({ config, db, logger = false }: AppDeps): FastifyInstan
   );
 
   app.register(healthRoutes({ config, db }));
+  for (const routes of [roleRoutes, agentRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
+    app.register(routes(store));
   return app;
 }
