@@ -108,8 +108,17 @@ direction. Playful visuals, consistent component system, accessibility pass.
   (Director chat + one-press voice, Pulse/Checkup/On Set/Shot list, hand-raise →
   green-room input flow), agent/team factory, project-held access, blueprint +
   principles freshness.
-- ⏭️ **Next (gate):** user reviews disney-v2 prototype → refine, then Phase 2
-  stack/architecture spike.
+- ✅ User reviewed disney-v2 (2026-11-13) and gave refinements — verbatim in
+  `concepts/disney-v3/user-feedback-v3.md`, organized in `concepts/disney-v3/BRIEF.md`.
+- 🔄 **Phase 1b — Disney v3 refinement (IN PROGRESS, 2026-11-13):**
+  1. UX specs in parallel: agent roster + hero zoom & role-driven looks; teams as
+     groups + squad zoom + captain + original emblems; "The Office" workspace
+     (living office, whiteboard, feature dossier, chat side panel). → `concepts/disney-v3/spec-*.md`
+  2. Foundation build: split v2 into modules under `concepts/disney-v3/src/` +
+     assemble script → single-file HTML; new character + emblem system.
+  3. Parallel builds: Cast/Teams screens; The Office.
+  4. Integrate, verify in browser, user review.
+- ⏭️ **Then (gate):** user reviews disney-v3 → Phase 2 stack/architecture spike.
 
 ## Decisions
 
