@@ -17,13 +17,16 @@ describe('Project Setter API', () => {
   });
   afterEach(() => h.close());
 
-  it('GET /blueprint lists the modules (no bodies) and the scaffold tree', async () => {
+  it('GET /blueprint lists the modules (with their text + last change) and the scaffold tree', async () => {
     const { body } = await h.call('GET', '/blueprint');
     expect(body.modulesDir).toBe(join(h.config.controlHome, 'modules'));
-    expect(body.modules).toEqual([
-      { name: 'STRUCTURE', description: 'How projects are laid out.' },
-      { name: 'CODING', description: 'How code is written.' },
-    ]);
+    expect(body.modules.map((m: { name: string }) => m.name)).toEqual(['STRUCTURE', 'CODING']);
+    expect(body.modules[1]).toMatchObject({
+      name: 'CODING',
+      description: 'How code is written.',
+      body: '# Coding\n\n## Keep it minimal\n- Build only what is needed.',
+    });
+    expect(Number.isNaN(Date.parse(body.modules[0].updatedAt))).toBe(false);
     expect(body.tree.map((t: { path: string }) => t.path)).toEqual([
       '.project',
       'CLAUDE.md',
@@ -72,6 +75,7 @@ describe('Project Setter API', () => {
       complete: true,
       git: { repo: true, commits: 1 },
     });
+    expect(rep.body.claudeMdGenerated).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
   it('finish (adopt): brings an existing sandbox folder in without overwriting', async () => {

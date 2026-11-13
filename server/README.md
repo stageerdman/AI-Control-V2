@@ -92,9 +92,9 @@ Bodies are strict — unknown keys are 422.
 | `GET /projects/:id/reports/:rid` · `PATCH /projects/:id/reports/:rid` `{read?, archived?}` | one report (full body) · mark read / archive (or undo) → events `report.read` / `report.archived` |
 | `GET /reports[?limit=50]` | studio-wide: the latest non-archived reports across projects (+ `projectName`), newest first, + the `unread` total |
 | `POST /trash/:token/restore` | undo a delete |
-| `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
+| `GET /blueprint` | global modules (name, description, body = the markdown text, updatedAt = file mtime) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
-| `GET /projects/:id/scaffold` | what's on disk vs the expected scaffold, plus git head/commit count |
+| `GET /projects/:id/scaffold` | what's on disk vs the expected scaffold, plus git head/commit count and `claudeMdGenerated` (from `.project`) |
 | `GET /sandbox/folders` | top-level sandbox folders not yet under AI Studio (Adopt picker) |
 | `GET /projects/:id/events` | SSE: the project's event log — replay after `Last-Event-ID` / `?after=` (default: all), then live; heartbeats |
 | `GET /drafts/:id/events` | SSE: the Project Setter's `setup.step`s while `POST /drafts/:id/finish` runs (open it first) |

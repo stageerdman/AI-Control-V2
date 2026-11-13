@@ -170,7 +170,20 @@ export type ScaffoldReport = {
   items: { path: string; kind: 'file' | 'dir'; desc: string; present: boolean }[];
   complete: boolean;
   git: { repo: boolean; head: string | null; commits: number };
+  /** `claude_md_generated` from `.project` (YYYY-MM-DD), null when absent/unreadable. */
+  claudeMdGenerated: string | null;
 };
+
+/** `claude_md_generated: 2026-11-13` from a `.project` marker (a regular file only — never follow a symlink). */
+export function readGenerated(abs: string): string | null {
+  try {
+    if (!lstatSync(abs).isFile()) return null;
+    const m = /^claude_md_generated:\s*(\d{4}-\d{2}-\d{2})\s*$/m.exec(readFileSync(abs, 'utf8'));
+    return m ? (m[1] as string) : null;
+  } catch {
+    return null;
+  }
+}
 
 /** What's on disk vs what the scaffold expects. Read-only. */
 export function inspect(sandbox: string, folder: string): ScaffoldReport {
@@ -187,5 +200,6 @@ export function inspect(sandbox: string, folder: string): ScaffoldReport {
     items,
     complete: items.every((i) => i.present),
     git: { repo, head: repo ? git.head(root) : null, commits: repo ? git.commitCount(root) : 0 },
+    claudeMdGenerated: exists ? readGenerated(resolveInSandbox(sandbox, join(folder, '.project'))) : null,
   };
 }

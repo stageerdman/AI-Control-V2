@@ -1,6 +1,6 @@
 /* The Blueprint: global modules in <AI Control home>/modules/*.md, compiled into a
    project's CLAUDE.md. READ-ONLY on AI Control home — nothing here ever writes there. */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -20,6 +20,17 @@ export function parseModule(name: string, text: string): Module {
   const description = hasDescription ? (lines[first] as string).trim() : '';
   const body = (hasDescription ? lines.slice(first + 1) : lines).join('\n').trim();
   return { name, description, body };
+}
+
+/** Last change to each module file (ISO) — the Blueprint compares it to a project's compile date. */
+export function moduleTimes(controlHome: string): Record<string, string> {
+  const dir = modulesDir(controlHome);
+  if (!existsSync(dir)) return {};
+  return Object.fromEntries(
+    readdirSync(dir)
+      .filter((f) => f.endsWith('.md'))
+      .map((f) => [f.slice(0, -3), statSync(join(dir, f)).mtime.toISOString()]),
+  );
 }
 
 export function readModules(controlHome: string): Module[] {

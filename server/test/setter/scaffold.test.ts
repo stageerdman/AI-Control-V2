@@ -175,6 +175,7 @@ describe('Project Setter scaffold', () => {
       exists: true,
       complete: true,
       git: { repo: true, head: r.commit, commits: 1 },
+      claudeMdGenerated: base.date,
     });
     expect(rep.items.map((i) => i.path)).toEqual([
       '.project',
