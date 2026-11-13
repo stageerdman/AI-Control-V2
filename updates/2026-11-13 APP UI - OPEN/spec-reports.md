@@ -51,12 +51,6 @@ reads as furniture, not a fourth board on the planning wall. Label plate on the 
   each row gains the project name. Opening a row opens the report page in place (§3); the meta line's
   project name links to that office.
 
-```
- AI Studio      Projects  Cast  Access  Blueprint
- ┌──────────────────────────────────────────────┐
- │ Projects                [ 🔍 Search…   ] [▭ Reports •] │
-```
-
 ## 2. The Reports list (zoom card, sibling of Features)
 Route `#reports` inside the office sub-routes (`OB_OBJ.reports = 'reports'`), card width 600 px like
 the folder. Camera zooms to the tray, scene scrim, card fades in.
@@ -81,7 +75,7 @@ the folder. Camera zooms to the tray, scene scrim, card fades in.
 - Row = one button: **title** (16/600; 700 + coral dot when unread), **when** right-aligned (relative:
   "2 h ago", "Yesterday", then "12 Nov"), author line (xs robot portrait + name · team emblem `xs` +
   team name; no team → name only), **summary** clamped to 1 line (ink-soft). Chevron like features rows.
-- Newest first, no grouping. Unread is shown, not sorted to the top.
+  Newest first, no grouping; unread is shown, not sorted to the top.
 - **No filters, no search, no kind tabs.** A project has a handful of reports a week; revisit when a real
   list passes ~30. `kind` is shown only on the report page.
 - Footer link `Archived (n)` (only if n > 0) swaps the list to archived rows, header `← Reports`.
@@ -96,7 +90,6 @@ Card widens to **720 px** (reading width), same scrim. Marked read when opened.
  │                                                              │
  │ Payment providers compared                                   │
  │ 🤖 Scout · ◆ Research Crew · Research · Today 14:05           │
- │                                                              │
  │ ❝ Which payment provider should the storefront use? ❞        │
  │                                                              │
  │ Stripe wins on fees and setup time under 10k orders a month. │
@@ -193,7 +186,6 @@ UI renders live agent/team look by id when they exist, else the snapshot name wi
 | Loading | 3 static placeholder rows (no shimmer); report page: title + 4 grey lines |
 | Error | "Couldn't load reports." `Try again` — the scene behind stays usable; Esc still closes |
 | Gone (404 / deleted project) | "This report isn't here any more." `← Reports` |
-| Archived list empty | link hidden |
 
 - **Keyboard:** tray is in the office tab order (folder → whiteboard → health → reports → safe); Enter
   opens; Esc = one layer back (page → list → office); Tab trapped in the card like siblings; rows are
