@@ -2,7 +2,7 @@
    drafts API. A standalone studio page: leave any time, the draft waits on Projects ("In setup").
    #new (no id) is the Start step; choosing new/adopt creates the draft and moves to #new/<id>. */
 import { useEffect, useMemo, useState } from 'react';
-import { type Agent, type Draft, isApiError, studio, useQuery } from '../../api';
+import { type Agent, type Draft, type DraftPatch, isApiError, studio, useQuery } from '../../api';
 import type { PageProps } from '../../shell/pages';
 import { go } from '../../shell/router';
 import { Button, EmptyState, ErrorState, Loading, toast } from '../../ui';
@@ -13,7 +13,7 @@ import { OrchestratorStep } from './OrchestratorStep';
 import { SetterStep } from './SetterStep';
 import { StartStep } from './StartStep';
 import { TeamStep } from './TeamStep';
-import { flushDraft, putDraft, useDraft } from './useDraft';
+import { flushDraft, useDraft } from './useDraft';
 import './setup.css';
 
 type Crew = { setter?: Agent; orchestrators: Agent[]; creator?: Agent; agents: Agent[] };
@@ -145,6 +145,7 @@ function Walkthrough({ id, crew, teams }: { id: string; crew: Crew; teams: impor
         <OrchestratorPick
           d={d}
           crew={crew}
+          edit={q.edit}
           onBack={() => to(STEP.name)}
           onNext={(extra) => to(STEP.team, extra)}
         />
@@ -178,33 +179,31 @@ function Walkthrough({ id, crew, teams }: { id: string; crew: Crew; teams: impor
   );
 }
 
-/** The orchestrator choice is remembered on the draft; a different one after a chat starts the talk over. */
+/** The orchestrator choice is saved on the draft as you pick (it waits on Projects); a different one
+    after a chat starts the team talk over — a new orchestrator makes its own plan. */
 function OrchestratorPick({
   d,
   crew,
+  edit,
   onBack,
   onNext,
 }: {
   d: Draft;
   crew: Crew;
+  edit: (p: DraftPatch) => void;
   onBack: () => void;
   onNext: (extra: Partial<Draft>) => void;
 }) {
-  const [atEntry] = useState(() => ({ orchestratorId: d.orchestratorId, chat: d.chat, plan: d.plan }));
   const chosen = orchOf(d, crew.orchestrators);
   return (
     <OrchestratorStep
       d={d}
       orchestrators={crew.orchestrators}
-      onPick={(id) => putDraft(d.id, { orchestratorId: id })}
+      onPick={(id) =>
+        edit({ orchestratorId: id, ...(resetsTeamTalk(d, id) ? { plan: null, chat: [] } : {}) })
+      }
       onBack={onBack}
-      onNext={() => {
-        if (!chosen) return;
-        onNext({
-          orchestratorId: chosen.id,
-          ...(resetsTeamTalk(atEntry, chosen.id) ? { plan: null, chat: [] } : {}),
-        });
-      }}
+      onNext={() => chosen && onNext({ orchestratorId: chosen.id })}
     />
   );
 }
