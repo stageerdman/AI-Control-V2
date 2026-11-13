@@ -71,7 +71,7 @@ Bodies are strict — unknown keys are 422.
 | | |
 |---|---|
 | `GET /health` | version, paths, db ok (503 when the db is down) |
-| `GET POST /roles` · `GET PATCH DELETE /roles/:id` | user-defined role names; rename shows on every agent; `PATCH {name?, reporter?}` — `reporter: true` = agents holding the role file reports |
+| `GET POST /roles` · `GET PATCH DELETE /roles/:id` | user-defined role names; rename shows on every agent; `PATCH {name?, reporter?, toolsmith?}` — `reporter: true` = agents holding the role file reports; `toolsmith: true` = they keep a toolkit of their own checks (seed: QA, Quality) |
 | `GET POST /agents` · `GET PATCH DELETE /agents/:id` | `kind` set at creation only; each agent carries `teamIds`, `projectIds`, `canDelete {ok, why}` |
 | `GET POST /teams` · `GET PATCH DELETE /teams/:id` | `PATCH {captainId}` to change captain; `reporter: true` = runs for this team file reports |
 | `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add `{agentId, instr?, at?}` (`at` = put back at an old place, undo) / edit job / remove (captain passes on) |
@@ -167,6 +167,14 @@ with `{"verdict": "approve"|"changes", "notes"}` — anything unclear counts as 
 Past `maxSendBacks` the item **fails** for the user (`review.changes` with `final: true`; later items are skipped as usual). Item fields:
 `stage` (build|review|merge), `gates`, `gateIndex`, `sendBacks`, `notes` (last reviewer notes), `reviews` ([{reviewer, gate, verdict,
 notes, runId, at}]), `buildRunId`. `checklist.item` carries `stage` + `holder` (who has it now) when the item has gates.
+
+**Toolkits** (F1b): an agent whose role is a `toolsmith` (quality / test; seed QA + Quality, migration 16) gets a persistent toolkit
+folder `$AI_STUDIO_HOME/toolkits/<agentId>/` (0700, created on its first run; inside the data dir, never anywhere else) — the ONLY extra
+directory its runs may reach (`--add-dir`; `--restricted` confines the file tools to cwd + that dir). Its prompt gains a "Your toolkit"
+section: reuse/build small checks there (one-line notes in its `README.md`), project-specific checks in `tools/<agent-slug>/` in the
+project (committed), and read the big picture first (CLAUDE.md, the open update plan, issues.txt) to keep the work on track and simple.
+The Cast catalogue marks toolsmiths, so the orchestrator picks them as reviewers. **Reporter** runs also get `WebSearch`/`WebFetch`
+(read-only web research).
 
 **Reports** (`src/reports/reports.ts`, spec: `updates/2026-11-13 APP UI - OPEN/spec-reports.md`). A report =
 `{id: 'rep_…', projectId, kind: research|review|status|other, title (4–80), summary (≤ 280), body (markdown ≤ 40k), question?,

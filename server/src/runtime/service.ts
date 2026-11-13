@@ -5,11 +5,13 @@
    - every event goes through the log (validated, secrets redacted — including this
      run's granted values), never straight to a client. */
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Db } from '../db/connection.ts';
 import { type Ask, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import type { EventInput } from '../domain/events.ts';
+import { slugify } from '../domain/ids.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
@@ -48,6 +50,8 @@ export type RuntimeDeps = {
   parentEnv?: NodeJS.ProcessEnv;
   /** Reporter runs get file_report (absent → nobody files). */
   reports?: ReportDesk;
+  /** Where toolsmiths keep their toolkits (<data dir>/toolkits); absent → no toolkits. */
+  toolkitsRoot?: string;
 };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -226,6 +230,7 @@ export function createRuntime(deps: RuntimeDeps) {
       caps,
     });
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
+    const toolkit = big ? null : toolkitFor(agent);
     const l: Live = {
       run,
       token,
@@ -261,13 +266,16 @@ export function createRuntime(deps: RuntimeDeps) {
       {
         runId,
         cwd,
-        systemPrompt: big?.systemPrompt ?? composePrompt({ agent, team, project: { name: project.name } }),
+        systemPrompt:
+          big?.systemPrompt ?? composePrompt({ agent, team, project: { name: project.name }, toolkit }),
         task: req.task,
         model: deps.model,
         caps,
         env: runEnv(deps.parentEnv ?? process.env, granted),
         secretValues: secrets,
         ...(big ? { tools: [] } : {}),
+        ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
+        ...(reporter ? { web: true } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
         ...(baseUrl && !big
           ? {
@@ -300,6 +308,13 @@ export function createRuntime(deps: RuntimeDeps) {
         }),
     );
     return run;
+  }
+  /** A toolsmith's toolkit: `<toolkitsRoot>/<agentId>/` (created 0700, inside the data dir — never anywhere else). */
+  function toolkitFor(agent: { id: string; name: string; roleId: string | null }) {
+    if (!deps.toolkitsRoot || !agent.roleId || !store.roles.get(agent.roleId)?.toolsmith) return null;
+    const dir = join(deps.toolkitsRoot, agent.id.replace(/[^a-zA-Z0-9_-]/g, '_'));
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    return { dir, projectDir: `tools/${slugify(agent.name, agent.id)}` };
   }
   /** file_report from a live reporter run (the MCP side door and the FakeRunner both land here). */
   function fileReport(runId: string, input: unknown): { id: string } {

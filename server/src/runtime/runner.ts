@@ -24,6 +24,10 @@ export type RunSpec = {
   /** Where the ask_user MCP tool reaches the backend (CLI runner only). `reportUrl` is set only for
       reporter runs: then the same MCP server also offers `file_report`. */
   askBridge?: { url: string; token: string; reportUrl?: string };
+  /** Extra directories the file tools may reach (`--add-dir`): a toolsmith's own toolkit folder, nothing else. */
+  addDirs?: readonly string[];
+  /** Web research tools (WebSearch, WebFetch) — reporter runs only. */
+  web?: boolean;
 };
 
 export type Activity = { kind: string; label: string; detail?: string; target?: string };

@@ -111,6 +111,7 @@ export function buildApp({
     model,
     sandbox: config.sandbox,
     envFor: access.envFor,
+    toolkitsRoot: join(config.home, 'toolkits'),
     /* reporter runs get file_report; its input is checked here (422 lists what's wrong) */
     reports: {
       canFile: reports.canFile,

@@ -6,8 +6,8 @@ import { conflict, invalid, notFound } from '../errors.ts';
 import type { Db } from './connection.ts';
 import { exists, nextPosition, now, row, rows } from './util.ts';
 
-/** reporter: agents holding this role may file reports (file_report). */
-export type Role = { id: string; name: string; agentCount: number; reporter: boolean };
+/** reporter: agents holding this role may file reports (file_report). toolsmith: they keep a toolkit of their own checks. */
+export type Role = { id: string; name: string; agentCount: number; reporter: boolean; toolsmith: boolean };
 export type RoleRecord = {
   id: string;
   name: string;
@@ -15,11 +15,12 @@ export type RoleRecord = {
   position: number;
   created_at: string;
   reporter?: number;
+  toolsmith?: number;
 };
 
-const SELECT = `SELECT r.id, r.name, r.reporter, (SELECT COUNT(*) FROM agents a WHERE a.role_id = r.id) AS agentCount FROM roles r`;
-type RoleRow = Omit<Role, 'reporter'> & { reporter: number };
-const toRole = (r: RoleRow): Role => ({ ...r, reporter: r.reporter === 1 });
+const SELECT = `SELECT r.id, r.name, r.reporter, r.toolsmith, (SELECT COUNT(*) FROM agents a WHERE a.role_id = r.id) AS agentCount FROM roles r`;
+type RoleRow = Omit<Role, 'reporter' | 'toolsmith'> & { reporter: number; toolsmith: number };
+const toRole = (r: RoleRow): Role => ({ ...r, reporter: r.reporter === 1, toolsmith: r.toolsmith === 1 });
 
 export function rolesRepo(db: Db) {
   const byKey = (key: string) =>
@@ -77,11 +78,17 @@ export function rolesRepo(db: Db) {
       db.prepare('UPDATE roles SET reporter = ? WHERE id = ?').run(reporter ? 1 : 0, id);
       return repo.require(id);
     },
+    /** Agents holding a toolsmith role keep a toolkit folder and build their own checks. */
+    setToolsmith(id: string, toolsmith: boolean): Role {
+      repo.require(id);
+      db.prepare('UPDATE roles SET toolsmith = ? WHERE id = ?').run(toolsmith ? 1 : 0, id);
+      return repo.require(id);
+    },
     record: (id: string) => row<RoleRecord>(db.prepare('SELECT * FROM roles WHERE id = ?').get(id)),
     insertRecord(r: RoleRecord): void {
       db.prepare(
-        'INSERT INTO roles (id, name, name_key, position, created_at, reporter) VALUES (?, ?, ?, ?, ?, ?)',
-      ).run(r.id, r.name, r.name_key, r.position, r.created_at, r.reporter ?? 0);
+        'INSERT INTO roles (id, name, name_key, position, created_at, reporter, toolsmith) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ).run(r.id, r.name, r.name_key, r.position, r.created_at, r.reporter ?? 0, r.toolsmith ?? 0);
     },
     /** Raw delete; agents holding it become role-less (FK SET NULL). Use trash.trashRole for undo. */
     deleteRecord: (id: string) => db.prepare('DELETE FROM roles WHERE id = ?').run(id),

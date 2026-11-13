@@ -341,6 +341,12 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE checklist_items ADD COLUMN reviews TEXT NOT NULL DEFAULT '[]';
   ALTER TABLE checklist_items ADD COLUMN build_run_id TEXT;
   `,
+  /* 16 — toolsmiths (F1b): agents holding a toolsmith role (quality / test) get a persistent toolkit folder
+     (<data dir>/toolkits/<agentId>/) and build their own small checks. Starter cast: QA + Quality. */
+  `
+  ALTER TABLE roles ADD COLUMN toolsmith INTEGER NOT NULL DEFAULT 0;
+  UPDATE roles SET toolsmith = 1 WHERE name_key IN ('qa', 'quality');
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

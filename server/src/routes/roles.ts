@@ -6,8 +6,15 @@ import { IdParams } from './schemas.ts';
 
 const RoleBody = z.strictObject({ name: z.string().max(200) });
 const RolePatch = z
-  .strictObject({ name: z.string().max(200).optional(), reporter: z.boolean().optional() })
-  .refine((b) => b.name !== undefined || b.reporter !== undefined, 'Give a name or reporter');
+  .strictObject({
+    name: z.string().max(200).optional(),
+    reporter: z.boolean().optional(),
+    toolsmith: z.boolean().optional(),
+  })
+  .refine(
+    (b) => b.name !== undefined || b.reporter !== undefined || b.toolsmith !== undefined,
+    'Give a name, reporter or toolsmith',
+  );
 
 export const roleRoutes =
   (store: Store): FastifyPluginAsync =>
@@ -20,11 +27,14 @@ export const roleRoutes =
     /* rename — every agent holding the role follows (they reference it by id) */
     app.patch('/roles/:id', async (req) => {
       const { id } = parse(IdParams, req.params);
-      const { name, reporter } = parse(RolePatch, req.body);
+      const { name, reporter, toolsmith } = parse(RolePatch, req.body);
       return store.tx(() => {
         if (name !== undefined) store.roles.rename(id, name);
         /* reporter: agents holding the role may file reports */
-        return reporter === undefined ? store.roles.require(id) : store.roles.setReporter(id, reporter);
+        if (reporter !== undefined) store.roles.setReporter(id, reporter);
+        /* toolsmith: they keep a toolkit folder and build their own checks */
+        if (toolsmith !== undefined) store.roles.setToolsmith(id, toolsmith);
+        return store.roles.require(id);
       });
     });
     /* agents holding it become role-less; the restore token gives it (and them) back */

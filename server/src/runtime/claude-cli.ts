@@ -25,6 +25,8 @@ export const DEFAULT_ALLOWED = [
   'Bash(cat *)',
   ASK_TOOL,
 ];
+/** Reporter runs research the web (read-only). */
+export const WEB_TOOLS = ['WebSearch', 'WebFetch'];
 const KILL_GRACE_MS = 3000;
 
 export type CliOptions = {
@@ -59,11 +61,12 @@ export function cliArgs(
       }
     : { mcpServers: {} };
   /* big-picture runs (orchestrator, Agent Creator) pass their own, usually empty, tool list */
-  const tools = spec.tools ?? TOOLS;
+  const web = spec.web ? WEB_TOOLS : [];
+  const tools = [...(spec.tools ?? TOOLS), ...web];
   const report = spec.askBridge?.reportUrl ? [REPORT_TOOL] : [];
   const allowed = spec.tools
-    ? [...(spec.allowedTools ?? spec.tools), ...(spec.askBridge ? [ASK_TOOL] : []), ...report]
-    : [...(opts.allowedTools ?? DEFAULT_ALLOWED), ...report];
+    ? [...(spec.allowedTools ?? spec.tools), ...(spec.askBridge ? [ASK_TOOL] : []), ...report, ...web]
+    : [...(opts.allowedTools ?? DEFAULT_ALLOWED), ...report, ...web];
   return [
     '-p',
     '--output-format',
@@ -86,6 +89,7 @@ export function cliArgs(
     '--strict-mcp-config',
     '--mcp-config',
     JSON.stringify(mcp),
+    ...(spec.addDirs ?? []).flatMap((d) => ['--add-dir', d]),
     '--disable-slash-commands',
     '--no-chrome',
     '--max-budget-usd',

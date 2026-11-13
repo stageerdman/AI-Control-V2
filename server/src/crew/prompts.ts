@@ -17,7 +17,7 @@ export type CastCatalogue = {
     /** Files reports (research, reviews, write-ups end in the Reports tray). */
     reporter?: true;
   }[];
-  agents: { id: string; name: string; role: string; reporter?: true }[];
+  agents: { id: string; name: string; role: string; reporter?: true; toolsmith?: true }[];
 };
 
 /** Teams (with what they do / how they code / members / captain) and every regular agent with its role. */
@@ -25,6 +25,7 @@ export function castCatalogue(store: Store): CastCatalogue {
   const agents = store.agents.list().filter((a) => a.kind === 'agent');
   const byId = new Map(agents.map((a) => [a.id, a]));
   const reporterRole = (roleId: string | null) => !!roleId && !!store.roles.get(roleId)?.reporter;
+  const toolsmithRole = (roleId: string | null) => !!roleId && !!store.roles.get(roleId)?.toolsmith;
   return {
     teams: store.teams.list().map((t) => ({
       id: t.id,
@@ -46,6 +47,8 @@ export function castCatalogue(store: Store): CastCatalogue {
       name: a.name,
       role: a.role,
       ...(reporterRole(a.roleId) ? { reporter: true as const } : {}),
+      /* quality / test people who keep their own checks — natural reviewers for collaboration gates */
+      ...(toolsmithRole(a.roleId) ? { toolsmith: true as const } : {}),
     })),
   };
 }

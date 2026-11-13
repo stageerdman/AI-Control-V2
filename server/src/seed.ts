@@ -392,6 +392,8 @@ export function seedIfNeeded(store: Store): boolean {
     /* the starter reporters (research ends in a report) — migration 13 does the same for older databases */
     store.roles.setReporter(roleId.get('Research') as string, true);
     store.teams.update('expedition', { reporter: true });
+    /* the starter toolsmiths (quality / test keep their own checks) — migration 16 does the same for older databases */
+    for (const r of ['QA', 'Quality']) store.roles.setToolsmith(roleId.get(r) as string, true);
     for (const { id, ...p } of PROJECTS) store.projects.create(p, id);
     store.db.prepare("INSERT INTO meta (key, value) VALUES ('seeded', ?)").run(new Date().toISOString());
   });
