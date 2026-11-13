@@ -120,12 +120,14 @@ function npActor(agent, opts = {}, plate) {
   return w;
 }
 
+const npPlate = (a, kind) => a.name === kind ? kind : `${escapeHtml(a.name)}<small>${kind}</small>`;
+
 /* 0 — Start */
 function npStart(stage, body, foot) {
   stage.append(
-    npActor(npSetter(), { pose: 'waving', dir: 'right' }, 'Project Setter'),
-    npActor(npOrchs()[0], { pose: 'idle', facing: 'front', size: 128 }, 'Orchestrator'),
-    npActor(npCreator(), { pose: 'idle', dir: 'left' }, 'Agent Creator'));
+    npActor(npSetter(), { pose: 'waving', dir: 'right' }, npPlate(npSetter(), 'Project Setter')),
+    npActor(npOrchs()[0], { pose: 'idle', facing: 'front', size: 128 }, npPlate(npOrchs()[0], 'Orchestrator')),
+    npActor(npCreator(), { pose: 'idle', dir: 'left' }, npPlate(npCreator(), 'Agent Creator')));
   body.innerHTML = `<h2>Start a project</h2>
     <p class="np-sub">The Project Setter sets it up, your orchestrator picks the team.</p>
     <div class="np-choices">
@@ -215,7 +217,7 @@ function npOrch(stage, body, foot) {
 }
 function npOrchLine(o) {
   const p = (o && o.prompt) || '';
-  const first = p.split(/(?<=\.)\s/)[0];
+  const parts = p.split(/(?<=\.)\s/); const first = /^You are\b/.test(parts[0]) && parts[1] ? parts[1] : parts[0];
   return first ? '“' + first + '”' : '“Big picture only: I set the goals, pick the team, and keep everyone moving.”';
 }
 
@@ -238,7 +240,7 @@ function npSetup(stage, body, foot) {
   const items = npSetupItems(); const setter = npSetter(); const o = agentById(NP.orch) || npOrchs()[0];
   stage.append(npActor(setter, { pose: NP.setupDone ? 'salute' : 'writing', holding: 'binder', dir: 'right', size: 128, cls: 'np-setter' }));
   stage.insertAdjacentHTML('beforeend', `<div class="np-tilewrap sm">${logoTile(Object.assign({}, npTile(NP.name)))}<b>${escapeHtml(NP.name)}</b></div>`);
-  body.innerHTML = `<h2>${NP.setupDone ? 'All set up' : `${escapeHtml(npNick(setter))} is setting up ${escapeHtml(NP.name)}`}</h2>
+  body.innerHTML = `<h2>${NP.setupDone ? 'All set up' : `${escapeHtml(npNick(setter))}${setter.name === 'Project Setter' ? '' : ', the Project Setter,'} is setting up ${escapeHtml(NP.name)}`}</h2>
     <p class="np-sub">${NP.mode === 'adopt' ? 'It reads the folder first and only adds what is missing.' : 'The standard AI Studio scaffold, nothing more.'}</p>
     <div class="progress np-prog" role="progressbar" aria-label="Setup progress" aria-valuemin="0" aria-valuemax="100"><div class="fill"></div></div>
     <ul class="np-checks">${items.map(it => `<li><span class="np-tick" aria-hidden="true"></span><b>${escapeHtml(it.label)}</b><span class="np-detail">${escapeHtml(it.detail)}</span></li>`).join('')}</ul>`;
@@ -273,7 +275,7 @@ function npTeam(stage, body, foot) {
   stage.classList.add('np-teamstage');
   const say = NP.phase === 'propose'
     ? (P.mint ? `${P.why} And I'll ask the Agent Creator for a ${P.mint.role} — ${P.mint.line}.` : P.why)
-    : NP.phase === 'minting' ? `${npNick(creator)}, we need a ${P.mint.role}.` : `Welcome, ${npNick(NP.minted)}! The team is ready.`;
+    : NP.phase === 'minting' ? `${npNick(creator)}, can you design us a ${P.mint.role}?` : `Welcome, ${npNick(NP.minted)}! The team is ready.`;
   stage.append(npActor(o, { pose: NP.phase === 'minted' ? 'celebrating' : 'talking', dir: 'right', size: 120, cls: 'np-lead' }));
   stage.insertAdjacentHTML('beforeend', `<div class="np-bubble">${escapeHtml(say)}</div>`);
   const row = document.createElement('div'); row.className = 'np-squad'; stage.appendChild(row);
@@ -287,7 +289,7 @@ function npTeam(stage, body, foot) {
   const n = P.members.length + (P.mint ? 1 : 0);
   body.innerHTML = `<h2>${NP.phase === 'minted' ? 'Team ready: ' + escapeHtml(P.name) : escapeHtml(npNick(o)) + ' proposes ' + escapeHtml(P.name)}</h2>
     <p class="np-sub">${NP.phase === 'minted'
-      ? `${escapeHtml(npNick(creator))} designed <b>${escapeHtml(NP.minted.name)}</b> (${escapeHtml(P.mint.role)}) — now in your Cast. Rename or restyle them anytime.`
+      ? `${escapeHtml(npNick(creator))}${creator.name === 'Agent Creator' ? '' : ' (Agent Creator)'} designed <b>${escapeHtml(NP.minted.name)}</b> (${escapeHtml(P.mint.role)}) — now in your Cast. Rename or restyle them anytime.`
       : `${n} agents${P.team ? ' · an existing team' : ' · a new team'}${P.mint ? ' · 1 designed by the Agent Creator' : ''}. Agents are shared — this project runs its own copies.`}</p>`;
   if (NP.phase === 'minting') { npFoot(foot, { primary: () => {}, label: 'Designing…', disabled: true }); return; }
   if (NP.phase === 'minted') return npFoot(foot, { primary: npFinish, label: 'Open the office →' });
@@ -299,23 +301,32 @@ function npAccept(P) {
   if (!P.mint) { npFinish(); return; }
   NP.phase = 'minting'; npRender();
   NP.timer = setTimeout(() => {
-    NP.minted = npMint(P.mint.role); NP.phase = 'minted'; npRender();
+    NP.minted = npMint(P.mint.role, P.members); NP.phase = 'minted'; npRender();
     sparkle(62, 30); announce(`${NP.minted.name} joined the Cast.`);
   }, reducedMotion() ? 200 : 1500);
 }
 /* the Agent Creator designs a new agent: a real Cast entry */
-function npMint(role) {
+function npMint(role, mates_) {
   const used = new Set(AGENTS.map(a => a.name));
   const name = (FUNNY_NAMES.find(n => !used.has(n))) || role + ' Bot';
   let id = 'a-' + npSlug(name); while (agentById(id)) id += '-2';
-  const looks = [['coral', 'sprout', 'curl'], ['mint', 'hero', 'spikes'], ['sky', 'lanky', 'bob'], ['rose', 'bruiser', 'tuft']];
-  const [hue, build, hair] = looks[AGENTS.length % looks.length];
+  /* stand out from the squad they join: a hue and hat nobody on it wears */
+  const mates = (mates_ || []).map(agentById).filter(Boolean);
+  const hue = ['mint', 'rose', 'coral', 'grape', 'sky', 'teal', 'sun'].find(c => !mates.some(m => (m.look ? m.look.hue : m.hue) === c)) || 'mint';
+  const [build, hair] = [['sprout', 'curl'], ['hero', 'spikes'], ['lanky', 'bob'], ['bruiser', 'tuft']][AGENTS.length % 4];
   const a = { id, kind: 'agent', name, nick: name.split(' ').slice(-1)[0], role, hue, build, hair, accessory: 'none',
     stats: { projects: 1, tokens: 0 }, createdBy: npCreator().id,
     prompt: `You are a ${role} specialist, designed by the Agent Creator for ${NP.name}. Stay in your lane, ask the orchestrator when the brief is unclear.` };
+  /* the Creator designs a distinct costume (hero.js look slots), picked from the role so it's stable */
+  if (typeof HATS === 'object' && typeof TOOLS === 'object' && typeof setWholeLook === 'function') {
+    let h = 0; for (const ch of role) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    /* regular-crew gear only: no director fedora / megaphone, no setter hard hat */
+    const pick = (o, ok, k) => { const l = ok.filter(x => x in o && !mates.some(m => m.look && (m.look.hat === x || m.look.tool === x))); return l.length ? l[k % l.length] : 'none'; };
+    const hat = pick(HATS, ['headphones', 'goggles', 'headlamp', 'mortarboard', 'newsboy', 'captain', 'beret'], h);
+    setWholeLook(a, { hat, tool: pick(TOOLS, ['stylus', 'cog', 'pickaxe', 'book', 'quill', 'flag', 'palette'], h >>> 4), decal: typeof hatDecal === 'function' ? hatDecal(hat) : undefined, body: build, antenna: hair, face: 'none', hue });
+  }
   AGENTS.push(a);
-  /* custom roles (contract: ROLES = [{id,name}]) — add the new one if it's not there */
-  if (Array.isArray(ROLES) && ROLES.length && typeof ROLES[0] === 'object' && !ROLES.some(r => r.name === role)) ROLES.push({ id: npSlug(role), name: role });
+  if (typeof addRole === 'function') addRole(role);  /* a custom role the Creator just invented */
   return a;
 }
 /* create the project + its team + a minimal office config, then walk in */
@@ -351,6 +362,6 @@ function npDemo() {
   if (mode === 'adopt') { NP.folder = 1; NP.name = NP_FOLDERS[1].name; } else if (s > 1) NP.name = 'Kite Notes';
   if (s >= 4) NP.setupDone = true;
   npGo(Math.min(s, 4));
-  if (s === 5) { NP.minted = npMint(npProposals(mode)[0].mint.role); NP.phase = 'minted'; npRender(); }
+  if (s === 5) { NP.minted = npMint(npProposals(mode)[0].mint.role, npProposals(mode)[0].members); NP.phase = 'minted'; npRender(); }
   if (s === 6) { NP.phase = 'minting'; npRender(); }
 }

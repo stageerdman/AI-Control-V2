@@ -106,3 +106,4 @@
 }
 .np-foot[hidden]{display:none}
 .np-creator{margin-left:16px}
+.np-plate small{display:block;text-align:center;font-size:10px;font-weight:700;color:rgba(255,246,233,.5);letter-spacing:.04em}

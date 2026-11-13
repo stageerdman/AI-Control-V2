@@ -38,10 +38,10 @@ function tileGlyph(kind) {
    github = {connected, private}. Apps run locally — no online test URL. */
 const PROJECTS = [
   { id: 'aurora', name: 'Aurora Storefront', group: 'active', g1: '#ff6f73', g2: '#ffc24b', glyph: 'bag', status: 'live', agents: 9, pct: 64, orchestrator: 'a-pixel', github: { connected: true, private: true }, note: 'Rebuilding checkout + voice search', cast: ['a-scar', 'a-doc', 'a-pete', 'a-semic'], openable: true },
-  { id: 'atlas', name: 'Atlas Analytics', group: 'active', g1: '#2e3a66', g2: '#4ea8ff', glyph: 'chart', status: 'live', agents: 3, pct: 48, orchestrator: 'a-pixel', github: { connected: true, private: true }, note: 'Nightly data pipeline & dashboards', cast: ['a-query', 'a-lint', 'a-doc'] },
+  { id: 'atlas', name: 'Atlas Analytics', group: 'active', g1: '#2e3a66', g2: '#4ea8ff', glyph: 'chart', status: 'live', agents: 3, pct: 48, orchestrator: 'a-maestro', github: { connected: true, private: true }, note: 'Nightly data pipeline & dashboards', cast: ['a-query', 'a-lint', 'a-doc'] },
   { id: 'lumi', name: 'Lumi Health', group: 'active', g1: '#2fd3c3', g2: '#8be88b', glyph: 'leaf', status: 'needs', agents: 2, pct: 30, orchestrator: 'a-pixel', github: { connected: true, private: true }, note: 'QA is waiting on a test account', cast: ['a-prof', 'a-twinkle'] },
   { id: 'muse', name: 'Muse Docs AI', group: 'db', g1: '#9b6cff', g2: '#4ea8ff', glyph: 'quill', tag: 'Draft', edited: 'edited 2d ago', orchestrator: 'a-pixel', github: { connected: true, private: true } },
-  { id: 'orchard', name: 'Orchard CRM', group: 'db', g1: '#ff9b3d', g2: '#ffc24b', glyph: 'tree', tag: 'Idle', edited: 'edited 9d ago', orchestrator: 'a-pixel', github: { connected: true, private: false } },
+  { id: 'orchard', name: 'Orchard CRM', group: 'db', g1: '#ff9b3d', g2: '#ffc24b', glyph: 'tree', tag: 'Idle', edited: 'edited 9d ago', orchestrator: 'a-maestro', github: { connected: true, private: false } },
   { id: 'pebble', name: 'Pebble Notes', group: 'db', g1: '#4ea8ff', g2: '#2fd3c3', glyph: 'pebbles', tag: 'Archived', edited: 'edited 3w ago', orchestrator: 'a-pixel', github: { connected: true, private: true } },
   { id: 'nimbus', name: 'Nimbus Deploy', group: 'db', g1: '#5b5280', g2: '#9b6cff', glyph: 'cloud', tag: 'Idle', edited: 'edited 5w ago', orchestrator: 'a-pixel', github: { connected: true, private: true } },
   { id: 'fern', name: 'Fern CMS', group: 'db', g1: '#2b8a3e', g2: '#8be88b', glyph: 'fern', tag: 'Archived', edited: 'edited 2mo ago', orchestrator: 'a-pixel', github: { connected: true, private: false } },
