@@ -4,7 +4,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
-- [ ] Disney v4 (calm & clean, robot minions) built — awaiting user review. Gaps: top bar not yet decluttered; only the default size runs the scripted story; '+ New agent' ghost could use polish.
+- [ ] Disney v5 (AI Studio, system agents, pager, new-project flow) built — awaiting user review. Gaps: deleting an orchestrator doesn't reassign its projects; Pizza Planet emblem weak at 24px; new-project offices reuse Aurora-flavoured file names in their idle loop.
 - [ ] Lock the stack (Tauri+React vs. web-only) — decide during the INIT update after reviewing UI concepts.
 - [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
 - [ ] Voice in/out provider choice not finalized (Deepgram vs. Whisper for STT; ElevenLabs for TTS) — validate in a research spike.

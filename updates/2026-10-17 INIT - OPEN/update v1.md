@@ -128,7 +128,14 @@ direction. Playful visuals, consistent component system, accessibility pass.
   with text-block descriptions, the chat has no mic/updates/suggestions, and the office is generated
   from a declarative config (`spec-office-config.md`) that scales from 2 to 20+ agents.
   Note: the user removed the chat mic; voice-first will come back in another form.
-- ⏭️ **Next (gate):** user reviews v4 live → refinements → Phase 2 stack/architecture spike.
+- ✅ **v5 (2026-11-13):** renamed **AI Studio**; required system agents (Project Setter, ≥1
+  Orchestrator, Agent Creator); user-defined roles; look edited with in-game arrows + random dice;
+  18 emblems; team prompts "What this team does" + "How this team codes"; teams up to 7;
+  New project / Adopt flow (name → orchestrator → Setter sets up → orchestrator proposes team,
+  Agent Creator mints missing agents); office without top bar (door = leave, safe = Access,
+  GitHub in health report, pager bottom-left), per-project offices from config.
+  Verbatim: `concepts/disney-v3/user-feedback-v5.md`. Tests: cast 68 ok, office self-test all pass.
+- ⏭️ **Next (gate):** user reviews v5 live → refinements → Phase 2 stack/architecture spike.
 
 ## Decisions
 
