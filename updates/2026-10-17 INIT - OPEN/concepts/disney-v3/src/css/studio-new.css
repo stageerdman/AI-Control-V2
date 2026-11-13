@@ -88,7 +88,7 @@
 .np-bubble{position:absolute;left:24px;right:24px;top:16px;background:var(--cream);color:var(--ink);font-size:14px;font-weight:700;line-height:1.35;
   padding:10px 14px;border-radius:16px;box-shadow:var(--shadow-sm);z-index:2}
 .np-bubble::after{content:"";position:absolute;left:52px;bottom:-8px;border:9px solid transparent;border-top-color:var(--cream);border-bottom:0}
-.np-squad{display:flex;align-items:flex-end;gap:6px;margin-left:auto;flex-wrap:nowrap}
+.np-squad{display:flex;align-items:flex-end;gap:6px;margin:0 auto;flex-wrap:nowrap}
 .np-new .hero{animation:np-pop .5s var(--spring)}
 .np-creator{animation:np-in .6s var(--ease-out)}
 @keyframes np-in{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
@@ -102,5 +102,7 @@
 }
 @media (prefers-reduced-motion:reduce){
   .np-tilewrap .logo-tile,.np-new .hero,.np-creator,.np-checks li.doing .np-tick{animation:none}
+  .np-prog .fill{transition:none}
 }
 .np-foot[hidden]{display:none}
+.np-creator{margin-left:16px}

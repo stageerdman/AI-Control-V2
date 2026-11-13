@@ -270,7 +270,6 @@ function npSetup(stage, body, foot) {
 function npTeam(stage, body, foot) {
   const props = npProposals(NP.mode); const P = props[NP.prop % props.length];
   const o = agentById(NP.orch) || npOrchs()[0]; const creator = npCreator();
-  const minting = NP.phase !== 'propose' && P.mint;
   stage.classList.add('np-teamstage');
   const say = NP.phase === 'propose'
     ? (P.mint ? `${P.why} And I'll ask the Agent Creator for a ${P.mint.role} — ${P.mint.line}.` : P.why)
@@ -282,10 +281,11 @@ function npTeam(stage, body, foot) {
   if (P.mint) {
     if (NP.phase === 'minted') row.appendChild(npActor(NP.minted, { size: 92, dir: 'left', pose: 'celebrating', cls: 'np-new' }, escapeHtml(npNick(NP.minted)) + ' <i>new</i>'));
     else row.appendChild(npActor({ name: 'New agent' }, { size: 92, ghost: true, cls: 'np-ghost' }, 'New ' + escapeHtml(P.mint.role)));
-    if (minting) row.appendChild(npActor(creator, { size: 92, dir: 'left', pose: NP.phase === 'minting' ? 'pressing' : 'salute', cls: 'np-creator' }, escapeHtml(npNick(creator))));
+    /* the Agent Creator steps in to build, then leaves — not a team member */
+    if (NP.phase === 'minting') row.appendChild(npActor(creator, { size: 92, dir: 'left', pose: 'pressing', cls: 'np-creator' }, escapeHtml(npNick(creator))));
   }
   const n = P.members.length + (P.mint ? 1 : 0);
-  body.innerHTML = `<h2>${NP.phase === 'minted' ? escapeHtml(P.name) + ' is ready' : escapeHtml(npNick(o)) + ' proposes ' + escapeHtml(P.name)}</h2>
+  body.innerHTML = `<h2>${NP.phase === 'minted' ? 'Team ready: ' + escapeHtml(P.name) : escapeHtml(npNick(o)) + ' proposes ' + escapeHtml(P.name)}</h2>
     <p class="np-sub">${NP.phase === 'minted'
       ? `${escapeHtml(npNick(creator))} designed <b>${escapeHtml(NP.minted.name)}</b> (${escapeHtml(P.mint.role)}) — now in your Cast. Rename or restyle them anytime.`
       : `${n} agents${P.team ? ' · an existing team' : ' · a new team'}${P.mint ? ' · 1 designed by the Agent Creator' : ''}. Agents are shared — this project runs its own copies.`}</p>`;
@@ -342,7 +342,7 @@ function npFinish() {
 }
 
 /* dev hooks: ?demo=new-<0..5> or adopt-<0..5> jumps straight to a step
-   (3 = setup running, 4 = proposal, 5 = after the Agent Creator) */
+   (3 = setup running, 4 = proposal, 5 = after the Agent Creator, 6 = Creator at work) */
 function npDemo() {
   const m = /[?&]demo=[^&#]*?\b(new|adopt)-(\d)/.exec(location.search); if (!m) return;
   const mode = m[1], s = +m[2];
@@ -352,4 +352,5 @@ function npDemo() {
   if (s >= 4) NP.setupDone = true;
   npGo(Math.min(s, 4));
   if (s === 5) { NP.minted = npMint(npProposals(mode)[0].mint.role); NP.phase = 'minted'; npRender(); }
+  if (s === 6) { NP.phase = 'minting'; npRender(); }
 }
