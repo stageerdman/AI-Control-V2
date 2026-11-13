@@ -65,3 +65,12 @@ Durable knowledge from this update. Status lives in `update v1.md`.
 - **Body-parser messages can echo input.** V8's `JSON.parse` errors quote the body; Fastify 5
   already swaps in a fixed message — keep it that way (tested).
 - **No last-4 for short values** (< 12 chars): 4 of 8 characters gives too much away.
+- **SSE without gaps: subscribe first, then replay.** Hold live events while the backlog is written,
+  then drop anything at or below the last id sent. Monotonic AUTOINCREMENT ids make Last-Event-ID resume exact.
+- **Long work must yield to stream.** A sync scaffold (execFileSync) blocks the event loop, so nothing
+  reaches the wire until it ends. Async git + a `setImmediate` between steps lets SSE flush live. Keep the
+  db transaction out of the awaits: validate with a rolled-back dry run, do the slow work, then one short tx.
+- **A local server needs Origin enforcement, not just CORS headers.** CORS only stops a page reading the
+  answer; the request still runs. Refuse unknown Origins with 403 so no web page can drive the file system.
+- **Dangling symlinks are escapes too.** Writing through one creates its target — the guard follows it.
+

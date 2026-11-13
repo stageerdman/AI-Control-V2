@@ -50,6 +50,8 @@ test/                mirrors src
 
 ## API
 
+CORS: only `http://localhost:1420`, `tauri://localhost` and same-origin; any other `Origin` gets 403.
+
 Errors: `400 bad_request` (malformed JSON) · `404 not_found` · `409 conflict` (a studio rule
 blocks it: second setter, last orchestrator, team full, captain not a member…) · `422 invalid`
 (body fails validation or references an unknown id; `details` lists the issues). Bodies are
@@ -70,6 +72,9 @@ strict — unknown keys are 422.
 | `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
 | `GET /projects/:id/scaffold` | what's on disk vs the expected scaffold, plus git head/commit count |
 | `GET /sandbox/folders` | top-level sandbox folders not yet under AI Studio (Adopt picker) |
+| `GET /projects/:id/events` | SSE: the project's event log — replay after `Last-Event-ID` / `?after=` (default: all), then live; heartbeats |
+| `GET /drafts/:id/events` | SSE: the Project Setter's `setup.step`s while `POST /drafts/:id/finish` runs (open it first) |
+| `POST /projects/:id/events` | **dev only** (absent when `NODE_ENV=production`): publish `{type, payload}` by hand |
 | `GET POST /credentials` · `GET PATCH DELETE /credentials/:id` | Key Cabinet: `name`, `envVar` (fixed; derived from name if omitted), `serves`, `docsUrl`, `instructions`; `value` on POST only; responses carry `hasValue`, `last4`, `projectIds` |
 | `PUT /credentials/:id/value` | replace key `{value}` (write-only) |
 | `POST /credentials/import` | register keys already in the global `.env` (also runs on startup), refresh last-4 after hand edits |

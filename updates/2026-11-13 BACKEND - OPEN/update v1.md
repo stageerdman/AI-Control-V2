@@ -129,3 +129,12 @@ Tailwind components, wire to this API).
   - Decisions: credential delete is **not restorable** (a snapshot would hold the value); `envVar` is
     fixed at creation; no last-4 for values under 12 chars; sync rewrites one managed block so
     ungranting removes the key and hand-written lines stay; `envFor(projectId)` is the in-process hand-off to B5.
+- ✅ **B4 — Live events** (2026-11-13): append-only event log per project/draft (migration 4), zod
+  event catalogue, secret redaction on every append, in-process `EventBus`, SSE
+  (`GET /projects/:id/events`, `GET /drafts/:id/events`: replay after Last-Event-ID/`?after=`, then
+  live, heartbeats), CORS for exactly the app origins (+ same-origin; others 403), Setter steps streamed
+  live during `finish`. 27 tests (151 total). Notes: `PROGRESS-B4.md`.
+  - Decisions: drafts get their own stream (the project doesn't exist until setup succeeds) and the
+    setup history is copied to the project on finish; redact rather than reject (a run never dies on
+    a log line); foreign origins are refused outright, not just left unreadable; dev publish route
+    only outside production.
