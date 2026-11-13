@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "icons": "tauri icon assets/icon.svg && cd src-tauri/icons && rm -rf android ios Square*.png StoreLogo.png 64x64.png"
+    "icons": "tauri icon assets/icon.svg && cd src-tauri/icons && rm -rf android ios Square*.png StoreLogo.png 64x64.png",
+    "golden": "node scripts/characters-golden.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

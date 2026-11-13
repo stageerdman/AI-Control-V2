@@ -51,5 +51,6 @@ End-to-end click-through on the fake runner, a11y + reduced motion, perf, packag
 then one live demo run with the user's go.
 
 ## Status
+- ✅ U0 front-end foundation — characters ported byte-identical (823 golden cases, 0 px diff vs the prototype gallery), tokens, API client + query + SSE hooks, shell/router/placeholders, ui primitives, #gallery; 60 tests (PROGRESS-U0.md, app/src/README.md).
 - ⏳ U0 + U1 starting (parallel), plus a UX spec for the Reports space.
 - ✅ **U1 — Backend gaps** (2026-11-13, FakeRunner only): features CRUD, project conversations (threads), pager asks + seen, `GET /projects/:id/office`, Reports (reporter flags, `file_report` MCP tool, endpoints, events, dispatch report items) — migrations 10–13, 23 new tests (242 total). Notes: `PROGRESS-U1.md`, API: `server/README.md`.

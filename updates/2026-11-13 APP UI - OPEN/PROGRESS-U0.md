@@ -1,4 +1,4 @@
-# PROGRESS — U0 Front-end foundation
+# PROGRESS — U0 Front-end foundation ✅
 
 Resume notes for the `app/src/` foundation builder. See `app/src/README.md`.
 
@@ -17,5 +17,16 @@ Resume notes for the `app/src/` foundation builder. See `app/src/README.md`.
   Fix: `@source not "./characters"` + guard.css pins the rect to 34 units.
 - macOS FS is case-insensitive: `Emblem.tsx` vs `emblem.ts` collide → generators are `*-svg.ts`.
 
-## Next
-- Tests for api/router/sse/query/hero snapshots, README, cargo check, shell screenshots.
+- [x] Tests: 60 vitest (parity 823 cases, hero/emblem snapshots + in-place pose/facing/ref, router round-trips, ApiError
+      mapping, SSE resume/reconnect/backoff/dedupe with a mock EventSource, query cache + mutation, Sheet/Toast/ErrorState,
+      health gate). typecheck + biome clean; `cargo check` ok.
+- [x] Live: Vite :1420 against a fake-runner server (:4329, scratch home): gate → shell; in-page `studio.*` list/get,
+      ApiError 404/422 from the real server, `openEventStream` received a published `progress` event live (CORS ok).
+      Shots: `shots/u0-*.png` (shell, gate error, gallery poses/extras/emblems, pixel diff vs prototype = 0).
+- [x] `app/src/README.md` (folders, add a page, Hero/Emblem/API/SSE usage, gotchas).
+
+## Notes for feature builders
+- Register pages in `src/pages.tsx` (one line); build in `src/features/<name>/`; port prototype screen CSS beside it.
+- U1's new endpoints (features, threads, office, reports, asks inbox) aren't in `api/studio.ts`/`types.ts` yet — add them
+  there with the screen that first needs them (+ their event types to `EVENT_TYPES`).
+- The cast zoom card (`.zoom`) is Cast-specific (cast.css) — U3 ports it; `ui/Sheet` is the generic dialog.
