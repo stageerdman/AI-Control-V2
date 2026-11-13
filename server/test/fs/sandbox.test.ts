@@ -58,6 +58,14 @@ describe('resolveInSandbox', () => {
     expect(() => resolveInSandbox(root, 'proj/leak.txt')).toThrow(/symlink/);
   });
 
+  it('rejects dangling symlinks that would point outside (writing through one creates its target)', () => {
+    symlinkSync(join(outside, 'not-yet'), join(root, 'proj', 'dangling'));
+    symlinkSync(join(root, 'proj', 'later'), join(root, 'proj', 'dangling-in'));
+    expect(() => resolveInSandbox(root, 'proj/dangling')).toThrow(/symlink/);
+    expect(() => resolveInSandbox(root, 'proj/dangling/x')).toThrow(/symlink/);
+    expect(resolveInSandbox(root, 'proj/dangling-in')).toBe(join(root, 'proj', 'later'));
+  });
+
   it('rejects empty and NUL paths', () => {
     expect(() => resolveInSandbox(root, '')).toThrow(SandboxError);
     expect(() => resolveInSandbox(root, 'a\0b')).toThrow(SandboxError);

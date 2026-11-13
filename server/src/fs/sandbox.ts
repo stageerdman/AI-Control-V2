@@ -1,6 +1,6 @@
 /* The sandbox is a wall: every project path the backend touches must resolve
    inside the sandbox root — lexically AND after following symlinks. */
-import { existsSync, realpathSync } from 'node:fs';
+import { lstatSync, readlinkSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 export class SandboxError extends Error {
@@ -15,17 +15,31 @@ const inside = (root: string, p: string) => {
   return r === '' || (!r.startsWith(`..${sep}`) && r !== '..' && !isAbsolute(r));
 };
 
-/** realpath of the deepest existing ancestor, with the not-yet-existing tail re-appended. */
-function realpathLoose(p: string): string {
+/** realpath of the deepest existing ancestor, with the not-yet-existing tail re-appended.
+    A dangling symlink on the way is followed to where it WOULD point (writing through it
+    would create its target), so a dangling link out of the sandbox is caught too. */
+function realpathLoose(p: string, hops = 0): string {
+  if (hops > 40) throw new SandboxError('Too many symlinks');
   const tail: string[] = [];
   let cur = p;
-  while (!existsSync(cur)) {
+  for (;;) {
+    try {
+      return join(realpathSync(cur), ...tail);
+    } catch {
+      /* missing or dangling — look closer */
+    }
+    let link = false;
+    try {
+      link = lstatSync(cur).isSymbolicLink();
+    } catch {
+      /* doesn't exist at all */
+    }
+    if (link) return join(realpathLoose(resolve(dirname(cur), readlinkSync(cur)), hops + 1), ...tail);
     const parent = dirname(cur);
-    if (parent === cur) break;
+    if (parent === cur) return join(cur, ...tail);
     tail.unshift(basename(cur));
     cur = parent;
   }
-  return join(realpathSync(cur), ...tail);
 }
 
 /**
