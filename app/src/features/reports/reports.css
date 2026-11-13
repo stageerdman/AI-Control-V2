@@ -293,15 +293,6 @@
 .rp-body p {
   margin: 0 0 0.9em;
 }
-.ob-card .rp-body h3,
-.ob-card .rp-body h4,
-.rp-body h3,
-.rp-body h4 {
-  /* prose headings: never the card's small-caps section labels */
-  text-transform: none;
-  letter-spacing: normal;
-  color: var(--ink);
-}
 .rp-body h3 {
   font-size: 20px;
   font-weight: 800;
@@ -430,4 +421,12 @@
   .rp-row {
     transition: none;
   }
+}
+
+/* prose headings inside the office card: never the card's small-caps section labels */
+.ob-card .rp-body h3,
+.ob-card .rp-body h4 {
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
 }

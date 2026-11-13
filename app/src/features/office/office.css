@@ -394,7 +394,7 @@
 .ob-name{flex:1;min-width:0;font:inherit;font-size:22px;font-weight:800;letter-spacing:-.01em;color:var(--ink);border:2px solid transparent;border-radius:10px;padding:2px 8px;margin-left:-10px;background:transparent}
 .ob-name:hover{border-color:var(--line)}
 .ob-name:focus{outline:0;border-color:var(--sun-deep);background:#fff}
-.ob-sts{display:flex;gap:6px;margin:4px 0 0}
+.ob-sts{display:flex;gap:6px;margin:4px 0 0;border:0;padding:0;min-width:0}
 .ob-sts button{appearance:none;border:2px solid var(--line);background:#fff;cursor:pointer;font:inherit;font-size:13px;font-weight:800;color:var(--ink);padding:6px 12px;border-radius:999px;display:inline-flex;align-items:center;gap:6px}
 .ob-sts button[aria-pressed="true"]{border-color:var(--ink);background:var(--cream)}
 .ob-sts button:focus-visible{outline:3px solid var(--grape);outline-offset:1px}

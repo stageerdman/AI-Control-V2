@@ -634,6 +634,7 @@ function Office({
           <button
             className="o-ctl"
             type="button"
+            id="oWideBtn"
             aria-pressed={wide}
             aria-label={wide ? 'Show the chat panel' : 'Hide the chat panel'}
             onClick={() => toggleWide(!wide)}
