@@ -144,12 +144,13 @@ OB._sheet = function (kind) {
     this.sheetEl.addEventListener('keydown', e => this._trap(e));
   }
   this.sheetEl.dataset.kind = kind; this._confirm = false;
+  layers.classList.add('has-sheet');
   this.sheetEl.setAttribute('aria-modal', kind === 'feature' ? 'true' : 'false');
   this.sheetEl.classList.remove('flip'); void this.sheetEl.offsetWidth; this.sheetEl.classList.add(kind === 'feature' ? 'flip' : 'drop');
   this._renderSheet();
   const f = this.sheetEl.querySelector(kind === 'feature' ? '.ob-sback' : '.ob-row'); if (f) f.focus({ preventScroll: true });
 };
-OB._closeSheet = function () { if (this.sheetEl) { this.sheetEl.remove(); this.sheetEl = null; } };
+OB._closeSheet = function () { if (this.sheetEl) { this.sheetEl.remove(); this.sheetEl = null; } const l = document.getElementById('oLayers'); if (l) l.classList.remove('has-sheet'); };
 OB._trap = function (e) {
   if (e.key !== 'Tab' || this.sheetEl.dataset.kind !== 'feature') return;
   const f = [...this.sheetEl.querySelectorAll('button,input,[tabindex="0"]')].filter(x => !x.disabled);
@@ -237,7 +238,7 @@ OB._renderFeature = function (focusSel) {
     </div>
     <div class="ob-sfoot">
       ${this._confirm ? `<div class="ob-confirm" role="alert"><span>Unsaved changes.</span><button type="button" class="btn btn-ghost btn-sm" data-c="keep">Keep editing</button><button type="button" class="btn btn-ghost btn-sm" data-c="discard">Discard changes</button><button type="button" class="btn btn-hero btn-sm" data-c="save">Save</button></div>`
-        : `<span class="ob-diff" aria-live="polite">${dirty ? `${df.struck} struck · ${df.added} added${df.edited ? ` · ${df.edited} edited` : ''} · unsaved` : 'No changes'}</span>
+        : `<span class="ob-diff" aria-live="polite">${dirty ? `${df.struck} struck · ${df.added} added${df.edited ? ` · ${df.edited} edited` : ''} · unsaved` : 'Click a line to rewrite it · S strikes it'}</span>
            <button type="button" class="btn btn-ghost btn-sm" id="obDiscard" ${dirty ? '' : 'disabled'}>Discard</button>
            <button type="button" class="btn btn-hero btn-sm" id="obSave" ${dirty ? '' : 'disabled'}>Save &amp; brief Pixel</button>`}
     </div>`;

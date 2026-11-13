@@ -542,7 +542,13 @@ function _otChair(hue, o = {}) {
       <rect x="-19" y="-67" width="38" height="36" rx="11" fill="${shade(c, -8)}"/>
       <rect x="-4" y="-22" width="8" height="18" fill="${OT.steel}" ${_o(2)}/>
     </g>
-    <g class="c-jacket"><path d="M-24 -66 C-12 -76 12 -76 24 -66 L28 -30 C20 -26 14 -30 10 -36 L6 -58 L0 -50 L-6 -58 L-10 -36 C-14 -30 -20 -26 -28 -30Z" fill="${c}" ${_o(2.5)}/><path d="M-6 -58 L0 -40 L6 -58" fill="none" ${_o(2)}/></g>
+    <g class="c-jacket">
+      <path d="M-27 -60 C-27 -72 -14 -76 0 -76 C14 -76 27 -72 27 -60 L25 -40 L-25 -40Z" fill="${c}" ${_o(2.5)}/>
+      <path d="M-27 -62 C-34 -50 -34 -34 -30 -22 L-21 -22 C-22 -34 -21 -46 -18 -56Z" fill="${shade(c, -18)}" ${_o(2.2)}/>
+      <path d="M27 -62 C34 -50 34 -34 30 -22 L21 -22 C22 -34 21 -46 18 -56Z" fill="${shade(c, -18)}" ${_o(2.2)}/>
+      <path d="M-9 -75 L0 -62 L9 -75" fill="${OT.paper}" ${_o(2)}/>
+      <circle cx="0" cy="-54" r="2" fill="${OT_INK}"/><circle cx="0" cy="-46" r="2" fill="${OT_INK}"/>
+    </g>
   </svg>`;
 }
 function _otCouchFront() {

@@ -69,7 +69,7 @@ const OE = {
     cf.style.zIndex = 818; this.layer.appendChild(cf);
     /* actors */
     this._actor(WS.director);
-    wsOnProject().forEach(a => this._actor(a));
+    WS.agents.forEach(a => this._actor(a));
     this.deskSync();
     this.fit();
   },
@@ -253,7 +253,7 @@ const OE = {
     rec.wrap.classList.toggle('asleep', a.activity.kind === 'sleeping');
     rec.wrap.classList.toggle('needs', a.activity.kind === 'needs-input');
     rec.btn.querySelector('.o-ti').textContent = act.icon;
-    rec.btn.querySelector('.o-tt').textContent = a.activity.short || act.tag;
+    const sh = a.activity.short; rec.btn.querySelector('.o-tt').textContent = sh && sh.length <= 13 ? sh : act.tag;
     this.bang(rec.id, a.activity.kind === 'needs-input');
     rec.btn.setAttribute('aria-label', actorLabel(a));
     function kindFront(k) { return k === 'shipped'; }
@@ -432,7 +432,7 @@ function actorLabel(a) {
   const team = a.teamId ? teamById(a.teamId) : null;
   const where = a.id === 'pixel' ? 'Director' : team ? team.name : 'Solo';
   let st = a.activity.detail || a.activity.label;
-  if (a.activity.kind === 'needs-input') { const ask = WS.pending.find(p => p.agentId === a.id); st = 'needs your input' + (ask ? ': ' + ask.short : ''); }
+  if (a.activity.kind === 'needs-input') { const ask = WS.pending.find(p => p.agentId === a.id); st = 'needs your input' + (ask ? ': ' + ask.short : a.activity.detail ? ': ' + a.activity.detail : ''); }
   if (a.activity.kind === 'sleeping') st = 'off shift, sleeping on the couch';
   return `${ag.name}, ${ag.role}, ${where} — ${st}`;
 }

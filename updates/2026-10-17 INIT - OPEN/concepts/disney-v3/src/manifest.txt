@@ -25,6 +25,7 @@ js/office-panel.js
 js/office-board.js
 js/office-sim.js
 js/office-main.js
+js/office-selftest.js
 js/gallery.js
 # boot last
 js/app.js

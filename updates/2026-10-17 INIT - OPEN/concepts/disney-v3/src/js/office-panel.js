@@ -82,7 +82,10 @@ OP._summary = function (a, bubble) {
   if (!last || last.kind !== 'summary' || last.text !== text) {
     this.post(a.id, { from: a.id, kind: 'summary', text, stats: `${act.icon} ${act.tag} · ${tok} tokens · ${a.tasksDone} tasks done` });
   }
-  if (bubble) OE.say(a.id, a.activity.kind === 'idle' ? 'Free! What’s up?' : `${a.activity.short || a.activity.label} · ${tok} tokens`, { ms: 3200 });
+  if (bubble) {
+    const ask = WS.pending.find(p => p.agentId === a.id);
+    OE.say(a.id, ask ? `${ask.short}, please! 🙏` : a.activity.kind === 'idle' ? `Free! ${tok} tokens so far` : `${a.activity.detail.split(' — ')[0]} · ${tok} tokens`, { ms: 3600 });
+  }
 };
 
 /* ------------------------------------------------------------ messages */

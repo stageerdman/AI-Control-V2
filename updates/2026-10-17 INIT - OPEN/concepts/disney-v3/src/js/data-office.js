@@ -185,7 +185,7 @@ const SIM_SCRIPT = [
   { t: 46, do: 'ship', feature: 'voice', actor: 'a-pete' },
   { t: 52, actor: 'pixel', do: 'whiteboard', addCheck: { featureId: 'multicur', text: 'Multi-currency: rate provider', assignees: ['a-query'] } },
   { t: 55, actor: 'a-merge', do: 'arrive', seat: 'hot-3', kind: 'reading', label: 'Reading release notes', target: 'CHANGELOG.md' },
-  { t: 59, actor: 'pixel', do: 'wake', target: 'a-query', seat: 'hot-2', kind: 'reading', label: 'Reading rates API docs', target: 'rates API docs' },
+  { t: 59, actor: 'pixel', do: 'wake', target: 'a-query', seat: 'hot-2', kind: 'reading', label: 'Reading rates API docs', file: 'rates API docs' },
   { t: 67, actor: 'a-lint', do: 'handoff', to: 'a-merge', artifact: 'PR #42', review: 'APPROVED' },
   { t: 74, actor: 'a-twinkle', do: 'ask', ask: { id: 'ask-twinkle', agentId: 'a-twinkle', type: 'decision', short: 'Cart button copy',
     q: 'Cart button copy — which reads better?', ctx: 'Not blocking — a quick call', options: ['Add to bag', 'Add to cart'], featureId: 'cleanup' } },

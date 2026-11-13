@@ -14,20 +14,22 @@ const OS = { timers: [], running: false, t0: 0, cycleN: 0, seed: 7, busy: {} };
 
 OS._param = function () { const m = /[?&]demo=([^&#]+)/.exec(location.search); return m ? decodeURIComponent(m[1]).split(',') : []; };
 OS.start = async function () {
-  this.stop(); this.running = true; this.busy = {};
+  this.stop(); this.running = true; this.busy = {}; this.lock = {};
   const demo = this._param();
   OE.speed = demo.includes('fast') ? 3 : 1;
   let skip = 0;
   demo.forEach(d => { const m = /^t(\d+)$/.exec(d); if (m) skip = +m[1]; });
   if (demo.includes('ask') || demo.includes('chat')) skip = Math.max(skip, 25);
-  if (demo.includes('talk')) skip = Math.max(skip, 8);
+  if (demo.includes('talk')) skip = Math.max(skip, 7);
   if (demo.includes('ship')) skip = Math.max(skip, 46);
   if (demo.includes('end')) skip = Math.max(skip, SIM_ACT1_END + 1);
+  if (demo.includes('selftest')) { setTimeout(() => officeSelftest(), 50); return; }
   if (skip) await this.skipTo(skip);
   else this._schedule(0);
   if (demo.includes('chat')) setTimeout(() => OP.open('a-scar', { from: 'scene' }), 30);
   if (demo.includes('pete')) setTimeout(() => OP.open('a-pete', { from: 'scene' }), 30);
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
+  if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
 };
 OS.stop = function () { this.timers.forEach(clearTimeout); this.timers = []; this.running = false; };
 OS.replay = function () { toast('↺ Replaying Act 1'); location.reload(); };
@@ -41,12 +43,20 @@ OS._schedule = function (from) {
 };
 OS.skipTo = async function (t) {
   OE.instant = true;
-  for (const b of SIM_SCRIPT.filter(x => x.t <= t)) { try { await this._run(b); } catch (e) { console.error(e); } }
+  for (const b of SIM_SCRIPT.filter(x => x.t <= t)) { if (/trace/.test(location.search)) console.log("beat", b.t, b.do); try { await this._run(b); } catch (e) { console.error("beat failed", b.t, b.do, e && e.message); } }
   OE.instant = false;
   officeRefresh();
   if (t > SIM_ACT1_END) this._ambient(); else this._schedule(t);
 };
-OS._run = async function (b) {
+/* one beat at a time per actor: a new beat waits for that actor's previous one */
+OS._run = function (b) {
+  this.lock = this.lock || {};
+  const key = b.actor || '_world';
+  const p = (this.lock[key] || Promise.resolve()).then(() => this._exec(b));
+  this.lock[key] = p.catch(() => {});
+  return p;
+};
+OS._exec = async function (b) {
   const h = this.H[b.do]; if (!h) return;
   if (b.actor) this.busy[b.actor] = (this.busy[b.actor] || 0) + 1;
   try { await h.call(this, b); } finally { if (b.actor) this.busy[b.actor]--; officeChanged(); }
@@ -251,7 +261,7 @@ OS.H = {
     await OE.say(target, 'On it! ☕', { ms: 1200 });
     const back = OE.walkTo('pixel', 'director').then(() => OE.setActivity('pixel', prev.kind, prev));
     await OE.walkTo(target, t.seat);
-    OE.setActivity(target, b.kind || 'reading', { short: 'Rates API', detail: b.label || 'Reading rates API docs', target: b.target2 || 'rates API docs', featureId: 'multicur' });
+    OE.setActivity(target, b.kind || 'reading', { short: 'Rates API', detail: b.label || 'Reading rates API docs', target: b.file || 'rates API docs', featureId: 'multicur' });
     OP.system(`${_osName(target)} is in — ${(b.label || 'reading rates API docs').toLowerCase()}.`);
     await back;
   },
