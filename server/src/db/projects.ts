@@ -1,6 +1,7 @@
 /* Projects repository. A project is run by one orchestrator, staffed teams-first
    (whole teams) plus the odd specialist, and lives in a folder inside the sandbox. */
 import { assertNotSystem, assertOrchestrator } from '../domain/cast.ts';
+import { type Collaboration, CollaborationSchema } from '../domain/collaboration.ts';
 import { slugify, uniqueId } from '../domain/ids.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import { SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
@@ -24,6 +25,7 @@ type ProjectRecord = {
   github_connected: number;
   github_private: number;
   tile: string;
+  collaboration: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -43,6 +45,8 @@ export type Project = {
   teamIds: string[];
   /** Individual specialists (teams come first). */
   agentIds: string[];
+  /** How its people work together (B8): who the orchestrator briefs + review gates. null = captains, no gates. */
+  collaboration: Collaboration | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -58,9 +62,21 @@ type ProjectFields = {
   tile?: Tile;
   teamIds?: string[];
   agentIds?: string[];
+  collaboration?: Collaboration | null;
 };
 export type ProjectCreate = ProjectFields;
 export type ProjectPatch = Partial<ProjectFields>;
+
+/** A stored design that no longer parses reads as none (captains, no gates). */
+const readCollaboration = (raw: string | null): Collaboration | null => {
+  if (!raw) return null;
+  try {
+    const r = CollaborationSchema.safeParse(JSON.parse(raw));
+    return r.success ? r.data : null;
+  } catch {
+    return null;
+  }
+};
 
 export const DEFAULT_TILE: Tile = { g1: '#9b6cff', g2: '#4ea8ff', glyph: 'bag' };
 type Link = 'teams' | 'agents';
@@ -138,6 +154,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     tile: JSON.parse(r.tile) as Tile,
     teamIds: links(r.id, 'teams'),
     agentIds: links(r.id, 'agents'),
+    collaboration: readCollaboration(r.collaboration),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -162,8 +179,8 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = normFolder(input.folder);
       const t = now();
       db.prepare(
-        `INSERT INTO projects (id, name, note, status, progress, folder, orchestrator_id, github_connected, github_private, tile, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, name, note, status, progress, folder, orchestrator_id, github_connected, github_private, tile, collaboration, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         pid,
         input.name,
@@ -175,6 +192,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         input.github?.connected ? 1 : 0,
         (input.github?.private ?? true) ? 1 : 0,
         JSON.stringify(input.tile ?? DEFAULT_TILE),
+        input.collaboration ? JSON.stringify(input.collaboration) : null,
         nextPosition(db, 'projects'),
         t,
         t,
@@ -192,7 +210,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = patch.folder === undefined ? r.folder : normFolder(patch.folder, id);
       db.prepare(
         `UPDATE projects SET name = ?, note = ?, status = ?, progress = ?, folder = ?, orchestrator_id = ?,
-           github_connected = ?, github_private = ?, tile = ?, updated_at = ? WHERE id = ?`,
+           github_connected = ?, github_private = ?, tile = ?, collaboration = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.name ?? r.name,
         patch.note ?? r.note,
@@ -203,6 +221,11 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         patch.github ? (patch.github.connected ? 1 : 0) : r.github_connected,
         patch.github ? (patch.github.private ? 1 : 0) : r.github_private,
         patch.tile ? JSON.stringify(patch.tile) : r.tile,
+        patch.collaboration === undefined
+          ? r.collaboration
+          : patch.collaboration
+            ? JSON.stringify(patch.collaboration)
+            : null,
         now(),
         id,
       );

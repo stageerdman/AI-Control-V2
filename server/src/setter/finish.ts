@@ -152,6 +152,7 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
     tile: tileFor(name),
     ...(draft.orchestratorId ? { orchestratorId: draft.orchestratorId } : {}),
     ...(draft.plan ? staffingOf(draft.plan) : {}),
+    ...(draft.plan?.collaboration ? { collaboration: draft.plan.collaboration } : {}),
   };
 
   return guarded(draft.id, async () => {

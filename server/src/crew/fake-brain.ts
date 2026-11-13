@@ -145,6 +145,28 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
       }));
       return answer({ summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000), items: out });
     }
+    case 'collaboration': {
+      type Who = { id: string; name: string; role: string };
+      const people = field<{ teams: { teamId: string; members: Who[] }[]; specialists: Who[] }>(
+        t,
+        'Who works on it:',
+      );
+      const everyone = [...(people?.teams ?? []).flatMap((tm) => tm.members), ...(people?.specialists ?? [])];
+      const qa = everyone.find((p) => /\b(qa|quality|test)/i.test(p.role));
+      return answer({
+        reply: qa
+          ? `${qa.name} checks every piece of work before it counts as done.`
+          : 'I brief the captains; nobody here does reviews yet.',
+        collaboration: {
+          orchestratorTalksTo: 'captains',
+          gates: qa
+            ? [{ after: '*', reviewer: qa.id, kind: 'quality', why: 'A second pair of eyes on quality.' }]
+            : [],
+          maxSendBacks: 2,
+          summary: qa ? `Captains build, ${qa.name} reviews.` : 'Captains build; no review gates.',
+        },
+      });
+    }
     case 'health': {
       const aspect = (grade: string, good: string, fix: string) => ({ grade, good, fix });
       return [
@@ -182,6 +204,13 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           { result: 'Filed the report.' },
         ];
       }
+      /* a review gate (dispatch): approve, the way a happy reviewer ends its reply */
+      if (/^You are reviewing /.test(t))
+        return [
+          { activity: { kind: 'reading', label: 'Reading the changes' } },
+          { tokens: { input: 600, output: 80 } },
+          { result: 'Looks good.\n{"verdict": "approve", "notes": "Meets the brief (fake review)."}' },
+        ];
       /* an office-chat turn: a short, obviously-fake reply that echoes the user */
       if (/^The user says: /m.test(t)) {
         const said = field<string>(t, 'The user says:') ?? '';

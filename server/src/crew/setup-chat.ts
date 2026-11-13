@@ -10,7 +10,14 @@ import type { Store } from '../db/store.ts';
 import { type Plan, PlanSchema, planIssues, staffingOf } from '../domain/plan.ts';
 import { conflict } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
-import { castCatalogue, crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
+import {
+  COLLABORATION_EXAMPLE,
+  COLLABORATION_RULE,
+  castCatalogue,
+  crewSystemPrompt,
+  json,
+  ORCHESTRATOR_ALTITUDE,
+} from './prompts.ts';
 import { type Crew, validateWith } from './structured.ts';
 
 export const SETUP_CHAT = 'setup-chat';
@@ -29,6 +36,7 @@ const RULES = [
   'If no team or agent in the Cast fits, add a brief to "newTeams" or "newAgents" — the Agent Creator designs it when the user accepts the plan. The brief says what it must be good at.',
   'If the project will need research, comparisons, reviews or write-ups, staff a reporter (a team or agent marked "reporter" in the Cast) — only reporters file reports to the Reports tray.',
   'Use only ids that appear in the Cast. Keep the user’s earlier choices unless they ask to change them.',
+  COLLABORATION_RULE,
 ];
 
 const CONTRACT_EXAMPLE = {
@@ -39,6 +47,7 @@ const CONTRACT_EXAMPLE = {
     newAgents: [{ brief: 'what the new specialist must be good at' }],
     newTeams: [{ brief: 'what the new team must do' }],
     summary: 'The plan in one sentence.',
+    collaboration: COLLABORATION_EXAMPLE,
   },
 };
 

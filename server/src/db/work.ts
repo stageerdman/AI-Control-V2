@@ -1,10 +1,21 @@
 /* The whiteboard repository: goals and their checklist items (plain SQL, no rules —
    src/crew/dispatch.ts owns those). */
+import type { ItemGate } from '../domain/collaboration.ts';
 import type { Db } from './connection.ts';
 import { now } from './util.ts';
 
 export type GoalStatus = 'running' | 'done' | 'failed' | 'cancelled';
 export type ItemStatus = 'todo' | 'running' | 'done' | 'failed' | 'cancelled';
+/** build → review(s) → (merge) → done. `merge` = the builder fixes a merge conflict. */
+export type ItemStage = 'build' | 'review' | 'merge';
+export type ItemReview = {
+  reviewer: string;
+  gate: ItemGate['kind'];
+  verdict: 'approve' | 'changes';
+  notes: string;
+  runId: string;
+  at: string;
+};
 export type ChecklistItem = {
   id: string;
   goalId: string;
@@ -21,10 +32,32 @@ export type ChecklistItem = {
   /** The report this item's run filed (the whiteboard links to it). */
   reportId: string | null;
   status: ItemStatus;
+  /** The current (or last) run: the builder's, or the reviewer's during a review. */
   runId: string | null;
   note: string | null;
+  /** B8: where the item is in its flow, its review gates (snapshot at dispatch), the next gate,
+      how often it was sent back, the last reviewer notes and every verdict so far. */
+  stage: ItemStage;
+  gates: ItemGate[];
+  gateIndex: number;
+  sendBacks: number;
+  notes: string | null;
+  reviews: ItemReview[];
+  /** The builder's last run (rework resumes its session). */
+  buildRunId: string | null;
   createdAt: string;
   updatedAt: string;
+};
+export type ItemPatch = {
+  status: ItemStatus;
+  runId?: string | null;
+  note?: string | null;
+  stage?: ItemStage;
+  gateIndex?: number;
+  sendBacks?: number;
+  notes?: string | null;
+  reviews?: ItemReview[];
+  buildRunId?: string | null;
 };
 export type Goal = {
   id: string;
@@ -57,9 +90,24 @@ const toItem = (r: Row): ChecklistItem => ({
   status: r.status as ItemStatus,
   runId: (r.run_id as string) ?? null,
   note: (r.note as string) ?? null,
+  stage: ((r.stage as string) ?? 'build') as ItemStage,
+  gates: parseList<ItemGate>(r.gates),
+  gateIndex: (r.gate_index as number) ?? 0,
+  sendBacks: (r.send_backs as number) ?? 0,
+  notes: (r.notes as string | null) ?? null,
+  reviews: parseList<ItemReview>(r.reviews),
+  buildRunId: (r.build_run_id as string | null) ?? null,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
 });
+function parseList<T>(raw: unknown): T[] {
+  try {
+    const v = JSON.parse((raw as string) ?? '[]');
+    return Array.isArray(v) ? (v as T[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function workRepo(db: Db) {
   const items = (goalId: string) =>
@@ -103,6 +151,7 @@ export function workRepo(db: Db) {
       list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'> & {
         parallel?: boolean;
         report?: boolean;
+        gates?: ItemGate[];
       })[],
     ): Goal {
       const t = now();
@@ -110,8 +159,8 @@ export function workRepo(db: Db) {
         `INSERT INTO goals (id, project_id, text, summary, status, caps, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
       ).run(g.id, g.projectId, g.text, g.summary, g.caps ? JSON.stringify(g.caps) : null, t, t);
       const ins = db.prepare(
-        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
+        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
       );
       list.forEach((i, n) => {
         ins.run(
@@ -125,6 +174,7 @@ export function workRepo(db: Db) {
           i.teamId,
           i.parallel ? 1 : 0,
           i.report ? 1 : 0,
+          JSON.stringify(i.gates ?? []),
           t,
           t,
         );
@@ -151,15 +201,24 @@ export function workRepo(db: Db) {
           )
           .all(projectId, status) as Row[]
       ).map(toItem),
-    setItem(id: string, patch: { status: ItemStatus; runId?: string | null; note?: string | null }) {
+    setItem(id: string, patch: ItemPatch) {
       const cur = repo.item(id);
       if (!cur) return;
+      const pick = <K extends keyof ItemPatch & keyof ChecklistItem>(k: K) =>
+        (patch[k] === undefined ? cur[k] : patch[k]) as ChecklistItem[K];
       db.prepare(
-        'UPDATE checklist_items SET status = ?, run_id = ?, note = ?, updated_at = ? WHERE id = ?',
+        `UPDATE checklist_items SET status = ?, run_id = ?, note = ?, stage = ?, gate_index = ?, send_backs = ?, notes = ?,
+           reviews = ?, build_run_id = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.status,
-        patch.runId === undefined ? cur.runId : patch.runId,
-        patch.note === undefined ? cur.note : patch.note,
+        pick('runId'),
+        pick('note'),
+        pick('stage'),
+        pick('gateIndex'),
+        pick('sendBacks'),
+        pick('notes'),
+        JSON.stringify(pick('reviews')),
+        pick('buildRunId'),
         now(),
         id,
       );

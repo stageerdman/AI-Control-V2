@@ -3,6 +3,7 @@
    here before it reaches the log, and payloads reference ids (agents, credentials),
    never secret values. */
 import { z } from 'zod';
+import { GATE_KINDS } from './collaboration.ts';
 
 const id = z.string().trim().min(1).max(80);
 const text = (max = 2000) => z.string().max(max);
@@ -86,6 +87,63 @@ export const EVENT_SCHEMAS = {
     goalId: id.optional(),
     status: z.enum(['todo', 'running', 'done', 'failed', 'cancelled']).optional(),
     runId: id.optional(),
+    /** Where the item is in its flow (B8): build → review(s) → merge. */
+    stage: z.enum(['build', 'review', 'merge']).optional(),
+    /** Who holds it right now (the builder, or the reviewer during a review). */
+    holder: id.optional(),
+  }),
+  /** The collaboration design (B8) changed: who the orchestrator briefs + how many review gates. GET …/collaboration has it whole. */
+  'collaboration.changed': z.strictObject({
+    orchestratorTalksTo: z.enum(['captains', 'everyone']),
+    gates: count,
+    summary: text(500),
+  }),
+  /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
+      (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). */
+  handoff: z.strictObject({
+    itemId: id,
+    goalId: id,
+    from: id,
+    to: id,
+    kind: z.enum(['review', 'rework', 'merge-fix']),
+    gate: z.enum(GATE_KINDS).optional(),
+    note: text().optional(),
+  }),
+  /** A reviewer approved an item at their gate. */
+  'review.approved': z.strictObject({
+    itemId: id,
+    goalId: id,
+    reviewerId: id,
+    gate: z.enum(GATE_KINDS),
+    notes: text().optional(),
+  }),
+  /** A reviewer sent an item back with notes; final = the send-back limit is reached and the item stops for the user. */
+  'review.changes': z.strictObject({
+    itemId: id,
+    goalId: id,
+    reviewerId: id,
+    gate: z.enum(GATE_KINDS),
+    notes: text(),
+    sendBacks: count,
+    final: z.boolean().optional(),
+  }),
+  /** An accepted item's branch was merged back into the project's main branch (git worktrees). */
+  'item.merged': z.strictObject({
+    itemId: id,
+    goalId: id,
+    branch: text(200),
+    commit: text(64).optional(),
+  }),
+  /** The project's status moved on its own (live → needs input → idle). */
+  'project.status': z.strictObject({ status: z.enum(['live', 'needs', 'idle', 'draft', 'archived']) }),
+  /** Overall progress: features shipped / total, plus the current goal; target = the optional label ("v1.0"). */
+  'project.progress': z.strictObject({
+    pct: z.number().int().min(0).max(100),
+    shipped: count,
+    total: count,
+    target: text(40).optional(),
+    goalId: id.optional(),
+    goalPct: z.number().int().min(0).max(100).optional(),
   }),
   /** The features folder (U1): a feature was added, edited, moved or (deleted: true) removed. GET /projects/:id/features has the text. */
   'feature.changed': z.strictObject({

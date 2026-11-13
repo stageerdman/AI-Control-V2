@@ -20,6 +20,7 @@ import {
   HAT_DECAL,
   HUES,
 } from '../domain/catalog.ts';
+import { resolvePlaceholders } from '../domain/collaboration.ts';
 import {
   type AgentDef,
   AgentDefSchema,
@@ -292,6 +293,14 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
             newAgents: [],
             newTeams: [],
             summary: plan.summary,
+            ...(plan.collaboration
+              ? {
+                  collaboration: resolvePlaceholders(plan.collaboration, {
+                    agents: ids.slice(0, nAgents) as string[],
+                    teams: ids.slice(nAgents) as string[],
+                  }),
+                }
+              : {}),
           };
           assertPlan(resolved, castView(store.agents, store.teams));
           const chat = [

@@ -81,6 +81,9 @@ Bodies are strict — unknown keys are 422.
 | `POST /drafts/:id/chat` `{text?}` · `GET /drafts/:id/chat` | one orchestrator turn → `{reply, plan, chat}` (no `text` = the orchestrator opens with a proposal); history `{chat, plan}` |
 | `POST /drafts/:id/accept` | the Agent Creator mints every `newAgents`/`newTeams` brief, the plan resolves to real ids — all or nothing → `{plan, minted: {roles, agents, teams}}`; `/finish` refuses until then |
 | `POST /projects/:id/work` `{goal, caps?: {maxTurns, maxBudgetUsd}}` | the orchestrator breaks the goal into ≤ 8 checklist items for team captains / specialists → the goal (201); items run as agent runs (with `caps`), ≤ 2 at a time per project, one per agent |
+| `GET /projects/:id/collaboration` | `{collaboration, designed}` — how the project's people work together (B8); `designed: false` = the default (captains, no gates) |
+| `PUT /projects/:id/collaboration` | set it by hand (the whole design) → `{collaboration, designed: true}`; 422 malformed, 409 a gate names someone not on the project; event `collaboration.changed` |
+| `POST /projects/:id/collaboration/design` `{ask?}` | the orchestrator (re)designs it for the people on the project now (crew contract `collaboration`) → `{reply, collaboration}`; saved + `collaboration.changed` |
 | `POST /projects/:id/health` `{caps?}` | health check: a read-only run in the project folder grades modularity / cleanliness / reusability (A–F, `good`, `fix`) + git/GitHub status → the report (201), event `health.checked` |
 | `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git}` — `git` is live and local only (no network) |
 | `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
@@ -144,9 +147,26 @@ session, issues listed); a second miss is 502.
   `teamId`) or a project specialist (no `teamId`). Items run **in order** (one shared working tree); `parallel: true` lets an
   item start alongside the one before it; if an earlier item fails, later ones are skipped
 
+- `collaboration` → `{reply, collaboration}` (see Collaboration below; validated against the project's staffing)
+
 - `health` → `{modularity, cleanliness, reusability: {grade: A–F, good, fix}, summary}` — the one crew run that works IN a
   project folder: tools Read/Glob/Grep/Bash, Bash pre-approved only for `ls`, `pwd`, `git status|log|diff|show|ls-files|shortlog`
   (no Write/Edit tool at all), no secrets, caps 15 turns. Commissioned by the project's orchestrator.
+
+**Collaboration** (B8, `src/domain/collaboration.ts`, the user's idea in `updates/2026-11-13 BACKEND - OPEN/idea-collaboration-design.md`):
+`{orchestratorTalksTo: captains|everyone (default captains), gates: [{after: teamId|agentId|"*", reviewer: agentId, kind:
+quality|user-test|crash-test|security|review, why}] (≤ 8), maxSendBacks: 0–3 (default 2), summary}`. Designed by the orchestrator in the
+setup plan (`plan.collaboration`, optional; `new-agent:N` / `new-team:N` point at briefs and resolve on accept; copied to the project on
+finish), by `POST …/collaboration/design`, or set by hand. Rules: `after` is `*` or a team/agent on the project, the reviewer is a team
+member or specialist on it, never the same person, no duplicates. **Dispatch enforces it:** `everyone` lets the orchestrator brief any team
+member (with their `teamId`), `captains` keeps captains + specialists only; every build item snapshots its gates (`gates`, in order, the
+builder never reviews itself, reviewers no longer on the project are dropped; report items have none). Flow: build run → `handoff` (kind
+`review`) → a review run by the reviewer (its team context; task = the brief, the builder's summary, the gate's focus, earlier notes; ends
+with `{"verdict": "approve"|"changes", "notes"}` — anything unclear counts as changes) → `review.approved` → next gate or **done**; or
+`review.changes` + `handoff` (kind `rework`, with the notes) → the builder reworks in its own resumed session → the same gate again.
+Past `maxSendBacks` the item **fails** for the user (`review.changes` with `final: true`; later items are skipped as usual). Item fields:
+`stage` (build|review|merge), `gates`, `gateIndex`, `sendBacks`, `notes` (last reviewer notes), `reviews` ([{reviewer, gate, verdict,
+notes, runId, at}]), `buildRunId`. `checklist.item` carries `stage` + `holder` (who has it now) when the item has gates.
 
 **Reports** (`src/reports/reports.ts`, spec: `updates/2026-11-13 APP UI - OPEN/spec-reports.md`). A report =
 `{id: 'rep_…', projectId, kind: research|review|status|other, title (4–80), summary (≤ 280), body (markdown ≤ 40k), question?,
@@ -166,4 +186,6 @@ with credentials stripped). GitHub visibility (`gh repo view <owner/repo> --json
 a health check, only for a GitHub remote, only when `gh` is installed — never on GET.
 
 Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read` / `report.archived` (U1), `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
-`goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`), `progress` (project stream; also sets `project.progress`).
+`goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`, `stage`, `holder`), `progress` (project stream; also sets `project.progress`).
+F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix, gate?, note?}`,
+`review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`.

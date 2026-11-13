@@ -10,6 +10,7 @@
      accepting the plan mints them and rewrites the plan to real ids. */
 import { z } from 'zod';
 import { conflict, invalid } from '../errors.ts';
+import { CollaborationSchema, collaborationIssues } from './collaboration.ts';
 
 /** Payload-size sanity bound per list — not a staffing rule. */
 export const PLAN_LIST_MAX = 20;
@@ -30,6 +31,8 @@ export const PlanSchema = z.strictObject({
   newAgents: z.array(z.strictObject({ brief })).max(PLAN_LIST_MAX).default([]),
   newTeams: z.array(z.strictObject({ brief })).max(PLAN_LIST_MAX).default([]),
   summary: z.string().trim().min(1).max(1000),
+  /** How the people on the project work together (B8) — designed by the orchestrator, optional. */
+  collaboration: CollaborationSchema.optional(),
 });
 export type Plan = z.output<typeof PlanSchema>;
 
@@ -66,6 +69,22 @@ export function planIssues(plan: Plan, cast: CastView): PlanIssue[] {
     else if (agentIds.indexOf(s.agentId) !== i) rule(path, `${a.name} is listed twice`);
     else if (a.kind !== 'agent') rule(path, `${a.name} is studio crew, not a specialist`);
     else if (team) rule(path, `${a.name} already comes with ${team} — teams stay whole; drop the specialist`);
+  }
+
+  if (plan.collaboration) {
+    const teams = new Map<string, { name: string; members: readonly string[] }>();
+    for (const t of plan.teams) {
+      const team = cast.team(t.teamId);
+      if (team) teams.set(t.teamId, team);
+    }
+    for (const message of collaborationIssues(plan.collaboration, {
+      teams,
+      specialists: new Set(agentIds),
+      name: (id) => cast.agent(id)?.name ?? id,
+      newAgents: plan.newAgents.length,
+      newTeams: plan.newTeams.length,
+    }))
+      rule('collaboration', message);
   }
 
   const staffed = plan.teams.length + plan.newTeams.length + plan.specialists.length + plan.newAgents.length;

@@ -3,6 +3,7 @@
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Config } from './config.ts';
+import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
 import { createDispatch } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
@@ -24,6 +25,7 @@ import { createReports, ReportInputSchema } from './reports/reports.ts';
 import { accessRoutes } from './routes/access.ts';
 import { agentRoutes } from './routes/agents.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
+import { collaborationRoutes } from './routes/collaboration.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { draftRoutes } from './routes/drafts.ts';
@@ -121,6 +123,7 @@ export function buildApp({
   const crew = createCrew({ runner, model, scratchDir: join(config.home, 'scratch') });
   const chat = createSetupChat({ store, events, crew });
   const creator = createCreator({ store, events, crew });
+  const collaboration = createCollaboration({ store, events, crew });
   const dispatch = createDispatch({
     db,
     store,
@@ -183,6 +186,7 @@ export function buildApp({
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health }));
+  app.register(collaborationRoutes({ collaboration }));
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));
   app.register(reportRoutes({ reports }));

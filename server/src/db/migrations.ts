@@ -326,6 +326,21 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE drafts ADD COLUMN setup_at TEXT;
   ALTER TABLE drafts ADD COLUMN setup_commit TEXT;
   `,
+  /* 15 — collaboration design (F1b/B8): the orchestrator's plan for who talks to whom and which review gates
+     work passes through (JSON, src/domain/collaboration.ts). A checklist item now flows build → review(s) → done:
+     stage = where it is, gates = its review steps (snapshot at dispatch), gate_index = the next one,
+     send_backs = how often a reviewer sent it back, notes = the last notes, reviews = the history (JSON),
+     build_run_id = the builder's last run (rework resumes its session). */
+  `
+  ALTER TABLE projects ADD COLUMN collaboration TEXT;
+  ALTER TABLE checklist_items ADD COLUMN stage TEXT NOT NULL DEFAULT 'build' CHECK (stage IN ('build', 'review', 'merge'));
+  ALTER TABLE checklist_items ADD COLUMN gates TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE checklist_items ADD COLUMN gate_index INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE checklist_items ADD COLUMN send_backs INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE checklist_items ADD COLUMN notes TEXT;
+  ALTER TABLE checklist_items ADD COLUMN reviews TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE checklist_items ADD COLUMN build_run_id TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

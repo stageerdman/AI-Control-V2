@@ -72,3 +72,20 @@ export const CREATOR_ALTITUDE =
   'You design agents and teams for the Cast. Each agent is a shared definition every project can reuse (each project runs its own copy, with no shared memory), so make them general for their role, not tied to one project.';
 
 export const json = (v: unknown) => JSON.stringify(v);
+
+/** How the orchestrator designs the collaboration (setup chat + the project's redesign call). */
+export const COLLABORATION_RULE =
+  'Design how the people work together in "collaboration": "orchestratorTalksTo" is "captains" (you brief teams through their captains — the default) or "everyone". "gates" are review handoffs: after work by "after" (a team id, an agent id, or "*" for any work) is done, "reviewer" (a team member or specialist on this project — never the same person) checks it and approves or sends it back with notes. Kinds: "quality" (a quality manager / QA checks the code is correct, modular and simple), "user-test" (someone uses it like a user — good after designers or front-end work), "crash-test" (tries to break it — optional), "security" (later, for risky work), "review" (general). Keep it lean: one or two gates, chosen from people already staffed — gates cost time. For agents the Agent Creator hasn’t designed yet use "new-agent:0", "new-team:0" (their index in newAgents / newTeams). "maxSendBacks" (0–3, default 2) bounds the back-and-forth.';
+export const COLLABORATION_EXAMPLE = {
+  orchestratorTalksTo: 'captains',
+  gates: [
+    {
+      after: '<team id, agent id or "*">',
+      reviewer: '<agent id on the project>',
+      kind: 'quality',
+      why: 'why this check earns its place',
+    },
+  ],
+  maxSendBacks: 2,
+  summary: 'How they work together, in one sentence.',
+};
