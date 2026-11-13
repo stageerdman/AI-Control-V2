@@ -65,11 +65,7 @@ OP.open = function (id, o = {}) {
   else if (o.from !== 'scene' && o.from !== 'type') this.el.querySelector('#opInput').focus({ preventScroll: true });
 };
 OP._name = id => agentById(id === 'pixel' ? 'director' : id).name;
-OP._short = id => {
-  if (id === 'pixel') return 'Pixel';
-  const nick = { 'a-pete': 'Pete', 'a-semic': 'Captain', 'a-lint': 'Lint', 'a-doc': 'Doc', 'a-baron': 'Baron', 'a-merge': 'Madame M', 'a-prof': 'Professor' };
-  return nick[id] || agentById(id).name.split(' ')[0];
-};
+OP._short = id => id === 'pixel' ? 'Pixel' : shortName(agentById(id));
 
 /* "tell me what you're doing" — summary bubble in the scene + newest message here */
 OP._summary = function (a, bubble, bubbleOnly) {
@@ -154,7 +150,7 @@ OP.refresh = function () {
     const status = id === 'pixel' ? `<span class="op-live"><i></i>Always here</span> · ${wsTok(a.tokens.total)} tokens`
       : `${act.icon} ${escapeHtml(a.activity.kind === 'needs-input' ? 'Needs you' : a.activity.detail || a.activity.label)} · <b>${wsTok(a.tokens.total)}</b> tokens`;
     const honest = id === 'pixel' ? 'Your manager · big picture only'
-      : a.session === 'asleep' ? `${escapeHtml(ag.name.split(' ')[0])} is off shift — Pixel can bring them in`
+      : a.session === 'asleep' ? `${escapeHtml(this._short(id))} is off shift — Pixel can bring them in`
       : 'Pixel sees a summary of this chat' + (['coding', 'reading', 'testing', 'reviewing', 'planning'].includes(a.activity.kind) ? ' · still working in the background' : '');
     head.innerHTML = `<div class="op-portrait"><span class="op-spot"></span></div>
       <div class="op-who"><b>${escapeHtml(ag.name)}</b>
@@ -351,7 +347,7 @@ OP._askCard = function (m) {
     return el;
   }
   el.setAttribute('role', 'group'); el.setAttribute('aria-label', `${a.name} is asking: ${ask.short}`);
-  el.innerHTML = `<div class="op-ak">❗ ${escapeHtml(a.name.split(' ')[0])} needs you</div><div class="op-aq">${m.text.replace(/<(?!\/?b>)[^>]*>/g, '')}</div><div class="op-actx">${escapeHtml(ask.ctx)}</div><div class="op-ain"></div>`;
+  el.innerHTML = `<div class="op-ak">❗ ${escapeHtml(this._short(ask.agentId))} needs you</div><div class="op-aq">${m.text.replace(/<(?!\/?b>)[^>]*>/g, '')}</div><div class="op-actx">${escapeHtml(ask.ctx)}</div><div class="op-ain"></div>`;
   const inp = el.querySelector('.op-ain');
   if (ask.type === 'access') {
     const cred = credById(ask.want); const on = !!WS.grants[ask.want];
@@ -392,7 +388,7 @@ OP.resolveAsk = function (askId, answer) {
   WS.answered = WS.answered || {}; WS.answered[askId] = answer;
   const name = this._name(ask.agentId);
   this.post(ask.agentId, { from: 'user', kind: 'text', text: ask.type === 'access' ? `Granted — ${answer.replace(/ granted$/, '')} (masked).` : `Go with ${answer}.` });
-  toast(`Handed to ${escapeHtml(name.split(' ')[0])} ✓`);
+  toast(`Handed to ${escapeHtml(this._short(ask.agentId))} ✓`);
   this.system(`${name} is unblocked — back to work.`);
   if (typeof OS !== 'undefined') OS.onAnswer(ask, answer);
   if (this.thread === ask.agentId) this._renderThread();

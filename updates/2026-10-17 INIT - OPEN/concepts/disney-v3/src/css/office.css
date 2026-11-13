@@ -26,6 +26,8 @@
 .o-prog:hover{background:rgba(255,255,255,.15)}
 .o-prog:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 .o-prog b{font-weight:900}
+.o-prog{white-space:nowrap;flex:none}
+@media (max-width:1099px){.o-ptgt{display:none}}
 .o-pbar{width:90px;height:8px;border-radius:9px;background:rgba(255,255,255,.15);overflow:hidden}
 .o-pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--teal));border-radius:9px;transition:width .6s var(--ease-out)}
 .o-ptgt{font-weight:800;color:rgba(255,246,233,.75)}
@@ -116,7 +118,8 @@
 .o-actor[data-family="red"] .o-tag{background:#ffd9d9}
 .o-actor[data-family="green"] .o-tag{background:#c9f5c9}
 .o-actor.needs .o-tag,.o-actor.speaking .o-tag{display:none}
-.o-actor.odd .o-over{bottom:calc(100% - var(--hy) + 34 * var(--u))}
+.o-tag,.o-bubble,.o-bang{translate:calc(var(--nx,0) * 1px) calc(var(--ny,0) * 1px);translate:calc(var(--nx,0) * var(--u)) calc(var(--ny,0) * var(--u))}
+.o-tag.o-hide{visibility:hidden}
 .o-actor.held .o-body::before{opacity:1;bottom:26%;height:80%;left:-34%;right:-34%;background:radial-gradient(closest-side,rgba(255,230,150,.85),rgba(255,230,150,0))}
 .o-bang{display:inline-flex;align-items:center;gap:calc(6*var(--u));padding:calc(3*var(--u)) calc(11*var(--u)) calc(3*var(--u)) calc(3*var(--u));border-radius:999px;position:relative;
   background:var(--coral);color:#fff;font-weight:900;font-size:calc(13*var(--u));box-shadow:0 0 0 calc(2.5*var(--u)) var(--ink),0 calc(4*var(--u)) calc(12*var(--u)) rgba(255,111,115,.6);animation:o-bob 1.2s ease-in-out infinite}

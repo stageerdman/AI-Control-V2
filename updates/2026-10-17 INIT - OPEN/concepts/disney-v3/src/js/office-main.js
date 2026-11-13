@@ -184,6 +184,7 @@ function officeRefresh() {
   document.getElementById('oStage').setAttribute('aria-label', `Office — ${people} people${n ? `, ${n} need${n === 1 ? 's' : ''} you` : ''}. Arrow keys move between people; ! jumps to whoever needs you.`);
   document.getElementById('oStage').setAttribute('role', 'group');
   THEME_OFFICE.sync(OE.art, WS);
+  OE.declutterSoon();
   OP.refresh();
   if (OM.layer) OB.refresh();
 }

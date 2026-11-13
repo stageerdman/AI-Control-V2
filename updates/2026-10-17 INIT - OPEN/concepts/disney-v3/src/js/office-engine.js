@@ -231,7 +231,7 @@ const OE = {
       }
       rec.wrap.style.transitionDuration = '';
     }
-    rec.walking = false; rec.wrap.classList.remove('walking');
+    rec.walking = false; rec.wrap.classList.remove('walking'); this.declutterSoon();
     if (typeof target === 'string') rec.data.at = target;
     if (to.look) setFacing(rec.hero, 'side', { dir: to.look });
   },
@@ -267,12 +267,12 @@ const OE = {
     rec.wrap.dataset.kind = a.activity.kind;
     rec.wrap.classList.toggle('asleep', a.activity.kind === 'sleeping');
     rec.wrap.dataset.family = { sleeping: 'sleep', idle: 'free', 'needs-input': 'needs', 'tests-red': 'red', 'tests-green': 'green', shipped: 'green' }[a.activity.kind] || 'work';
-    rec.wrap.classList.toggle('odd', /^[ABC]-[24]$|^hot-[24]$/.test(a.at || '') && !!seated);
     rec.wrap.classList.toggle('needs', a.activity.kind === 'needs-input');
     rec.btn.querySelector('.o-ti').textContent = act.icon;
     const sh = a.activity.short; rec.btn.querySelector('.o-tt').textContent = sh && sh.length <= 13 ? sh : act.tag;
     this.bang(rec.id, a.activity.kind === 'needs-input');
     rec.btn.setAttribute('aria-label', actorLabel(a));
+    this.declutterSoon();
     function kindFront(k) { return k === 'shipped'; }
   },
   bang(id, on) {
@@ -326,12 +326,60 @@ const OE = {
     clearTimeout(this._chipT); this._chipT = setTimeout(() => b.remove(), 6000);
   },
 
+  /* ---------------------------------------------------------- declutter
+     Overlays never collide. Priority: "Needs you" pill > speech bubble >
+     status tag. Fixed obstacles: rug name plaques, wall-object labels, and
+     everyone's face (a tag may never cover someone else's face). Each pass
+     resets nudges, measures in screen space, then places items in priority
+     order, nudging up/sideways; a status tag that can't fit is hidden (its
+     state stays in the actor's label, the list mirror and the hover card). */
+  declutterSoon() { if (!this.box) return; clearTimeout(this._dcT); this._dcT = setTimeout(() => this.declutter(), 0); },
+  declutter() {
+    if (!this.box || this.box.classList.contains('zoomed')) return;
+    const items = [];
+    Object.values(this.actors).forEach(r => {
+      if (r.wrap.classList.contains('gone')) return;
+      [['.o-bang', 4], ['.o-bubble', 3], ['.o-tag', 2]].forEach(([sel, pri]) => {
+        const el = r.btn.querySelector(sel); if (!el) return;
+        el.style.setProperty('--nx', 0); el.style.setProperty('--ny', 0); el.classList.remove('o-hide');
+        items.push({ el, pri, r });
+      });
+    });
+    const vis = items.filter(it => { const b = it.el.getBoundingClientRect(); it.b = b; return b.width > 0 && b.height > 0 && getComputedStyle(it.el).display !== 'none'; });
+    const pad = 3;
+    const hit = (a, b) => a.left < b.right + pad && a.right + pad > b.left && a.top < b.bottom + pad && a.bottom + pad > b.top;
+    /* obstacles */
+    const plaques = [...this.art.querySelectorAll('.ot-plaque')].map(g => ({ rect: g.getBoundingClientRect(), owner: null }));
+    const faces = Object.values(this.actors).filter(r => !r.wrap.classList.contains('gone')).map(r => {
+      const hb = r.hero.getBoundingClientRect(); const hy = parseFloat(r.hero.style.getPropertyValue('--head-y')) / 100 || .1;
+      return { rect: { left: hb.left + hb.width * .2, right: hb.right - hb.width * .2, top: hb.top + hb.height * hy, bottom: hb.top + hb.height * (hy + .36) }, owner: r.id };
+    });
+    const placed = [...plaques];
+    const shift = (b, dx, dy) => ({ left: b.left + dx, right: b.right + dx, top: b.top + dy, bottom: b.bottom + dy });
+    const tries = [[0, 0]];
+    for (let dy = 8; dy <= 40; dy += 8) tries.push([0, -dy], [-dy * .8, -dy * .5], [dy * .8, -dy * .5]);
+    for (let dx = 12; dx <= 48; dx += 12) tries.push([-dx, 0], [dx, 0]);
+    vis.sort((a, b) => b.pri - a.pri || a.b.top - b.b.top);
+    vis.forEach(it => {
+      const obst = placed.concat(it.pri <= 2 ? faces.filter(f => f.owner !== it.r.id) : []);
+      let ok = null;
+      const far = it.pri <= 2 && it.r.data.session === 'asleep' ? 16 : 99; /* a sleeper's tag never drifts away from them */
+      for (const [dx, dy] of tries) { if (Math.abs(dx) > far || Math.abs(dy) > far) continue; const c = shift(it.b, dx, dy); if (!obst.some(o => hit(c, o.rect))) { ok = [dx, dy, c]; break; } }
+      if (!ok) {
+        if (it.pri <= 2) { it.el.classList.add('o-hide'); return; }
+        ok = [0, 0, it.b];
+      }
+      if (ok[0] || ok[1]) { it.el.style.setProperty('--nx', ok[0].toFixed(1)); it.el.style.setProperty('--ny', ok[1].toFixed(1)); }
+      placed.push({ rect: ok[2], owner: it.r.id });
+    });
+  },
+
   /* ---------------------------------------------------------- talk */
   async say(id, text, o = {}) {
     const rec = this.actors[id]; if (!rec || this.instant) return;
     const b = rec.btn.querySelector('.o-bubble');
     b.innerHTML = escapeHtml(text).replace(/`([^`]+)`/g, '<code>$1</code>');
-    b.hidden = false; b.classList.remove('to-left', 'to-right', 'shout');
+    b.hidden = false; b.classList.remove('to-left', 'to-right', 'shout'); this.declutterSoon();
     if (o.to && this.actors[o.to]) b.classList.add(this.actors[o.to].x < rec.x ? 'to-left' : 'to-right');
     if (o.shout) b.classList.add('shout');
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
@@ -339,7 +387,7 @@ const OE = {
     const ms = o.ms || 1700;
     await this.sleep(ms);
     if (rec._hoverBubble) await new Promise(r => { rec._release = r; });
-    b.hidden = true; rec.wrap.classList.remove('speaking');
+    b.hidden = true; rec.wrap.classList.remove('speaking'); this.declutterSoon();
   },
   /* converse: max 2 conversations visible at once — extras wait */
   async converse(a, b, lines) {
@@ -424,6 +472,7 @@ const OE = {
     this.box.style.setProperty('--k', k);
     this._ox = ox; this._oy = oy;
     if (this.zoom.obj) this.zoomTo(this.zoom.obj, true);
+    this.declutterSoon();
   },
   /* fit an object's bounds into the viewport; null = back to the office */
   zoomTo(objId, quiet) {
@@ -444,6 +493,7 @@ const OE = {
     this.cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : '';
     this.box.style.setProperty('--z', z);
     this.box.classList.toggle('zoomed', !!objId);
+    if (!objId) setTimeout(() => this.declutter(), reducedMotion() ? 50 : 700);
     return rect;
   },
 };

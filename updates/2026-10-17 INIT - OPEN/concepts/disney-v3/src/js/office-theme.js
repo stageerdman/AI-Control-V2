@@ -388,7 +388,7 @@ function _otLounge() {
 /* a name plaque pinned to a rug's front edge — team membership in words */
 function _otPlaque(cx, y, text, hue) {
   const w = Math.max(120, text.length * 11.5 + 30);
-  return `<g transform="translate(${cx} ${y})"><rect x="${-w / 2}" y="-15" width="${w}" height="30" rx="15" fill="${OT.paper}" ${_o(2.5)}/>
+  return `<g class="ot-plaque" transform="translate(${cx} ${y})"><rect x="${-w / 2}" y="-15" width="${w}" height="30" rx="15" fill="${OT.paper}" ${_o(2.5)}/>
     <circle cx="${-w / 2 + 15}" cy="0" r="6" fill="${hueHex(hue)}" ${_o(2)}/>
     <text x="8" y="6" text-anchor="middle" font-size="17" font-weight="900" fill="${OT_INK}" letter-spacing=".02em">${escapeHtml(text)}</text></g>`;
 }
