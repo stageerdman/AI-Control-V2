@@ -60,7 +60,7 @@ window.addEventListener('keydown', e => {
   if (e.key === '/' && APP.stage === 'projects') {
     const s = document.getElementById('projSearch'); if (s) { e.preventDefault(); s.focus(); } return;
   }
-  const free = t === document.body || t.closest('#nav') || t.classList.contains('scene');
+  const free = t === document.body || !t.closest || t.closest('#nav') || t.classList.contains('scene');
   if (!free || (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft')) return;
   const i = STAGES.findIndex(s => s.id === APP.stage);
   const j = e.key === 'ArrowRight' ? Math.min(STAGES.length - 1, i + 1) : Math.max(0, i - 1);
