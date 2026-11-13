@@ -9,10 +9,11 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import type { z } from 'zod';
 import { agentError, conflict } from '../errors.ts';
+import { ORCHESTRATOR_CAPS } from '../runtime/config.ts';
 import { runEnv } from '../runtime/env.ts';
 import type { Caps, RunEvent, Runner, RunOutcome } from '../runtime/runner.ts';
 
-export const CREW_CAPS: Caps = { maxTurns: 3, maxBudgetUsd: 0.5 };
+export const CREW_CAPS: Caps = ORCHESTRATOR_CAPS;
 
 export type Verdict<T> = { ok: true; value: T } | { ok: false; issues: string[] };
 export type Validate<T> = (raw: unknown) => Verdict<T>;
@@ -23,6 +24,8 @@ export type CrewDeps = {
   /** Where crew runs execute (created on demand). Never a project folder. */
   scratchDir: string;
   parentEnv?: NodeJS.ProcessEnv;
+  /** Default caps for crew calls (the orchestrator's). */
+  caps?: Caps;
 };
 
 export type CrewCall<T> = {
@@ -94,7 +97,7 @@ export function createCrew(deps: CrewDeps) {
         systemPrompt: call.systemPrompt,
         task,
         model: deps.model,
-        caps: call.caps ?? CREW_CAPS,
+        caps: call.caps ?? deps.caps ?? CREW_CAPS,
         env: runEnv(deps.parentEnv ?? process.env, {}),
         secretValues: [],
         tools: call.workspace?.tools ?? [],

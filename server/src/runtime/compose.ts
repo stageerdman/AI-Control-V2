@@ -8,11 +8,15 @@ export type ComposeInput = {
   project: { name: string };
   /** Toolsmiths (quality / test roles): their persistent toolkit + the per-project tools folder. */
   toolkit?: { dir: string; projectDir: string } | null;
+  /** Shell commands pre-approved for this run (default: git, ls, cat, pwd). */
+  shell?: readonly string[];
 };
 
 const section = (title: string, body: string) => (body.trim() ? `## ${title}\n\n${body.trim()}` : '');
 
-export function composePrompt({ agent, team, project, toolkit }: ComposeInput): string {
+export function composePrompt({ agent, team, project, toolkit, shell }: ComposeInput): string {
+  const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
+  const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
   const who = `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`;
   return [
     `# ${agent.name}`,
@@ -40,7 +44,8 @@ export function composePrompt({ agent, team, project, toolkit }: ComposeInput): 
       'How to work here',
       [
         '- Work only inside this project folder.',
-        '- Create and change files with the Write and Edit tools. In the shell, run one plain command at a time (no `;`, `&&`, pipes or redirects): `git`, `ls`, `cat` and `pwd` are pre-approved, anything else is refused.',
+        `- Create and change files with the Write and Edit tools. In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${approved} are pre-approved, anything else is refused.`,
+        '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).',
         '- If you need a decision or information only the user has, call the `ask_user` tool and wait for the answer. Never guess credentials.',
         '- Finish with a short plain-words summary of what you did.',
       ].join('\n'),

@@ -6,7 +6,35 @@ import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
-export const DEFAULT_CAPS = { maxTurns: 12, maxBudgetUsd: 1 };
+/* Turn caps: real work needs room (B6 live: 8 turns were too tight for read → write → status → commit).
+   Budgets are the CLI's API-equivalent size cap (`--max-budget-usd`); runs use the Claude Code subscription, nothing is charged. */
+/** An agent's run (a checklist item, a chat turn with an agent). */
+export const DEFAULT_CAPS = { maxTurns: 30, maxBudgetUsd: 10 };
+/** A reviewer's run at a collaboration gate. */
+export const REVIEW_CAPS = { maxTurns: 15, maxBudgetUsd: 5 };
+/** The orchestrator / Agent Creator (big picture, no tools): plans, designs, office chat. */
+export const ORCHESTRATOR_CAPS = { maxTurns: 6, maxBudgetUsd: 2 };
+export type StudioCaps = {
+  agent: typeof DEFAULT_CAPS;
+  review: typeof REVIEW_CAPS;
+  orchestrator: typeof ORCHESTRATOR_CAPS;
+};
+
+/** Defaults, with turn caps overridable: AI_STUDIO_AGENT_TURNS, AI_STUDIO_REVIEW_TURNS, AI_STUDIO_ORCHESTRATOR_TURNS (1–200). */
+export function loadCaps(env: NodeJS.ProcessEnv = process.env): StudioCaps {
+  const turns = (name: string, fallback: number) => {
+    const n = Number(env[name]);
+    return Number.isInteger(n) && n >= 1 && n <= 200 ? n : fallback;
+  };
+  return {
+    agent: { ...DEFAULT_CAPS, maxTurns: turns('AI_STUDIO_AGENT_TURNS', DEFAULT_CAPS.maxTurns) },
+    review: { ...REVIEW_CAPS, maxTurns: turns('AI_STUDIO_REVIEW_TURNS', REVIEW_CAPS.maxTurns) },
+    orchestrator: {
+      ...ORCHESTRATOR_CAPS,
+      maxTurns: turns('AI_STUDIO_ORCHESTRATOR_TURNS', ORCHESTRATOR_CAPS.maxTurns),
+    },
+  };
+}
 
 const executable = (p: string) => {
   try {
@@ -56,3 +84,13 @@ export function loadRuntimeConfig(
     return { claudeBin: null, model, binError: (e as Error).message };
   }
 }
+
+/** Shell commands an agent run may use (one plain command at a time; anything else is refused).
+    `dev` (default) adds what building a real app needs — make folders, install and run JS tooling and tests;
+    `safe` keeps B5's read-only shell + git. AI_STUDIO_AGENT_SHELL=safe|dev. */
+export const AGENT_SHELL = {
+  safe: ['git', 'ls', 'cat', 'pwd'],
+  dev: ['git', 'ls', 'cat', 'pwd', 'mkdir', 'npm', 'npx', 'node'],
+} as const;
+export const loadShell = (env: NodeJS.ProcessEnv = process.env): readonly string[] =>
+  env.AI_STUDIO_AGENT_SHELL?.trim() === 'safe' ? AGENT_SHELL.safe : AGENT_SHELL.dev;

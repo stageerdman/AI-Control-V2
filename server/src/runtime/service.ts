@@ -54,6 +54,10 @@ export type RuntimeDeps = {
   reports?: ReportDesk;
   /** Where toolsmiths keep their toolkits (<data dir>/toolkits); absent → no toolkits. */
   toolkitsRoot?: string;
+  /** Shell commands agent runs may use (named in their prompt; the CLI runner enforces its own allow-list). */
+  shell?: readonly string[];
+  /** Default caps for agent runs (src/runtime/config.ts loadCaps). */
+  defaultCaps?: Caps;
   /** Where item worktrees live (<data dir>/worktrees); a run's `workdir` must be inside it. */
   worktreesRoot?: string;
 };
@@ -226,7 +230,7 @@ export function createRuntime(deps: RuntimeDeps) {
       resumeSessionId = prev.sessionId;
     }
 
-    const caps: Caps = { ...DEFAULT_CAPS, ...req.caps };
+    const caps: Caps = { ...(deps.defaultCaps ?? DEFAULT_CAPS), ...req.caps };
     const big = req.bigPicture;
     const granted = big ? {} : deps.envFor(projectId);
     const secrets = Object.values(granted).filter(Boolean);
@@ -280,7 +284,14 @@ export function createRuntime(deps: RuntimeDeps) {
         runId,
         cwd,
         systemPrompt:
-          big?.systemPrompt ?? composePrompt({ agent, team, project: { name: project.name }, toolkit }),
+          big?.systemPrompt ??
+          composePrompt({
+            agent,
+            team,
+            project: { name: project.name },
+            toolkit,
+            ...(deps.shell ? { shell: deps.shell } : {}),
+          }),
         task: req.task,
         model: deps.model,
         caps,

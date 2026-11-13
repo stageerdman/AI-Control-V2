@@ -24,6 +24,7 @@ import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
 import type { Reports } from '../reports/reports.ts';
+import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import type { Features } from './features.ts';
 
@@ -34,13 +35,18 @@ export type ThreadMessage = {
   kind: 'text' | 'error';
   text: string;
   runId: string | null;
-  /** Set when this turn filed a report: the reply is one line pointing at it ("Open report"). */
+  /** Set when this turn filed a report: the reply is one line pointing at it ("Open report") — or, on a user
+      message, the report the follow-up is about. */
   reportId: string | null;
+  /** A goal on the whiteboard: the user's goal line and the orchestrator's plan reply. */
+  goalId: string | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
 
 const HISTORY = 200;
+/** How much of a report's body a follow-up turn carries. */
+const REPORT_EXCERPT = 4000;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const json = (v: unknown) => JSON.stringify(v);
 
@@ -74,6 +80,8 @@ export function createThreads(deps: {
   reports: Reports;
   /** Every known secret value (the global cabinet) — scrubbed from stored text. */
   secretValues: () => string[];
+  /** Caps for the orchestrator's chat turns (default CREW_CAPS). */
+  orchestratorCaps?: Caps;
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
@@ -90,6 +98,7 @@ export function createThreads(deps: {
     text: r.text as string,
     runId: (r.run_id as string | null) ?? null,
     reportId: (r.report_id as string | null) ?? null,
+    goalId: (r.goal_id as string | null) ?? null,
     at: r.created_at as string,
   });
   const insert = (
@@ -101,14 +110,15 @@ export function createThreads(deps: {
       text: string;
       runId: string | null;
       reportId?: string | null;
+      goalId?: string | null;
     },
   ): ThreadMessage => {
     const id = randomUUID();
     const text = scrub(m.text);
     const at = now();
     db.prepare(
-      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, m.reportId ?? null, at);
+      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, m.reportId ?? null, m.goalId ?? null, at);
     try {
       events.append('project', projectId, {
         type: 'thread.message',
@@ -120,6 +130,7 @@ export function createThreads(deps: {
           text: clip(text, 20_000),
           ...(m.runId ? { runId: m.runId } : {}),
           ...(m.reportId ? { reportId: m.reportId } : {}),
+          ...(m.goalId ? { goalId: m.goalId } : {}),
         },
       });
     } catch {
@@ -132,6 +143,7 @@ export function createThreads(deps: {
       text,
       runId: m.runId,
       reportId: m.reportId ?? null,
+      goalId: m.goalId ?? null,
       at,
     };
   };
@@ -194,12 +206,27 @@ export function createThreads(deps: {
     };
   }
 
-  function taskFor(p: Project, s: ReturnType<typeof seat>, text: string): string {
+  /** A follow-up on a report: what the report said, so the agent answers about it (title, summary, body excerpt). */
+  function aboutReport(projectId: string, reportId: string): string {
+    const r = deps.reports.get(projectId, reportId);
+    return [
+      `The user is following up on this report (${r.author.name}, ${r.createdAt.slice(0, 10)}):`,
+      `Title: ${json(r.title)}`,
+      `Summary: ${json(r.summary)}`,
+      `Report (excerpt): ${json(clip(r.body, REPORT_EXCERPT))}`,
+    ].join('\n');
+  }
+
+  function taskFor(p: Project, s: ReturnType<typeof seat>, text: string, reportId?: string): string {
+    const about = reportId ? aboutReport(p.id, reportId) : '';
     if (s.orchestrator)
-      return [`Studio summary right now: ${json(summary(p))}`, `The user says: ${json(text)}`].join('\n\n');
+      return [`Studio summary right now: ${json(summary(p))}`, about, `The user says: ${json(text)}`]
+        .filter(Boolean)
+        .join('\n\n');
     const orch = store.agents.get(p.orchestratorId)?.name ?? 'the orchestrator';
     return [
       'The user is talking with you directly in the AI Studio office chat — a conversation, not a checklist item.',
+      about,
       `The user says: ${json(text)}`,
       `Reply in plain, friendly words. If they ask you to change something, do it here in the project folder, then say what you did. Big-picture questions (priorities, scope, who does what) belong to ${orch}, the orchestrator — point them there.`,
     ].join('\n\n');
@@ -253,9 +280,15 @@ export function createThreads(deps: {
     },
 
     /** One user turn → a run. Resolves once the run started (the reply comes as an event). */
-    say(projectId: string, agentId: string, text: string): { message: ThreadMessage; runId: string } {
+    say(
+      projectId: string,
+      agentId: string,
+      text: string,
+      opts: { reportId?: string } = {},
+    ): { message: ThreadMessage; runId: string } {
       const p = store.projects.require(projectId);
       const s = seat(p, agentId);
+      const task = taskFor(p, s, text, opts.reportId); // an unknown report is a 404 before anything starts
       const k = key(projectId, s.agent.id);
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
       const resumeRunId = lastRunWithSession(projectId, s.agent.id);
@@ -263,16 +296,41 @@ export function createThreads(deps: {
       const run = runtime.start(projectId, {
         agentId: s.agent.id,
         ...(s.teamId ? { teamId: s.teamId } : {}),
-        task: taskFor(p, s, text),
+        task,
         ...(resumeRunId ? { resumeRunId } : {}),
         ...(s.orchestrator
-          ? { caps: CREW_CAPS, bigPicture: { systemPrompt: orchestratorChatPrompt(s.agent, p.name) } }
+          ? {
+              caps: deps.orchestratorCaps ?? CREW_CAPS,
+              bigPicture: { systemPrompt: orchestratorChatPrompt(s.agent, p.name) },
+            }
           : {}),
       });
       busy.add(k);
       turns.set(run.id, { projectId, agentId: s.agent.id });
-      const message = insert(projectId, s.agent.id, { sender: 'user', kind: 'text', text, runId: run.id });
+      const message = insert(projectId, s.agent.id, {
+        sender: 'user',
+        kind: 'text',
+        text,
+        runId: run.id,
+        ...(opts.reportId ? { reportId: opts.reportId } : {}),
+      });
       return { message, runId: run.id };
+    },
+
+    /** Record a line in a thread without a run: the user's goal and the orchestrator's plan reply (dispatch),
+        the orchestrator's collaboration (re)design. */
+    record(
+      projectId: string,
+      agentId: string,
+      m: { sender: 'user' | 'agent'; kind?: ThreadMessage['kind']; text: string; goalId?: string | null },
+    ): ThreadMessage {
+      return insert(projectId, agentId, {
+        sender: m.sender,
+        kind: m.kind ?? 'text',
+        text: clip(m.text, 20_000),
+        runId: null,
+        goalId: m.goalId ?? null,
+      });
     },
   };
 }

@@ -11,7 +11,7 @@
    deleted only after it was merged (`git branch -d` refuses otherwise); failed or conflicted work stays
    on its branch. Local git only — no remotes, no network. */
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { slugify } from '../domain/ids.ts';
@@ -88,6 +88,11 @@ export function worktrees(root: string) {
       const dir = join(root, slugify(projectId, 'project'), name);
       mkdirSync(join(root, slugify(projectId, 'project')), { recursive: true, mode: 0o700 });
       await git(repo, ['worktree', 'add', '-q', '-b', branch, dir, base]);
+      /* the project's .env (granted secrets, never committed) works in the checkout too */
+      if (existsSync(join(repo, '.env'))) {
+        copyFileSync(join(repo, '.env'), join(dir, '.env'));
+        chmodSync(join(dir, '.env'), 0o600);
+      }
       return { cwd: dir, branch, base, main };
     },
 

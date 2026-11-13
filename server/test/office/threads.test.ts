@@ -93,7 +93,7 @@ describe('project conversations (threads)', () => {
     expect(spec.askBridge).toBeUndefined();
     expect(spec.env.STRIPE_KEY).toBeUndefined();
     expect(spec.cwd).toBe(join(h.config.sandbox, 'aurora'));
-    expect(spec.caps).toEqual({ maxTurns: 3, maxBudgetUsd: 0.5 });
+    expect(spec.caps).toEqual({ maxTurns: 6, maxBudgetUsd: 2 }); // the orchestrator's caps
     expect(spec.systemPrompt).toMatch(
       /orchestrator of the project "Aurora Storefront"[\s\S]*Big picture only/,
     );

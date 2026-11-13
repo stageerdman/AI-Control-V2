@@ -8,21 +8,22 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { redactSecrets } from '../events/redact.ts';
+import { AGENT_SHELL } from './config.ts';
 import type { RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL, createStreamParser, REPORT_TOOL } from './stream.ts';
 
 export const TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'];
-/** Pre-approved; everything else is denied (dontAsk). Bash is limited to read-only shell + git. */
+/** Pre-approved patterns for a shell allow-list (`Bash(npm *)`…); everything else is denied (dontAsk). */
+export const shellAllowed = (commands: readonly string[]) =>
+  commands.flatMap((c) => (c === 'pwd' ? ['Bash(pwd)'] : [`Bash(${c})`, `Bash(${c} *)`]));
+/** Pre-approved by default; everything else is denied (dontAsk). Bash: the dev shell (src/runtime/config.ts). */
 export const DEFAULT_ALLOWED = [
   'Read',
   'Edit',
   'Write',
   'Glob',
   'Grep',
-  'Bash(git *)',
-  'Bash(ls *)',
-  'Bash(pwd)',
-  'Bash(cat *)',
+  ...shellAllowed(AGENT_SHELL.dev),
   ASK_TOOL,
 ];
 /** Reporter runs research the web (read-only). */

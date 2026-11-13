@@ -355,6 +355,8 @@ export const MIGRATIONS: readonly string[] = [
   `,
   /* 18 — overall progress (F1b): an optional target label the progress counts towards ("v1.0"). */
   `ALTER TABLE projects ADD COLUMN target TEXT;`,
+  /* 19 — the orchestrator's thread records goals (F1b): the user's goal and the orchestrator's plan reply carry the goal. */
+  `ALTER TABLE thread_messages ADD COLUMN goal_id TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {

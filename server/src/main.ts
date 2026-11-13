@@ -7,10 +7,11 @@ import { openDb } from './db/connection.ts';
 import { createStore } from './db/store.ts';
 import { findGh, ghProbe } from './health/git-status.ts';
 import { listen } from './listen.ts';
-import { claudeCliRunner } from './runtime/claude-cli.ts';
-import { loadRuntimeConfig } from './runtime/config.ts';
+import { claudeCliRunner, shellAllowed } from './runtime/claude-cli.ts';
+import { loadRuntimeConfig, loadShell } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
 import { unavailableRunner } from './runtime/runner.ts';
+import { ASK_TOOL } from './runtime/stream.ts';
 import { cabinet } from './secrets/cabinet.ts';
 import { fileSecretStore } from './secrets/secretStore.ts';
 import { seedIfNeeded } from './seed.ts';
@@ -22,6 +23,8 @@ const store = createStore(db, { sandbox: config.sandbox });
 const secrets = fileSecretStore(join(config.controlHome, '.env'));
 /* agents run as headless Claude Code (the user's login, no API key) */
 const rt = loadRuntimeConfig();
+/* AI_STUDIO_AGENT_SHELL=safe → B5's read-only shell + git; default dev (mkdir, npm, npx, node too) */
+const shell = loadShell();
 /* AI_STUDIO_RUNNER=fake: the free, scripted runner + fake crew brain (UI work, demos) */
 const runner =
   process.env.AI_STUDIO_RUNNER === 'fake'
@@ -31,6 +34,7 @@ const runner =
           bin: rt.claudeBin,
           askServer: join(import.meta.dirname, 'mcp', 'ask-server.ts'),
           logDir: join(config.home, 'runs'),
+          allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', ...shellAllowed(shell), ASK_TOOL],
         })
       : unavailableRunner(rt.binError ?? 'Claude Code CLI not found');
 /* GitHub visibility for health checks — only if gh is installed (read-only `gh repo view`) */
@@ -44,9 +48,10 @@ const app = buildApp({
   model: rt.model,
   logger: true,
   gh: ghBin ? ghProbe(ghBin) : null,
+  shell,
 });
 app.log.info(
-  { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, error: rt.binError },
+  { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, error: rt.binError },
   'Agent runtime',
 );
 if (seedIfNeeded(store)) app.log.info('Seeded the studio with the starter cast and projects');

@@ -99,6 +99,15 @@ export function dispatchIssues(plan: DispatchPlan, c: Crewing): string[] {
   return out;
 }
 
+/** The orchestrator's reply to a goal, as it reads in its thread: the plan in one sentence + who does what. */
+export function planReply(goal: Goal, name: (id: string) => string): string {
+  const lines = goal.items.map((i) => {
+    const checks = i.gates.length ? ` (checked by ${i.gates.map((g) => name(g.reviewer)).join(', ')})` : '';
+    return `• ${i.text} — ${name(i.agentId)}${i.report ? ' (a report)' : ''}${checks}`;
+  });
+  return [goal.summary, `On the whiteboard:\n${lines.join('\n')}`].join('\n\n');
+}
+
 /** The design as the orchestrator reads it when it plans (names next to ids). */
 function describeCollaboration(c: Collaboration, name: (id: string) => string) {
   return {

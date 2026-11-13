@@ -52,7 +52,7 @@ describe('agent runs (FakeRunner end-to-end)', () => {
       agentId: 'a-pete',
       teamId: 'ship-it',
       runner: 'fake',
-      caps: { maxTurns: 4, maxBudgetUsd: 1 },
+      caps: { maxTurns: 4, maxBudgetUsd: 10 },
     });
     const done = await h.runtime.settled(r.body.id);
     expect(done).toMatchObject({

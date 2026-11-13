@@ -5,7 +5,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
-import { createDispatch } from './crew/dispatch.ts';
+import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
@@ -44,6 +44,7 @@ import { setterRoutes } from './routes/setter.ts';
 import { teamRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { trashRoutes } from './routes/trash.ts';
+import { AGENT_SHELL, loadCaps, type StudioCaps } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
 import type { Runner } from './runtime/runner.ts';
 import { createRuntime, type Runtime } from './runtime/service.ts';
@@ -74,6 +75,10 @@ export type AppDeps = {
   maxConcurrent?: number;
   /** GitHub visibility probe for health checks (network). Default null = never called (main passes gh if installed). */
   gh?: GhProbe | null;
+  /** Shell commands agent runs may use (named in their prompt). Default: the dev shell. */
+  shell?: readonly string[];
+  /** Turn/budget caps per kind of run (default: loadCaps() — env overridable). */
+  caps?: StudioCaps;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -98,6 +103,8 @@ export function buildApp({
   longPollMs,
   maxConcurrent,
   gh = null,
+  caps = loadCaps(),
+  shell = AGENT_SHELL.dev,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   registerCors(app);
@@ -115,6 +122,8 @@ export function buildApp({
     envFor: access.envFor,
     toolkitsRoot: join(config.home, 'toolkits'),
     worktreesRoot: join(config.home, 'worktrees'),
+    defaultCaps: caps.agent,
+    shell,
     /* reporter runs get file_report; its input is checked here (422 lists what's wrong) */
     reports: {
       canFile: reports.canFile,
@@ -124,10 +133,26 @@ export function buildApp({
   runtime.recover();
   onRuntime?.(runtime);
   /* the studio crew (orchestrator, Agent Creator): tool-less runs in a scratch dir, never a project folder */
-  const crew = createCrew({ runner, model, scratchDir: join(config.home, 'scratch') });
+  const crew = createCrew({
+    runner,
+    model,
+    scratchDir: join(config.home, 'scratch'),
+    caps: caps.orchestrator,
+  });
   const chat = createSetupChat({ store, events, crew });
   const creator = createCreator({ store, events, crew });
-  const collaboration = createCollaboration({ store, events, crew });
+  /* the orchestrator's thread records goals and designs (threads are built below) */
+  let threadsRef: ReturnType<typeof createThreads> | null = null;
+  const agentName = (id: string) => store.agents.get(id)?.name ?? id;
+  const collaboration = createCollaboration({
+    store,
+    events,
+    crew,
+    onDesigned: ({ projectId, orchestratorId, reply, ask }) => {
+      if (ask) threadsRef?.record(projectId, orchestratorId, { sender: 'user', text: ask });
+      threadsRef?.record(projectId, orchestratorId, { sender: 'agent', text: reply });
+    },
+  });
   const dispatch = createDispatch({
     db,
     store,
@@ -139,6 +164,19 @@ export function buildApp({
     filedBy: (runId) => reports.byRun(runId).length > 0,
     worktrees: worktrees(join(config.home, 'worktrees')),
     sandbox: config.sandbox,
+    reviewCaps: caps.review,
+    onPlanned: ({ projectId, goalText, goal, error }) => {
+      const orch = store.projects.get(projectId)?.orchestratorId;
+      if (!orch || !threadsRef) return;
+      threadsRef.record(projectId, orch, { sender: 'user', text: goalText, goalId: goal?.id ?? null });
+      threadsRef.record(
+        projectId,
+        orch,
+        goal
+          ? { sender: 'agent', text: planReply(goal, agentName), goalId: goal.id }
+          : { sender: 'agent', kind: 'error', text: `I couldn’t plan that: ${error ?? 'no plan'}` },
+      );
+    },
   });
   dispatch.recover();
   /* status (live → needs → idle) and overall progress follow the event log on their own */
@@ -155,7 +193,9 @@ export function buildApp({
     health,
     reports,
     secretValues: secretValuesOf(secrets),
+    orchestratorCaps: caps.orchestrator,
   });
+  threadsRef = threads;
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();

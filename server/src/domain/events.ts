@@ -163,8 +163,10 @@ export const EVENT_SCHEMAS = {
     kind: z.enum(['text', 'error']),
     text: text(20_000),
     runId: id.optional(),
-    /** The report this turn filed (the reply is one line pointing at it). */
+    /** The report this turn filed (the reply is one line pointing at it), or the report a follow-up is about. */
     reportId: id.optional(),
+    /** A goal posted to the orchestrator (the user's goal line and the orchestrator's plan reply). */
+    goalId: id.optional(),
   }),
   /** Reports (U1): a reporter filed one — title only, never the body (GET the report for it). */
   'report.filed': z.strictObject({ reportId: id, projectId: id, authorAgentId: id, title: text(80) }),

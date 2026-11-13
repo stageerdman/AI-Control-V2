@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { worktrees } from '../../src/git/worktrees.ts';
@@ -50,6 +50,7 @@ describe('worktrees (temp git repos)', () => {
     expect(ws?.cwd.startsWith(join(t.dir, 'home', 'worktrees', 'proj'))).toBe(true);
     if (!ws) throw new Error('no ws');
     writeFileSync(join(ws.cwd, 'page.html'), '<h1>hi</h1>\n');
+    // a project .env (gitignored) would be copied in; here the checkout gets none
     // secrets and dependency folders never land in the safety-net commit
     writeFileSync(join(ws.cwd, '.env'), 'KEY=secret\n');
     mkdirSync(join(ws.cwd, 'node_modules', 'x'), { recursive: true });
@@ -62,6 +63,20 @@ describe('worktrees (temp git repos)', () => {
     await wt.close(repo, ws, { deleteBranch: true });
     expect(existsSync(ws.cwd)).toBe(false);
     expect(git(repo, 'branch', '--list', 'studio/*')).toBe('');
+  });
+
+  it('copies the project .env (never committed) into the checkout, 0600', async () => {
+    writeFileSync(join(repo, '.gitignore'), '.env\n');
+    git(repo, 'add', '.gitignore');
+    git(repo, 'commit', '-q', '-m', 'ignore');
+    writeFileSync(join(repo, '.env'), 'KEY=v\n');
+    const ws = await wt.open(repo, 'proj', 'eeeeeeee1', 'E');
+    if (!ws) throw new Error('no ws');
+    expect(readFileSync(join(ws.cwd, '.env'), 'utf8')).toBe('KEY=v\n');
+    expect((statSync(join(ws.cwd, '.env')).mode & 0o777).toString(8)).toBe('600');
+    writeFileSync(join(ws.cwd, 'x.txt'), 'x\n');
+    await wt.merge(repo, ws, 'E');
+    expect(git(repo, 'ls-files')).not.toContain('.env');
   });
 
   it('two items in parallel: the second merges with a merge commit; nothing to merge is fine', async () => {

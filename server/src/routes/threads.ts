@@ -6,7 +6,11 @@ import type { Threads } from '../office/threads.ts';
 import { Id } from './schemas.ts';
 
 const ThreadParams = z.object({ id: Id, agentId: Id });
-const SayBody = z.strictObject({ text: z.string().trim().min(1).max(10_000) });
+const SayBody = z.strictObject({
+  text: z.string().trim().min(1).max(10_000),
+  /** A follow-up on this report: the turn carries its title, summary and a body excerpt. */
+  reportId: Id.optional(),
+});
 
 export const threadRoutes =
   ({ threads }: { threads: Threads }): FastifyPluginAsync =>
@@ -18,6 +22,7 @@ export const threadRoutes =
     /* 202: the turn started; the reply arrives as a `thread.message` event (and in GET) */
     app.post('/projects/:id/threads/:agentId/messages', async (req, reply) => {
       const { id, agentId } = parse(ThreadParams, req.params);
-      return reply.status(202).send(threads.say(id, agentId, parse(SayBody, req.body).text));
+      const { text, reportId } = parse(SayBody, req.body);
+      return reply.status(202).send(threads.say(id, agentId, text, reportId ? { reportId } : {}));
     });
   };
