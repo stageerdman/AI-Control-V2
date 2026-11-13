@@ -104,6 +104,103 @@ const EMBLEMS = [
     <circle class="thread" cx="40.5" cy="21.5" r="4"/>
     <path class="thread" d="M13 41 C20 35.5 27 38 33 40.5 C39 43 45 37 51 38.5 L45.5 48.5 H18.5Z"/>
     <path class="cutline detail" d="M19 45.5 C26 42.5 34 46.5 44 43.5"/>` },
+  /* ---- v5 nods: original artwork that evokes, never a real logo or wordmark ---- */
+  { id: 'orchard', name: "Rainbow Orchard", silhouette: "circle", vibe: "A whole striped fruit with a jaunty leaf — a wink at garage-born computers that wanted to be different. No bite taken.",
+    svg: `
+    <circle class="cloth" cx="32" cy="32" r="30"/>
+    <circle class="line" cx="32" cy="32" r="27"/>
+    <circle class="stitch" cx="32" cy="32" r="23.5"/>
+    <g transform="translate(32 37) scale(.8) translate(-32 -36)">
+      <path class="line" d="M32 22 C32 17 33 14 36 11" style="stroke-width:3"/>
+      <path class="thread" d="M35 17 C36 11 42 8 47 9 C46 15 40 18 35 17Z"/>
+      <path class="thread" d="M32.0 23.4 L28.5 21.4 L24.7 21.3 L21.6 22.6 L19.4 23.9 L17.7 25.2 L46.3 25.2 L44.6 23.9 L42.4 22.6 L39.3 21.3 L35.5 21.4Z"/>
+      <path class="thread" style="opacity:.9" d="M16.4 26.4 L15.4 27.6 L14.6 28.8 L13.9 30.0 L13.5 31.2 L50.5 31.2 L50.1 30.0 L49.4 28.8 L48.6 27.6 L47.6 26.4Z"/>
+      <path class="thread" style="opacity:.78" d="M13.2 32.4 L13.0 33.6 L13.0 34.8 L13.2 36.0 L13.5 37.2 L50.5 37.2 L50.8 36.0 L51.0 34.8 L51.0 33.6 L50.8 32.4Z"/>
+      <path class="thread" style="opacity:.66" d="M13.9 38.4 L14.4 39.6 L15.1 40.8 L15.9 42.0 L16.9 43.2 L47.1 43.2 L48.1 42.0 L48.9 40.8 L49.6 39.6 L50.1 38.4Z"/>
+      <path class="thread" style="opacity:.54" d="M18.0 44.4 L19.1 45.5 L20.3 46.5 L21.6 47.5 L23.1 48.6 L40.9 48.6 L42.4 47.5 L43.7 46.5 L44.9 45.5 L46.0 44.4Z"/>
+      <path class="thread" style="opacity:.42" d="M25.1 49.8 L27.5 50.9 L30 51.6 L32 50.8 L34 51.6 L36.5 50.9 L38.9 49.8Z"/>
+    </g>
+    <path class="thread detail" d="M20 18 L20.9 20.1 L23 21 L20.9 21.9 L20 24 L19.1 21.9 L17 21 L19.1 20.1Z"/>` },
+  { id: 'droneship', name: "Ocean Landing", silhouette: "circle", vibe: "A reusable booster settling onto a barge at sea, legs out, last puff of flame. For crews that bring their work back and fly it again.",
+    svg: `
+    <circle class="cloth" cx="32" cy="32" r="30"/>
+    <circle class="line" cx="32" cy="32" r="27"/>
+    <circle class="stitch" cx="32" cy="32" r="23.5"/>
+    <path class="thread" d="M29.5 11 C29.5 10 30.5 9.5 32 9.5 C33.5 9.5 34.5 10 34.5 11 V38 H29.5Z"/>
+    <path class="cutline" style="stroke-width:1.6" d="M29.5 15 H34.5 M29.5 31 H34.5"/>
+    <path class="line" d="M29.5 36 L23 43 M34.5 36 L41 43" style="stroke-width:2.4"/>
+    <path class="thread" d="M30 38.5 H34 L32 43.5Z"/>
+    <path class="thread" d="M12 44 H52 L49 49 H15Z"/>
+    <path class="cutline detail" d="M19 46.5 H24 M28 46.5 H36 M40 46.5 H45"/>
+    <path class="line detail" d="M12 52.5 C15 50.5 18 50.5 21 52.5 C24 54.5 27 54.5 30 52.5 C33 50.5 36 50.5 39 52.5 C42 54.5 45 54.5 48 52.5" style="stroke-width:1.6"/>` },
+  { id: 'gridfin', name: "Grid Fins", silhouette: "diamond", vibe: "A lattice steering fin, the kind that guides a falling stage home. Precise, unflappable, lands exactly where it said it would.",
+    svg: `
+    <path class="cloth" d="M32 2 L62 32 L32 62 L2 32Z" style="stroke:currentColor;stroke-width:3;stroke-linejoin:round"/>
+    <path class="line" d="M32 6.5 L57.5 32 L32 57.5 L6.5 32Z"/>
+    <path class="stitch" d="M32 11 L53 32 L32 53 L11 32Z"/>
+    <path class="thread" d="M20 22 H44 V42 H20Z"/>
+    <path class="cutline" style="stroke-width:2.2" d="M24.8 22 V42 M29.6 22 V42 M34.4 22 V42 M39.2 22 V42 M20 27 H44 M20 32 H44 M20 37 H44"/>
+    <path class="thread" d="M29 42 H35 V48 H29Z"/>
+    <path class="thread detail" d="M32 13.5 L33 16 L35.5 17 L33 18 L32 20.5 L31 18 L28.5 17 L31 16Z"/>` },
+  { id: 'rain', name: "Digital Rain", silhouette: "rounded screen", vibe: "Falling columns of green code on a dark screen. For crews that see straight through the simulation to the bug underneath.",
+    svg: `
+    <rect class="cloth" x="4" y="6" width="56" height="52" rx="12"/>
+    <rect class="line" x="7.5" y="9.5" width="49" height="45" rx="9"/>
+    <rect class="stitch" x="11" y="13" width="42" height="38" rx="6.5"/>
+    <path class="thread" d="M16 16 H20 V20 H16Z M16 22 H20 V26 H16Z M16 28 H20 V32 H16Z"/>
+    <path class="thread" style="opacity:.5" d="M16 34 H20 V38 H16Z"/>
+    <path class="thread" d="M25 24 H29 V28 H25Z M25 30 H29 V34 H25Z M25 36 H29 V40 H25Z M25 42 H29 V46 H25Z"/>
+    <path class="thread" style="opacity:.5" d="M25 18 H29 V22 H25Z"/>
+    <path class="thread" d="M34 16 H38 V20 H34Z M34 22 H38 V26 H34Z"/>
+    <path class="thread" style="opacity:.5" d="M34 28 H38 V32 H34Z M34 40 H38 V44 H34Z"/>
+    <path class="thread" d="M43 28 H47 V32 H43Z M43 34 H47 V38 H43Z M43 40 H47 V44 H43Z"/>
+    <path class="thread" style="opacity:.5" d="M43 22 H47 V26 H43Z"/>
+    <path class="cutline detail" d="M17 18 H19 M26 32 L28 32 M35 24 H37 M44 36 H46 M26 44 H28"/>` },
+  { id: 'flux', name: "Flux Y", silhouette: "rounded square", vibe: "Three glowing tubes meeting in a Y with a spark at the heart — the gadget that makes time travel possible. Once you hit the right speed.",
+    svg: `
+    <rect class="cloth" x="4" y="4" width="56" height="56" rx="14"/>
+    <rect class="line" x="7.5" y="7.5" width="49" height="49" rx="11"/>
+    <rect class="stitch" x="11" y="11" width="42" height="42" rx="8"/>
+    <path class="line" style="stroke-width:6" d="M32 34 L20 20 M32 34 L44 20 M32 34 V49"/>
+    <path class="cutline" style="stroke-width:2" d="M32 34 L20 20 M32 34 L44 20 M32 34 V49"/>
+    <circle class="thread" cx="19" cy="19" r="4.6"/><circle class="thread" cx="45" cy="19" r="4.6"/><circle class="thread" cx="32" cy="50" r="4.6"/>
+    <circle class="cloth halo" cx="32" cy="33.5" r="6.5"/>
+    <path class="thread" d="M33.5 27 L28 34.5 H32 L30.5 40 L36 32.5 H32Z"/>` },
+  { id: 'ghost', name: "Arcade Ghost", silhouette: "rounded square", vibe: "A wobbly maze ghost chasing a trail of dots. Retro, relentless, never stops until the board is clear.",
+    svg: `
+    <rect class="cloth" x="4" y="4" width="56" height="56" rx="14"/>
+    <rect class="line" x="7.5" y="7.5" width="49" height="49" rx="11"/>
+    <rect class="stitch" x="11" y="11" width="42" height="42" rx="8"/>
+    <path class="thread" d="M15 44 V30 C15 20 22 14 30 14 C38 14 45 20 45 30 V44 L41 40 L37 44 L33 40 L30 44 L27 40 L23 44 L19 40Z"/>
+    <path class="cloth" d="M20.5 28 C20.5 24 26.5 24 26.5 28 C26.5 32 20.5 32 20.5 28Z M31.5 28 C31.5 24 37.5 24 37.5 28 C37.5 32 31.5 32 31.5 28Z"/>
+    <circle class="thread" cx="25" cy="28.5" r="1.8"/><circle class="thread" cx="36" cy="28.5" r="1.8"/>
+    <circle class="thread" cx="49.5" cy="22" r="2"/><circle class="thread" cx="49.5" cy="31" r="2"/><circle class="thread" cx="49.5" cy="40" r="3.4"/>
+    <path class="cutline detail" d="M17 49.5 H43"/>` },
+  { id: 'blades', name: "Crossed Blades", silhouette: "circle", vibe: "Two humming light-blades crossed over a starfield. Duelling ideas, settled with honour — for crews that review hard and ship together.",
+    svg: `
+    <circle class="cloth" cx="32" cy="32" r="30"/>
+    <circle class="line" cx="32" cy="32" r="27"/>
+    <circle class="stitch" cx="32" cy="32" r="23.5"/>
+    <path class="cloth halo" style="stroke-width:5" d="M17 15 L41 43 M47 15 L23 43"/>
+    <path class="line" style="stroke-width:5;stroke-linecap:round" d="M17 15 L39.5 41.3 M47 15 L24.5 41.3"/>
+    <path class="cutline detail" style="stroke-width:1.4" d="M17 15 L39.5 41.3 M47 15 L24.5 41.3"/>
+    <path class="thread" d="M38.2 39 L44.6 46.4 L41.6 49 L35.2 41.6Z M25.8 39 L19.4 46.4 L22.4 49 L28.8 41.6Z"/>
+    <path class="cutline detail" d="M38.8 42.7 L40.6 41.1 M25.2 42.7 L23.4 41.1"/>
+    <path class="thread detail" d="M32 49 L32.8 51 L35 51.8 L32.8 52.6 L32 54.6 L31.2 52.6 L29 51.8 L31.2 51Z M14 30 L14.6 31.4 L16 32 L14.6 32.6 L14 34 L13.4 32.6 L12 32 L13.4 31.4Z M50 30 L50.6 31.4 L52 32 L50.6 32.6 L50 34 L49.4 32.6 L48 32 L49.4 31.4Z"/>` },
+  { id: 'pizza', name: "Pizza Planet", silhouette: "circle", vibe: "A pepperoni planet in a lazy orbit, a little rocket buzzing round it. Comfort food for crews who work late and dream big.",
+    svg: `
+    <circle class="cloth" cx="32" cy="32" r="30"/>
+    <circle class="line" cx="32" cy="32" r="27"/>
+    <circle class="stitch" cx="32" cy="32" r="23.5"/>
+    <ellipse class="line" cx="32" cy="34" rx="23" ry="6.5" transform="rotate(-14 32 34)" style="stroke-width:2.2"/>
+    <circle class="cloth halo" cx="32" cy="33" r="13"/>
+    <circle class="thread" cx="32" cy="33" r="13"/>
+    <circle class="cutline detail" cx="32" cy="33" r="10.4"/>
+    <circle class="cloth" cx="26" cy="30.5" r="2.3"/><circle class="cloth" cx="31" cy="25.6" r="1.9"/><circle class="cloth" cx="38" cy="29" r="2.4"/>
+    <circle class="cloth" cx="35.5" cy="38.5" r="2.1"/><circle class="cloth" cx="27.5" cy="38.8" r="1.7"/><circle class="cloth" cx="32.4" cy="33" r="1.4"/>
+    <path class="cloth halo" style="fill:none;stroke-width:4" d="M10.7 39.3 A23 6.5 -14 0 0 30 40.4"/>
+    <path class="line" style="stroke-width:2.2" d="M10.7 39.3 A23 6.5 -14 0 0 30 40.4"/>
+    <path class="thread" d="M48 13 L49.2 15.8 L52 17 L49.2 18.2 L48 21 L46.8 18.2 L44 17 L46.8 15.8Z"/>` },
 ];
 const emblemById = id => EMBLEMS.find(e => e.id === id) || EMBLEMS[0];
 const EMBLEM_SIZES = { xs: 16, sm: 24, md: 48, lg: 88, xl: 360 };
