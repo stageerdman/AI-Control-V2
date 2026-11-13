@@ -109,8 +109,8 @@ const AGENTS = [
   { id: 'a-maestro', kind: 'orchestrator', name: 'Maestro', role: KIND_LABEL.orchestrator, hue: 'grape', build: 'lanky', hair: 'swoop', accessory: 'monocle', stats: { projects: 0, tokens: 0 },
     look: { hat: 'director', tool: 'baton', decal: 'Director', body: 'lanky', antenna: 'swoop', face: 'monocle', hue: 'grape' },
     prompt: 'You are a calm, methodical orchestrator for long-running projects. Plan in small phases, keep the roadmap in update vX.md current, and prefer fewer, steadier teams. Big picture only — teams own the details.' },
-  { id: 'a-creator', kind: 'creator', name: 'Tinker', role: KIND_LABEL.creator, hue: 'teal', build: 'sprout', hair: 'curl', accessory: 'none', stats: { projects: 4, tokens: 310000 },
-    look: { hat: 'inventor', tool: 'blueprint', decal: 'Inventor', body: 'sprout', antenna: 'curl', face: 'none', hue: 'teal' },
+  { id: 'a-creator', kind: 'creator', name: 'Tinker', role: KIND_LABEL.creator, hue: 'teal', build: 'sprout', hair: 'bob', accessory: 'none', stats: { projects: 4, tokens: 310000 },
+    look: { hat: 'inventor', tool: 'blueprint', decal: 'Inventor', body: 'sprout', antenna: 'bob', face: 'none', hue: 'teal' },
     prompt: 'You are the Agent Creator. When an orchestrator needs a role nobody in the Cast covers, design that agent: a clear name, a custom role, a focused system prompt, and a distinct look. If they need a whole crew, design the team too (mission, how it codes, members). New agents join the Cast for every project to reuse.' },
 ];
 /* migrate: every agent gets an explicit look derived from its old role gear,
