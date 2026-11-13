@@ -41,8 +41,43 @@ export const EVENT_SCHEMAS = {
     credentialId: id.optional(),
   }),
   'ask.answered': z.strictObject({ askId: id, answer: text() }),
-  /** The whiteboard. */
-  'checklist.item': z.strictObject({ itemId: id, text: text(300), done: z.boolean(), owner: id.optional() }),
+  /** The setup chat (B6): a message from the user, the orchestrator or the Agent Creator. */
+  'chat.message': z.strictObject({
+    from: z.enum(['user', 'orchestrator', 'creator']),
+    agentId: id.optional(),
+    text: text(4000),
+  }),
+  /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
+  'plan.changed': z.strictObject({
+    summary: text(1000),
+    teamIds: z.array(id).max(10),
+    agentIds: z.array(id).max(10),
+    newAgents: count,
+    newTeams: count,
+  }),
+  /** The Agent Creator added something to the Cast. */
+  'cast.created': z.strictObject({
+    kind: z.enum(['agent', 'team', 'role']),
+    id,
+    name: text(80),
+    by: id.optional(),
+  }),
+  /** The whiteboard: a goal the orchestrator broke into checklist items (B6 dispatch). */
+  'goal.changed': z.strictObject({
+    goalId: id,
+    status: z.enum(['running', 'done', 'failed', 'cancelled']),
+    text: text(2000).optional(),
+    summary: text(1000).optional(),
+  }),
+  'checklist.item': z.strictObject({
+    itemId: id,
+    text: text(300),
+    done: z.boolean(),
+    owner: id.optional(),
+    goalId: id.optional(),
+    status: z.enum(['todo', 'running', 'done', 'failed', 'cancelled']).optional(),
+    runId: id.optional(),
+  }),
   'feature.changed': z.strictObject({
     featureId: id,
     name: text(120).optional(),

@@ -2,9 +2,15 @@
    { error: { code, message, details? } } with a matching HTTP status. */
 import type { z } from 'zod';
 
-export type ErrorCode = 'bad_request' | 'not_found' | 'conflict' | 'invalid';
+export type ErrorCode = 'bad_request' | 'not_found' | 'conflict' | 'invalid' | 'agent_error';
 
-const STATUS: Record<ErrorCode, number> = { bad_request: 400, not_found: 404, conflict: 409, invalid: 422 };
+const STATUS: Record<ErrorCode, number> = {
+  bad_request: 400,
+  not_found: 404,
+  conflict: 409,
+  invalid: 422,
+  agent_error: 502,
+};
 
 export class AppError extends Error {
   readonly status: number;
@@ -33,6 +39,10 @@ export const notFound = (what: string, id: string) => new AppError('not_found', 
 export const conflict = (message: string, details?: unknown) => new AppError('conflict', message, details);
 /** The input itself is malformed: 422. */
 export const invalid = (message: string, details?: unknown) => new AppError('invalid', message, details);
+
+/** A studio agent (orchestrator, Agent Creator) failed or broke its output contract: 502. */
+export const agentError = (message: string, details?: unknown) =>
+  new AppError('agent_error', message, details);
 
 /** Validate untrusted input; throws a 422 listing each issue. */
 export function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S> {

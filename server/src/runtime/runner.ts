@@ -17,6 +17,8 @@ export type RunSpec = {
   /** Values to scrub from anything the runner reports (the granted secrets). */
   secretValues: readonly string[];
   resumeSessionId?: string;
+  /** Built-in tools the run may use (all pre-approved). Omitted → the agent set; [] → none (big-picture runs). */
+  tools?: readonly string[];
   /** Where the ask_user MCP tool reaches the backend (CLI runner only). */
   askBridge?: { url: string; token: string };
 };

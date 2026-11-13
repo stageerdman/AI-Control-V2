@@ -53,6 +53,11 @@ export function cliArgs(
         },
       }
     : { mcpServers: {} };
+  /* big-picture runs (orchestrator, Agent Creator) pass their own, usually empty, tool list */
+  const tools = spec.tools ?? TOOLS;
+  const allowed = spec.tools
+    ? [...spec.tools, ...(spec.askBridge ? [ASK_TOOL] : [])]
+    : (opts.allowedTools ?? DEFAULT_ALLOWED);
   return [
     '-p',
     '--output-format',
@@ -66,9 +71,8 @@ export function cliArgs(
     spec.systemPrompt,
     '--restricted',
     '--tools',
-    TOOLS.join(','),
-    '--allowed-tools',
-    (opts.allowedTools ?? DEFAULT_ALLOWED).join(','),
+    tools.join(','), // '' disables every built-in tool
+    ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
     '--permission-mode',
     'dontAsk',
     '--permission-prompts',
