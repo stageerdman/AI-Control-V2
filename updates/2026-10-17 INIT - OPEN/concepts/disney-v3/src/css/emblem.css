@@ -1,0 +1,18 @@
+/* ============================================================
+   emblem.css — embroidered patch (spec-teams §5.2) + captain pip (§2.4)
+   ============================================================ */
+.emblem{display:inline-block;color:var(--bg-2,#2e2156);line-height:0;flex:none;vertical-align:middle}
+.emblem svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.emblem .cloth{fill:currentColor}
+.emblem .halo{stroke:currentColor;stroke-width:3;stroke-linejoin:round}
+.emblem .thread{fill:var(--team)}
+.emblem .line{fill:none;stroke:var(--team);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.emblem .stitch{fill:none;stroke:var(--team);stroke-width:1.2;stroke-dasharray:2.2 2;opacity:.75}
+.emblem .cutline{fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round}
+.emblem.em-sm .stitch,.emblem.em-sm .detail{display:none}
+.emblem.em-sm svg{filter:none}
+
+.captain-pip{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#241a44;
+  box-shadow:0 0 0 2px var(--team,#ffc24b),0 3px 6px -2px rgba(0,0,0,.5);line-height:0;flex:none}
+.captain-pip svg{width:14px;height:14px}
+.captain-pip path{fill:#ffc24b;stroke:#241a44;stroke-width:1;stroke-linejoin:round}
