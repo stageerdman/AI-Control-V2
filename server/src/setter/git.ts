@@ -38,7 +38,7 @@ export async function init(dir: string): Promise<void> {
 }
 
 /** Use the user's git identity; fall back to "AI Studio" only when none is configured. */
-function identityEnv(dir: string): NodeJS.ProcessEnv {
+export function identityEnv(dir: string): NodeJS.ProcessEnv {
   const name = tryRun(dir, ['config', 'user.name']);
   const email = tryRun(dir, ['config', 'user.email']);
   if (name && email) return {};

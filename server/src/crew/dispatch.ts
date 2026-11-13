@@ -26,6 +26,8 @@ import {
 } from '../domain/collaboration.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
+import { resolveInSandbox } from '../fs/sandbox.ts';
+import type { Worktrees } from '../git/worktrees.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
@@ -34,6 +36,8 @@ import { type Crew, validateWith } from './structured.ts';
 export const DISPATCH = 'dispatch';
 export const DEFAULT_MAX_CONCURRENT = 2;
 export const MAX_ITEMS = 8;
+/** Merge conflicts the builder is asked to resolve before the item stops for the user. */
+export const MAX_MERGE_TRIES = 2;
 
 export const DispatchSchema = z.strictObject({
   summary: z.string().trim().min(1).max(1000),
@@ -123,6 +127,10 @@ export function createDispatch(deps: {
   filedBy?: (runId: string) => boolean;
   /** Caps for review runs (default: the runtime's agent caps). A goal's own caps win. */
   reviewCaps?: Partial<Caps>;
+  /** Item checkouts (git worktrees); absent → every item works in the project folder. */
+  worktrees?: Worktrees;
+  /** The sandbox root (project folders resolve inside it) — needed with `worktrees`. */
+  sandbox?: string;
   /** The orchestrator planned a goal (or failed to): the office thread records it (src/office/threads.ts). */
   onPlanned?: (e: { projectId: string; goalText: string; goal: Goal | null; error?: string }) => void;
 }) {
@@ -214,6 +222,9 @@ export function createDispatch(deps: {
           ? `You are the captain of ${team.name}: you own this item for the team. Do the work yourself in this run; note anything a teammate should pick up in issues.txt.`
           : `You do this item for ${team.name}. Do the work yourself in this run; note anything for your teammates in issues.txt.`
         : '',
+      it.workspace
+        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`) — it merges into ${it.workspace.main} once accepted. Other items may be running in parallel in their own checkouts.`
+        : '',
       reviewers.length
         ? `When you are done, your work goes to ${reviewers.join(', then ')} for review — keep it focused on the brief and commit it.`
         : '',
@@ -231,6 +242,13 @@ export function createDispatch(deps: {
       'Fix what they asked for in this run, commit it, then reply with a short summary of what you changed.',
     ].join('\n\n');
 
+  const mergeFixTask = (it: ChecklistItem) =>
+    [
+      `Your work on "${it.text}" was accepted, but it can't merge back yet: ${it.notes ?? 'a merge conflict'}.`,
+      `Someone else's work landed on ${it.workspace?.main ?? 'main'} first. In this checkout, run \`git merge ${it.workspace?.main ?? 'main'}\`, resolve the conflicts so both pieces of work keep doing what they should, and commit the merge.`,
+      'Then reply with a short summary of how you resolved it.',
+    ].join('\n\n');
+
   function reviewTask(it: ChecklistItem, goal: Goal, gate: ItemGate): string {
     const builder = name(it.agentId);
     const previous = it.reviews.filter((r) => r.reviewer === gate.reviewer).at(-1);
@@ -245,7 +263,9 @@ export function createDispatch(deps: {
         : '',
       GATE_FOCUS[gate.kind],
       `Why this gate exists here: ${gate.why}`,
-      'Look at what changed (`git log`, `git diff` against the commit before their work, read the files). Do not redo their work and do not change product code — at most add small checks of your own and commit them.',
+      it.workspace
+        ? `Their work is on branch ${it.workspace.branch} in this checkout: see it with \`git log ${it.workspace.base.slice(0, 12)}..HEAD\` and \`git diff ${it.workspace.base.slice(0, 12)}..HEAD\`, and read the files. Do not redo their work and do not change product code — at most add small checks of your own and commit them.`
+        : 'Look at what changed (`git log`, `git diff` against the commit before their work, read the files). Do not redo their work and do not change product code — at most add small checks of your own and commit them.',
       'Approve when it meets the brief and the project rules; send it back only for concrete problems, with notes the builder can act on.',
       'End your reply with exactly one line of JSON: {"verdict": "approve" | "changes", "notes": "what you found / what to fix"}',
     ]
@@ -288,13 +308,15 @@ export function createDispatch(deps: {
     return {
       agentId: it.agentId,
       ...(it.teamId ? { teamId: it.teamId } : {}),
-      task: rework ? reworkTask(it, lastReviewer) : taskFor(it, goal),
+      task:
+        it.stage === 'merge' ? mergeFixTask(it) : rework ? reworkTask(it, lastReviewer) : taskFor(it, goal),
       caps,
       ...(it.buildRunId ? { resumeRunId: it.buildRunId } : {}),
     };
   }
 
-  /** Start queued items while the project has room: ≤ cap live, one per agent. */
+  /** Start queued items while the project has room: ≤ cap live, one per agent. An item is claimed
+      (running) right away; its checkout and run follow (launch). */
   function pump(projectId: string) {
     const running = work.projectItems(projectId, 'running');
     let free = cap - running.length;
@@ -303,6 +325,11 @@ export function createDispatch(deps: {
       if (free <= 0) break;
       const who = holder(it);
       if (busy.has(who)) continue;
+      /* the agent is busy with a run started by hand (or a chat turn): leave the item queued */
+      if (runtime.busy(projectId, who)) {
+        busy.add(who);
+        continue;
+      }
       const goal = work.goal(it.goalId) as Goal;
       if (fresh(it)) {
         const gate = orderGate(goal, it);
@@ -312,24 +339,78 @@ export function createDispatch(deps: {
           continue;
         }
       }
-      const spec = runFor(it, goal);
-      let run: { id: string };
-      try {
-        const { caps, ...rest } = spec;
-        run = runtime.start(projectId, { ...rest, ...(caps ? { caps } : {}) });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        /* the agent is busy with a run started by hand: leave the item queued */
-        if (e instanceof AppError && e.code === 'conflict' && /already running/.test(msg)) {
-          busy.add(who);
-          continue;
-        }
-        settle(it, { status: 'failed', note: clip(msg, 2000) });
-        continue;
-      }
-      work.setItem(it.id, { status: 'running', runId: run.id });
+      work.setItem(it.id, { status: 'running', runId: null });
       busy.add(who);
       free--;
+      void launch(it.id);
+    }
+  }
+
+  /** The item's checkout (its own worktree on first start; null = the project folder), then its run. */
+  async function launch(itemId: string) {
+    let it = work.item(itemId) as ChecklistItem;
+    try {
+      if (!it.workspace && deps.worktrees && it.stage === 'build') {
+        const ws = await deps.worktrees.open(repoOf(it.projectId), it.projectId, it.id, it.text);
+        if (ws) work.setItem(it.id, { status: it.status, workspace: ws });
+      }
+    } catch (e) {
+      settle(it, { status: 'failed', note: clip(`Couldn't make a checkout: ${(e as Error).message}`, 2000) });
+      pump(it.projectId);
+      return;
+    }
+    it = work.item(itemId) as ChecklistItem;
+    if (it.status !== 'running') {
+      /* cancelled while its checkout was being made */
+      await shelve(it);
+      return;
+    }
+    const goal = work.goal(it.goalId) as Goal;
+    const { caps, ...spec } = runFor(it, goal);
+    let run: { id: string };
+    try {
+      run = runtime.start(it.projectId, {
+        ...spec,
+        ...(caps ? { caps } : {}),
+        ...(it.workspace ? { workdir: it.workspace.cwd } : {}),
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (e instanceof AppError && e.code === 'conflict' && /already running/.test(msg)) {
+        work.setItem(it.id, { status: 'todo' }); // raced a hand-started run: queue again
+        return;
+      }
+      settle(it, { status: 'failed', note: clip(msg, 2000) });
+      await shelve(work.item(it.id) as ChecklistItem);
+      pump(it.projectId);
+      return;
+    }
+    work.setItem(it.id, { status: 'running', runId: run.id });
+    announce(work.item(it.id) as ChecklistItem);
+  }
+
+  const repoOf = (projectId: string) =>
+    resolveInSandbox(deps.sandbox ?? '', store.projects.require(projectId).folder ?? '');
+
+  /** Merges back one at a time per project (one main working tree). */
+  const merging = new Map<string, Promise<void>>();
+  const serial = (projectId: string, fn: () => Promise<void>) => {
+    const next = (merging.get(projectId) ?? Promise.resolve()).then(fn, fn).catch(() => {});
+    merging.set(projectId, next);
+    return next;
+  };
+
+  /** Put a stopped item's checkout away: its work is committed on its branch (kept unless empty/merged). */
+  async function shelve(it: ChecklistItem): Promise<void> {
+    const ws = it.workspace;
+    if (!ws || !deps.worktrees) return;
+    const { kept } = await deps.worktrees.close(repoOf(it.projectId), ws, { deleteBranch: true });
+    if (kept) {
+      const cur = work.item(it.id) as ChecklistItem;
+      work.setItem(it.id, {
+        status: cur.status,
+        note: clip(`${cur.note ? `${cur.note} — ` : ''}work kept on branch ${ws.branch}`, 2000),
+      });
       announce(work.item(it.id) as ChecklistItem);
     }
   }
@@ -361,9 +442,45 @@ export function createDispatch(deps: {
       },
     });
 
-  /** Accepted (built, every gate approved): done. */
+  /** Accepted (built, every gate approved): merge its branch back, then done. A conflict goes back to the
+      builder to resolve in its checkout (≤ MAX_MERGE_TRIES), anything else fails with the work kept on its branch. */
   function accept(it: ChecklistItem, patch: Omit<ItemPatch, 'status'> = {}) {
-    settle(it, { ...patch, status: 'done' });
+    const ws = it.workspace;
+    if (!ws || !deps.worktrees) {
+      settle(it, { ...patch, status: 'done' });
+      return;
+    }
+    const wt = deps.worktrees;
+    work.setItem(it.id, { ...patch, status: 'running' }); // stays on the board while it merges
+    void serial(it.projectId, async () => {
+      const repo = repoOf(it.projectId);
+      const r = await wt.merge(repo, ws, clip(`AI Studio: ${it.text} (${name(it.agentId)})`, 200));
+      const cur = work.item(it.id) as ChecklistItem;
+      if (r.ok) {
+        await wt.close(repo, ws, { deleteBranch: true });
+        settle(cur, { status: 'done' });
+        emit(it.projectId, {
+          type: 'item.merged',
+          payload: {
+            itemId: it.id,
+            goalId: it.goalId,
+            branch: ws.branch,
+            ...(r.commit ? { commit: r.commit } : {}),
+          },
+        });
+      } else if (r.conflict && cur.mergeTries < MAX_MERGE_TRIES) {
+        settle(cur, { status: 'todo', stage: 'merge', mergeTries: cur.mergeTries + 1, notes: r.reason });
+        handoff(cur, cur.agentId, cur.agentId, 'merge-fix', r.reason);
+      } else {
+        /* put the checkout away first, so the goal settles with the branch named */
+        const { kept } = await wt.close(repo, ws, { deleteBranch: true });
+        settle(cur, {
+          status: 'failed',
+          note: clip(`${r.reason}${kept ? ` — work kept on branch ${ws.branch}` : ''}`, 2000),
+        });
+      }
+      pump(it.projectId);
+    });
   }
 
   /** A build (or rework) run ended. */
@@ -373,6 +490,7 @@ export function createDispatch(deps: {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: clip(run.error ?? run.result ?? '', 2000) || null,
       });
+      void shelve(work.item(it.id) as ChecklistItem);
       return;
     }
     const note = clip(run.result ?? '', 2000) || null;
@@ -401,6 +519,7 @@ export function createDispatch(deps: {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: `${name(gate.reviewer)}'s review didn't finish: ${clip(run.error ?? run.status, 1500)}`,
       });
+      void shelve(work.item(it.id) as ChecklistItem);
       return;
     }
     const v = parseVerdict(run.result ?? '');
@@ -469,10 +588,12 @@ export function createDispatch(deps: {
 
   runtime.onFinished((run) => {
     const it = work.itemByRun(run.id);
-    if (it?.status !== 'running') return;
-    if (it.stage === 'review') afterReview(it, run);
-    else afterBuild(it, run);
-    pump(it.projectId);
+    if (it?.status === 'running') {
+      if (it.stage === 'review') afterReview(it, run);
+      else afterBuild(it, run);
+    }
+    /* any run ending frees its agent: an item waiting for it may start now */
+    pump(run.projectId);
   });
 
   return {
@@ -533,6 +654,8 @@ export function createDispatch(deps: {
           .filter((g) => g.status === 'running')
           .flatMap((g) => g.items.filter((i) => i.status !== 'done').map((i) => i.text));
         const collab = p.collaboration;
+        /* a git project: every item gets its own worktree, so independent items may run side by side */
+        const isolated = !!deps.worktrees && (await deps.worktrees.usable(repoOf(projectId)));
         /* a reviewer who left the project since the design: that gate is skipped */
         const onProject = (id: string) =>
           p.agentIds.includes(id) ||
@@ -554,7 +677,9 @@ export function createDispatch(deps: {
             collab?.gates.length
               ? 'The review gates above run automatically after each build item — do not add separate review or QA items for them.'
               : '',
-            'Items run one after another in the same project folder. Set "parallel": true only when an item can safely run at the same time as the one before it (it touches different files). Keep it small: a one-page task is 1–2 items.',
+            isolated
+              ? `Every item runs in its own checkout (its own git branch) and merges back when it is accepted, so independent items can run at the same time (up to ${cap} at once). Set "parallel": true on an item that does NOT need the result of the item before it; leave it false when it builds on earlier work. Keep it small: a one-page task is 1–2 items.`
+              : 'Items run one after another in the same project folder. Set "parallel": true only when an item can safely run at the same time as the one before it (it touches different files). Keep it small: a one-page task is 1–2 items.',
             'When the goal asks for KNOWLEDGE, not change — research, compare, investigate, audit/review, "find out", "write up", "what is the status of…" — make it a report item: set "report": true and give it to a reporter (marked "reporter": true above); it ends in a report in the Reports tray. Mixed goals ("research X, then build it"): the report item first, the build items after. If nobody here is a reporter, plan the work without "report" and say in the summary that nobody on the project files reports yet.',
           ]
             .filter(Boolean)
@@ -637,9 +762,11 @@ export function createDispatch(deps: {
       const g = this.get(projectId, goalId);
       if (g.status !== 'running') throw conflict(`This goal is already ${g.status}`);
       for (const it of g.items) {
-        if (it.status === 'todo') {
+        if (it.status === 'todo' || (it.status === 'running' && !it.runId)) {
+          /* queued, or its checkout is still being made (launch notices and puts it away) */
           work.setItem(it.id, { status: 'cancelled' });
           announce(work.item(it.id) as ChecklistItem);
+          if (it.status === 'todo') void shelve(it);
         } else if (it.status === 'running' && it.runId) {
           try {
             runtime.cancel(projectId, it.runId);
@@ -663,6 +790,8 @@ export function createDispatch(deps: {
             status: it.status === 'running' ? 'failed' : 'cancelled',
             note: 'Interrupted: the studio restarted',
           });
+          /* its checkout: commit what's there on its branch, remove the checkout */
+          void shelve(it);
         }
         for (const g of work.goals(projectId)) if (g.status === 'running') refreshGoal(g.id);
       }

@@ -6,7 +6,7 @@
      run's granted values), never straight to a client. */
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import type { Db } from '../db/connection.ts';
 import { type Ask, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
@@ -26,6 +26,8 @@ export type StartRun = {
   task: string;
   caps?: Partial<Caps>;
   resumeRunId?: string;
+  /** Work in this checkout instead of the project folder: an item's own git worktree (must be under `worktreesRoot`). */
+  workdir?: string;
   /** A big-picture run (the orchestrator's office chat): this system prompt instead of the composed one,
       no tools at all, no secrets, no ask tool — it answers in its reply. */
   bigPicture?: { systemPrompt: string };
@@ -52,6 +54,8 @@ export type RuntimeDeps = {
   reports?: ReportDesk;
   /** Where toolsmiths keep their toolkits (<data dir>/toolkits); absent → no toolkits. */
   toolkitsRoot?: string;
+  /** Where item worktrees live (<data dir>/worktrees); a run's `workdir` must be inside it. */
+  worktreesRoot?: string;
 };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -186,8 +190,17 @@ export function createRuntime(deps: RuntimeDeps) {
     if (runner.unavailable) throw conflict(runner.unavailable);
     const project = store.projects.require(projectId);
     if (!project.folder) throw conflict(`Project '${projectId}' has no folder yet — set it up first`);
-    const cwd = resolveInSandbox(sandbox, project.folder);
-    if (!existsSync(cwd)) throw conflict(`Project folder '${project.folder}' is missing on disk`);
+    const folder = resolveInSandbox(sandbox, project.folder);
+    if (!existsSync(folder)) throw conflict(`Project folder '${project.folder}' is missing on disk`);
+    let cwd = folder;
+    if (req.workdir) {
+      const root = deps.worktreesRoot;
+      const rel = root ? relative(root, req.workdir) : '..';
+      if (!isAbsolute(req.workdir) || !rel || rel.startsWith('..') || isAbsolute(rel))
+        throw invalid('workdir must be an item checkout under the studio worktrees folder');
+      if (!existsSync(req.workdir)) throw conflict('That checkout is missing on disk');
+      cwd = req.workdir;
+    }
     const agent = store.agents.require(store.agents.ref(req.agentId).id);
     let team = null;
     if (req.teamId) {
@@ -416,6 +429,8 @@ export function createRuntime(deps: RuntimeDeps) {
       await Promise.allSettled(all.map((l) => l.handle.done));
     },
     liveCount: () => live.size,
+    /** Is this agent on a live run in this project? (one at a time) */
+    busy: (projectId: string, agentId: string) => !!repo.live(projectId, agentId),
   };
 }
 export type Runtime = ReturnType<typeof createRuntime>;

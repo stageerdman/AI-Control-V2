@@ -24,7 +24,13 @@ describe('roles API', () => {
       'Release',
       'Quality',
     ]);
-    expect(body[0]).toEqual({ id: 'r-frontend', name: 'Frontend', agentCount: 1, reporter: false, toolsmith: false });
+    expect(body[0]).toEqual({
+      id: 'r-frontend',
+      name: 'Frontend',
+      agentCount: 1,
+      reporter: false,
+      toolsmith: false,
+    });
     // the seed's reporter: research ends in a report
     expect(body.filter((r: { reporter: boolean }) => r.reporter).map((r: { id: string }) => r.id)).toEqual([
       'r-research',

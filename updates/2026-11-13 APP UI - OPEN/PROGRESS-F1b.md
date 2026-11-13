@@ -7,7 +7,7 @@ Resume notes. Plan: `update v1.md` (Overnight final build → F1b). Backend docs
 1. ✅ Collaboration design (B8) — plan `collaboration` (orchestrator ↔ captains/everyone, review gates), project storage,
    dispatch build → review(s) → done with bounded send-backs, events `handoff` / `review.*`.
 2. ✅ Agent toolkits — `toolsmith` roles (QA, Quality), `~/.ai-studio/toolkits/<agentId>/` via `--add-dir`, `tools/<agent>/`.
-3. ☐ Git worktrees per item — parallel-safe runs, merge back on accept, conflicts → calm send-back.
+3. ✅ Git worktrees per item — parallel-safe runs, merge back on accept, conflicts → calm send-back.
 4. ☐ Project lifecycle & progress — live / needs / idle automatically, overall progress (features + goal) + target.
 5. ☐ Gaps — goal replies in the orchestrator thread, report follow-ups carry the report, turn caps.
 6. ☐ Live check (real runner, once).
@@ -21,3 +21,11 @@ Resume notes. Plan: `update v1.md` (Overnight final build → F1b). Backend docs
 - **2** migration 16 `roles.toolsmith` (QA, Quality), `PATCH /roles {toolsmith}`, runtime `toolkitsRoot` → `<home>/toolkits/<agentId>/`
   (0700) as the only `--add-dir`, compose "Your toolkit" section (`tools/<slug>/`, big picture), Cast catalogue `toolsmith`, reporters get
   WebSearch/WebFetch. Tests: `test/runtime/toolkit.test.ts`.
+- **3** `src/git/worktrees.ts` (open / commitAll (never .env*, node_modules…) / merge ff-or-merge-commit, abort on conflict /
+  close: commit first, `branch -d` only when merged), migration 17 (`workspace`, `merge_tries`), runtime `workdir` (must be under
+  `<home>/worktrees`), dispatch: claim → launch (checkout, then run), accept → serial merge per project → `item.merged`; conflict →
+  `merge-fix` back to the builder (≤ 2), else failed with the branch named; failed/cancelled/restart → shelve; any run ending pumps the
+  queue (an item waiting on a hand-started run no longer sticks); the orchestrator is told items may run side by side in git projects.
+  **Choice:** checkouts under the data dir, not `<project>/.ai-studio/worktrees` (project folder stays clean, no ignore rule needed).
+  Tests: `test/git/worktrees.test.ts` (temp repos), `test/crew/worktrees-flow.test.ts` (parallel, conflict → fix, unresolved, reviews in
+  the checkout, failed build keeps its branch).

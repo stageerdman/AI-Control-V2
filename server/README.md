@@ -50,6 +50,7 @@ src/
   crew/              the studio crew: structured.ts (JSON contracts + one repair), setup-chat.ts,
                      creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
                      prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
+  git/               worktrees.ts: one checkout + branch per checklist item, merge back, never lose work
   health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
   reports/           reports.ts: who may file, file_report (stamped, secrets masked, ≤ 2 per run), list/read/archive
   office/            what the office screen needs: features.ts (features folder), threads.ts (project conversations),
@@ -144,8 +145,9 @@ session, issues listed); a second miss is 502.
 - `mint-team` → `{name, blurb, instr, code, emblem, color, members: [{agentId, job} | {newAgent, job}], captain}` —
   emblem/colour from the studio ids, 2–7 members, ≤ 4 new, captain = a member's agentId or a new agent's name
 - `dispatch` → `{summary, items: [{text, assignee, teamId?, brief, parallel?, report?}]}` — assignee is a project team's captain (with that
-  `teamId`) or a project specialist (no `teamId`). Items run **in order** (one shared working tree); `parallel: true` lets an
-  item start alongside the one before it; if an earlier item fails, later ones are skipped
+  `teamId`) or a project specialist (no `teamId`); with `orchestratorTalksTo: everyone` any team member. Items run **in order**;
+  `parallel: true` lets an item start alongside the one before it (git projects: each item has its own worktree, so the orchestrator is
+  told independent items may run side by side, ≤ 2 per project); if an earlier item fails, later ones are skipped
 
 - `collaboration` → `{reply, collaboration}` (see Collaboration below; validated against the project's staffing)
 
@@ -167,6 +169,20 @@ with `{"verdict": "approve"|"changes", "notes"}` — anything unclear counts as 
 Past `maxSendBacks` the item **fails** for the user (`review.changes` with `final: true`; later items are skipped as usual). Item fields:
 `stage` (build|review|merge), `gates`, `gateIndex`, `sendBacks`, `notes` (last reviewer notes), `reviews` ([{reviewer, gate, verdict,
 notes, runId, at}]), `buildRunId`. `checklist.item` carries `stage` + `holder` (who has it now) when the item has gates.
+
+**Worktrees** (F1b, `src/git/worktrees.ts`): in a git project (a commit, on a branch) every checklist item works in its **own
+checkout** `$AI_STUDIO_HOME/worktrees/<projectId>/<item-slug>-<id8>` on its own branch `studio/<item-slug>-<id8>` from the main
+branch's tip — chosen over `<project>/.ai-studio/worktrees` so the project folder stays exactly as the user knows it (no extra
+checkouts in searches, health checks or editors, no ignore rule in their repo); git keeps the worktree metadata in the project's
+`.git/worktrees/`. Build, review and fix runs of the item all run there (`StartRun.workdir`, must be under the worktrees root). When the
+item is **accepted** (built + every gate approved) whatever is left is committed on its branch (never `.env*`, `node_modules`, `.venv`,
+`__pycache__`, `.DS_Store`), then merged into main in the project folder — fast-forward if possible, else a merge commit, one merge at a
+time per project → event `item.merged {itemId, goalId, branch, commit?}`, checkout removed, branch deleted (`git branch -d`: only when
+merged). A **conflict** is aborted (main untouched) and goes back to the builder (`handoff` kind `merge-fix`, stage `merge`): "run `git
+merge main` in your checkout, resolve, commit" → merge again; after 2 tries, or any other merge failure (project folder on another
+branch…), the item **fails** with the work kept on its branch (named in the note). Failed / cancelled / interrupted items: their work is
+committed on the branch and the checkout removed (`… — work kept on branch studio/…` when there was work). Not a git repo yet → items
+work in the project folder as before (in order unless `parallel`). Item fields: `workspace {cwd, branch, base, main} | null`, `mergeTries`.
 
 **Toolkits** (F1b): an agent whose role is a `toolsmith` (quality / test; seed QA + Quality, migration 16) gets a persistent toolkit
 folder `$AI_STUDIO_HOME/toolkits/<agentId>/` (0700, created on its first run; inside the data dir, never anywhere else) — the ONLY extra
@@ -196,4 +212,5 @@ a health check, only for a GitHub remote, only when `gh` is installed — never 
 Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read` / `report.archived` (U1), `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
 `goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`, `stage`, `holder`), `progress` (project stream; also sets `project.progress`).
 F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix, gate?, note?}`,
-`review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`.
+`review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`,
+`item.merged {itemId, goalId, branch, commit?}`.

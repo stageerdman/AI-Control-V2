@@ -14,6 +14,7 @@ import { createStore, type Store } from './db/store.ts';
 import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
 import { type EventLog, eventLog } from './events/log.ts';
+import { worktrees } from './git/worktrees.ts';
 import type { GhProbe } from './health/git-status.ts';
 import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
@@ -112,6 +113,7 @@ export function buildApp({
     sandbox: config.sandbox,
     envFor: access.envFor,
     toolkitsRoot: join(config.home, 'toolkits'),
+    worktreesRoot: join(config.home, 'worktrees'),
     /* reporter runs get file_report; its input is checked here (422 lists what's wrong) */
     reports: {
       canFile: reports.canFile,
@@ -134,6 +136,8 @@ export function buildApp({
     ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
     canFile: reports.canFile,
     filedBy: (runId) => reports.byRun(runId).length > 0,
+    worktrees: worktrees(join(config.home, 'worktrees')),
+    sandbox: config.sandbox,
   });
   dispatch.recover();
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });

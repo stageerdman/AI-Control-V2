@@ -347,6 +347,12 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE roles ADD COLUMN toolsmith INTEGER NOT NULL DEFAULT 0;
   UPDATE roles SET toolsmith = 1 WHERE name_key IN ('qa', 'quality');
   `,
+  /* 17 — git worktrees per item (F1b): workspace = the item's own checkout + branch (JSON {cwd, branch, base, main}),
+     merge_tries = how often merging it back hit a conflict the builder had to fix. */
+  `
+  ALTER TABLE checklist_items ADD COLUMN workspace TEXT;
+  ALTER TABLE checklist_items ADD COLUMN merge_tries INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

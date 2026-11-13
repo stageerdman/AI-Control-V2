@@ -1,6 +1,7 @@
 /* The whiteboard repository: goals and their checklist items (plain SQL, no rules —
    src/crew/dispatch.ts owns those). */
 import type { ItemGate } from '../domain/collaboration.ts';
+import type { Workspace } from '../git/worktrees.ts';
 import type { Db } from './connection.ts';
 import { now } from './util.ts';
 
@@ -45,6 +46,10 @@ export type ChecklistItem = {
   reviews: ItemReview[];
   /** The builder's last run (rework resumes its session). */
   buildRunId: string | null;
+  /** Its own git checkout + branch (null: it works in the project folder — not a git repo yet). */
+  workspace: Workspace | null;
+  /** Merge conflicts the builder was asked to fix. */
+  mergeTries: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -58,6 +63,8 @@ export type ItemPatch = {
   notes?: string | null;
   reviews?: ItemReview[];
   buildRunId?: string | null;
+  workspace?: Workspace | null;
+  mergeTries?: number;
 };
 export type Goal = {
   id: string;
@@ -97,6 +104,8 @@ const toItem = (r: Row): ChecklistItem => ({
   notes: (r.notes as string | null) ?? null,
   reviews: parseList<ItemReview>(r.reviews),
   buildRunId: (r.build_run_id as string | null) ?? null,
+  workspace: r.workspace ? (JSON.parse(r.workspace as string) as Workspace) : null,
+  mergeTries: (r.merge_tries as number) ?? 0,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
 });
@@ -208,7 +217,7 @@ export function workRepo(db: Db) {
         (patch[k] === undefined ? cur[k] : patch[k]) as ChecklistItem[K];
       db.prepare(
         `UPDATE checklist_items SET status = ?, run_id = ?, note = ?, stage = ?, gate_index = ?, send_backs = ?, notes = ?,
-           reviews = ?, build_run_id = ?, updated_at = ? WHERE id = ?`,
+           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.status,
         pick('runId'),
@@ -219,6 +228,8 @@ export function workRepo(db: Db) {
         pick('notes'),
         JSON.stringify(pick('reviews')),
         pick('buildRunId'),
+        pick('workspace') ? JSON.stringify(pick('workspace')) : null,
+        pick('mergeTries'),
         now(),
         id,
       );
