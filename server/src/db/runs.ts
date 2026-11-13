@@ -33,6 +33,22 @@ export type Ask = {
   answer: string | null;
   createdAt: string;
   answeredAt: string | null;
+  /** When the user visited the project's office while this ask was open (the pager drops it). */
+  seenAt: string | null;
+};
+/** An ask across the studio (the pager), with display names. */
+export type StudioAsk = {
+  id: string;
+  projectId: string;
+  projectName: string;
+  agentId: string;
+  agentName: string;
+  runId: string;
+  question: string;
+  options: string[] | null;
+  status: Ask['status'];
+  since: string;
+  seen: boolean;
 };
 
 type RunRow = Record<string, unknown>;
@@ -71,6 +87,7 @@ const toAsk = (r: RunRow): Ask => ({
   answer: (r.answer as string) ?? null,
   createdAt: r.created_at as string,
   answeredAt: (r.answered_at as string) ?? null,
+  seenAt: (r.seen_at as string) ?? null,
 });
 
 export function runsRepo(db: Db) {
@@ -172,6 +189,38 @@ export function runsRepo(db: Db) {
               .prepare('SELECT * FROM asks WHERE project_id = ? ORDER BY created_at, rowid')
               .all(projectId)) as RunRow[]
       ).map(toAsk),
+    /** Asks across every project, oldest first, with project + agent names. */
+    studioAsks: (status: Ask['status'] | undefined, unseenOnly: boolean): StudioAsk[] =>
+      (
+        db
+          .prepare(
+            `SELECT q.*, p.name AS project_name, COALESCE(a.name, q.agent_id) AS agent_name
+             FROM asks q JOIN projects p ON p.id = q.project_id LEFT JOIN agents a ON a.id = q.agent_id
+             WHERE (?1 IS NULL OR q.status = ?1) AND (?2 = 0 OR q.seen_at IS NULL)
+             ORDER BY q.created_at, q.rowid`,
+          )
+          .all(status ?? null, unseenOnly ? 1 : 0) as RunRow[]
+      ).map((r) => {
+        const a = toAsk(r);
+        return {
+          id: a.id,
+          projectId: a.projectId,
+          projectName: r.project_name as string,
+          agentId: a.agentId,
+          agentName: r.agent_name as string,
+          runId: a.runId,
+          question: a.question,
+          options: a.options,
+          status: a.status,
+          since: a.createdAt,
+          seen: a.seenAt !== null,
+        };
+      }),
+    /** You visited the office: every ask open there right now is seen. Returns how many. */
+    markSeen: (projectId: string): number =>
+      db
+        .prepare("UPDATE asks SET seen_at = ? WHERE project_id = ? AND status = 'open' AND seen_at IS NULL")
+        .run(now(), projectId).changes as number,
     answerAsk: (id: string, answer: string) =>
       db
         .prepare(

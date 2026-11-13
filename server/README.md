@@ -95,6 +95,8 @@ Bodies are strict — unknown keys are 422.
 | `POST /projects/:id/runs` | start an agent run `{agentId, teamId?, task, caps?: {maxTurns, maxBudgetUsd}, resumeRunId?}` — headless Claude Code in the project folder; one live run per agent per project |
 | `GET /projects/:id/runs[/:runId]` · `POST /projects/:id/runs/:runId/cancel` | run history (status, usage, `costUsd` = the CLI's API-equivalent estimate, session) · stop a run (kills its process group) |
 | `GET /projects/:id/asks[?status=open]` · `POST /projects/:id/asks/:askId/answer` | questions agents asked via `ask_user` · answer one (the run continues) |
+| `GET /asks[?status=open\|answered\|cancelled\|all][&unseen=true]` | the pager: asks across every project (default `open`), oldest first → `[{id, projectId, projectName, agentId, agentName, runId, question, options, status, since, seen}]`; `unseen=true` drops asks you already went to see |
+| `POST /asks/seen` `{projectId}` | you opened that office and left: every ask open there now is seen (`{seen: n}`); a NEW ask brings the office back. Project asks carry `seenAt` |
 | `POST /projects/:id/events` | **dev only** (absent when `NODE_ENV=production`): publish `{type, payload}` by hand |
 | `GET POST /credentials` · `GET PATCH DELETE /credentials/:id` | Key Cabinet: `name`, `envVar` (fixed; derived from name if omitted), `serves`, `docsUrl`, `instructions`; `value` on POST only; responses carry `hasValue`, `last4`, `projectIds` |
 | `PUT /credentials/:id/value` | replace key `{value}` (write-only) |

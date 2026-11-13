@@ -20,6 +20,11 @@ const RunParams = z.object({ id: Id, runId: z.uuid() });
 const AskParams = z.object({ id: Id, askId: z.uuid() });
 const AnswerBody = z.strictObject({ answer: z.string().trim().min(1).max(10_000) });
 const AsksQuery = z.object({ status: z.enum(['open', 'answered', 'cancelled']).optional() });
+const StudioAsksQuery = z.object({
+  status: z.enum(['open', 'answered', 'cancelled', 'all']).default('open'),
+  unseen: z.enum(['true', 'false', '1', '0']).optional(),
+});
+const SeenBody = z.strictObject({ projectId: Id });
 const InternalParams = z.object({ runId: z.uuid() });
 const InternalWait = z.object({ runId: z.uuid(), askId: z.uuid() });
 const InternalAsk = z.strictObject({
@@ -71,6 +76,16 @@ export const runRoutes =
       const { id, askId } = parse(AskParams, req.params);
       return runtime.answer(id, askId, parse(AnswerBody, req.body).answer);
     });
+
+    /* the pager: open asks across every project (+ which ones you already went to see) */
+    app.get('/asks', async (req) => {
+      const q = parse(StudioAsksQuery, req.query);
+      return runtime.studioAsks(
+        q.status === 'all' ? undefined : q.status,
+        q.unseen === 'true' || q.unseen === '1',
+      );
+    });
+    app.post('/asks/seen', async (req) => runtime.markSeen(parse(SeenBody, req.body).projectId));
 
     /* the ask_user MCP server's side door: per-run token, unknown/ended runs look like 404 */
     const token = (h: unknown) => (typeof h === 'string' ? h : undefined);

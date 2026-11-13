@@ -320,6 +320,14 @@ export function createRuntime(deps: RuntimeDeps) {
       store.projects.require(projectId);
       return repo.asks(projectId, status);
     },
+    /** The pager: asks across the studio (default: open ones). */
+    studioAsks: (status: Ask['status'] | undefined, unseenOnly = false) =>
+      repo.studioAsks(status, unseenOnly),
+    /** The user opened this project's office and left: its open asks go quiet until a new one arrives. */
+    markSeen(projectId: string): { seen: number } {
+      store.projects.require(projectId);
+      return { seen: repo.markSeen(projectId) };
+    },
     answer(projectId: string, askId: string, answer: string): Ask {
       const a = repo.ask(askId);
       if (!a || a.projectId !== projectId) throw notFound('Ask', askId);

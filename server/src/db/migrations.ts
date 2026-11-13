@@ -281,6 +281,10 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX thread_messages_by_thread ON thread_messages(project_id, agent_id, created_at);
   `,
+
+  /* 12 — the pager (U1): an open ask you already went to see (opened its office and left) is quiet
+     until a NEW ask arrives there. seen_at = when you visited while it was open. */
+  `ALTER TABLE asks ADD COLUMN seen_at TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {
