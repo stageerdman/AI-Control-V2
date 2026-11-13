@@ -109,6 +109,7 @@ describe('Project Setter API', () => {
     const d = await draft({ mode: 'new', name: 'Doomed' });
     const deps = {
       store: h.store,
+      events: h.events,
       sandbox: h.config.sandbox,
       controlHome: h.config.controlHome,
       modules: () => {
@@ -116,7 +117,7 @@ describe('Project Setter API', () => {
       },
       today: () => '2026-11-13',
     };
-    expect(() => finishDraft(deps, d.id)).toThrow(/modules unreadable/);
+    await expect(finishDraft(deps, d.id)).rejects.toThrow(/modules unreadable/);
     expect(projectCount()).toBe(9);
     expect(h.store.projects.get('doomed')).toBeNull();
     expect(h.store.drafts.require(d.id).name).toBe('Doomed');

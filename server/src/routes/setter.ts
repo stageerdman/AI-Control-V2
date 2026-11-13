@@ -5,16 +5,18 @@ import { readModules } from '../blueprint/modules.ts';
 import type { Config } from '../config.ts';
 import type { Store } from '../db/store.ts';
 import { conflict, parse } from '../errors.ts';
+import type { EventLog } from '../events/log.ts';
 import { finishDraft, localDate } from '../setter/finish.ts';
 import { isRepo } from '../setter/git.ts';
 import { inspect } from '../setter/scaffold.ts';
 import { IdParams } from './schemas.ts';
 
 export const setterRoutes =
-  ({ store, config }: { store: Store; config: Config }): FastifyPluginAsync =>
+  ({ store, config, events }: { store: Store; config: Config; events: EventLog }): FastifyPluginAsync =>
   async (app) => {
     const deps = {
       store,
+      events,
       sandbox: config.sandbox,
       controlHome: config.controlHome,
       modules: () => readModules(config.controlHome),
@@ -23,7 +25,7 @@ export const setterRoutes =
 
     /* the Project Setter runs: draft → project + scaffold on disk. Steps come back in order (B4 streams them). */
     app.post('/drafts/:id/finish', async (req, reply) =>
-      reply.status(201).send(finishDraft(deps, parse(IdParams, req.params).id)),
+      reply.status(201).send(await finishDraft(deps, parse(IdParams, req.params).id)),
     );
 
     /* what's on disk vs what the scaffold expects */

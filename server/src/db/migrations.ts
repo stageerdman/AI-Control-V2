@@ -134,6 +134,26 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (project_id, credential_id)
   );
   `,
+
+  /* 4 — live events (B4): an append-only log per project (and per setup draft, so the
+     setup screen can watch the Project Setter before the project exists). AUTOINCREMENT
+     keeps ids strictly increasing and never reused — they are the SSE Last-Event-ID. */
+  `
+  CREATE TABLE events (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope    TEXT NOT NULL CHECK (scope IN ('project', 'draft')),
+    scope_id TEXT NOT NULL,
+    type     TEXT NOT NULL,
+    payload  TEXT NOT NULL,                 -- JSON, validated by src/domain/events.ts, secrets redacted
+    at       TEXT NOT NULL
+  );
+  CREATE INDEX events_by_scope ON events(scope, scope_id, id);
+  -- a log never outlives what it describes
+  CREATE TRIGGER events_project_gone AFTER DELETE ON projects
+    BEGIN DELETE FROM events WHERE scope = 'project' AND scope_id = OLD.id; END;
+  CREATE TRIGGER events_draft_gone AFTER DELETE ON drafts
+    BEGIN DELETE FROM events WHERE scope = 'draft' AND scope_id = OLD.id; END;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

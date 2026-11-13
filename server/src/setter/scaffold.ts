@@ -56,7 +56,7 @@ const present = (abs: string) => {
   }
 };
 
-export function scaffold(input: ScaffoldInput): ScaffoldResult {
+export async function scaffold(input: ScaffoldInput): Promise<ScaffoldResult> {
   const { sandbox, folder, name, about, modules, controlHome, date, mode } = input;
   const at = (rel = '') => resolveInSandbox(sandbox, rel ? join(folder, rel) : folder);
   const steps: Step[] = [];
@@ -66,6 +66,8 @@ export function scaffold(input: ScaffoldInput): ScaffoldResult {
     if (status !== 'running') steps.push(s);
     input.onStep?.(s);
   };
+  /** yield after each finished step so listeners (SSE) get it on the wire while we keep going */
+  const tick = () => new Promise<void>((r) => setImmediate(r));
   /** create a new file; 'wx' refuses to replace anything that appeared meanwhile (or a dangling symlink) */
   const create = (rel: string, content: string, fileMode?: number) => {
     const abs = at(rel);
@@ -100,9 +102,11 @@ export function scaffold(input: ScaffoldInput): ScaffoldResult {
       detail: `Marked as an AI Studio project (${moduleNames.length} modules)`,
     },
   );
+  await tick();
   file('CLAUDE.md', () => compileClaudeMd({ name, about, modules, controlHome }), {
     detail: `Compiled from ${moduleNames.join(', ') || 'no modules'}`,
   });
+  await tick();
 
   emit('.gitignore', 'running', 'Checking .gitignore');
   const gi = at('.gitignore');
@@ -117,8 +121,10 @@ export function scaffold(input: ScaffoldInput): ScaffoldResult {
     emit('.gitignore', 'done', 'Appended .env (existing lines untouched)');
   }
 
+  await tick();
   file('.env', () => '', { detail: 'Empty secrets file (0600, never committed)', mode: 0o600 });
 
+  await tick();
   emit('updates/', 'running', 'Checking updates/');
   if (present(at('updates'))) emit('updates/', 'kept', 'updates/ already exists');
   else {
@@ -128,12 +134,14 @@ export function scaffold(input: ScaffoldInput): ScaffoldResult {
     emit('updates/', 'done', `Opened the first update: ${dir.slice('updates/'.length)}`);
   }
 
+  await tick();
   file('issues.txt', () => issuesTxt(name), { detail: 'Started the issues list' });
+  await tick();
 
   emit('git', 'running', 'Checking git');
   if (git.isRepo(root)) emit('git', 'kept', 'Already a git repository');
   else {
-    git.init(root);
+    await git.init(root);
     emit('git', 'done', 'Initialised a local git repository (main)');
   }
 
@@ -146,7 +154,7 @@ export function scaffold(input: ScaffoldInput): ScaffoldResult {
       mode === 'new'
         ? `AI Studio: set up ${name}\n\nScaffold by the Project Setter: ${toCommit.join(', ')}.`
         : `AI Studio: adopt ${name} — add the missing scaffold\n\nAdded: ${toCommit.join(', ')}.`;
-    commit = git.commitOnly(root, toCommit, msg);
+    commit = await git.commitOnly(root, toCommit, msg);
     emit(
       'commit',
       'done',

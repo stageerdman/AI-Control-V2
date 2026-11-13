@@ -2,10 +2,13 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildApp } from '../src/app.ts';
+import { buildApp, secretValuesOf } from '../src/app.ts';
 import { type Config, ensureDirs } from '../src/config.ts';
 import { openDb } from '../src/db/connection.ts';
 import { createStore } from '../src/db/store.ts';
+import { createBus } from '../src/events/bus.ts';
+import { eventLog } from '../src/events/log.ts';
+import { fileSecretStore } from '../src/secrets/secretStore.ts';
 import { seedIfNeeded } from '../src/seed.ts';
 
 export function tempDir(prefix = 'ais-'): { dir: string; cleanup: () => void } {
@@ -24,7 +27,7 @@ export function testConfig(root: string): Config {
   };
 }
 
-export function testApp(opts: { seed?: boolean } = {}) {
+export function testApp(opts: { seed?: boolean; heartbeatMs?: number; dev?: boolean } = {}) {
   const t = tempDir();
   const config = testConfig(t.dir);
   ensureDirs(config);
@@ -32,7 +35,17 @@ export function testApp(opts: { seed?: boolean } = {}) {
   const db = openDb(':memory:');
   const store = createStore(db, { sandbox: config.sandbox });
   if (opts.seed) seedIfNeeded(store);
-  const app = buildApp({ config, db, store });
+  const secrets = fileSecretStore(join(config.controlHome, '.env'));
+  const events = eventLog(db, createBus(), secretValuesOf(secrets));
+  const app = buildApp({
+    config,
+    db,
+    store,
+    secrets,
+    events,
+    dev: opts.dev ?? true,
+    ...(opts.heartbeatMs === undefined ? {} : { heartbeatMs: opts.heartbeatMs }),
+  });
   /** inject() shorthand: call(method, url, body?) → { status, body } */
   const call = async (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown) => {
     const res = await app.inject({
@@ -46,6 +59,8 @@ export function testApp(opts: { seed?: boolean } = {}) {
     app,
     call,
     store,
+    events,
+    secrets,
     db,
     config,
     close: async () => {

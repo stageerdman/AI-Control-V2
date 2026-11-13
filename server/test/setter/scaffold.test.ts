@@ -38,8 +38,8 @@ describe('Project Setter scaffold', () => {
   });
   afterEach(() => t.cleanup());
 
-  it('creates the full scaffold in a new folder and makes the first commit', () => {
-    const r = scaffold({ ...base, folder: 'hello-studio', mode: 'new' });
+  it('creates the full scaffold in a new folder and makes the first commit', async () => {
+    const r = await scaffold({ ...base, folder: 'hello-studio', mode: 'new' });
     const dir = join(sandbox, 'hello-studio');
     expect(r.steps.map((s) => [s.step, s.status])).toEqual([
       ['folder', 'done'],
@@ -83,14 +83,14 @@ describe('Project Setter scaffold', () => {
     expect(git(dir, 'log', '-1', '--format=%an %s')).toBe('AI Studio AI Studio: set up Hello Studio'); // fallback identity (no git config in tests)
   });
 
-  it('reports progress as running → final for each step', () => {
+  it('reports progress as running → final for each step', async () => {
     const seen: string[] = [];
-    scaffold({ ...base, folder: 'p', mode: 'new', onStep: (s) => seen.push(`${s.step}:${s.status}`) });
+    await scaffold({ ...base, folder: 'p', mode: 'new', onStep: (s) => seen.push(`${s.step}:${s.status}`) });
     expect(seen.slice(0, 4)).toEqual(['folder:running', 'folder:done', '.project:running', '.project:done']);
     expect(seen.at(-1)).toBe('commit:done');
   });
 
-  it('adopts an existing repo: keeps what exists, adds what’s missing, commits only its additions', () => {
+  it('adopts an existing repo: keeps what exists, adds what’s missing, commits only its additions', async () => {
     const dir = join(sandbox, 'old-blog');
     mkdirSync(dir);
     git(dir, 'init', '-q', '-b', 'main');
@@ -102,7 +102,7 @@ describe('Project Setter scaffold', () => {
     writeFileSync(join(dir, 'wip.txt'), 'uncommitted work\n'); // the user's — must stay uncommitted
     git(dir, 'add', 'wip.txt');
 
-    const r = scaffold({ ...base, name: 'Old Blog', folder: 'old-blog', mode: 'adopt' });
+    const r = await scaffold({ ...base, name: 'Old Blog', folder: 'old-blog', mode: 'adopt' });
     const st = Object.fromEntries(r.steps.map((s) => [s.step, s.status]));
     expect(st).toMatchObject({
       folder: 'kept',
@@ -131,45 +131,45 @@ describe('Project Setter scaffold', () => {
     expect(git(dir, 'status', '--porcelain')).toBe('A  wip.txt'); // still staged, not committed by us
   });
 
-  it('adopt is idempotent: a second run changes nothing and commits nothing', () => {
-    scaffold({ ...base, folder: 'p', mode: 'new' });
+  it('adopt is idempotent: a second run changes nothing and commits nothing', async () => {
+    await scaffold({ ...base, folder: 'p', mode: 'new' });
     const dir = join(sandbox, 'p');
     const snapshot = () =>
       ['.project', 'CLAUDE.md', '.gitignore', '.env', 'issues.txt'].map((f) =>
         readFileSync(join(dir, f), 'utf8'),
       );
     const before = { files: snapshot(), head: git(dir, 'rev-parse', 'HEAD') };
-    const again = scaffold({ ...base, folder: 'p', mode: 'adopt' });
+    const again = await scaffold({ ...base, folder: 'p', mode: 'adopt' });
     expect(again.added).toEqual([]);
     expect(again.commit).toBeNull();
     expect(new Set(again.steps.map((s) => s.status))).toEqual(new Set(['kept', 'skipped']));
     expect({ files: snapshot(), head: git(dir, 'rev-parse', 'HEAD') }).toEqual(before);
   });
 
-  it('never writes outside the sandbox: a symlinked folder or file is refused before anything is written', () => {
+  it('never writes outside the sandbox: a symlinked folder or file is refused before anything is written', async () => {
     const outside = join(t.dir, 'outside');
     mkdirSync(outside);
     writeFileSync(join(outside, 'gi'), 'keep me\n');
     symlinkSync(outside, join(sandbox, 'sneaky'));
-    expect(() => scaffold({ ...base, folder: 'sneaky', mode: 'adopt' })).toThrow(/symlink/);
-    expect(() => scaffold({ ...base, folder: '../outside', mode: 'new' })).toThrow(/'\.\.'/);
+    await expect(scaffold({ ...base, folder: 'sneaky', mode: 'adopt' })).rejects.toThrow(/symlink/);
+    await expect(scaffold({ ...base, folder: '../outside', mode: 'new' })).rejects.toThrow(/'\.\.'/);
 
     const dir = join(sandbox, 'leaky');
     mkdirSync(dir);
     symlinkSync(join(outside, 'gi'), join(dir, '.gitignore'));
-    expect(() => scaffold({ ...base, folder: 'leaky', mode: 'adopt' })).toThrow(/symlink/);
+    await expect(scaffold({ ...base, folder: 'leaky', mode: 'adopt' })).rejects.toThrow(/symlink/);
     expect(readdirSync(dir)).toEqual(['.gitignore']); // preflight: nothing else was written
     expect(readdirSync(outside).sort()).toEqual(['gi']);
     expect(readFileSync(join(outside, 'gi'), 'utf8')).toBe('keep me\n');
   });
 
-  it('inspect compares disk to the expected scaffold', () => {
+  it('inspect compares disk to the expected scaffold', async () => {
     expect(inspect(sandbox, 'nothing')).toMatchObject({
       exists: false,
       complete: false,
       git: { repo: false, commits: 0 },
     });
-    const r = scaffold({ ...base, folder: 'p', mode: 'new' });
+    const r = await scaffold({ ...base, folder: 'p', mode: 'new' });
     const rep = inspect(sandbox, 'p');
     expect(rep).toMatchObject({
       exists: true,
