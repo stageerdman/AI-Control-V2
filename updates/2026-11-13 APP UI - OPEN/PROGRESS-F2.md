@@ -1,4 +1,4 @@
-# PROGRESS — F2 Whole-app pass — ⏳ in progress
+# PROGRESS — F2 Whole-app pass — ✅ (round 2 done)
 
 Resume notes. Plan: `update v1.md` (Overnight final build → F2). Commits prefixed `APP F2:`. Shots `shots/f2-*.png`.
 
@@ -47,3 +47,29 @@ Resume notes. Plan: `update v1.md` (Overnight final build → F2). Commits prefi
 - **Release build:** `tauri build` → `AI Studio.app` (name + icon ok). Opened with `open`: spawns `npm start` in
   its own group with Homebrew first on PATH, `claude` resolved by the server (`/opt/homebrew/...`), UI requests
   reached the server, quit → whole group gone; `kill -9` of the server → back in ~2 s (supervisor).
+
+## Round 2 — F1c shapes + cheap gaps (✅)
+- **Backend lock (desktop):** `backend.rs` reads `<data dir>/server.lock {pid, port}` before spawning: a live holder that
+  answers `/health` is reused on ITS port (`Started.port` → the UI's `setApiBase`), a live but silent holder is an honest
+  error (never a second backend), a dead pid = stale → start our own; the supervisor never respawns while someone else
+  holds the lock; quit kills only what we spawned. Cargo tests with a fake `/health` backend (reuse, silent holder,
+  stale lock, read). **Real:** fake server on :4501 holding a temp home → `open --env AI_STUDIO_HOME=<temp>` the built
+  .app → nothing spawned, 4319 untouched, the UI's requests hit :4501; quit → :4501 still alive. Default home, no lock →
+  spawns on 4319, lock written, quit → 4319 free + lock released.
+- **Teams (F1c):** whiteboard team items carry the captain's plan in one quiet line and the members' sub-tasks indented
+  (full name · text · stage); `delegate` / `deliver` handoffs reuse the paper walk; `team.split` refreshes the board.
+- **Features auto-ship:** `feature.shipped` → folder refreshes, the director hops, one toast "✓ <name> shipped"; the
+  whiteboard shows the goal's feature ("Ships “x” when done" / "Part of “x”", opens the feature).
+- **Run the app:** an "App" row on the health card — running · Open app ↗ / not running / stopped (exit n) / no run command
+  yet; Start / Stop; Details = run command (PATCH, from `.project` / package.json) + last 20 log lines; errors (409)
+  shown as the server says them. "▶ Open app" in the office controls while it runs. External links (`target=_blank`) open
+  in the system browser via a new `open_url` command (http/https only).
+- **Pager:** work a reviewer sent back past the limit (failed item, last review = changes, last 3 days) pages as
+  "<Reviewer> needs you" — from the on-set projects' whiteboards every 15 s; seen locally when you leave that office.
+- **Reports page header** ("The paperwork · Reports from the crew"). Blueprint Rebuild, GitHub visibility toggle and
+  the new-key dot need server endpoints → `issues.txt`.
+- Verified on the fake runner (`f1c.cjs`): split into 2 sub-tasks on the board, walks, feature shipped + toast + Shipped
+  in the folder, app: Start disabled without a command → command saved → running with url + Open app (card + office),
+  second start = 409 "The app is already running", Stop. Shots `f2-board-team`, `f2-delegate`, `f2-features-shipped`,
+  `f2-app-running`, `f2-office-openapp`, `f2-studio-reports`.
+- Tests: app 198 (vitest), typecheck + biome clean, cargo 13. Release `tauri build` ✓ (opened from Finder via `open`).
