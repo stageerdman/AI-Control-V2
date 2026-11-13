@@ -9,6 +9,8 @@ export const pages: PageRegistry = {
   gallery: Gallery,
   access: lazy(() => import('./features/access/AccessPage').then((m) => ({ default: m.AccessPage }))),
   reports: lazy(() => import('./features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage }))),
+  projects: lazy(() => import('./features/projects/ProjectsPage').then((m) => ({ default: m.ProjectsPage }))),
+  new: lazy(() => import('./features/setup/SetupPage').then((m) => ({ default: m.SetupPage }))),
 };
 
 /** The global pager (bottom-left). U4 sets it. */
