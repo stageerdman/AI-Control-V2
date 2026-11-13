@@ -37,7 +37,7 @@ describe('RoleCombo — pick or type', () => {
     expect(input.value).toBe('Frontend');
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: 'Sound  Design' } });
-    expect(screen.getByRole('option').textContent).toBe('Create “Sound  Design”');
+    expect(screen.getByRole('option').textContent).toBe('Create “Sound Design”');
     const created = { id: 'r9', name: 'Sound Design', agentCount: 0, reporter: false };
     store.ensureRole.mockResolvedValue(created);
     await act(async () => {

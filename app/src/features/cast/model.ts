@@ -84,7 +84,7 @@ export function roleOptions(roles: readonly Role[], typed: string): RoleOption[]
     .filter((r) => !q || r.name.toLowerCase().includes(q))
     .map((r) => ({ id: r.id, label: r.name }));
   if (q && !roles.some((r) => r.name.toLowerCase() === q))
-    out.push({ id: 'new', label: `Create “${typed.trim()}”`, create: true });
+    out.push({ id: 'new', label: `Create “${normRole(typed)}”`, create: true });
   return out;
 }
 

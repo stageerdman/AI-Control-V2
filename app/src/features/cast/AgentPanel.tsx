@@ -185,6 +185,12 @@ export const AgentPanel = forwardRef<
               + Another orchestrator
             </button>
           )}
+          {exists && agent.canDelete.ok && kind === 'orchestrator' && n > 0 && (
+            <p className="zp-why">
+              Runs {n} project{n === 1 ? '' : 's'} — deleting it hands {n === 1 ? 'it' : 'them'} to another
+              orchestrator.
+            </p>
+          )}
           {exists && agent.canDelete.ok && (
             <button type="button" className="zp-link danger zp-del" onClick={onDelete}>
               Delete {crew ? 'orchestrator' : 'agent'}

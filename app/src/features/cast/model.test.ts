@@ -94,6 +94,9 @@ describe('role pick-or-type', () => {
   it('options: matches + "Create “x”" unless the name exists exactly', () => {
     expect(roleOptions(ROLES, '').map((o) => o.label)).toEqual(['Frontend', 'Backend', 'Research']);
     expect(roleOptions(ROLES, 'end').map((o) => o.label)).toEqual(['Frontend', 'Backend', 'Create “end”']);
+    expect(roleOptions(ROLES, '  sound   design ').at(-1)?.label).toBe(
+      `Create “${normRole('  sound   design ')}”`,
+    );
     expect(roleOptions(ROLES, 'backend').some((o) => o.create)).toBe(false);
     expect(roleOptions(ROLES, 'Sound Design ').at(-1)).toEqual({
       id: 'new',

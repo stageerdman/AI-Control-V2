@@ -163,8 +163,14 @@ export async function deleteAgent(a: Agent, then?: () => void) {
   setQueryData<Agent[]>(KEYS.agents, (l) => (l ?? []).filter((x) => x.id !== a.id));
   void invalidate(KEYS.teams);
   void invalidate(KEYS.roles);
+  const moved = a.kind === 'orchestrator' ? a.projectIds.length : 0;
+  if (moved) {
+    void invalidate('projects');
+    void invalidate(KEYS.agents); // the other orchestrator's project count
+  }
   then?.();
-  toast(`${a.name} deleted`, {
+  const also = moved ? ` · ${moved} project${moved === 1 ? '' : 's'} handed to another orchestrator` : '';
+  toast(`${a.name} deleted${also}`, {
     undo: () => void restore(res.restoreToken, `${a.name} is back.`),
   });
   return true;
