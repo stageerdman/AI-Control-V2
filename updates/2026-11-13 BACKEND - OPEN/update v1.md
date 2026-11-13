@@ -76,6 +76,8 @@ per-project grants; project `.env` written from granted secrets only.
 ### B4 — Live events
 Append-only event log per project + SSE stream (agent status, asks, progress, tokens, features,
 checklist). Reconnect with `Last-Event-ID`.
+Allow the app's origins (CORS for `http://localhost:1420` dev and `tauri://localhost` bundled) so
+the window can call the API and open the SSE stream directly (found in A0).
 *Tests:* ordering, replay from id, stream format.
 
 ### B5 — Agent runtime
