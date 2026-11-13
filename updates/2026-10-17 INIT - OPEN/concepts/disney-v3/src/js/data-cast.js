@@ -100,7 +100,7 @@ function roleOn(team, agentId) {
 }
 
 /* ---- team invariants (spec-teams §3.1): captain ∈ members, ≤6, no dupes ---- */
-const TEAM_MAX = 6;
+const TEAM_MAX = 7;
 function setCaptain(team, agentId) {
   if (!memberOf(team, agentId)) return false;
   team.captain = agentId; return true;

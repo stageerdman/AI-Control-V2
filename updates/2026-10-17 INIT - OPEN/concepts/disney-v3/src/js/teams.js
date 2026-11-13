@@ -11,7 +11,7 @@
 const SQ = { id: null, team: null, draft: null, sel: null, strip: false, returnTo: null };
 const STAR = '<svg class="star" viewBox="-10 -10 20 20" aria-hidden="true" focusable="false"><path d="M0 -8 L2.4 -2.6 L8 -2.5 L3.7 1.2 L5 6.8 L0 3.8 L-5 6.8 L-3.7 1.2 L-8 -2.5 L-2.4 -2.6Z"/></svg>';
 /* formation slots (spec-teams §2.2): [x % of stage width, y = steps back] */
-const SQ_SLOTS = [[0, 0], [-22, 8], [22, 8], [-38, 16], [38, 16], [0, 22]];
+const SQ_SLOTS = [[0, 0], [-22, 4], [22, 4], [-40, 8], [40, 8], [-31, 20], [31, 20]];  /* 6th/7th: back row, between the front side pairs */
 
 const _tEl = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const teamHex = t => hueHex(t.color);
@@ -62,14 +62,14 @@ function _teamRow(t) {
 function _rowCrew(t, crew) {
   const ord = orderedMembers(t);
   if (!ord.length) { _ghostCrew(crew); return; }
-  const shown = ord.slice(0, 5);
-  const offs = [0, -76, 76, -128, 128];
+  const shown = ord.slice(0, 7);
+  const offs = [0, -76, 76, -128, 128, -102, 102];
   shown.forEach((m, i) => {
     const a = agentById(m.agent); if (!a) return;
     const isCap = i === 0 && t.captain === m.agent;
     const side = offs[i] < 0 ? 'right' : 'left';
-    const step = i === 0 ? 0 : i <= 2 ? 1 : 2;
-    const w = _tEl('span', 'tr-m' + (isCap ? ' is-cap' : ''));
+    const step = i === 0 ? 0 : i <= 2 ? 1 : i <= 4 ? 2 : 3;
+    const w = _tEl('span', 'tr-m' + (step === 3 ? ' back' : '') + (isCap ? ' is-cap' : ''));
     w.style.cssText = `--x:${offs[i]}px;--lift:${step * 10}px;z-index:${10 - step}`;
     w.dataset.facing = i === 0 ? 'front' : 'three-quarter'; w.dataset.dir = i === 0 ? 'right' : side;
     w.appendChild(hero(a, i === 0
@@ -77,7 +77,6 @@ function _rowCrew(t, crew) {
       : { size: 'sm', facing: 'three-quarter', dir: side, role: m.role || undefined }));
     crew.appendChild(w);
   });
-  if (ord.length > 5) crew.insertAdjacentHTML('beforeend', `<span class="tr-more">+${ord.length - 5}</span>`);
 }
 function _ghostCrew(crew) {
   [[-76, 'sm', 10], [0, 'md', 0], [76, 'sm', 10]].forEach(([x, s, lift]) => {
@@ -259,16 +258,16 @@ function _renderFormation(z, { before = null, walkIn = null, walkFrom = null } =
   }
   ord.forEach((m, i) => {
     const a = agentById(m.agent); if (!a) return;
-    const [x, y] = SQ_SLOTS[i]; const step = y === 0 ? 0 : y <= 8 ? 1 : y <= 16 ? 2 : 3;
+    const [x, y] = SQ_SLOTS[i]; const step = y === 0 ? 0 : y <= 4 ? 1 : y <= 8 ? 2 : 3; const back = step === 3;
     const isCap = t.captain === m.agent;
     const px = i === 0 ? cap : Math.round(crew * Math.pow(0.94, step - 1));
     const eff = m.role || a.role;
-    const b = _tEl('button', 'sq-m' + (isCap ? ' is-cap' : '') + (SQ.sel === m.agent ? ' sel' : '')); b.type = 'button';
+    const b = _tEl('button', 'sq-m' + (back ? ' back' : '') + (isCap ? ' is-cap' : '') + (SQ.sel === m.agent ? ' sel' : '')); b.type = 'button';
     b.dataset.id = m.agent; b.dataset.x = x;
     b.setAttribute('aria-label', `${a.name}, ${eff}${isCap ? ', Captain' : ''}. Edit on this team`);
     b.style.cssText = `left:${Math.round(W / 2 + x / 100 * W - px * 0.375)}px;bottom:${Math.round(y / 100 * W * 0.5)}px;width:${Math.round(px * 0.75)}px;z-index:${10 - step}`;
     b.appendChild(hero(a, { size: px, facing: 'front', role: m.role || undefined, captain: isCap, armband: isCap ? teamHex(t) : null }));
-    if (i !== 5) b.insertAdjacentHTML('beforeend', `<span class="sq-plate"><b>${escapeHtml(a.name)}</b><span>${isCap ? `${STAR} Captain · ` : ''}${escapeHtml(eff)}</span></span>`);
+    b.insertAdjacentHTML('beforeend', `<span class="sq-plate"><b>${escapeHtml(a.name)}</b><span>${isCap ? `${STAR} Captain · ` : ''}${escapeHtml(eff)}</span></span>`);
     b.onclick = e => { e.stopPropagation(); _selectMember(z, m.agent); };
     b.addEventListener('mouseenter', () => cxHop(b.querySelector('.hero')));
     form.appendChild(b);

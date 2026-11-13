@@ -19,10 +19,10 @@
    is the Director's corner (top) + the couch (bottom).
    ============================================================ */
 
-const OL = { DX: 124, RUG: 140, GAP: 72, LEFT: 50, RIGHT: 440, MIN_W: 1600, STEP: 40, PER_POD: 6 };
+const OL = { DX: 124, RUG: 140, GAP: 72, LEFT: 50, RIGHT: 440, MIN_W: 1600, STEP: 40, PER_POD: 7 };
 
 function officeLayout(cfg) {
-  /* blocks: one desk row per team (≤ 6), solo agents share neutral blocks */
+  /* blocks: one desk row per team (≤ 7), solo agents share neutral blocks */
   const blocks = [];
   (cfg.teams || []).forEach(t => {
     for (let i = 0; i < t.members.length; i += OL.PER_POD) blocks.push({ teamId: t.id, members: t.members.slice(i, i + OL.PER_POD) });

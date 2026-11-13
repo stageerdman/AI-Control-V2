@@ -542,11 +542,12 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
    .z-stage, .z-panel, .zp-*) is identical for agents and squads.
    ============================================================ */
 #scene-cast.zoomed{overflow:hidden}
-#scene-cast{--glass:rgba(255,246,233,.06);--glass-line:rgba(255,246,233,.12);--well:rgba(0,0,0,.22);--cream-60:rgba(255,246,233,.6);--cream-45:rgba(255,246,233,.45)}
+#scene-cast{--glass:rgba(48,36,88,.82);--glass-line:rgba(255,246,233,.12);--well:rgba(0,0,0,.22);--cream-60:rgba(255,246,233,.6);--cream-45:rgba(255,246,233,.45)}
 
 /* ---------- the "world" the camera pushes into ---------- */
-.cast-world{min-height:100%;display:flex;flex-direction:column;transition:transform .48s cubic-bezier(.2,.8,.2,1),opacity .42s ease,filter .42s ease}
-.cast-world.camera-push{transform:scale(1.25);opacity:0;filter:blur(4px);pointer-events:none}
+.cast-world{min-height:100%;display:flex;flex-direction:column;transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .36s ease}
+.cast-world.camera-push,.cast-world.moving{will-change:transform,opacity}
+.cast-world.camera-push{transform:scale(1.25);opacity:0;pointer-events:none}
 .cast-world.instant,.cast-world.instant *{transition:none!important}
 .cast-world .cast-head,.cast-world .tr-li{transition:opacity .22s ease,transform .3s var(--ease-out)}
 .cast-world.pushing{pointer-events:none}
@@ -642,7 +643,7 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 
 /* the dark-glass detail panel */
 .z-panel{position:relative;z-index:3;min-height:0;display:flex;flex-direction:column;background:var(--glass);border:1px solid var(--glass-line);
-  border-radius:var(--r-lg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 30px 60px -30px rgba(0,0,0,.65)}
+  border-radius:var(--r-lg);box-shadow:0 30px 60px -30px rgba(0,0,0,.65)}
 .zp-scroll{flex:1;min-height:0;overflow:auto;padding:24px 28px 30px;scrollbar-width:thin;scrollbar-color:rgba(255,246,233,.2) transparent}
 .zp-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:26px;margin-bottom:4px}
 .zp-kicker{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--sun)}
@@ -938,6 +939,13 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
   .slot.hot .slot-fig .hero,.team-row.hot .tr-emblem,.sq-m.sel .hero{transform:none}
 }
 
+/* back row (6th & 7th): smaller, a step behind, peeking between the front side pairs; name on hover/select */
+.tr-m.back{--lift:46px!important}
+.tr-m.back .hero{transform:scale(.86);transform-origin:50% 100%;filter:brightness(.85)}
+.sq-m.back .hero{filter:brightness(.88)}
+.sq-m.back .sq-plate{opacity:0;transition:opacity .15s}
+.sq-m.back:hover .sq-plate,.sq-m.back:focus-visible .sq-plate,.sq-m.back.sel .sq-plate{opacity:1}
+
 /* ==== css/office.css ==== */
 /* ============================================================
    office.css — The Office (spec-office). Stage · panel · board · dossier.
@@ -984,7 +992,9 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 /* ---------------- the stage box (scaled) ---------------- */
 .o-box{position:absolute;left:0;top:0;width:1600px;height:1062px;transform-origin:0 0;--z:1;
   --ui:calc(1px / (var(--k) * var(--z)))}
-.o-cam{position:absolute;inset:0;transform-origin:0 0;transition:transform .65s cubic-bezier(.2,.8,.2,1)}
+.o-cam{position:absolute;inset:0;transform-origin:0 0;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.o-cam.moving{will-change:transform}
+.o-box{contain:layout paint}
 .o-cam.quiet{transition:none}
 .o-cam.opening{animation:o-open .6s var(--ease-out)}
 @keyframes o-open{from{transform:translate(-48px,-30px) scale(1.06)}to{transform:none}}
@@ -1086,7 +1096,7 @@ main.stage{flex:1;min-height:0;padding:0 var(--stage-pad) var(--stage-pad);posit
 /* zoomed: the room behind is frozen and covered — nothing moves, nothing flickers */
 .o-box.zoomed .o-layer,.o-box.zoomed .o-hot{pointer-events:none}
 .o-box.zoomed .o-over{visibility:hidden}
-.o-stagewrap.zooming .o-box *,.o-stagewrap.zooming .o-box{animation-play-state:paused!important}
+.o-stagewrap.settled .o-box *,.o-stagewrap.settled .o-box{animation-play-state:paused!important}
 .o-scrim{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .45s;background:rgba(20,12,44,.78);z-index:4}
 .o-stagewrap.zooming .o-scrim{opacity:1}
 
@@ -2459,7 +2469,7 @@ function roleOn(team, agentId) {
 }
 
 /* ---- team invariants (spec-teams §3.1): captain ∈ members, ≤6, no dupes ---- */
-const TEAM_MAX = 6;
+const TEAM_MAX = 7;
 function setCaptain(team, agentId) {
   if (!memberOf(team, agentId)) return false;
   team.captain = agentId; return true;
@@ -2502,10 +2512,10 @@ function removeMember(team, agentId) {
    is the Director's corner (top) + the couch (bottom).
    ============================================================ */
 
-const OL = { DX: 124, RUG: 140, GAP: 72, LEFT: 50, RIGHT: 440, MIN_W: 1600, STEP: 40, PER_POD: 6 };
+const OL = { DX: 124, RUG: 140, GAP: 72, LEFT: 50, RIGHT: 440, MIN_W: 1600, STEP: 40, PER_POD: 7 };
 
 function officeLayout(cfg) {
-  /* blocks: one desk row per team (≤ 6), solo agents share neutral blocks */
+  /* blocks: one desk row per team (≤ 7), solo agents share neutral blocks */
   const blocks = [];
   (cfg.teams || []).forEach(t => {
     for (let i = 0; i < t.members.length; i += OL.PER_POD) blocks.push({ teamId: t.id, members: t.members.slice(i, i + OL.PER_POD) });
@@ -3804,7 +3814,7 @@ function _castDemo() {
 const SQ = { id: null, team: null, draft: null, sel: null, strip: false, returnTo: null };
 const STAR = '<svg class="star" viewBox="-10 -10 20 20" aria-hidden="true" focusable="false"><path d="M0 -8 L2.4 -2.6 L8 -2.5 L3.7 1.2 L5 6.8 L0 3.8 L-5 6.8 L-3.7 1.2 L-8 -2.5 L-2.4 -2.6Z"/></svg>';
 /* formation slots (spec-teams §2.2): [x % of stage width, y = steps back] */
-const SQ_SLOTS = [[0, 0], [-22, 8], [22, 8], [-38, 16], [38, 16], [0, 22]];
+const SQ_SLOTS = [[0, 0], [-22, 4], [22, 4], [-40, 8], [40, 8], [-31, 20], [31, 20]];  /* 6th/7th: back row, between the front side pairs */
 
 const _tEl = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const teamHex = t => hueHex(t.color);
@@ -3855,14 +3865,14 @@ function _teamRow(t) {
 function _rowCrew(t, crew) {
   const ord = orderedMembers(t);
   if (!ord.length) { _ghostCrew(crew); return; }
-  const shown = ord.slice(0, 5);
-  const offs = [0, -76, 76, -128, 128];
+  const shown = ord.slice(0, 7);
+  const offs = [0, -76, 76, -128, 128, -102, 102];
   shown.forEach((m, i) => {
     const a = agentById(m.agent); if (!a) return;
     const isCap = i === 0 && t.captain === m.agent;
     const side = offs[i] < 0 ? 'right' : 'left';
-    const step = i === 0 ? 0 : i <= 2 ? 1 : 2;
-    const w = _tEl('span', 'tr-m' + (isCap ? ' is-cap' : ''));
+    const step = i === 0 ? 0 : i <= 2 ? 1 : i <= 4 ? 2 : 3;
+    const w = _tEl('span', 'tr-m' + (step === 3 ? ' back' : '') + (isCap ? ' is-cap' : ''));
     w.style.cssText = `--x:${offs[i]}px;--lift:${step * 10}px;z-index:${10 - step}`;
     w.dataset.facing = i === 0 ? 'front' : 'three-quarter'; w.dataset.dir = i === 0 ? 'right' : side;
     w.appendChild(hero(a, i === 0
@@ -3870,7 +3880,6 @@ function _rowCrew(t, crew) {
       : { size: 'sm', facing: 'three-quarter', dir: side, role: m.role || undefined }));
     crew.appendChild(w);
   });
-  if (ord.length > 5) crew.insertAdjacentHTML('beforeend', `<span class="tr-more">+${ord.length - 5}</span>`);
 }
 function _ghostCrew(crew) {
   [[-76, 'sm', 10], [0, 'md', 0], [76, 'sm', 10]].forEach(([x, s, lift]) => {
@@ -4052,16 +4061,16 @@ function _renderFormation(z, { before = null, walkIn = null, walkFrom = null } =
   }
   ord.forEach((m, i) => {
     const a = agentById(m.agent); if (!a) return;
-    const [x, y] = SQ_SLOTS[i]; const step = y === 0 ? 0 : y <= 8 ? 1 : y <= 16 ? 2 : 3;
+    const [x, y] = SQ_SLOTS[i]; const step = y === 0 ? 0 : y <= 4 ? 1 : y <= 8 ? 2 : 3; const back = step === 3;
     const isCap = t.captain === m.agent;
     const px = i === 0 ? cap : Math.round(crew * Math.pow(0.94, step - 1));
     const eff = m.role || a.role;
-    const b = _tEl('button', 'sq-m' + (isCap ? ' is-cap' : '') + (SQ.sel === m.agent ? ' sel' : '')); b.type = 'button';
+    const b = _tEl('button', 'sq-m' + (back ? ' back' : '') + (isCap ? ' is-cap' : '') + (SQ.sel === m.agent ? ' sel' : '')); b.type = 'button';
     b.dataset.id = m.agent; b.dataset.x = x;
     b.setAttribute('aria-label', `${a.name}, ${eff}${isCap ? ', Captain' : ''}. Edit on this team`);
     b.style.cssText = `left:${Math.round(W / 2 + x / 100 * W - px * 0.375)}px;bottom:${Math.round(y / 100 * W * 0.5)}px;width:${Math.round(px * 0.75)}px;z-index:${10 - step}`;
     b.appendChild(hero(a, { size: px, facing: 'front', role: m.role || undefined, captain: isCap, armband: isCap ? teamHex(t) : null }));
-    if (i !== 5) b.insertAdjacentHTML('beforeend', `<span class="sq-plate"><b>${escapeHtml(a.name)}</b><span>${isCap ? `${STAR} Captain · ` : ''}${escapeHtml(eff)}</span></span>`);
+    b.insertAdjacentHTML('beforeend', `<span class="sq-plate"><b>${escapeHtml(a.name)}</b><span>${isCap ? `${STAR} Captain · ` : ''}${escapeHtml(eff)}</span></span>`);
     b.onclick = e => { e.stopPropagation(); _selectMember(z, m.agent); };
     b.addEventListener('mouseenter', () => cxHop(b.querySelector('.hero')));
     form.appendChild(b);
@@ -5268,10 +5277,26 @@ const OE = {
       tx = ccx - z * cx; ty = ccy - z * cy;
     }
     this.zoom = { z, tx, ty, obj: objId };
-    this.cam.classList.toggle('quiet', !!quiet);
-    this.cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : '';
-    this.box.style.setProperty('--z', z);
-    this.box.classList.toggle('zoomed', !!objId);
+    const cam = this.cam, box = this.box;
+    /* Perf: during the move the GPU slides the room as ONE flat layer (.moving =
+       will-change). Restyle-heavy work (--z feeds every overlay's size; pausing
+       every animation) waits until the camera lands, so the move itself never
+       triggers a full-scene style/raster pass. */
+    const settle = () => {
+      cam.classList.remove('moving');
+      box.style.setProperty('--z', z);
+      const st = document.getElementById('oStage'); if (st) st.classList.toggle('settled', !!objId);
+    };
+    clearTimeout(this._zt);
+    cam.classList.toggle('quiet', !!quiet);
+    if (quiet || OE.instant || reducedMotion()) { cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : ''; settle(); }
+    else {
+      const st = document.getElementById('oStage'); if (st) st.classList.remove('settled');
+      cam.classList.add('moving');
+      requestAnimationFrame(() => { cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : ''; });
+      this._zt = setTimeout(settle, 560);
+    }
+    box.classList.toggle('zoomed', !!objId);
     return true;
   },
 };
