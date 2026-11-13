@@ -3,6 +3,7 @@ css/base.css
 css/hero.css
 css/emblem.css
 css/studio.css
+css/studio-new.css
 css/cast.css
 css/office.css
 css/gallery.css
@@ -18,6 +19,7 @@ js/office-layout.js
 js/data-office.js
 # screens
 js/studio.js
+js/studio-new.js
 js/cast.js
 js/teams.js
 js/office-theme.js

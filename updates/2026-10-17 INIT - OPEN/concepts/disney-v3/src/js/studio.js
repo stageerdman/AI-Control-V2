@@ -1,6 +1,6 @@
 /* ============================================================
    studio.js — Projects · Access · Blueprint scenes (behaviour = v2).
-   Public: renderProjects(), renderAccess(), renderBlueprint(),
+   Public: renderProjects(), renderAccess(), renderBlueprint(), projOrch(p),
            logoTile(project, small), keytag(cred, locked),
            openProjectAccess(grants, projectName)  (used by the Office)
    Reads: PROJECTS, CREDENTIALS, BLUEPRINT_TREE, PRINCIPLES, FRESHNESS,
@@ -46,7 +46,7 @@ function renderProjects() {
       <div class="result-count" id="resCount" aria-live="polite"></div>
     </div>
     <div id="shelves"></div>`;
-  el.querySelector('#newProj').onclick = openNewProject;
+  el.querySelector('#newProj').onclick = () => openNewProject();
   const search = el.querySelector('#projSearch');
   search.oninput = e => { projQuery = e.target.value; renderShelves(); };
   search.onkeydown = e => { if (e.key === 'Escape') { projQuery = ''; search.value = ''; renderShelves(); } };
@@ -63,7 +63,7 @@ function renderProjects() {
       const es = document.createElement('div'); es.className = 'empty-state';
       es.appendChild(hero({ name: 'Scout', role: 'QA', hue: 'rose', build: 'sprout', hair: 'bob' }, { size: 120, pose: 'thinking' }));
       es.insertAdjacentHTML('beforeend', '<h2>No production by that name</h2><p style="color:rgba(255,246,233,.7);font-weight:600">Start a new one?</p>');
-      const b = document.createElement('button'); b.className = 'btn btn-hero'; b.textContent = '＋ New project'; b.onclick = openNewProject;
+      const b = document.createElement('button'); b.className = 'btn btn-hero'; b.textContent = '＋ New project'; b.onclick = () => openNewProject();
       es.appendChild(b); sh.appendChild(es); return;
     }
     sh.innerHTML = `
@@ -128,18 +128,6 @@ function openProject(p) {
   if (p.openable) go('office/' + p.id);
   else toast(`“${escapeHtml(p.name)}” is a sketch — only Aurora is wired up in this prototype.`);
 }
-function openNewProject() {
-  const body = document.createElement('div');
-  body.innerHTML = `<h2>Start a new production</h2>
-    <p class="hint" style="margin-bottom:16px">Name it and drop a logo. We scaffold it from the Blueprint and open the office.</p>
-    <div class="field" style="margin-bottom:14px"><label for="npName">Project name</label><input id="npName" placeholder="e.g. Nimbus Deploy" autocomplete="off"></div>
-    <div class="field" style="margin-bottom:18px"><label>Logo</label><div class="row"><span class="logo-tile" aria-hidden="true" style="background:linear-gradient(145deg,#9b6cff,#4ea8ff)"><svg viewBox="0 0 24 24">${tileGlyph('cloud')}</svg></span><button class="btn btn-ghost btn-sm" type="button">⬆ Drop an image…</button></div></div>
-    <button class="btn btn-hero" id="npCreate">Create & open →</button>`;
-  openSheet(body, 'Start a new production');
-  body.querySelector('#npCreate').onclick = () => { closeSheet(); toast('✨ New production scaffolded from the Blueprint'); };
-  setTimeout(() => body.querySelector('#npName').focus(), 60);
-}
-
 /* ============================================================ ACCESS */
 let expandedCred = null;
 function renderAccess() {

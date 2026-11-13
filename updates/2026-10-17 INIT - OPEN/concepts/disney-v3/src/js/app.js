@@ -80,3 +80,4 @@ function _motes() {
 _buildNav(); _motes();
 window.addEventListener('hashchange', route);
 route();
+if (typeof npDemo === 'function') npDemo();

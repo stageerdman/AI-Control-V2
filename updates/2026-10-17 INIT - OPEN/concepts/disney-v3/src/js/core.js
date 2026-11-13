@@ -67,13 +67,15 @@ function sparkle(x = 50, y = 40) {
 function announce(msg, assertive) { document.getElementById(assertive ? 'alertlive' : 'live').textContent = msg; }
 
 /* ---------- focus-trapped sheet (dialog) ---------- */
-let _lastFocused = null, _trapHandler = null;
+let _lastFocused = null, _trapHandler = null, _onClose = null;
+/* opts: wide · cls (extra class on the sheet) · onClose() (runs once when it closes) */
 function openSheet(contentEl, label, opts = {}) {
   const scrim = document.getElementById('scrim');
   _lastFocused = document.activeElement;
   scrim.innerHTML = '';
   const sheet = document.createElement('div');
-  sheet.className = 'sheet' + (opts.wide ? ' wide' : '');
+  sheet.className = 'sheet' + (opts.wide ? ' wide' : '') + (opts.cls ? ' ' + opts.cls : '');
+  _onClose = opts.onClose || null;
   sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true');
   sheet.setAttribute('aria-label', label || 'Dialog'); sheet.style.position = 'relative';
   sheet.appendChild(contentEl);
@@ -94,6 +96,7 @@ function openSheet(contentEl, label, opts = {}) {
 }
 function closeSheet() {
   const scrim = document.getElementById('scrim');
+  if (_onClose) { const f = _onClose; _onClose = null; try { f(); } catch (e) { /* ignore */ } }
   scrim.hidden = true; scrim.innerHTML = '';
   if (_trapHandler) { document.removeEventListener('keydown', _trapHandler); _trapHandler = null; }
   if (_lastFocused && _lastFocused.focus) { try { _lastFocused.focus(); } catch (e) { /* gone */ } }
