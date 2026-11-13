@@ -15,10 +15,14 @@ src/css/base.css, studio.css, studio-new.css (new), src/shell.html (+2 lines in 
       Finish pushes PROJECTS[0] with `office: {project, director, teams:[{id, members}], solo:[]}` (spec-office-config shape).
       Fallbacks until Builder A's contract lands: setter/creator stand-ins, orchestrators() → [agentById('pixel')].
       core.js openSheet gained opts.cls + opts.onClose.
-- [ ] Re-verify against Builder A's contract (a-setter look, orchestrators(), ROLES objects) once pushed.
+- [x] Re-verified against Builder A's contract (43da2ae): Rivet/Pixel/Maestro/Tinker on stage; minted agent gets a
+      Creator-designed `look` (setWholeLook, hat/tool/hue nobody on its squad wears) + custom role via addRole().
+      Atlas + Orchard now run by Maestro.
+- [x] Shots: shots/v5c-* (projects + every step of both flows at 1440×900 and 900×900, v5c-new-office).
 - Known handoff: the committed Office still renders the static Aurora WS for any project id; Builder B should
   build WS from `projById(id).office` when present (new projects) and use `PROJECTS[i].orchestrator` as director.
 
 ## Resume notes
 Build: `python3 build.py`. Shots: `./shoot.sh '<route>' v5c-<name>`; flow demo hooks `?demo=new-<0..6>` / `?demo=adopt-<0..6>` (3 setup running · 4 proposal · 5 minted · 6 creator at work).
-Shared tree has other builders' WIP: verify with a scratch build of HEAD + own files (see report).
+Shared tree has other builders' WIP (and the scratchpad is shared too): verify with a scratch build of
+committed HEAD + own files in scratchpad/builder-c (mkbuild.sh, shot.sh).

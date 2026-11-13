@@ -51,12 +51,12 @@ function npProposals(mode) {
   const fromTeam = (id, why) => { const t = teamById(id); return t && { team: id, name: t.name, color: t.color, emblem: t.emblem, why, members: t.members.map(m => m.agent) }; };
   const list = mode === 'adopt' ? [
     { name: 'The Archaeologists', color: 'teal', emblem: 'compass', why: 'Existing code — learn it before changing it.',
-      members: ['a-lint', 'a-doc', 'a-scar'], mint: { role: 'Migration', line: 'map the old code and plan a safe path forward' } },
+      members: ['a-lint', 'a-doc', 'a-scar'], mint: { role: 'Migration', line: 'a Migration specialist to map the old code' } },
     fromTeam('polish', 'Tidy first: de-dupe, document, then build.'),
     fromTeam('ship-it', 'It already works — go straight to new features.'),
   ] : [
     { name: 'The First Draft', color: 'sky', emblem: 'starship', why: 'Small and fast: build it, test it, ship it.',
-      members: ['a-semic', 'a-pete', 'a-scar'], mint: { role: 'Voice', line: 'nobody in the Cast does speech yet' } },
+      members: ['a-semic', 'a-pete', 'a-scar'], mint: { role: 'Voice', line: 'a Voice specialist — nobody in the Cast does speech yet' } },
     fromTeam('ship-it', 'They already work well together — reuse them.'),
     fromTeam('expedition', 'Not sure what to build yet? Research first.'),
   ];
@@ -274,7 +274,7 @@ function npTeam(stage, body, foot) {
   const o = agentById(NP.orch) || npOrchs()[0]; const creator = npCreator();
   stage.classList.add('np-teamstage');
   const say = NP.phase === 'propose'
-    ? (P.mint ? `${P.why} And I'll ask the Agent Creator for a ${P.mint.role} — ${P.mint.line}.` : P.why)
+    ? (P.mint ? `${P.why} And I'll ask the Agent Creator for ${P.mint.line}.` : P.why)
     : NP.phase === 'minting' ? `${npNick(creator)}, can you design us a ${P.mint.role}?` : `Welcome, ${npNick(NP.minted)}! The team is ready.`;
   stage.append(npActor(o, { pose: NP.phase === 'minted' ? 'celebrating' : 'talking', dir: 'right', size: 120, cls: 'np-lead' }));
   stage.insertAdjacentHTML('beforeend', `<div class="np-bubble">${escapeHtml(say)}</div>`);
