@@ -19,6 +19,7 @@ export const EVENT_SCHEMAS = {
   /** What an agent is doing right now. */
   'agent.status': z.strictObject({
     agentId: id,
+    runId: id.optional(),
     status: z.enum(['idle', 'working', 'waiting', 'blocked', 'done']),
     activity: z
       .strictObject({
@@ -35,6 +36,8 @@ export const EVENT_SCHEMAS = {
     agentId: id,
     kind: z.enum(['question', 'approval', 'credential']),
     question: text(),
+    options: z.array(text(200)).max(10).optional(),
+    runId: id.optional(),
     credentialId: id.optional(),
   }),
   'ask.answered': z.strictObject({ askId: id, answer: text() }),
@@ -49,7 +52,20 @@ export const EVENT_SCHEMAS = {
     blocked: z.boolean().optional(),
   }),
   progress: z.strictObject({ pct: z.number().int().min(0).max(100), label: text(120).optional() }),
-  tokens: z.strictObject({ agentId: id, input: count, output: count }),
+  tokens: z.strictObject({ agentId: id, runId: id.optional(), input: count, output: count }),
+  /** A headless agent run (B5) began / ended. */
+  'run.started': z.strictObject({ runId: id, agentId: id, teamId: id.optional(), task: text() }),
+  'run.finished': z.strictObject({
+    runId: id,
+    agentId: id,
+    status: z.enum(['succeeded', 'failed', 'cancelled']),
+    result: text(4000).optional(),
+    error: text().optional(),
+    turns: count,
+    input: count,
+    output: count,
+    costUsd: z.number().min(0).optional(),
+  }),
 } as const;
 
 export type EventType = keyof typeof EVENT_SCHEMAS;

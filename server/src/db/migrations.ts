@@ -154,6 +154,48 @@ export const MIGRATIONS: readonly string[] = [
   CREATE TRIGGER events_draft_gone AFTER DELETE ON drafts
     BEGIN DELETE FROM events WHERE scope = 'draft' AND scope_id = OLD.id; END;
   `,
+
+  /* 5 — agent runs (B5): one row per headless Claude Code run, plus the questions an agent
+     asked the user through the ask_user tool. */
+  `
+  CREATE TABLE runs (
+    id            TEXT PRIMARY KEY,
+    project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id      TEXT NOT NULL,              -- no FK: a run's history outlives a deleted agent
+    team_id       TEXT,
+    task          TEXT NOT NULL,
+    status        TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'failed', 'cancelled')),
+    runner        TEXT NOT NULL,              -- 'claude-cli' | 'fake'
+    model         TEXT,
+    caps          TEXT NOT NULL,              -- JSON {maxTurns, maxBudgetUsd}
+    session_id    TEXT,                       -- Claude Code session, for --resume
+    result        TEXT,
+    error         TEXT,
+    input_tokens  INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+    cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd      REAL,
+    turns         INTEGER NOT NULL DEFAULT 0,
+    started_at    TEXT NOT NULL,
+    ended_at      TEXT
+  );
+  -- one live run per agent per project
+  CREATE UNIQUE INDEX runs_one_live_per_agent ON runs(project_id, agent_id) WHERE status = 'running';
+
+  CREATE TABLE asks (
+    id          TEXT PRIMARY KEY,
+    run_id      TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    project_id  TEXT NOT NULL,
+    agent_id    TEXT NOT NULL,
+    question    TEXT NOT NULL,
+    options     TEXT,                         -- JSON string[] or NULL
+    status      TEXT NOT NULL CHECK (status IN ('open', 'answered', 'cancelled')),
+    answer      TEXT,
+    created_at  TEXT NOT NULL,
+    answered_at TEXT
+  );
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

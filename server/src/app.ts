@@ -19,9 +19,13 @@ import { eventRoutes } from './routes/events.ts';
 import { healthRoutes } from './routes/health.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { roleRoutes } from './routes/roles.ts';
+import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
 import { teamRoutes } from './routes/teams.ts';
 import { trashRoutes } from './routes/trash.ts';
+import { fakeRunner } from './runtime/fake.ts';
+import type { Runner } from './runtime/runner.ts';
+import { createRuntime, type Runtime } from './runtime/service.ts';
 import { cabinet } from './secrets/cabinet.ts';
 import { projectAccess } from './secrets/projectAccess.ts';
 import { fileSecretStore, type SecretStore } from './secrets/secretStore.ts';
@@ -39,6 +43,12 @@ export type AppDeps = {
   dev?: boolean;
   /** SSE heartbeat interval (tests shorten it). */
   heartbeatMs?: number;
+  /** How agents run. Default: the scripted FakeRunner (main.ts passes the Claude Code CLI). */
+  runner?: Runner;
+  model?: string;
+  /** Exposed so tests and main can reach the runtime; built from the deps when omitted. */
+  onRuntime?: (rt: Runtime) => void;
+  longPollMs?: number;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -57,13 +67,36 @@ export function buildApp({
   events = eventLog(db, createBus(), secretValuesOf(secrets)),
   dev = process.env.NODE_ENV !== 'production',
   heartbeatMs,
+  runner = fakeRunner(),
+  model = 'claude-opus-5-5',
+  onRuntime,
+  longPollMs,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   registerCors(app);
   /* SSE responses are hijacked: end them on shutdown so close() never hangs */
   const open: OpenStreams = new Set();
+  const access = projectAccess(store, secrets, config.sandbox);
+  const runtime = createRuntime({
+    db,
+    store,
+    events,
+    runner,
+    model,
+    sandbox: config.sandbox,
+    envFor: access.envFor,
+  });
+  runtime.recover();
+  onRuntime?.(runtime);
+  /* the ask_user MCP server calls back here; learn our own address once listening */
+  app.addHook('onListen', async () => {
+    const a = app.server.address();
+    if (a && typeof a === 'object')
+      runtime.setBaseUrl(`http://${a.family === 'IPv6' ? `[${a.address}]` : a.address}:${a.port}`);
+  });
   app.addHook('preClose', async () => {
     for (const res of open) res.end();
+    await runtime.shutdown();
   });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -90,6 +123,7 @@ export function buildApp({
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );
   app.register(credentialRoutes({ cabinet: cabinet(store, secrets) }));
-  app.register(accessRoutes({ access: projectAccess(store, secrets, config.sandbox) }));
+  app.register(accessRoutes({ access }));
+  app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   return app;
 }

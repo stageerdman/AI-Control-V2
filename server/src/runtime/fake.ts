@@ -1,0 +1,88 @@
+/* FakeRunner: plays a script — deterministic, free, no process. Every test and UI
+   flow can run end-to-end on it (events, asks, cancel) without spending tokens. */
+import type { Activity, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
+
+export type FakeStep =
+  | { activity: Activity; status?: 'working' | 'waiting' }
+  | { tokens: { input: number; output: number } }
+  | { text: string }
+  | { ask: string; options?: string[] }
+  | { wait: number }
+  | { fail: string }
+  | { result: string };
+
+export const DEFAULT_SCRIPT: FakeStep[] = [
+  { activity: { kind: 'reading', label: 'Reading CLAUDE.md', target: 'CLAUDE.md' } },
+  { tokens: { input: 1200, output: 80 } },
+  { activity: { kind: 'editing', label: 'Writing hello.txt', target: 'hello.txt' } },
+  { tokens: { input: 300, output: 40 } },
+  { result: 'Done (fake run).' },
+];
+
+export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT_SCRIPT): Runner {
+  return {
+    name: 'fake',
+    start(spec: RunSpec, io: RunIO): RunHandle {
+      let cancelled = false;
+      let wake: (() => void) | null = null;
+      const sleep = (ms: number) =>
+        new Promise<void>((r) => {
+          const t = setTimeout(r, ms);
+          wake = () => {
+            clearTimeout(t);
+            r();
+          };
+        });
+      const done = (async (): Promise<RunOutcome> => {
+        const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+        let turns = 0;
+        const sessionId = `fake-${spec.runId}`;
+        const end = (o: Partial<RunOutcome> & Pick<RunOutcome, 'status'>): RunOutcome => ({
+          turns,
+          usage,
+          sessionId,
+          ...o,
+        });
+        io.emit({ kind: 'session', sessionId });
+        await sleep(0);
+        for (const step of script(spec)) {
+          if (cancelled) return end({ status: 'cancelled' });
+          if ('activity' in step)
+            io.emit({ kind: 'activity', status: step.status ?? 'working', activity: step.activity });
+          else if ('tokens' in step) {
+            turns++;
+            usage.input += step.tokens.input;
+            usage.output += step.tokens.output;
+            io.emit({ kind: 'tokens', ...step.tokens });
+          } else if ('text' in step) io.emit({ kind: 'text', text: step.text });
+          else if ('ask' in step) {
+            io.emit({
+              kind: 'activity',
+              status: 'waiting',
+              activity: { kind: 'asking', label: 'Waiting for your answer', detail: step.ask },
+            });
+            const answer = await Promise.race([
+              io.ask(step.ask, step.options),
+              new Promise<null>((r) => {
+                wake = () => r(null);
+              }),
+            ]);
+            if (answer === null || cancelled) return end({ status: 'cancelled' });
+            io.emit({ kind: 'text', text: `User answered: ${answer}` });
+          } else if ('wait' in step) await sleep(step.wait);
+          else if ('fail' in step) return end({ status: 'failed', error: step.fail });
+          else if ('result' in step) return end({ status: 'succeeded', result: step.result });
+          await sleep(0);
+        }
+        return end({ status: cancelled ? 'cancelled' : 'succeeded' });
+      })();
+      return {
+        done,
+        cancel: () => {
+          cancelled = true;
+          wake?.();
+        },
+      };
+    },
+  };
+}

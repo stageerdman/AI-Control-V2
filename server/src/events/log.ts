@@ -28,10 +28,17 @@ export function eventLog(db: Db, bus: EventBus, secretValues: () => string[] = (
   const log = {
     bus,
     /** Append and publish. Do NOT call inside a transaction that may roll back (subscribers would see a ghost). */
-    append(scope: Scope, scopeId: string, input: EventInput): StoredEvent {
+    append(
+      scope: Scope,
+      scopeId: string,
+      input: EventInput,
+      extraSecrets: readonly string[] = [],
+    ): StoredEvent {
       const { type, payload } = parseEventInput(input);
       /* only read the secret store when there is text that could hold a secret */
-      const clean = hasStrings(payload) ? redactSecrets(payload, secretValues()).value : payload;
+      const clean = hasStrings(payload)
+        ? redactSecrets(payload, [...secretValues(), ...extraSecrets]).value
+        : payload;
       const e = insert(scope, scopeId, type, clean, new Date().toISOString());
       bus.publish(e);
       return e;
