@@ -21,7 +21,12 @@ export const EVENT_SCHEMAS = {
     agentId: id,
     status: z.enum(['idle', 'working', 'waiting', 'blocked', 'done']),
     activity: z
-      .strictObject({ kind: text(40), label: text(120), detail: text().optional(), target: text(300).optional() })
+      .strictObject({
+        kind: text(40),
+        label: text(120),
+        detail: text().optional(),
+        target: text(300).optional(),
+      })
       .optional(),
   }),
   /** An agent needs the user (a question, an approval, or access to a credential — by id). */
@@ -53,7 +58,10 @@ export type EventPayload<T extends EventType> = z.infer<(typeof EVENT_SCHEMAS)[T
 /** What a publisher hands in: a type and its payload. */
 export type EventInput = { [T in EventType]: { type: T; payload: EventPayload<T> } }[EventType];
 
-export const EventInputSchema = z.strictObject({ type: z.enum(EVENT_TYPES as [EventType, ...EventType[]]), payload: z.unknown() });
+export const EventInputSchema = z.strictObject({
+  type: z.enum(EVENT_TYPES as [EventType, ...EventType[]]),
+  payload: z.unknown(),
+});
 
 /** Validate untrusted { type, payload }; throws ZodError on a bad payload. */
 export function parseEventInput(raw: unknown): EventInput {

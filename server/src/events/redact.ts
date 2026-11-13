@@ -16,7 +16,9 @@ const KEY_SHAPES = [
 ];
 
 export function redactSecrets<T>(value: T, secrets: readonly string[]): { value: T; redacted: number } {
-  const known = [...new Set(secrets.filter((s) => s.length >= MIN_SCANNED_SECRET))].sort((a, b) => b.length - a.length);
+  const known = [...new Set(secrets.filter((s) => s.length >= MIN_SCANNED_SECRET))].sort(
+    (a, b) => b.length - a.length,
+  );
   let redacted = 0;
   const clean = (s: string) => {
     let out = s;
@@ -37,7 +39,8 @@ export function redactSecrets<T>(value: T, secrets: readonly string[]): { value:
   const walk = (v: unknown): unknown => {
     if (typeof v === 'string') return clean(v);
     if (Array.isArray(v)) return v.map(walk);
-    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+    if (v && typeof v === 'object')
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
     return v;
   };
   return { value: walk(value) as T, redacted };

@@ -56,7 +56,8 @@ export function openStream(
     res.write(frame(e));
   };
   const unsubscribe = log.bus.subscribe(streamKey(scope, id), (e) => (replaying ? held.push(e) : send(e)));
-  for (let batch = log.after(scope, id, last); batch.length; batch = log.after(scope, id, last)) batch.forEach(send);
+  for (let batch = log.after(scope, id, last); batch.length; batch = log.after(scope, id, last))
+    batch.forEach(send);
   replaying = false;
   held.forEach(send);
 

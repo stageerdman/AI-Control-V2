@@ -32,7 +32,8 @@ export type FinishResult = { project: Project; steps: Step[]; commit: string | n
 function staffing(plan: unknown): { teamIds?: string[]; agentIds?: string[] } {
   if (!plan || typeof plan !== 'object') return {};
   const p = plan as Record<string, unknown>;
-  const strs = (v: unknown) => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined);
+  const strs = (v: unknown) =>
+    Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined;
   const out: { teamIds?: string[]; agentIds?: string[] } = {};
   const t = strs(p.teamIds);
   const a = strs(p.agentIds);
@@ -78,7 +79,9 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
   const abs = guard(() => resolveInSandbox(sandbox, folder));
   const there = existsSync(abs);
   if (draft.mode === 'new' && there && (!statSync(abs).isDirectory() || readdirSync(abs).length > 0)) {
-    throw conflict(`'${folder}' already exists in the sandbox — adopt it instead, or pick another folder`, { folder });
+    throw conflict(`'${folder}' already exists in the sandbox — adopt it instead, or pick another folder`, {
+      folder,
+    });
   }
   if (draft.mode === 'adopt' && (!there || !statSync(abs).isDirectory())) {
     throw invalid(`Nothing to adopt: '${folder}' is not a folder in the sandbox`, { folder });
@@ -117,7 +120,10 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
     const err = e instanceof SandboxError ? invalid(e.message) : e;
     if (store.drafts.record(draft.id)) {
       const message = err instanceof Error ? err.message : 'Setup failed';
-      events.append('draft', draft.id, { type: 'setup.failed', payload: { message: message.slice(0, 2000) } });
+      events.append('draft', draft.id, {
+        type: 'setup.failed',
+        payload: { message: message.slice(0, 2000) },
+      });
     }
     throw err;
   } finally {

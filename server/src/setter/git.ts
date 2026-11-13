@@ -1,8 +1,8 @@
 /* Thin, local-only git. No remotes, no network — creating a GitHub repo is a later, opt-in step. */
 import { execFile, execFileSync } from 'node:child_process';
-import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 
 const FALLBACK_ID = { name: 'AI Studio', email: 'studio@localhost' };
 
@@ -53,6 +53,10 @@ function identityEnv(dir: string): NodeJS.ProcessEnv {
 /** Commit exactly `paths` (relative to dir) — nothing else the user may have staged. Returns the sha. */
 export async function commitOnly(dir: string, paths: readonly string[], message: string): Promise<string> {
   await runAsync(dir, ['add', '--', ...paths]);
-  await runAsync(dir, ['commit', '-q', '--no-verify', '-m', message, '--only', '--', ...paths], identityEnv(dir));
+  await runAsync(
+    dir,
+    ['commit', '-q', '--no-verify', '-m', message, '--only', '--', ...paths],
+    identityEnv(dir),
+  );
   return runAsync(dir, ['rev-parse', 'HEAD']);
 }

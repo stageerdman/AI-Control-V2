@@ -6,7 +6,13 @@ import type { EventLog } from '../events/log.ts';
 import { type OpenStreams, openStream } from '../http/sse.ts';
 import { IdParams } from './schemas.ts';
 
-export type EventRoutesDeps = { store: Store; events: EventLog; open: OpenStreams; heartbeatMs?: number; dev: boolean };
+export type EventRoutesDeps = {
+  store: Store;
+  events: EventLog;
+  open: OpenStreams;
+  heartbeatMs?: number;
+  dev: boolean;
+};
 
 export const eventRoutes =
   ({ store, events, open, heartbeatMs, dev }: EventRoutesDeps): FastifyPluginAsync =>

@@ -18,7 +18,9 @@ export function registerCors(app: FastifyInstance): void {
     const origin = req.headers.origin;
     if (origin === undefined) return;
     if (!allowedOrigin(origin, req.headers.host)) {
-      return reply.status(403).send({ error: { code: 'forbidden_origin', message: `Origin not allowed: ${origin}` } });
+      return reply
+        .status(403)
+        .send({ error: { code: 'forbidden_origin', message: `Origin not allowed: ${origin}` } });
     }
     reply.header('access-control-allow-origin', origin).header('vary', 'Origin');
     if (req.method === 'OPTIONS') {

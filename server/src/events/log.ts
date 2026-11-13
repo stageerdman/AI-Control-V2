@@ -8,7 +8,14 @@ import { redactSecrets } from './redact.ts';
 type Row = { id: number; scope: Scope; scope_id: string; type: string; payload: string; at: string };
 const hasStrings = (v: unknown): boolean =>
   typeof v === 'string' || (v !== null && typeof v === 'object' && Object.values(v).some(hasStrings));
-const toEvent = (r: Row): StoredEvent => ({ id: r.id, scope: r.scope, scopeId: r.scope_id, type: r.type, payload: JSON.parse(r.payload), at: r.at });
+const toEvent = (r: Row): StoredEvent => ({
+  id: r.id,
+  scope: r.scope,
+  scopeId: r.scope_id,
+  type: r.type,
+  payload: JSON.parse(r.payload),
+  at: r.at,
+});
 
 export function eventLog(db: Db, bus: EventBus, secretValues: () => string[] = () => []) {
   const insert = (scope: Scope, scopeId: string, type: string, payload: unknown, at: string) => {

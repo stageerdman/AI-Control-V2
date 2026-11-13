@@ -6,7 +6,14 @@ export type Scope = 'project' | 'draft';
 export type StreamKey = `${Scope}:${string}`;
 export const streamKey = (scope: Scope, id: string): StreamKey => `${scope}:${id}`;
 
-export type StoredEvent = { id: number; scope: Scope; scopeId: string; type: string; payload: unknown; at: string };
+export type StoredEvent = {
+  id: number;
+  scope: Scope;
+  scopeId: string;
+  type: string;
+  payload: unknown;
+  at: string;
+};
 export type Listener = (e: StoredEvent) => void;
 
 export interface EventBus {

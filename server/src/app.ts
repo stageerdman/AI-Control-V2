@@ -86,7 +86,9 @@ export function buildApp({
     app.register(routes(store));
   app.register(blueprintRoutes({ config }));
   app.register(setterRoutes({ store, config, events }));
-  app.register(eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }));
+  app.register(
+    eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
+  );
   app.register(credentialRoutes({ cabinet: cabinet(store, secrets) }));
   app.register(accessRoutes({ access: projectAccess(store, secrets, config.sandbox) }));
   return app;
