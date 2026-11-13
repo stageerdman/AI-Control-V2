@@ -48,6 +48,12 @@ async function officeSelftest() {
   await wait(3600);
   ok((WS.threads['a-semic'] || []).some(m => m.voice), 'voice utterance lands as a message');
 
+  OP.open('pixel'); OP._user('Drop crypto from multi-currency.', true); await wait(1800);
+  ok(location.hash === '#feature/multicur' && !!document.querySelector('.ob-line.staged'), 'voice: "drop crypto…" stages a strike on the page');
+  OP._user('Save it', false); await wait(1500);
+  ok(!wsFeature('multicur').description.some(l => /crypto/i.test(l.text)), 'voice: "Save it" applies the edit');
+  OP._user('close', false); await wait(1500);
+  go('office'); await wait(400);
   go('board'); await wait(900);
   ok(!!$('.ob-board.in'), '#board shows the whiteboard');
   ok(/Tokens/.test($('.ob-board').textContent) && /Who did what/.test($('.ob-board').textContent), 'board has tokens + who did what');
@@ -57,8 +63,8 @@ async function officeSelftest() {
   ok($('.ob-sheet') && $('.ob-sheet').dataset.kind === 'dossier', '#features shows the dossier');
   $('[data-fid="multicur"]').click(); await wait(300);
   ok(location.hash === '#feature/multicur', 'feature row → #feature/multicur');
-  $('.ob-line[data-sec="description"][data-i="2"] [data-act="strike"]').click(); await wait(20);
-  ok($('.ob-line[data-sec="description"][data-i="2"]').classList.contains('struck'), 'strike marks a line');
+  $('.ob-line[data-sec="description"][data-i="1"] [data-act="strike"]').click(); await wait(20);
+  ok($('.ob-line[data-sec="description"][data-i="1"]').classList.contains('struck'), 'strike marks a line');
   $('[data-add="vision"]').click(); await wait(20);
   const li = $('.ob-line.added input'); li.value = 'Prices round like locals expect.'; li.dispatchEvent(new Event('input'));
   li.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(20);
@@ -68,7 +74,7 @@ async function officeSelftest() {
   $('.ob-confirm [data-c="keep"]').click(); await wait(20);
   $('#obSave').click(); await wait(80);
   const f = wsFeature('multicur');
-  ok(f.description.length === 2 && f.vision.length === 3 && f.revisedAt, 'save removes struck, keeps added');
+  ok(f.description.length === 1 && f.vision.length === 3 && f.revisedAt, 'save removes struck, keeps added');
   ok(/updated/.test(WS.threads.pixel.slice(-1)[0].text), 'Pixel is briefed');
   key('Escape', $('.ob-sheet')); await wait(300);
   ok(location.hash === '#features', 'Esc → dossier');

@@ -206,7 +206,7 @@ OP.sendTyped = function () {
   inp.value = ''; this._user(v, false);
 };
 const OP_VOICE = {
-  pixel: ['Hey Captain, how’s checkout going?', 'Pixel, show me the board.', 'Let’s start multi-currency right after checkout.'],
+  pixel: ['Hey Captain, how’s checkout going?', 'Pixel, show me the board.', 'Drop crypto from multi-currency.', 'Let’s start multi-currency right after checkout.'],
   agent: ['What’s left on your plate?', 'Show me what changed.'],
 };
 OP.toggleMic = function () {
@@ -263,6 +263,22 @@ OP._say = function (tid, text, extra = {}) { this.post(tid, Object.assign({ from
 OP._reply = function (tid, text) {
   const t = text.toLowerCase(); const a = wsAgent(tid);
   if (tid === 'pixel') {
+    if (/^(pixel,?\s*)?(close|back|go back|back to the office)\b/.test(t)) { if (OM.layer) { this._say('pixel', 'Closing that.'); OB.escape(); } else this._say('pixel', 'You’re already in the office.'); return this._quick(); }
+    const drop = /(?:drop|remove|cut|strike)\s+(.+?)\s+from\s+(?:the\s+)?(.+?)[.!?]*$/.exec(t);
+    if (drop) {
+      const f = WS.features.find(x => x.name.toLowerCase().includes(drop[2].trim().split(' ')[0]));
+      const word = drop[1].replace(/^the\s+/, '').trim();
+      const line = f && [...f.description, ...f.vision].find(l => l.text.toLowerCase().includes(word));
+      if (f && line) {
+        go('feature/' + f.id);
+        setTimeout(() => { OB.stageStrike(f.id, line.id); }, 450);
+        this._say('pixel', `Staged it — “${line.text}” is struck on the ${f.name} page. Save it?`);
+        this._quick(['Save it', 'Never mind']); return;
+      }
+      this._say('pixel', 'I couldn’t find that line — open the feature and strike it there?'); return this._quick();
+    }
+    if (/^save it/.test(t)) { if (OB.saveStaged()) this._say('pixel', 'Saved — I’ll brief whoever picks it up.'); else this._say('pixel', 'Nothing staged to save.'); return this._quick(); }
+    if (/^never mind/.test(t)) { OB.discardStaged(); this._say('pixel', 'Okay — left it as it was.'); return this._quick(); }
     if (/board|whiteboard|progress|checklist/.test(t)) { this._say('pixel', 'Here’s the board — progress, the live checklist, and who’s done what.'); setTimeout(() => go('board'), 500); return this._quick(); }
     if (/feature|dossier|shipped|what shipped/.test(t)) { this._say('pixel', `${WS.features.filter(f => f.status === 'shipped').length} features shipped so far. Opening the dossier.`); setTimeout(() => go('features'), 500); return this._quick(); }
     if (/who needs|waiting/.test(t)) { const p = WS.pending[0]; this._say('pixel', p ? `${this._name(p.agentId)} — ${p.short.toLowerCase()}. Tap the “!” over their head.` : 'Nobody right now — everyone’s unblocked.'); return this._quick(); }

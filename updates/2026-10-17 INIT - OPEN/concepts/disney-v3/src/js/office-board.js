@@ -199,6 +199,15 @@ OB._renderDossier = function () {
   s.querySelector('#obPropIn').onkeydown = e => { if (e.key === 'Enter') add(); if (e.key === 'Escape') { e.stopPropagation(); s.querySelector('#obPropose').hidden = true; s.querySelector('#obProp').focus(); } };
 };
 
+/* voice path: Pixel stages a strike; you confirm in chat or on the page */
+OB.stageStrike = function (fid, lineId) {
+  if (this.feature !== fid || !this.draft) { this.feature = fid; this.draft = this._mkDraft(wsFeature(fid)); }
+  [...this.draft.description, ...this.draft.vision].forEach(l => { if (l.id === lineId) { l.struck = true; l.staged = true; } });
+  if (this.sheetEl && this.sheetEl.dataset.kind === 'feature') this._renderFeature();
+};
+OB.saveStaged = function () { if (!this.draft || !this._dirty()) return false; this._save(); if (this.sheetEl) this._renderFeature(); return true; };
+OB.discardStaged = function () { if (!this.draft) return; this.draft = this._mkDraft(wsFeature(this.feature)); if (this.sheetEl && this.sheetEl.dataset.kind === 'feature') this._renderFeature(); };
+
 /* feature page — lines of intent, editable: edit inline, strike, add, save & brief Pixel */
 OB._mkDraft = f => ({ description: f.description.map(l => ({ id: l.id, text: l.text, orig: l.text, struck: false, added: false })),
   vision: f.vision.map(l => ({ id: l.id, text: l.text, orig: l.text, struck: false, added: false })) });
@@ -213,7 +222,7 @@ OB._diff = function () {
 OB._renderFeature = function (focusSel) {
   const s = this.sheetEl; const f = wsFeature(this.feature); const d = this.draft;
   const shape = { now: '●', planned: '○', shipped: '✓' }[f.status]; const stName = { now: 'in progress', planned: 'planned', shipped: 'shipped' }[f.status];
-  const lines = (sec) => d[sec].map((l, i) => `<li class="ob-line${l.struck ? ' struck' : ''}${l.added ? ' added' : ''}" data-sec="${sec}" data-i="${i}">
+  const lines = (sec) => d[sec].map((l, i) => `<li class="ob-line${l.struck ? ' struck' : ''}${l.added ? ' added' : ''}${l.staged && l.struck ? ' staged' : ''}" data-sec="${sec}" data-i="${i}">
       <span class="ob-ln">${i + 1}</span>
       ${l.editing ? `<input class="ob-lin" value="${escapeAttr(l.text)}" aria-label="${sec === 'description' ? 'Description' : 'Vision'} line ${i + 1}">`
         : `<button type="button" class="ob-lt" data-act="edit" aria-label="Edit ${sec} line ${i + 1}: ${escapeAttr(l.text)}${l.struck ? ' (will be removed)' : ''}">${escapeHtml(l.text) || '<em>empty line</em>'}</button>`}
