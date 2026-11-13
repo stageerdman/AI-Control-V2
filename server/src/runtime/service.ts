@@ -47,6 +47,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const repo = runsRepo(db);
   const live = new Map<string, Live>();
   const waiters = new Map<string, Set<Waiter>>();
+  const finishedListeners = new Set<(run: Run) => void>();
   let baseUrl: string | null = null;
 
   const emit = (projectId: string, input: EventInput, secrets: readonly string[] = []) => {
@@ -138,6 +139,14 @@ export function createRuntime(deps: RuntimeDeps) {
       type: 'agent.status',
       payload: { agentId: run.agentId, runId: run.id, status: o.status === 'succeeded' ? 'done' : 'idle' },
     });
+    const ended = repo.get(run.id) as Run;
+    for (const fn of finishedListeners) {
+      try {
+        fn(ended);
+      } catch {
+        /* a listener never breaks the runtime */
+      }
+    }
   }
 
   function onRunEvent(l: Live, e: RunEvent) {
@@ -337,6 +346,11 @@ export function createRuntime(deps: RuntimeDeps) {
         if (!a || a.runId !== runId) return Promise.reject(notFound('Ask', askId));
         return waitAsk(askId, timeoutMs);
       },
+    },
+    /** Called once per run after it ended and was recorded (dispatch marks checklist items). */
+    onFinished(fn: (run: Run) => void): () => void {
+      finishedListeners.add(fn);
+      return () => finishedListeners.delete(fn);
     },
     setBaseUrl: (url: string) => {
       baseUrl = url;

@@ -196,6 +196,36 @@ export const MIGRATIONS: readonly string[] = [
     answered_at TEXT
   );
   `,
+
+  /* 6 — the whiteboard (B6 dispatch): a goal the orchestrator broke into checklist items,
+     each assigned to a team captain or a project specialist and worked off as an agent run. */
+  `
+  CREATE TABLE goals (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    text       TEXT NOT NULL,                 -- what the user asked for
+    summary    TEXT NOT NULL DEFAULT '',      -- the orchestrator's one-line plan
+    status     TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed', 'cancelled')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE TABLE checklist_items (
+    id         TEXT PRIMARY KEY,
+    goal_id    TEXT NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
+    position   INTEGER NOT NULL,
+    text       TEXT NOT NULL,                 -- the whiteboard line
+    brief      TEXT NOT NULL,                 -- what the assignee is told
+    agent_id   TEXT NOT NULL,                 -- a captain or a specialist (no FK: history outlives the agent)
+    team_id    TEXT,                          -- set when the assignee captains a team on the project
+    status     TEXT NOT NULL CHECK (status IN ('todo', 'running', 'done', 'failed', 'cancelled')),
+    run_id     TEXT,
+    note       TEXT,                          -- the run's summary or error
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX checklist_by_project ON checklist_items(project_id, status);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

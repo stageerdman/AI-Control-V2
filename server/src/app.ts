@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { Config } from './config.ts';
 import { createCreator } from './crew/creator.ts';
+import { createDispatch } from './crew/dispatch.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import type { Db } from './db/connection.ts';
@@ -53,6 +54,8 @@ export type AppDeps = {
   /** Exposed so tests and main can reach the runtime; built from the deps when omitted. */
   onRuntime?: (rt: Runtime) => void;
   longPollMs?: number;
+  /** Concurrent dispatched runs per project (default 2). */
+  maxConcurrent?: number;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -75,6 +78,7 @@ export function buildApp({
   model = 'claude-opus-5-5',
   onRuntime,
   longPollMs,
+  maxConcurrent,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   registerCors(app);
@@ -96,6 +100,15 @@ export function buildApp({
   const crew = createCrew({ runner, model, scratchDir: join(config.home, 'scratch') });
   const chat = createSetupChat({ store, events, crew });
   const creator = createCreator({ store, events, crew });
+  const dispatch = createDispatch({
+    db,
+    store,
+    events,
+    crew,
+    runtime,
+    ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
+  });
+  dispatch.recover();
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -133,6 +146,6 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: cabinet(store, secrets) }));
   app.register(accessRoutes({ access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(crewRoutes({ chat, creator }));
+  app.register(crewRoutes({ chat, creator, dispatch }));
   return app;
 }

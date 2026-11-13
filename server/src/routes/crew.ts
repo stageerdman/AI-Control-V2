@@ -1,15 +1,27 @@
-/* The studio crew at work: setup chat with the orchestrator, the Agent Creator minting on accept. */
+/* The studio crew at work: setup chat with the orchestrator, the Agent Creator minting on
+   accept, and the orchestrator dispatching a goal to captains/specialists. */
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { Creator } from '../crew/creator.ts';
+import type { Dispatch } from '../crew/dispatch.ts';
 import type { SetupChat } from '../crew/setup-chat.ts';
 import { parse } from '../errors.ts';
-import { IdParams } from './schemas.ts';
+import { Id, IdParams } from './schemas.ts';
 
 const ChatBody = z.strictObject({ text: z.string().trim().min(1).max(4000).optional() });
+const WorkBody = z.strictObject({ goal: z.string().trim().min(1).max(4000) });
+const GoalParams = z.object({ id: Id, goalId: z.uuid() });
 
 export const crewRoutes =
-  ({ chat, creator }: { chat: SetupChat; creator: Creator }): FastifyPluginAsync =>
+  ({
+    chat,
+    creator,
+    dispatch,
+  }: {
+    chat: SetupChat;
+    creator: Creator;
+    dispatch: Dispatch;
+  }): FastifyPluginAsync =>
   async (app) => {
     app.get('/drafts/:id/chat', async (req) => chat.history(parse(IdParams, req.params).id));
     /* one orchestrator turn: {text} from the user, or no text → the orchestrator opens with a proposal */
@@ -20,4 +32,19 @@ export const crewRoutes =
     });
     /* accept the plan: the Agent Creator mints every brief, the plan resolves to real ids (all or nothing) */
     app.post('/drafts/:id/accept', async (req) => creator.accept(parse(IdParams, req.params).id));
+
+    /* the whiteboard: a goal → checklist (captains/specialists) → runs, ≤ 2 at a time per project */
+    app.post('/projects/:id/work', async (req, reply) => {
+      const { id } = parse(IdParams, req.params);
+      return reply.status(201).send(await dispatch.start(id, parse(WorkBody, req.body).goal));
+    });
+    app.get('/projects/:id/work', async (req) => dispatch.list(parse(IdParams, req.params).id));
+    app.get('/projects/:id/work/:goalId', async (req) => {
+      const { id, goalId } = parse(GoalParams, req.params);
+      return dispatch.get(id, goalId);
+    });
+    app.post('/projects/:id/work/:goalId/cancel', async (req, reply) => {
+      const { id, goalId } = parse(GoalParams, req.params);
+      return reply.status(202).send(dispatch.cancel(id, goalId));
+    });
   };

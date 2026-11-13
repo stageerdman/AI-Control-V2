@@ -30,7 +30,14 @@ export function testConfig(root: string): Config {
 }
 
 export function testApp(
-  opts: { seed?: boolean; heartbeatMs?: number; dev?: boolean; runner?: Runner; longPollMs?: number } = {},
+  opts: {
+    seed?: boolean;
+    heartbeatMs?: number;
+    dev?: boolean;
+    runner?: Runner;
+    longPollMs?: number;
+    maxConcurrent?: number;
+  } = {},
 ) {
   const t = tempDir();
   const config = testConfig(t.dir);
@@ -51,6 +58,7 @@ export function testApp(
     dev: opts.dev ?? true,
     ...(opts.runner ? { runner: opts.runner } : {}),
     ...(opts.longPollMs === undefined ? {} : { longPollMs: opts.longPollMs }),
+    ...(opts.maxConcurrent === undefined ? {} : { maxConcurrent: opts.maxConcurrent }),
     onRuntime: (rt) => {
       runtime = rt;
     },
