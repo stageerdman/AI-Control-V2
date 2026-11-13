@@ -133,12 +133,16 @@ export function runsRepo(db: Db) {
       );
     },
     /** After a crash/restart nothing is really running any more. */
-    failInterrupted: () =>
-      db
+    failInterrupted(): number {
+      db.prepare(
+        "UPDATE asks SET status = 'cancelled' WHERE status = 'open' AND run_id IN (SELECT id FROM runs WHERE status = 'running')",
+      ).run();
+      return db
         .prepare(
           "UPDATE runs SET status = 'failed', error = 'Interrupted: the server stopped during the run', ended_at = ? WHERE status = 'running'",
         )
-        .run(now()).changes,
+        .run(now()).changes as number;
+    },
 
     insertAsk(a: Pick<Ask, 'id' | 'runId' | 'projectId' | 'agentId' | 'question' | 'options'>): Ask {
       db.prepare(

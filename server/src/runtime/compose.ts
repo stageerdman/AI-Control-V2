@@ -27,6 +27,7 @@ export function composePrompt({ agent, team, project }: ComposeInput): string {
       'How to work here',
       [
         '- Work only inside this project folder.',
+        '- Create and change files with the Write and Edit tools. In the shell, run one plain command at a time (no `;`, `&&`, pipes or redirects): `git`, `ls`, `cat` and `pwd` are pre-approved, anything else is refused.',
         '- If you need a decision or information only the user has, call the `ask_user` tool and wait for the answer. Never guess credentials.',
         '- Finish with a short plain-words summary of what you did.',
       ].join('\n'),

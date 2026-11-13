@@ -163,3 +163,31 @@ describe('resolveClaudeBin', () => {
     expect(() => resolveClaudeBin(undefined, [join(t.dir, 'nope')])).toThrow(/not found/);
   });
 });
+
+describe('recorded live stream (B5 live run, interrupted while waiting on ask_user)', () => {
+  it('parses the real CLI output: session, activities incl. the denied compound command, asking, no result', () => {
+    const lines = fixture('live-hello-interrupted.jsonl');
+    const init = JSON.parse(lines[0] as string);
+    // isolation evidence from the real init line
+    expect(init).toMatchObject({
+      apiKeySource: 'none',
+      permissionMode: 'dontAsk',
+      skills: [],
+      slash_commands: [],
+      mcp_servers: [{ name: 'studio', status: 'connected' }],
+    });
+    expect(init.plugins.every((p: { path: string }) => p.path === 'builtin')).toBe(true);
+    const parser = createStreamParser();
+    const events = lines.flatMap((l) => parser.feed(l));
+    const acts = events
+      .filter((e) => e.kind === 'activity')
+      .map((e) => (e as { activity: { kind: string } }).activity.kind);
+    expect(acts.filter((k) => k !== 'thinking')).toEqual(['running', 'running', 'editing', 'asking']);
+    expect(parser.turns()).toBe(4);
+    expect(parser.outcome('interrupted')).toMatchObject({
+      status: 'failed',
+      error: 'interrupted',
+      sessionId: '47ac8df8-c075-4577-bc37-8fd175b357b9',
+    });
+  });
+});
