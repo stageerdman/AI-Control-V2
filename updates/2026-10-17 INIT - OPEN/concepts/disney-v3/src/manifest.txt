@@ -19,6 +19,11 @@ js/data-office.js
 js/studio.js
 js/cast.js
 js/teams.js
+js/office-theme.js
+js/office-engine.js
+js/office-panel.js
+js/office-board.js
+js/office-sim.js
 js/office-main.js
 js/gallery.js
 # boot last
