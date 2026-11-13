@@ -54,7 +54,7 @@ Resume notes. Plan: `update v1.md`; lessons: `wiki.md`; API: `server/README.md`.
 - hello-studio `git log`: `e62a3c8 Add hello.txt` on top of `3b7fdab AI Studio: set up Hello Studio`;
   clean tree, no push (no remote).
 - Result line: 3 turns, input 6 + cache read 35,586 + cache write 656, output 296 tokens,
-  **total_cost_usd 0.1389**.
+  **total_cost_usd 0.1389** (an API-equivalent estimate — runs use the Claude Code subscription, no money is charged).
 - Bug found + fixed: the CLI's `result` line is NOT `{"type":"result",…}`-first, so the runner never closed
   stdin and the CLI sat waiting after finishing. During the run I ended the idle CLI process by hand
   (the parsed result was already in, so the run recorded "succeeded" with full usage/cost). Fix:

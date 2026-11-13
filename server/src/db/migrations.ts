@@ -226,6 +226,9 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX checklist_by_project ON checklist_items(project_id, status);
   `,
+
+  /* 7 — per-goal run caps (JSON {maxTurns?, maxBudgetUsd?}) for the runs a goal dispatches */
+  `ALTER TABLE goals ADD COLUMN caps TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {

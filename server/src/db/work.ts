@@ -29,6 +29,8 @@ export type Goal = {
   items: ChecklistItem[];
   /** done / total, 0–100. */
   pct: number;
+  /** Caps for every run this goal dispatches (null → the runtime defaults). */
+  caps: { maxTurns?: number; maxBudgetUsd?: number } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -64,6 +66,7 @@ export function workRepo(db: Db) {
       summary: r.summary as string,
       status: r.status as GoalStatus,
       items: its,
+      caps: r.caps ? JSON.parse(r.caps as string) : null,
       pct: its.length ? Math.round((its.filter((i) => i.status === 'done').length / its.length) * 100) : 0,
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
@@ -82,13 +85,13 @@ export function workRepo(db: Db) {
           .all(projectId) as Row[]
       ).map(toGoal),
     insertGoal(
-      g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'>,
+      g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps'] },
       list: Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'>[],
     ): Goal {
       const t = now();
       db.prepare(
-        `INSERT INTO goals (id, project_id, text, summary, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?)`,
-      ).run(g.id, g.projectId, g.text, g.summary, t, t);
+        `INSERT INTO goals (id, project_id, text, summary, status, caps, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
+      ).run(g.id, g.projectId, g.text, g.summary, g.caps ? JSON.stringify(g.caps) : null, t, t);
       const ins = db.prepare(
         `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,

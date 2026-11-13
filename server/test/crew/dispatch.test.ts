@@ -155,12 +155,15 @@ describe('dispatch: goal → checklist → runs', () => {
       spec.task.includes('/checkout') ? [{ fail: 'tests are red' }] : [{ result: 'ok' }],
     );
     h = s.h;
-    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Ship' });
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Ship', caps: { maxTurns: 8 } });
+    expect(r.body.caps).toEqual({ maxTurns: 8 });
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('failed');
     expect(g.items.map((i: { status: string }) => i.status)).toEqual(['done', 'failed', 'done', 'done']);
     expect(g.items[1].note).toBe('tests are red');
     expect(g.pct).toBe(75);
+    const runs = (await h.call('GET', '/projects/aurora/runs')).body as { caps: { maxTurns: number } }[];
+    expect(runs.every((x) => x.caps.maxTurns === 8)).toBe(true);
   });
 
   it('cancel: queued items are cancelled, live runs stopped', async () => {

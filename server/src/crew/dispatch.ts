@@ -164,6 +164,7 @@ export function createDispatch(deps: {
           agentId: it.agentId,
           ...(it.teamId ? { teamId: it.teamId } : {}),
           task: taskFor(it, goal),
+          ...(goal.caps ? { caps: goal.caps } : {}),
         });
         work.setItem(it.id, { status: 'running', runId: run.id });
         busy.add(it.agentId);
@@ -206,7 +207,7 @@ export function createDispatch(deps: {
     },
 
     /** Orchestrator turn → whiteboard → queued runs. Resolves once the checklist is up. */
-    async start(projectId: string, text: string): Promise<Goal> {
+    async start(projectId: string, text: string, caps?: Goal['caps']): Promise<Goal> {
       const p = store.projects.require(projectId);
       if (!p.folder) throw conflict(`Project '${projectId}' has no folder yet — set it up first`);
       const c = crewing(projectId);
@@ -288,7 +289,7 @@ export function createDispatch(deps: {
         });
         const goal = store.tx(() =>
           work.insertGoal(
-            { id: randomUUID(), projectId, text, summary: value.summary },
+            { id: randomUUID(), projectId, text, summary: value.summary, ...(caps ? { caps } : {}) },
             value.items.map((i) => ({
               id: randomUUID(),
               text: i.text,
@@ -337,7 +338,7 @@ export function createDispatch(deps: {
       return work.goal(goalId) as Goal;
     },
 
-    /** After a restart: nothing is running any more; queued work is not restarted on its own (it costs money). */
+    /** After a restart: nothing is running any more; queued work is not restarted on its own (it would use plan usage unasked). */
     recover() {
       for (const projectId of work.activeProjects()) {
         for (const it of [

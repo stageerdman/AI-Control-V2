@@ -73,7 +73,11 @@ Bodies are strict — unknown keys are 422.
 | `POST /teams/:id/members` · `PATCH DELETE /teams/:id/members/:agentId` | add / edit job / remove (captain passes on) |
 | `GET POST /projects` · `GET PATCH /projects/:id` | `orchestratorId`, `teamIds` (teams first), `agentIds` (specialists), `folder` (sandbox-relative) |
 | `DELETE /projects/:id` | 204; forgets the record, never touches the folder |
-| `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (opaque JSON), `chat` |
+| `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (validated — see Plan below), `chat` |
+| `POST /drafts/:id/chat` `{text?}` · `GET /drafts/:id/chat` | one orchestrator turn → `{reply, plan, chat}` (no `text` = the orchestrator opens with a proposal); history `{chat, plan}` |
+| `POST /drafts/:id/accept` | the Agent Creator mints every `newAgents`/`newTeams` brief, the plan resolves to real ids — all or nothing → `{plan, minted: {roles, agents, teams}}`; `/finish` refuses until then |
+| `POST /projects/:id/work` `{goal, caps?: {maxTurns, maxBudgetUsd}}` | the orchestrator breaks the goal into ≤ 8 checklist items for team captains / specialists → the goal (201); items run as agent runs (with `caps`), ≤ 2 at a time per project, one per agent |
+| `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
@@ -82,7 +86,7 @@ Bodies are strict — unknown keys are 422.
 | `GET /projects/:id/events` | SSE: the project's event log — replay after `Last-Event-ID` / `?after=` (default: all), then live; heartbeats |
 | `GET /drafts/:id/events` | SSE: the Project Setter's `setup.step`s while `POST /drafts/:id/finish` runs (open it first) |
 | `POST /projects/:id/runs` | start an agent run `{agentId, teamId?, task, caps?: {maxTurns, maxBudgetUsd}, resumeRunId?}` — headless Claude Code in the project folder; one live run per agent per project |
-| `GET /projects/:id/runs[/:runId]` · `POST /projects/:id/runs/:runId/cancel` | run history (status, usage, cost, session) · stop a run (kills its process group) |
+| `GET /projects/:id/runs[/:runId]` · `POST /projects/:id/runs/:runId/cancel` | run history (status, usage, `costUsd` = the CLI's API-equivalent estimate, session) · stop a run (kills its process group) |
 | `GET /projects/:id/asks[?status=open]` · `POST /projects/:id/asks/:askId/answer` | questions agents asked via `ask_user` · answer one (the run continues) |
 | `POST /projects/:id/events` | **dev only** (absent when `NODE_ENV=production`): publish `{type, payload}` by hand |
 | `GET POST /credentials` · `GET PATCH DELETE /credentials/:id` | Key Cabinet: `name`, `envVar` (fixed; derived from name if omitted), `serves`, `docsUrl`, `instructions`; `value` on POST only; responses carry `hasValue`, `last4`, `projectIds` |
@@ -112,7 +116,7 @@ reject one); specialists need a `why`, can't already come with a planned team, �
 ≤ 4 teams incl. new ones; every id must exist. 422 shape/unknown id, 409 rule.
 
 **Crew contracts.** Orchestrator and Agent Creator runs have no tools (`--tools ""`), no MCP server, no secrets, and
-run in `$AI_STUDIO_HOME/scratch` (caps 3 turns / $0.50). The task's first line names the contract; the answer must be
+run in `$AI_STUDIO_HOME/scratch` (caps 3 turns / $0.50 API-equivalent — a size cap; runs use the Claude Code subscription, nothing is charged). The task's first line names the contract; the answer must be
 ONE JSON object (fenced or wrapped is tolerated), validated by zod + the studio rules. A miss is sent back once (same
 session, issues listed); a second miss is 502.
 - `setup-chat` → `{reply, plan}`

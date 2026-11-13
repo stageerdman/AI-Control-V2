@@ -4,7 +4,7 @@ Durable knowledge from this update. Status lives in `update v1.md`.
 
 ## Principles
 - **Fake first, live opt-in.** Every flow runs end-to-end on a scripted FakeRunner; live Claude
-  runs cost money and are opt-in.
+  runs use the user's Claude Code subscription (plan usage, no API key, no money) and are opt-in.
 - **The sandbox is a wall.** All project file writes resolve inside the sandbox root; tested.
 - **Secrets never cross the API.** Masked last-4 only, in every response and log.
 
@@ -93,7 +93,7 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   project (with that `teamId`) or is a project specialist; anything else is sent back.
 - **Queue in the db, schedule on events.** Checklist items are rows (`todo/running/done/failed/cancelled`); a runtime
   `onFinished` hook ticks the item and pumps the next one (≤ cap per project, one per agent). After a restart nothing
-  restarts by itself — it would spend money unasked.
+  restarts by itself — it would use plan usage unasked.
 - **Prompts that put one JSON value per line are parseable by a fake.** The fake crew brain reads the Cast back out of
   the task, so `AI_STUDIO_RUNNER=fake` serves the whole setup → work flow for free (UI work, demos).
 
@@ -109,7 +109,7 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   (`Bash(git *)`…). A compound command is denied if ANY part isn't allowed (`printf … > f && git …`), so
   tell the agent to run one plain command at a time and to write files with Write/Edit. The model handles a
   denial gracefully (switched to Write, then asked the user).
-- **Caps:** `--max-budget-usd` exists; there is no max-turns flag — count assistant messages (dedupe by
+- **Caps:** `--max-budget-usd` exists (an API-equivalent size cap — with the subscription login nothing is charged; `total_cost_usd` is an estimate too); there is no max-turns flag — count assistant messages (dedupe by
   message id: one message streams as several lines with the same usage) and stop the process group.
 - **Sessions:** `--session-id <uuid>` lets us pick the id up front (= runId); `--resume <id>` continues.
 - **Stream-json input:** send one `{type:'user', message:{role:'user', content}}` line, keep stdin open until
@@ -120,7 +120,7 @@ Durable knowledge from this update. Status lives in `update v1.md`.
 - **One backend per port:** the Tauri app launches (or reuses) its own backend on :4319; a dev server started
   next to it fails with EADDRINUSE and requests silently go to the app's backend.
 - **Resume works as advertised:** `--resume <session>` with a new task continued the interrupted conversation
-  (it remembered hello.txt) and cost $0.14 for 3 turns, mostly cache reads.
+  (it remembered hello.txt) 3 turns, mostly cache reads (≈ $0.14 API-equivalent estimate).
 - **`--tools ""` disables every built-in tool** (help text); `--json-schema` exists for structured output in print mode
   — not used yet (unverified where the stream reports it); our text-JSON contract + repair works with any runner.
 - **Record real streams as fixtures.** Both bugs we hit (key order, interrupted host) were invisible in

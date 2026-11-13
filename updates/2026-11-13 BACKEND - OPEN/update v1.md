@@ -93,7 +93,7 @@ how the team codes ▸ job on this team ▸ project rules); ClaudeAgentRunner (A
 project dir, tools scoped, token usage → events, "ask the user" tool → pending ask that pauses
 the run until answered).
 *Tests:* composer, Fake runs end-to-end through events; one opt-in live smoke test in a sandbox
-project (costs real tokens — run only with the user's go).
+project (uses the user's Claude Code plan usage — run only with the user's go).
 
 ### B6 — Orchestrator & Agent Creator
 Setup chat with the chosen orchestrator; teams-first plans (structured output validated by zod);
@@ -150,7 +150,7 @@ Tailwind components, wire to this API).
   `ask_user` MCP server, prompt composer, runs/asks API, env = base + granted secrets only; the server fails
   loudly if its port is taken. 27 tests (178 total). Two live runs (both approved): run 1 proved isolation
   (login auth, no personal plugins/skills/MCP), Write and a live ask_user, then was interrupted; run 2
-  resumed the session and committed `hello.txt` (`e62a3c8`) — 3 turns, $0.139. Notes: `PROGRESS-B5.md`.
+  resumed the session and committed `hello.txt` (`e62a3c8`) — 3 turns (≈ $0.14 API-equivalent estimate; billed to the subscription, not as money). Notes: `PROGRESS-B5.md`.
 - ✅ **B6 — Orchestrator & Agent Creator** (2026-11-13, FakeRunner only — no live runs approved): setup chat
   (`POST/GET /drafts/:id/chat`, reply + whole plan per turn), zod plan with teams-first invariants (`drafts.plan`
   validated), Agent Creator (`mint-agent` / `mint-team` contracts, roles reused or created, studio look slots +
