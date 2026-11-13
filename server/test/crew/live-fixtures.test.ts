@@ -33,13 +33,12 @@ describe('B6 live streams', () => {
       castView(h.store.agents, h.store.teams),
     ).map((i) => i.message);
 
-  it('setup chat: the opening proposal and the repaired answer pass; the first answer broke teams-first', () => {
+  it('setup chat: the opening proposal and the repaired answer pass; the first answer (refused under the old cap) is valid now', () => {
     const open = replay('live-b6-setup-chat-open');
     expect(open).toMatchObject({ status: 'succeeded', turns: 1 });
     expect(issuesOf('live-b6-setup-chat-open')).toEqual([]);
-    expect(issuesOf('live-b6-setup-chat-rule-broken')).toEqual([
-      'Teams first: without a team only a very small crew (≤ 2 individuals) — propose a team instead',
-    ]);
+    // refused live under the old ≤ 2-individuals cap; since "Orchestrator decides freely" it is a valid plan
+    expect(issuesOf('live-b6-setup-chat-rule-broken')).toEqual([]);
     expect(issuesOf('live-b6-setup-chat-repaired')).toEqual([]);
     // the repair resumed the same scratch session
     expect(replay('live-b6-setup-chat-repaired').sessionId).toBe(

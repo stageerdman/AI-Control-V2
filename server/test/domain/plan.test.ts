@@ -74,46 +74,18 @@ describe('plan: shape + teams-first rules', () => {
     ).toEqual(['The Polish Patrol is listed twice']);
   });
 
-  it('teams first: individuals are the exception', () => {
+  it('the orchestrator decides how many individuals and teams — only an empty plan is refused', () => {
     expect(issues(plan({}))).toEqual(['The plan staffs nobody — propose at least one team']);
-    // very small project: up to 2 individuals and no team is fine
-    expect(
-      issues(
-        plan({
-          specialists: [
-            { agentId: 'a-pete', why: 'UI' },
-            { agentId: 'a-semic', why: 'API' },
-          ],
-        }),
-      ),
-    ).toEqual([]);
-    // three individuals and no team → propose a team
-    expect(
-      issues(
-        plan({
-          specialists: [
-            { agentId: 'a-pete', why: 'UI' },
-            { agentId: 'a-semic', why: 'API' },
-          ],
-          newAgents: [{ brief: 'a mobile dev' }],
-        }),
-      )[0],
-    ).toMatch(/without a team only a very small crew/);
-    // a new team counts as a team
-    expect(issues(plan({ newTeams: [{ brief: 'mobile crew' }] }))).toEqual([]);
-    // next to teams: at most 3 individuals (the schema caps each list too)
-    expect(
-      issues(
-        plan({
-          teams: [{ teamId: 'polish', why: 'x' }],
-          specialists: [
-            { agentId: 'a-pete', why: 'a' },
-            { agentId: 'a-semic', why: 'b' },
-          ],
-          newAgents: [{ brief: 'c' }, { brief: 'd' }],
-        }),
-      )[0],
-    ).toMatch(/at most 3 individual specialists/);
+    const solo = ['a-pete', 'a-semic', 'a-twinkle', 'a-scar', 'a-query'].map((agentId) => ({
+      agentId,
+      why: 'x',
+    }));
+    expect(issues(plan({ specialists: solo, newAgents: [{ brief: 'a mobile dev' }] }))).toEqual([]);
+    const teams = ['ship-it', 'polish', 'engine', 'expedition'].map((teamId) => ({ teamId, why: 'x' }));
+    expect(issues(plan({ teams, newTeams: [{ brief: 'a' }, { brief: 'b' }] }))).toEqual([]);
+    // only a payload-size bound remains
+    const many = Array.from({ length: 21 }, () => ({ brief: 'x' }));
+    expect(PlanSchema.safeParse({ newAgents: many, summary: 's' }).success).toBe(false);
   });
 
   it('PATCH /drafts validates the plan: 422 shape/unknown id, 409 rule', async () => {

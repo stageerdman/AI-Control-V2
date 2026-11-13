@@ -24,7 +24,7 @@ export const SetupReplySchema = z.strictObject({
 const RULES = [
   'Propose WHOLE existing teams first (one or more). A team comes with its own members and its own captain.',
   'Never choose or change a captain of an existing team — captains come from the team’s own design. The plan has no captain field.',
-  'Individual specialists are the exception: only when a team lacks a skill, or for a very small project (at most 2 people and no team). Each one needs a "why". At most 3 next to teams.',
+  'Individual specialists are the exception: for a skill the teams lack, or for a small project where a whole team would be too much. Each one needs a "why". You decide how many — keep it lean.',
   'Do not list a specialist who already comes with a planned team — teams stay whole.',
   'If no team or agent in the Cast fits, add a brief to "newTeams" or "newAgents" — the Agent Creator designs it when the user accepts the plan. The brief says what it must be good at.',
   'Use only ids that appear in the Cast. Keep the user’s earlier choices unless they ask to change them.',

@@ -111,9 +111,9 @@ it lists `projectIds` whose `.env` still holds the key until their next sync. Pr
 nothing until granted.
 
 **Plan** (`src/domain/plan.ts`): `{teams: [{teamId, why}], specialists: [{agentId, why}], newAgents: [{brief}],
-newTeams: [{brief}], summary}`. Teams first: whole teams with their own captains (no captain field — strict objects
-reject one); specialists need a `why`, can't already come with a planned team, ≤ 3 next to teams, ≤ 2 with no team;
-≤ 4 teams incl. new ones; every id must exist. 422 shape/unknown id, 409 rule.
+newTeams: [{brief}], summary}`. Teams first is the orchestrator's *guidance* (prompt), not a cap — it decides how many teams and
+specialists (user decision). Hard rules are data integrity: ids exist, no duplicates, no captain field (strict objects reject one), no
+studio crew as a specialist, no specialist who already comes with a planned team, at least someone staffed; ≤ 20 per list (payload bound). 422 shape/unknown id, 409 rule.
 
 **Crew contracts.** Orchestrator and Agent Creator runs have no tools (`--tools ""`), no MCP server, no secrets, and
 run in `$AI_STUDIO_HOME/scratch` (caps 3 turns / $0.50 API-equivalent — a size cap; runs use the Claude Code subscription, nothing is charged). The task's first line names the contract; the answer must be

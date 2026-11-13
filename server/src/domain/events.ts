@@ -50,8 +50,8 @@ export const EVENT_SCHEMAS = {
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({
     summary: text(1000),
-    teamIds: z.array(id).max(10),
-    agentIds: z.array(id).max(10),
+    teamIds: z.array(id).max(40),
+    agentIds: z.array(id).max(40),
     newAgents: count,
     newTeams: count,
   }),

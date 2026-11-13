@@ -2,14 +2,17 @@
 
    - Teams first: whole existing teams carry the work; their captains come with them
      (the plan has no captain field at all — strict objects reject one).
-   - Individuals (specialists / new agents) only as justified exceptions: each has a `why`
-     or a brief, at most 3 next to teams, at most 2 when there is no team (a very small project).
+   - Individuals (specialists / new agents) are the orchestrator's call (user, 2026-11-13: "Orchestrator
+     decides freely") — guided by its prompt, not capped here. Each one carries a `why` or a brief.
+   - Hard rules are data integrity only: ids exist, no duplicates, no studio crew as specialists, no
+     specialist who already comes with a planned team (redundant), at least someone staffed.
    - Anything the Cast lacks is a brief for the Agent Creator (`newAgents` / `newTeams`);
      accepting the plan mints them and rewrites the plan to real ids. */
 import { z } from 'zod';
 import { conflict, invalid } from '../errors.ts';
 
-export const PLAN_MAX = { teams: 4, newTeams: 2, individuals: 3, smallCrew: 2 } as const;
+/** Payload-size sanity bound per list — not a staffing rule. */
+export const PLAN_LIST_MAX = 20;
 
 const id = z.string().trim().min(1).max(80);
 const why = z.string().trim().min(1).max(500);
@@ -18,14 +21,14 @@ const brief = z.string().trim().min(1).max(1000);
 export const PlanSchema = z.strictObject({
   teams: z
     .array(z.strictObject({ teamId: id, why }))
-    .max(PLAN_MAX.teams)
+    .max(PLAN_LIST_MAX)
     .default([]),
   specialists: z
     .array(z.strictObject({ agentId: id, why }))
-    .max(PLAN_MAX.individuals)
+    .max(PLAN_LIST_MAX)
     .default([]),
-  newAgents: z.array(z.strictObject({ brief })).max(PLAN_MAX.individuals).default([]),
-  newTeams: z.array(z.strictObject({ brief })).max(PLAN_MAX.newTeams).default([]),
+  newAgents: z.array(z.strictObject({ brief })).max(PLAN_LIST_MAX).default([]),
+  newTeams: z.array(z.strictObject({ brief })).max(PLAN_LIST_MAX).default([]),
   summary: z.string().trim().min(1).max(1000),
 });
 export type Plan = z.output<typeof PlanSchema>;
@@ -65,18 +68,8 @@ export function planIssues(plan: Plan, cast: CastView): PlanIssue[] {
     else if (team) rule(path, `${a.name} already comes with ${team} — teams stay whole; drop the specialist`);
   }
 
-  const hasTeams = plan.teams.length + plan.newTeams.length > 0;
-  const individuals = plan.specialists.length + plan.newAgents.length;
-  if (plan.teams.length + plan.newTeams.length > PLAN_MAX.teams)
-    rule('teams', `At most ${PLAN_MAX.teams} teams, new ones included`);
-  if (!hasTeams && individuals === 0) rule('', 'The plan staffs nobody — propose at least one team');
-  if (hasTeams && individuals > PLAN_MAX.individuals)
-    rule('specialists', `Teams first: at most ${PLAN_MAX.individuals} individual specialists next to teams`);
-  if (!hasTeams && individuals > PLAN_MAX.smallCrew)
-    rule(
-      'specialists',
-      `Teams first: without a team only a very small crew (≤ ${PLAN_MAX.smallCrew} individuals) — propose a team instead`,
-    );
+  const staffed = plan.teams.length + plan.newTeams.length + plan.specialists.length + plan.newAgents.length;
+  if (staffed === 0) rule('', 'The plan staffs nobody — propose at least one team');
   return out;
 }
 
