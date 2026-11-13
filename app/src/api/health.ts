@@ -6,11 +6,11 @@ export type Health = ServerHealth;
 
 export type Status =
   | { kind: 'starting' }
-  | { kind: 'ready'; health: Health; reused: boolean }
+  | { kind: 'ready'; health: Health; reused: boolean; port?: number }
   | { kind: 'error'; message: string };
 
 /** What the Rust `backend_start` command resolves with. */
-export type Started = { reused: boolean; health: string };
+export type Started = { reused: boolean; health: string; port?: number };
 
 export type Invoke = (cmd: string) => Promise<unknown>;
 
@@ -47,7 +47,7 @@ export async function startBackend(invoke: Invoke): Promise<Status> {
     const started = (await invoke('backend_start')) as Started;
     const health = parseHealth(started.health);
     if (!health.ok) return { kind: 'error', message: 'The server is up, but its database is not healthy.' };
-    return { kind: 'ready', health, reused: started.reused };
+    return { kind: 'ready', health, reused: started.reused, port: started.port };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return { kind: 'error', message: message || 'The server could not start.' };
@@ -90,3 +90,14 @@ export async function ping(url: string, doFetch: typeof fetch = fetch, ms = 4000
     clearTimeout(t);
   }
 }
+
+/** The API base on another port (the app reuses whichever backend holds the data dir). */
+export const portBase = (base: string, port: number): string => {
+  try {
+    const u = new URL(base);
+    u.port = String(port);
+    return u.origin + u.pathname.replace(/\/$/, '');
+  } catch {
+    return `http://127.0.0.1:${port}`;
+  }
+};

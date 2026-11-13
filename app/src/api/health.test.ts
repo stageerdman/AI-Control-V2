@@ -102,3 +102,16 @@ describe('watchStep + ping (the live watch)', () => {
     expect(await ping('http://x', junk)).toBe(false);
   });
 });
+
+describe('portBase + the started port', () => {
+  it('keeps host and path, swaps the port', async () => {
+    const { portBase } = await import('./health');
+    expect(portBase('http://127.0.0.1:4319', 4391)).toBe('http://127.0.0.1:4391');
+    expect(portBase('http://localhost:1501/api', 4391)).toBe('http://localhost:4391/api');
+    expect(portBase('nonsense', 4391)).toBe('http://127.0.0.1:4391');
+  });
+  it("startBackend passes the reused backend's port through", async () => {
+    const s = await startBackend(async () => ({ reused: true, health: JSON.stringify(body), port: 4391 }));
+    expect(s).toMatchObject({ kind: 'ready', reused: true, port: 4391 });
+  });
+});

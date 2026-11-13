@@ -7,8 +7,8 @@
    on its own; Restart tries again (the Rust side respawns a server that died). */
 import { invoke } from '@tauri-apps/api/core';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { apiBase } from '../api/client';
-import { checkServer, ping, type Status, startBackend, watchStep } from '../api/health';
+import { apiBase, setApiBase } from '../api/client';
+import { checkServer, ping, portBase, type Status, startBackend, watchStep } from '../api/health';
 import { invalidate } from '../api/query';
 import { Hero } from '../characters/Hero';
 import type { HeroAgent } from '../characters/hero-svg';
@@ -34,7 +34,9 @@ export function BackendGate({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>({ kind: 'starting' });
   const start = useCallback(async () => {
     setStatus({ kind: 'starting' });
-    setStatus(inTauri() ? await startBackend((cmd) => invoke(cmd)) : await checkServer(apiBase()));
+    const s = inTauri() ? await startBackend((cmd) => invoke(cmd)) : await checkServer(apiBase());
+    if (s.kind === 'ready') followPort(s.port);
+    setStatus(s);
   }, []);
   useEffect(() => {
     void start();
@@ -57,6 +59,10 @@ export function BackendGate({ children }: { children: ReactNode }) {
   );
 }
 
+/** The app may reuse another backend (the data-dir lock holder) on its own port: talk to that one. */
+function followPort(port: number | undefined) {
+  if (port && inTauri()) setApiBase(portBase(apiBase(), port));
+}
 const WATCH_MS = 5000;
 type Watch = 'up' | 'lost' | 'restarting' | 'failed';
 
@@ -75,6 +81,7 @@ function Watched({ children }: { children: ReactNode }) {
     const s = inTauri() ? await startBackend((cmd) => invoke(cmd)) : await checkServer(apiBase());
     busy.current = false;
     if (s.kind === 'ready') {
+      followPort(s.port);
       fails.current = 0;
       autoTried.current = false;
       setWatch('up');
