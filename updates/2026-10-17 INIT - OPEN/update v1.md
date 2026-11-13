@@ -121,7 +121,14 @@ direction. Playful visuals, consistent component system, accessibility pass.
   features folder with editable feature pages, scripted simulation). Verified:
   every route error-free in headless Chrome; cast click-test 37/37; office
   self-test 41/41. Not yet seen live: CSS animation timing (headless doesn't animate).
-- ⏭️ **Next (gate):** user reviews disney-v3 live → refinements → Phase 2 stack/architecture spike.
+- ✅ **v4 calm-and-clean pass (2026-11-13):** user found v3 too noisy and too humanlike
+  (verbatim: `concepts/disney-v3/user-feedback-v4.md`, checklist `BRIEF-v4.md`). Characters
+  are now legless robot minions; the Office is calmer (no head tags, "…" bubbles, little walking),
+  the whiteboard is minimal, the health board zooms into a report, features are plain Now/Planned/Shipped
+  with text-block descriptions, the chat has no mic/updates/suggestions, and the office is generated
+  from a declarative config (`spec-office-config.md`) that scales from 2 to 20+ agents.
+  Note: the user removed the chat mic; voice-first will come back in another form.
+- ⏭️ **Next (gate):** user reviews v4 live → refinements → Phase 2 stack/architecture spike.
 
 ## Decisions
 
