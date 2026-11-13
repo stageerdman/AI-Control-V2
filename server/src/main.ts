@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { buildApp } from './app.ts';
 import { ensureDirs, loadConfig } from './config.ts';
 import { pacedBrain } from './crew/fake-brain.ts';
+import { acquireDataLock } from './data-lock.ts';
 import { openDb } from './db/connection.ts';
 import { createStore } from './db/store.ts';
 import { findGh, ghProbe } from './health/git-status.ts';
@@ -18,6 +19,15 @@ import { seedIfNeeded } from './seed.ts';
 
 const config = loadConfig();
 ensureDirs(config);
+/* one backend per data dir: a second one's startup recovery would interrupt the first one's running work */
+let lock: { release: () => void };
+try {
+  lock = acquireDataLock(config.home, config.port);
+} catch (e) {
+  console.error(`\nAI Studio backend did NOT start: ${(e as Error).message}\n`);
+  process.exit(1);
+}
+process.on('exit', () => lock.release());
 const db = openDb(config.dbPath);
 const store = createStore(db, { sandbox: config.sandbox });
 const secrets = fileSecretStore(join(config.controlHome, '.env'));
