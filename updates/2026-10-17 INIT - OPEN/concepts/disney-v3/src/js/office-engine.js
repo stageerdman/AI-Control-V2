@@ -412,7 +412,11 @@ const OE = {
   /* ---------------------------------------------------------- camera */
   fit() {
     if (!this.box) return;
-    const vp = this.box.parentElement; const W = vp.clientWidth, H = vp.clientHeight;
+    const vp = this.box.parentElement; const W = vp.clientWidth;
+    /* narrow screens: the chat is a bottom drawer — fit the room into what's above it */
+    const panel = document.getElementById('oPanel');
+    const drawer = matchMedia('(max-width:899px)').matches && panel ? panel.offsetHeight : 0;
+    const H = Math.max(120, vp.clientHeight - drawer);
     const k = Math.min(W / 1600, H / 1062);
     this.k = k;
     const ox = (W - 1600 * k) / 2, oy = (H - 1062 * k) / 2;

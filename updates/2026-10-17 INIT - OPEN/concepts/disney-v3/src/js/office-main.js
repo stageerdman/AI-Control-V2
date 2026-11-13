@@ -249,7 +249,11 @@ function _omWide(on) {
   const b = document.getElementById('oWideBtn'); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? 'Show the chat panel' : 'Hide the chat panel');
   setTimeout(() => OE.fit(), 320); OE.fit();
 }
-OM.showPanel = function () { if (OM.wide) _omWide(false); document.getElementById('office').classList.add('drawer-up'); };
+OM.showPanel = function () {
+  if (OM.wide) _omWide(false);
+  const o = document.getElementById('office'); if (o.classList.contains('drawer-up')) return;
+  o.classList.add('drawer-up'); setTimeout(() => OE.fit(), 340);
+};
 
 /* ------------------------------------------------------------ layers: office → board → features → feature */
 function _omLayer(sub) {

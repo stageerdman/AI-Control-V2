@@ -31,7 +31,7 @@ OP.mount = function (el) {
     </div>`;
   el.querySelector('#opMic').onclick = () => this.toggleMic();
   el.querySelector('#opSend').onclick = () => this.sendTyped();
-  el.querySelector('#opGrab').onclick = () => document.getElementById('office').classList.toggle('drawer-up');
+  el.querySelector('#opGrab').onclick = () => { document.getElementById('office').classList.toggle('drawer-up'); setTimeout(() => OE.fit(), 340); };
   const inp = el.querySelector('#opInput');
   inp.onkeydown = e => {
     if (e.key === 'Enter') this.sendTyped();
