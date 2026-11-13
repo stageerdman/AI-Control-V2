@@ -4,6 +4,7 @@ import { buildApp } from './app.ts';
 import { ensureDirs, loadConfig } from './config.ts';
 import { openDb } from './db/connection.ts';
 import { createStore } from './db/store.ts';
+import { listen } from './listen.ts';
 import { claudeCliRunner } from './runtime/claude-cli.ts';
 import { loadRuntimeConfig } from './runtime/config.ts';
 import { unavailableRunner } from './runtime/runner.ts';
@@ -43,4 +44,11 @@ const shutdown = async () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-await app.listen({ port: config.port, host: config.host });
+try {
+  await listen(app, config.host, config.port);
+} catch (e) {
+  console.error(`\nAI Studio backend did NOT start: ${(e as Error).message}\n`);
+  await app.close();
+  db.close();
+  process.exit(1);
+}
