@@ -389,10 +389,26 @@ const OE = {
       tx = ccx - z * cx; ty = ccy - z * cy;
     }
     this.zoom = { z, tx, ty, obj: objId };
-    this.cam.classList.toggle('quiet', !!quiet);
-    this.cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : '';
-    this.box.style.setProperty('--z', z);
-    this.box.classList.toggle('zoomed', !!objId);
+    const cam = this.cam, box = this.box;
+    /* Perf: during the move the GPU slides the room as ONE flat layer (.moving =
+       will-change). Restyle-heavy work (--z feeds every overlay's size; pausing
+       every animation) waits until the camera lands, so the move itself never
+       triggers a full-scene style/raster pass. */
+    const settle = () => {
+      cam.classList.remove('moving');
+      box.style.setProperty('--z', z);
+      const st = document.getElementById('oStage'); if (st) st.classList.toggle('settled', !!objId);
+    };
+    clearTimeout(this._zt);
+    cam.classList.toggle('quiet', !!quiet);
+    if (quiet || OE.instant || reducedMotion()) { cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : ''; settle(); }
+    else {
+      const st = document.getElementById('oStage'); if (st) st.classList.remove('settled');
+      cam.classList.add('moving');
+      requestAnimationFrame(() => { cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : ''; });
+      this._zt = setTimeout(settle, 560);
+    }
+    box.classList.toggle('zoomed', !!objId);
     return true;
   },
 };

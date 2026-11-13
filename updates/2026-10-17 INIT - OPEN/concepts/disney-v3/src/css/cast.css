@@ -5,11 +5,12 @@
    .z-stage, .z-panel, .zp-*) is identical for agents and squads.
    ============================================================ */
 #scene-cast.zoomed{overflow:hidden}
-#scene-cast{--glass:rgba(255,246,233,.06);--glass-line:rgba(255,246,233,.12);--well:rgba(0,0,0,.22);--cream-60:rgba(255,246,233,.6);--cream-45:rgba(255,246,233,.45)}
+#scene-cast{--glass:rgba(48,36,88,.82);--glass-line:rgba(255,246,233,.12);--well:rgba(0,0,0,.22);--cream-60:rgba(255,246,233,.6);--cream-45:rgba(255,246,233,.45)}
 
 /* ---------- the "world" the camera pushes into ---------- */
-.cast-world{min-height:100%;display:flex;flex-direction:column;transition:transform .48s cubic-bezier(.2,.8,.2,1),opacity .42s ease,filter .42s ease}
-.cast-world.camera-push{transform:scale(1.25);opacity:0;filter:blur(4px);pointer-events:none}
+.cast-world{min-height:100%;display:flex;flex-direction:column;transition:transform .42s cubic-bezier(.2,.8,.2,1),opacity .36s ease}
+.cast-world.camera-push,.cast-world.moving{will-change:transform,opacity}
+.cast-world.camera-push{transform:scale(1.25);opacity:0;pointer-events:none}
 .cast-world.instant,.cast-world.instant *{transition:none!important}
 .cast-world .cast-head,.cast-world .tr-li{transition:opacity .22s ease,transform .3s var(--ease-out)}
 .cast-world.pushing{pointer-events:none}
@@ -105,7 +106,7 @@
 
 /* the dark-glass detail panel */
 .z-panel{position:relative;z-index:3;min-height:0;display:flex;flex-direction:column;background:var(--glass);border:1px solid var(--glass-line);
-  border-radius:var(--r-lg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 30px 60px -30px rgba(0,0,0,.65)}
+  border-radius:var(--r-lg);box-shadow:0 30px 60px -30px rgba(0,0,0,.65)}
 .zp-scroll{flex:1;min-height:0;overflow:auto;padding:24px 28px 30px;scrollbar-width:thin;scrollbar-color:rgba(255,246,233,.2) transparent}
 .zp-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:26px;margin-bottom:4px}
 .zp-kicker{font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:var(--sun)}
@@ -400,3 +401,10 @@
   .zoom.fade-in{animation:zFade .16s ease!important}
   .slot.hot .slot-fig .hero,.team-row.hot .tr-emblem,.sq-m.sel .hero{transform:none}
 }
+
+/* back row (6th & 7th): smaller, a step behind, peeking between the front side pairs; name on hover/select */
+.tr-m.back{--lift:46px!important}
+.tr-m.back .hero{transform:scale(.86);transform-origin:50% 100%;filter:brightness(.85)}
+.sq-m.back .hero{filter:brightness(.88)}
+.sq-m.back .sq-plate{opacity:0;transition:opacity .15s}
+.sq-m.back:hover .sq-plate,.sq-m.back:focus-visible .sq-plate,.sq-m.back.sel .sq-plate{opacity:1}

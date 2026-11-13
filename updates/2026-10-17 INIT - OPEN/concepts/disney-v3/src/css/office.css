@@ -43,7 +43,9 @@
 /* ---------------- the stage box (scaled) ---------------- */
 .o-box{position:absolute;left:0;top:0;width:1600px;height:1062px;transform-origin:0 0;--z:1;
   --ui:calc(1px / (var(--k) * var(--z)))}
-.o-cam{position:absolute;inset:0;transform-origin:0 0;transition:transform .65s cubic-bezier(.2,.8,.2,1)}
+.o-cam{position:absolute;inset:0;transform-origin:0 0;transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.o-cam.moving{will-change:transform}
+.o-box{contain:layout paint}
 .o-cam.quiet{transition:none}
 .o-cam.opening{animation:o-open .6s var(--ease-out)}
 @keyframes o-open{from{transform:translate(-48px,-30px) scale(1.06)}to{transform:none}}
@@ -145,7 +147,7 @@
 /* zoomed: the room behind is frozen and covered — nothing moves, nothing flickers */
 .o-box.zoomed .o-layer,.o-box.zoomed .o-hot{pointer-events:none}
 .o-box.zoomed .o-over{visibility:hidden}
-.o-stagewrap.zooming .o-box *,.o-stagewrap.zooming .o-box{animation-play-state:paused!important}
+.o-stagewrap.settled .o-box *,.o-stagewrap.settled .o-box{animation-play-state:paused!important}
 .o-scrim{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .45s;background:rgba(20,12,44,.78);z-index:4}
 .o-stagewrap.zooming .o-scrim{opacity:1}
 
