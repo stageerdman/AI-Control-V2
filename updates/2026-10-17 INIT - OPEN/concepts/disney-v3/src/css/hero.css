@@ -1,0 +1,267 @@
+/* ============================================================
+   hero.css — character system v3. Class names are a public contract
+   (spec-cast §1.3): .hero .h-rig .h-arm(-f|-b) .h-tool .h-prop .h-legs
+   .h-leg(-f|-b) .h-torso .h-outfit .h-badge .h-head .h-hair .h-face .h-eye
+   .h-pupil .h-lid .h-brow .h-blush .h-mouth .h-acc .h-headgear .h-fx
+   Static key poses = custom properties (frozen frames stay legible);
+   keyframes add life on top. Every keyframe is h-*.
+   ============================================================ */
+.hero{
+  --ink:#241a44; --spring:cubic-bezier(.34,1.56,.64,1);
+  /* arm: shoulder angle, elbow angle, length factor  (f = front/near, b = back/far) */
+  --af:14deg; --ef:0deg; --kf:1; --pt:0deg;
+  --ab:-24deg; --eb:0deg; --kb:1; --tt:14deg;
+  --lf:0deg; --lb:0deg; --ht:0deg; --lean:0deg; --lid:0; --by:0px;
+  --lx:.35; --ly:0; --seat:0px; --dir:1;
+  position:relative; display:inline-block; flex:none; line-height:0; vertical-align:bottom;
+}
+.hero svg{width:100%;height:100%;overflow:visible;display:block}
+.hero svg g,.hero svg path,.hero svg ellipse,.hero svg circle,.hero svg rect,.hero svg line{transform-box:view-box;transform-origin:0 0}
+
+/* ink outline: the game-sprite read */
+.hero .o{stroke:var(--ink);stroke-width:var(--ol);stroke-linejoin:round;stroke-linecap:round}
+.hero .o2{stroke:var(--ink);stroke-width:calc(var(--ol)*.6);stroke-linejoin:round;stroke-linecap:round}
+.hero .h-limb-o{stroke:var(--ink);stroke-width:calc(11px + 2*var(--ol));stroke-linecap:round}
+.hero .h-limb{stroke-width:11px;stroke-linecap:round}
+.hero .h-shadow{fill:rgba(0,0,0,.22)}
+.hero .h-cring{display:none}
+.hero.is-captain .h-cring{display:inline}
+.hero .h-q{display:none}
+
+/* ---- rig stack: flip (mirror + seat) > rig (keyframes) > body (static lean) ---- */
+.hero .h-flip{transform-origin:60px 152px;transform:translateY(var(--seat)) scaleX(var(--dir))}
+.hero .h-rig{transform-origin:60px 152px;animation:h-breathe 3.6s ease-in-out infinite;animation-delay:var(--dl,0s)}
+.hero .h-body{transform:rotate(var(--lean));transition:transform .3s var(--spring)}
+.hero.dir-l{--dir:-1}
+.hero.seated{--seat:18px}
+.hero.seated .h-legs{display:none}
+.hero.dir-l .h-badge-in{transform:scaleX(-1)}
+
+/* ---- arms: two rubber-hose segments, joint vars per side ---- */
+.hero .h-arm-f{--a:var(--af);--e:var(--ef);--k:var(--kf);--t:var(--pt)}
+.hero .h-arm-b{--a:var(--ab);--e:var(--eb);--k:var(--kb);--t:var(--tt)}
+.hero .h-sh{transform:rotate(var(--a));transition:transform .28s var(--spring) .08s}
+.hero .h-ua{transform:scaleY(var(--k));transition:transform .28s var(--spring) .08s}
+.hero .h-el{transform:translateY(calc(var(--k)*13px)) rotate(var(--e));transition:transform .28s var(--spring) .08s}
+.hero .h-fa{transform:scaleY(var(--k));transition:transform .28s var(--spring) .08s}
+.hero .h-hnd{transform:translateY(calc(var(--k)*13px));transition:transform .28s var(--spring) .08s}
+.hero .h-up{transform:rotate(calc(-1*(var(--a) + var(--e)) + var(--t)));transition:transform .28s var(--spring) .08s}
+.hero .h-tool{display:none}
+.hero.tool-on .h-tool{display:inline}
+
+/* ---- legs ---- */
+.hero .h-leg-f .h-lr{transform:rotate(var(--lf));transition:transform .25s var(--spring)}
+.hero .h-leg-b .h-lr{transform:rotate(var(--lb));transition:transform .25s var(--spring)}
+
+/* ---- head ---- */
+.hero .h-tilt{transform:rotate(var(--ht));transition:transform .3s var(--spring)}
+.hero .h-face,.hero .h-acc-f{transition:transform .25s var(--spring)}
+.hero .h-eye{transition:transform .25s var(--spring),opacity .2s}
+.hero .h-pupil{transform:translate(calc(var(--lx)*3.5px),calc(var(--ly)*3px));transition:transform .25s var(--spring)}
+.hero .h-lid{transform:scaleY(var(--lid));animation:h-blink 5.2s infinite;animation-delay:var(--dl,0s)}
+.hero.pose-idle .h-glance,.hero.pose-talking .h-glance{animation:h-glance 9s infinite;animation-delay:var(--dl,0s)}
+.hero .h-brow{transform:translateY(var(--by));transition:transform .25s var(--spring)}
+.hero .h-blush{opacity:.5;transition:opacity .2s}
+.hero .h-shut{display:none;fill:none;stroke:var(--ink);stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+.hero .h-mouth{display:none}
+.hero .m-l{fill:none;stroke:var(--ink);stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}
+.hero .m-f{fill:var(--ink);stroke:var(--ink);stroke-width:1.2;stroke-linejoin:round}
+.hero[data-mouth="smile"] [data-m="smile"],.hero[data-mouth="focus"] [data-m="focus"],
+.hero[data-mouth="talk"] [data-m="talkA"],.hero[data-mouth="worried"] [data-m="worried"],
+.hero[data-mouth="grin"] [data-m="grin"],.hero[data-mouth="o"] [data-m="o"],
+.hero[data-mouth="tongue"] [data-m="tongue"],.hero[data-mouth="flat"] [data-m="flat"],
+.hero[data-mouth="wavy"] [data-m="wavy"]{display:inline}
+.hero[data-mouth="talk"] [data-m="talkB"]{display:inline;opacity:0}
+.hero[data-eyes="sleep"] .h-white,.hero[data-eyes="sleep"] .h-glance,.hero[data-eyes="sleep"] .h-lid,
+.hero[data-eyes="happy"] .h-white,.hero[data-eyes="happy"] .h-glance,.hero[data-eyes="happy"] .h-lid,
+.hero[data-eyes="squeeze"] .h-white,.hero[data-eyes="squeeze"] .h-glance,.hero[data-eyes="squeeze"] .h-lid{display:none}
+.hero[data-eyes="sleep"] .h-shut-s,.hero[data-eyes="happy"] .h-shut-h,.hero[data-eyes="squeeze"] .h-shut-x{display:inline}
+
+/* ---- facing (body stays; face + eyes turn) ---- */
+.hero.face-3q .h-face,.hero.face-3q .h-acc-f{transform:translateX(6px)}
+.hero.face-3q .h-eye.far{transform:scaleX(.8)}
+.hero.face-side{--lx:.6}
+.hero.face-side .h-face{transform:translateX(14px)}
+.hero.face-side .h-acc-f{transform:translateX(14px) scaleX(.82)}
+.hero.face-side .h-acc-far{display:none}
+.hero.face-side .h-eye.near{transform:scaleX(.85)}
+.hero.face-side .h-eye.far{transform:scaleX(.5);opacity:0}
+.hero.face-side .h-blush.far,.hero.face-side .h-brow.far{opacity:0}
+.hero.face-front.face-front{--lx:0;--ly:0;--af:14deg;--ab:-14deg}
+/* front + a working pose keeps that pose's arms (they "stop to talk" but keep the prop) */
+.hero.face-front.pose-typing,.hero.face-front.pose-reading,.hero.face-front.pose-carrying,.hero.face-front.pose-writing,
+.hero.face-front.pose-chilling,.hero.face-front.pose-needs-input,.hero.face-front.pose-celebrating,.hero.face-front.pose-talking,
+.hero.face-front.pose-thinking,.hero.face-front.pose-frustrated,.hero.face-front.pose-waiting,.hero.face-front.pose-pressing,
+.hero.face-front.pose-waving,.hero.face-front.pose-salute,.hero.face-front.pose-walking,.hero.face-front.pose-sleeping{--af:var(--paf);--ab:var(--pab)}
+
+/* ============================================================
+   POSES — static key frame (vars) + life (keyframes)
+   --paf/--pab mirror the pose arm so face-front can keep it
+   ============================================================ */
+.hero.pose-walking{--af:22deg;--ab:-34deg;--lf:-18deg;--lb:18deg;--lx:.6;--paf:22deg;--pab:-34deg}
+.hero.pose-walking .h-rig{animation:h-bob .35s ease-in-out infinite alternate}
+.hero.pose-walking .h-leg-f .h-lr{animation:h-step .7s ease-in-out infinite alternate}
+.hero.pose-walking .h-leg-b .h-lr{animation:h-step-b .7s ease-in-out infinite alternate}
+.hero.pose-walking .h-arm-f .h-sh{animation:h-swing-f .7s ease-in-out infinite alternate}
+.hero.pose-walking .h-arm-b .h-sh{animation:h-swing-b .7s ease-in-out infinite alternate}
+
+.hero.pose-typing{--af:-38deg;--ef:-52deg;--ab:-38deg;--eb:-52deg;--ly:.8;--lid:.12;--paf:-38deg;--pab:-38deg}
+.hero.pose-typing .h-rig{animation-duration:4.2s}
+.hero.pose-typing .h-arm-f .h-hj{animation:h-type .28s ease-in-out infinite alternate .14s}
+.hero.pose-typing .h-arm-b .h-hj{animation:h-type .28s ease-in-out infinite alternate}
+
+.hero.pose-writing{--af:-44deg;--ef:-42deg;--ab:-14deg;--ht:5deg;--ly:.85;--lx:.45;--paf:-44deg;--pab:-14deg}
+.hero.pose-writing .h-arm-f .h-hj{animation:h-scribble .5s ease-in-out infinite}
+
+.hero.pose-reading{--af:-50deg;--ef:-62deg;--ab:-46deg;--eb:-60deg;--ly:.5;--paf:-50deg;--pab:-46deg}
+.hero.pose-reading .h-glance{animation:h-scan 2.4s steps(6) infinite}
+.hero.pose-reading .h-page{transform-origin:0 0;animation:h-page 6s ease-in-out infinite}
+
+.hero.pose-carrying{--af:-74deg;--ef:-38deg;--ab:-70deg;--eb:-40deg;--paf:-74deg;--pab:-70deg}
+.hero.pose-carrying .h-stack{animation:h-wobble 1.4s ease-in-out infinite alternate}
+.hero.pose-carrying.moving{--lf:-18deg;--lb:18deg}
+.hero.pose-carrying.moving .h-rig{animation:h-bob .35s ease-in-out infinite alternate}
+.hero.pose-carrying.moving .h-leg-f .h-lr{animation:h-step .7s ease-in-out infinite alternate}
+.hero.pose-carrying.moving .h-leg-b .h-lr{animation:h-step-b .7s ease-in-out infinite alternate}
+.hero.pose-walking.moving .h-rig{animation:h-bob .35s ease-in-out infinite alternate}
+
+.hero.pose-talking{--af:-26deg;--ef:-40deg;--by:-1.5px;--paf:-26deg;--pab:-24deg}
+.hero.pose-talking .h-arm-f .h-sh{animation:h-gesture 1.6s ease-in-out infinite alternate}
+.hero.pose-talking [data-m="talkA"]{animation:h-yap-a .32s steps(1) infinite}
+.hero.pose-talking [data-m="talkB"]{animation:h-yap-b .32s steps(1) infinite}
+
+.hero.pose-chilling{--lean:-6deg;--lid:.42;--af:-34deg;--ef:-96deg;--ab:-18deg;--pt:-8deg;--paf:-34deg;--pab:-18deg}
+.hero.pose-chilling .h-arm-f .h-sh{animation:h-sip-s 4.5s ease-in-out infinite}
+.hero.pose-chilling .h-arm-f .h-el{animation:h-sip-e 4.5s ease-in-out infinite}
+.hero .h-steam path{fill:none;stroke:#fff6e9;stroke-width:1.8;stroke-linecap:round;opacity:.7}
+.hero.pose-chilling .h-steam path,.hero[data-hold="mug"] .h-steam path{animation:h-steam 2s ease-in infinite}
+.hero .h-steam path:nth-child(2){animation-delay:-1s}
+
+.hero.pose-sleeping{--ht:12deg;--af:4deg;--ab:-8deg;--paf:4deg;--pab:-8deg}
+.hero.pose-sleeping .h-rig{animation:h-snore 3.2s ease-in-out infinite}
+
+.hero.pose-celebrating{--af:150deg;--ef:16deg;--ab:-150deg;--eb:-16deg;--tt:6deg;--by:-3px;--paf:150deg;--pab:-150deg}
+.hero.pose-celebrating .h-rig{animation:h-jump .62s cubic-bezier(.34,1.56,.64,1) infinite}
+
+.hero.pose-needs-input{--af:162deg;--ef:-6deg;--kf:1.22;--by:-3px;--paf:162deg;--pab:-24deg}
+.hero.pose-needs-input .h-arm-f .h-sh{animation:h-wave 1.2s ease-in-out infinite alternate}
+.hero.pose-needs-input .h-brow.near{transform:translateY(-3px) rotate(-14deg)}
+.hero.pose-needs-input .h-brow.far{transform:translateY(-3px) rotate(14deg)}
+
+.hero.pose-thinking{--af:-58deg;--ef:-118deg;--ly:-.8;--lx:.25;--ht:-5deg;--paf:-58deg;--pab:-24deg}
+.hero.pose-thinking .h-brow.far{transform:translateY(-3px)}
+
+.hero.pose-frustrated{--af:-166deg;--ef:-14deg;--kf:1.28;--ht:7deg;--lean:3deg;--ab:-10deg;--paf:-166deg;--pab:-10deg}
+.hero.pose-frustrated .h-tilt{animation:h-shake 1.8s ease-in-out infinite}
+.hero.pose-frustrated .h-brow.near{transform:translateY(1px) rotate(16deg)}
+.hero.pose-frustrated .h-brow.far{transform:translateY(1px) rotate(-16deg)}
+
+.hero.pose-waiting{--af:-48deg;--ef:-84deg;--ab:-46deg;--eb:-80deg;--lid:.34;--lx:.75;--paf:-48deg;--pab:-46deg}
+.hero.pose-waiting .h-leg-f .h-lr{animation:h-tap .9s ease-in-out infinite}
+
+.hero.pose-pressing{--af:-84deg;--ef:-8deg;--lean:4deg;--by:1.2px;--lx:.7;--ly:.3;--paf:-84deg;--pab:-24deg}
+.hero.pose-pressing .h-arm-f .h-hj{animation:h-press 1.1s ease-in-out infinite}
+
+.hero.pose-waving{--af:128deg;--ef:34deg;--paf:128deg;--pab:-24deg}
+.hero.pose-waving .h-arm-f .h-el{animation:h-wave-e .5s ease-in-out infinite alternate}
+
+.hero.pose-salute{--af:-160deg;--ef:-48deg;--kf:1.2;--by:-1px;--paf:-160deg;--pab:-24deg}
+.hero.pose-salute .h-arm-f .h-sh{animation:h-salute 2.4s ease-in-out infinite}
+
+/* ============================================================
+   FX overlay — HTML above the head anchor (readable at 48px)
+   ============================================================ */
+.hero .h-fx{position:absolute;left:50%;top:var(--head-y);transform:translate(-50%,-100%);display:flex;flex-direction:column-reverse;align-items:center;gap:2px;pointer-events:none;
+  font-size:clamp(11px,calc(var(--hpx)*.085),30px);line-height:1;z-index:2}
+.hero .h-fx>span{display:none}
+.hero .fx-pip{display:block!important;margin-bottom:4px}
+.hero .fx-pip:empty{display:none!important}
+.hero .fx-bang{min-width:18px;min-height:18px;width:1.7em;height:1.7em;border-radius:50%;background:#ff6f73;color:#fff6e9;font-weight:900;font-size:1em;
+  display:grid!important;place-items:center;box-shadow:0 0 0 2px #241a44,0 4px 10px -2px rgba(0,0,0,.4);animation:h-bang 1s ease-in-out infinite;margin-bottom:.25em}
+.hero:not(.pose-needs-input) .fx-bang{display:none!important}
+.hero.pose-needs-input .fx-bang::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #ff6f73;animation:h-ring 1.6s ease-out infinite}
+.hero .fx-bang{position:relative}
+.hero.pose-sleeping .fx-z{display:block;position:relative;width:2.4em;height:1.6em;transform:translateX(.9em)}
+.hero .fx-z i{position:absolute;bottom:0;left:0;font-style:normal;font-weight:900;color:#fff6e9;text-shadow:0 0 0 #241a44,1px 1px 0 #241a44,-1px -1px 0 #241a44,1px -1px 0 #241a44,-1px 1px 0 #241a44;
+  min-width:12px;font-size:max(12px,.9em);opacity:0;animation:h-zzz 3.2s linear infinite}
+.hero .fx-z i:nth-child(2){animation-delay:1.05s}
+.hero .fx-z i:nth-child(3){animation-delay:2.1s;font-size:max(14px,1.1em)}
+.hero.pose-celebrating .fx-spark{display:block;position:relative;width:3.4em;height:1.4em}
+.hero .fx-spark i{position:absolute;font-style:normal;color:#ffc24b;font-size:max(12px,1em);text-shadow:0 0 6px rgba(255,194,75,.8);animation:h-twinkle 1.1s ease-in-out infinite}
+.hero .fx-spark i:nth-child(1){left:0;top:.4em}
+.hero .fx-spark i:nth-child(2){left:1.2em;top:-.2em;animation-delay:.35s}
+.hero .fx-spark i:nth-child(3){right:0;top:.5em;animation-delay:.7s}
+.hero.pose-thinking .fx-think{display:flex;gap:.25em;transform:translateX(1.2em);margin-bottom:.2em}
+.hero .fx-think i{width:max(4px,.32em);height:max(4px,.32em);border-radius:50%;background:#fff6e9;box-shadow:0 0 0 1.5px #241a44;animation:h-dots 1.4s ease-in-out infinite}
+.hero .fx-think i:nth-child(2){animation-delay:.2s}.hero .fx-think i:nth-child(3){animation-delay:.4s}
+
+/* ============================================================
+   LOD below 64px: drop fine detail, keep headgear/tool/eyes/catch-light
+   ============================================================ */
+.hero.lod-xs .h-fine,.hero.lod-xs .h-trim,.hero.lod-xs .h-badge,.hero.lod-xs .h-blush,.hero.lod-xs .h-nose{display:none}
+.hero.lod-xs .h-catch{transform:scale(1.5)}
+.hero.lod-xs .h-tool>*{transform:scale(1.3)}
+.hero.lod-xs .o2{stroke-width:calc(var(--ol)*.75)}
+
+/* ---- ghost: dashed silhouette "+ New" slot ---- */
+.hero.ghost .h-rig{animation:none}
+.hero.ghost .o,.hero.ghost .o2{fill:rgba(255,246,233,.05)!important;stroke:rgba(255,246,233,.38);stroke-width:2px;stroke-dasharray:5 4;animation:h-dash 1.2s linear infinite}
+.hero.ghost .h-arm,.hero.ghost .h-legs,.hero.ghost .h-face,.hero.ghost .h-sheen,.hero.ghost .h-fine,.hero.ghost .h-hair,.hero.ghost .h-hair-back,.hero.ghost .h-acc,.hero.ghost .h-shadow{display:none}
+.hero.ghost .h-q{display:inline;fill:rgba(255,246,233,.55);font:900 30px/1 var(--font,system-ui)}
+
+/* ---- utility moments callers can add: .hop (once), .twirl (costume change) ---- */
+.hero.hop svg{animation:h-hop .38s var(--spring)}
+.hero.twirl .h-rig{animation:h-twirl .36s ease-in-out}
+
+/* ============================================================
+   KEYFRAMES
+   ============================================================ */
+@keyframes h-breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.025)}}
+@keyframes h-blink{0%,95%,100%{transform:scaleY(var(--lid))}97.5%{transform:scaleY(1)}}
+@keyframes h-glance{0%,40%{transform:translateX(0)}45%,70%{transform:translateX(-1.1px)}75%,100%{transform:translateX(1.4px)}}
+@keyframes h-step{from{transform:rotate(-18deg)}to{transform:rotate(18deg)}}
+@keyframes h-step-b{from{transform:rotate(18deg)}to{transform:rotate(-18deg)}}
+@keyframes h-swing-f{from{transform:rotate(26deg)}to{transform:rotate(-8deg)}}
+@keyframes h-swing-b{from{transform:rotate(-40deg)}to{transform:rotate(-6deg)}}
+@keyframes h-bob{from{transform:translateY(0)}to{transform:translateY(-2.5px)}}
+@keyframes h-type{from{transform:translateY(0)}to{transform:translateY(-2.5px)}}
+@keyframes h-scribble{0%,100%{transform:translate(0,0)}25%{transform:translate(1.5px,1px)}50%{transform:translate(-1px,.5px)}75%{transform:translate(1px,-1px)}}
+@keyframes h-scan{0%{transform:translateX(-2px)}100%{transform:translateX(2px)}}
+@keyframes h-page{0%,80%{transform:scaleX(1)}88%,92%{transform:scaleX(-1)}100%{transform:scaleX(1)}}
+@keyframes h-wobble{from{transform:translate(8px,-6px) rotate(-2deg)}to{transform:translate(8px,-6px) rotate(2deg)}}
+@keyframes h-gesture{from{transform:rotate(-10deg)}to{transform:rotate(-40deg)}}
+@keyframes h-yap-a{0%{opacity:1}50%{opacity:0}}
+@keyframes h-yap-b{0%{opacity:0}50%{opacity:1}}
+@keyframes h-sip-s{0%,55%,82%,100%{transform:rotate(-34deg)}62%,75%{transform:rotate(-70deg)}}
+@keyframes h-sip-e{0%,55%,82%,100%{transform:translateY(13px) rotate(-96deg)}62%,75%{transform:translateY(13px) rotate(-104deg)}}
+@keyframes h-steam{0%{transform:translateY(0);opacity:0}30%{opacity:.75}100%{transform:translateY(-6px);opacity:0}}
+@keyframes h-snore{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+@keyframes h-zzz{0%{transform:translate(0,0);opacity:0}15%{opacity:1}100%{transform:translate(1.2em,-18px);opacity:0}}
+@keyframes h-jump{0%{transform:translateY(0) scale(1,1)}30%{transform:translateY(0) scale(1.08,.88)}60%{transform:translateY(-18px) scale(.94,1.08)}85%{transform:translateY(0) scale(1.04,.96)}100%{transform:translateY(0) scale(1,1)}}
+@keyframes h-wave{from{transform:rotate(152deg)}to{transform:rotate(172deg)}}
+@keyframes h-wave-e{from{transform:translateY(13px) rotate(16deg)}to{transform:translateY(13px) rotate(48deg)}}
+@keyframes h-bang{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-4px) scale(1.12)}}
+@keyframes h-ring{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.6)}}
+@keyframes h-twinkle{0%,100%{transform:scale(.6) rotate(0);opacity:.4}50%{transform:scale(1.2) rotate(30deg);opacity:1}}
+@keyframes h-dots{0%,100%{opacity:.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-3px)}}
+@keyframes h-shake{0%,70%,100%{transform:rotate(7deg)}76%{transform:rotate(3deg)}82%{transform:rotate(10deg)}88%{transform:rotate(4deg)}}
+@keyframes h-tap{0%,40%,100%{transform:rotate(0)}20%{transform:rotate(-12deg)}}
+@keyframes h-press{0%,40%,100%{transform:translateX(0)}20%{transform:translateX(3px)}}
+@keyframes h-salute{0%,70%,100%{transform:rotate(-160deg)}80%{transform:rotate(-150deg)}}
+@keyframes h-hop{0%{transform:translateY(0)}40%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+@keyframes h-twirl{0%{transform:scaleX(1)}50%{transform:scaleX(0)}100%{transform:scaleX(1)}}
+@keyframes h-dash{to{stroke-dashoffset:-18}}
+
+/* ============================================================
+   Reduced motion: every h-* animation off; static key poses remain
+   (needs-input keeps arm up + static "!", sleeping keeps arcs + static Zz,
+   celebrating keeps the grin + one ✦, walking freezes mid-stride).
+   ============================================================ */
+@media (prefers-reduced-motion:reduce){
+  .hero,.hero *,.hero *::after{animation:none!important;transition:none!important}
+  .hero .fx-z i{opacity:1;position:static;display:inline-block}
+  .hero .fx-z i:nth-child(1){transform:translateY(6px)}.hero .fx-z i:nth-child(2){transform:translateY(2px)}
+  .hero .fx-spark i:nth-child(1),.hero .fx-spark i:nth-child(3){display:none}
+  .hero.pose-needs-input .fx-bang{box-shadow:0 0 0 3px #241a44}
+  .hero.pose-talking [data-m="talkB"]{display:none}
+}
