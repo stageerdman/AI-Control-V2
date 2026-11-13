@@ -246,6 +246,25 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX health_by_project ON health_reports(project_id, created_at);
   `,
+
+  /* 10 — the features folder (U1): Now / Planned / Shipped, each a plain description + vision.
+     position = order within its status (1-based, kept dense by src/db/features.ts). */
+  `
+  CREATE TABLE features (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    status      TEXT NOT NULL CHECK (status IN ('now', 'planned', 'shipped')),
+    position    INTEGER NOT NULL,
+    pct         INTEGER CHECK (pct BETWEEN 0 AND 100),
+    owner       TEXT,                         -- an agent or team id (no FK: a plain label that may outlive it)
+    description TEXT NOT NULL DEFAULT '',
+    vision      TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+  );
+  CREATE INDEX features_by_project ON features(project_id, status, position);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

@@ -17,6 +17,7 @@ import type { GhProbe } from './health/git-status.ts';
 import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
+import { createFeatures } from './office/features.ts';
 import { accessRoutes } from './routes/access.ts';
 import { agentRoutes } from './routes/agents.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
@@ -24,6 +25,7 @@ import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
+import { featureRoutes } from './routes/features.ts';
 import { healthRoutes } from './routes/health.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
@@ -117,6 +119,7 @@ export function buildApp({
   });
   dispatch.recover();
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
+  const features = createFeatures({ db, store, events });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -156,5 +159,6 @@ export function buildApp({
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health }));
+  app.register(featureRoutes({ features }));
   return app;
 }

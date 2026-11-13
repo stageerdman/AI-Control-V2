@@ -51,6 +51,7 @@ src/
                      creator.ts (Agent Creator, accept), dispatch.ts (goal → checklist → runs),
                      prompts.ts (Cast catalogue), fake-brain.ts (FakeRunner answers for every contract)
   health/            health.ts (read-only health check), git-status.ts (local git + optional gh visibility)
+  office/            what the office screen needs: features.ts (features folder)
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -81,6 +82,7 @@ Bodies are strict — unknown keys are 422.
 | `POST /projects/:id/health` `{caps?}` | health check: a read-only run in the project folder grades modularity / cleanliness / reusability (A–F, `good`, `fix`) + git/GitHub status → the report (201), event `health.checked` |
 | `GET /projects/:id/health` | `{latest, history (≤ 20, newest first), git}` — `git` is live and local only (no network) |
 | `GET /projects/:id/work[/:goalId]` · `POST /projects/:id/work/:goalId/cancel` | the whiteboard (goals newest first, items with status/run/note, `pct`) · stop a goal |
+| `GET POST /projects/:id/features` · `GET PATCH DELETE /projects/:id/features/:featureId` | the features folder: `{name, status: now\|planned\|shipped (default planned), order (1-based in its status; default last), pct?, owner? (agent or team id), description, vision}` (plain text blocks); list = Now, Planned, Shipped, each in order; moves keep every group dense; event `feature.changed` (`deleted: true` on delete) |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
