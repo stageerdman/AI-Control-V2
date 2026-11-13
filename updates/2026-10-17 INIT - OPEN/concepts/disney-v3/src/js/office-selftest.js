@@ -56,19 +56,24 @@ async function officeSelftest() {
   await OS.skipTo(25); await wait(50);
   ok(WS.pending.length === 1 && WS.pending[0].agentId === 'a-scar', 'Scarlett raises a "!" at t=23');
   ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '"!" badge visible over Scarlett');
-  ok(wsPager().length === 1 && /Ship-It/.test($('#opgScreen').textContent) && /Stripe/.test($('#opgScreen').textContent), 'pager pages Ship-It: Scarlett needs a Stripe key');
-  /* pager → team focus; leave without doing anything → drops off; a new ask brings it back */
-  $('#opgScreen').click(); await wait(50);
-  ok(OM.focusKey === 'team:ship-it' && OE.zoom.rect && OE.zoom.z > 1.2 && !OE.box.classList.contains('zoomed'), 'pager → camera focuses Ship-It\'s pod (room stays live, z=' + OE.zoom.z.toFixed(2) + ')');
-  ok(!!$('.o-podglow') && !$('#oUnfocus').hidden, 'the pod is highlighted; a way back is offered');
-  ok(/here/i.test($('#opgScreen').textContent), 'pager says you\'re there');
-  key('Escape', document.body); await wait(50);
-  ok(!OM.focusKey && !OE.zoom.rect && $('#oUnfocus').hidden, 'Esc → whole office');
-  ok(wsPager().length === 0 && /All quiet/.test($('#opgScreen').textContent), 'visited and did nothing → off the pager');
-  ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '…but the "!" over Scarlett stays');
-  OP.ask({ id: 'ask-scar-2', agentId: 'a-scar', type: 'decision', short: 'Retry flaky test?', q: 'Retry?', ctx: '', options: ['Yes', 'No'], featureId: 'checkout' }); await wait(30);
-  ok(wsPager().length === 1 && /Retry flaky/.test($('#opgScreen').textContent), 'a new ask brings the team back to the pager');
-  WS.pending = WS.pending.filter(p => p.id !== 'ask-scar-2'); officeRefresh(); await wait(20);
+  /* the pager pages OFFICES (v6): never your own, never teams */
+  const pages = () => OPG.entries().map(e => e.projectId);
+  ok(!pages().includes('aurora') && !/Ship-It/.test($('#opgScreen').textContent), 'pager: the office you\'re in never pages you (its "!" does), and no teams');
+  ok(pages().includes('lumi'), 'pager: Lumi Health (status needs) is on the pager');
+  go('projects'); await wait(300);
+  ok(!$('#pager').hidden && $('#pager').getBoundingClientRect().left < 40, 'pager is global — bottom-left on Projects too');
+  ok(!pages().includes('aurora'), 'left Aurora without answering → Aurora drops off the pager');
+  WS.pending.push({ id: 'ask-away', agentId: 'a-scar', type: 'decision', short: 'Retry flaky test?', options: ['Yes', 'No'] }); OPG.refresh(); await wait(20);
+  ok(pages().includes('aurora') && /Aurora/.test($('#opgScreen').textContent) && /Scarlett needs you/.test($('#opgScreen').textContent), 'a new ask brings Aurora back: "Scarlett needs you"');
+  ok(!!$('#opgScreen .logo-tile') && /2 OFFICES/.test($('#opgScreen').textContent), 'page = project logo + name + one calm line');
+  WS.pending = WS.pending.filter(p => p.id !== 'ask-away');
+  OPG.idx = OPG.entries().findIndex(e => e.projectId === 'lumi'); OPG._render();
+  ok(/Lumi/.test($('#opgScreen').textContent) && /test account/.test($('#opgScreen').textContent), 'pager shows Lumi\'s note');
+  $('#opgScreen').click(); await wait(600);
+  ok(location.hash === '#office/lumi' && OM.project === 'lumi', 'press the pager → that project\'s office');
+  go('office'); await wait(600);
+  ok(!pages().includes('lumi') && OM.project === 'aurora', 'visited Lumi and left → off the pager');
+  ok(!$('.o-body[data-id="a-scar"] .o-bang').hidden, '…and the "!" over Scarlett is still there in Aurora');
   ok(/Stripe test key/.test($('.o-body[data-id="a-scar"]').getAttribute('aria-label')), 'actor label names the ask');
   ok(/Needs you/.test($('.o-body[data-id="a-scar"] .o-card').textContent), 'hover card says what they need');
 
@@ -154,15 +159,11 @@ async function officeSelftest() {
   /* decision ask (Twinkle) answered with a chip */
   OP.ask({ id: 'ask-test', agentId: 'a-twinkle', type: 'decision', short: 'Cart button copy', q: 'Which reads better?', ctx: 'Not blocking', options: ['Add to bag', 'Add to cart'], featureId: 'cleanup' });
   OE.setActivity('a-twinkle', 'needs-input', { short: 'Needs you', detail: 'Cart button copy' }); await wait(30);
-  ok(/Polish/.test($('#opgScreen').textContent), 'pager pages the Polish Patrol');
-  $('#opgScreen').click(); await wait(50);
-  ok(OM.focusKey === 'team:polish', 'pager → Polish Patrol pod');
+  ok(!pages().includes('aurora'), 'a new ask inside the office you\'re in stays off the pager');
   $('.o-body[data-id="a-twinkle"]').click(); await wait(50);
   ok(OP.thread === 'a-twinkle' && !!$('.op-ask.live .chip'), 'click Twinkle in the pod → her ask (decision chips)');
   $('.op-ask.live .chip').click(); await wait(80);
   ok(!WS.pending.length && wsAgent('a-twinkle').activity.kind === 'coding', 'decision chip answers and unblocks');
-  $('#oUnfocus').click(); await wait(50);
-  ok(!OM.focusKey && !wsPager().length, '← Whole office; pager is quiet again');
 
   /* the health report: GitHub + runs locally */
   go('health'); await wait(900);

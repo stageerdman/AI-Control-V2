@@ -10,7 +10,7 @@
            OS.wake(id)               the Director brings a sleeper in
            OS.create(need)           the Agent Creator builds a new bot at a free desk
    Dev hooks (URL ?demo=…, not in UI): fast · t<sec> · ask · chat · talk ·
-           ship · end · sleepy · peek · list · creator · pager · focus · safe · door · fresh · orch2 ·
+           ship · end · sleepy · peek · list · creator · pager · safe · door · fresh · orch2 ·
            size2|size6|size12|size20 · selftest
    ============================================================ */
 
@@ -33,7 +33,7 @@ OS.start = async function () {
   if (demo.includes('talk')) skip = Math.max(skip, 8);
   if (demo.includes('ship')) skip = Math.max(skip, 47);
   if (demo.includes('creator')) skip = Math.max(skip, 61);
-  if (demo.includes('pager') || demo.includes('focus')) skip = Math.max(skip, 75);
+  if (demo.includes('pager')) skip = Math.max(skip, 75);
   if (demo.includes('end')) skip = Math.max(skip, SIM_ACT1_END + 1);
   if (skip) await this.skipTo(skip);
   else this._schedule(0);
@@ -44,7 +44,6 @@ OS._hooks = function (demo) {
   if (demo.includes('pete')) setTimeout(() => OP.open('a-pete', { from: 'scene' }), 30);
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
   if (demo.includes('list')) setTimeout(() => _omToggleList(true), 30);
-  if (demo.includes('focus')) setTimeout(() => OPG.go(0), 30);
   if (demo.includes('safe')) setTimeout(() => _omAccess(), 30);
   if (demo.includes('door')) setTimeout(() => OM.focusActor('obj:door'), 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);

@@ -24,7 +24,7 @@ function omGo(sub) {
   if (pid === 'aurora') go(sub || 'office'); else go('office/' + pid + (sub && sub !== 'office' ? '/' + sub : ''));
 }
 function closeOffice() {
-  if (OM.focusKey) OM.unfocusTeam(true);
+  OPG.leave();                              /* left without answering → off the pager */
   if (typeof OS !== 'undefined') OS.stop();
   OE.unmount(); OM.mounted = false; OM.project = null;
   document.removeEventListener('keydown', _omKeys);
@@ -37,6 +37,7 @@ function _omMount(p) {
   wsUse(p.id);                              /* its own state: Aurora demo or built from p.office */
   wsPrune();                                /* skip agents deleted from the Cast since (Undo brings them back) */
   OM.project = p.id; OM.mounted = true;
+  OPG.enter(p.id);                          /* the pager: you're in this office now */
   /* this project's repo facts (its Director comes from PROJECTS[i].orchestrator via wsAg) */
   const g = _wsGithub(p.id); WS.github.connected = g.connected; WS.github.private = g.private;
   const host = document.getElementById('office');
@@ -50,8 +51,6 @@ function _omMount(p) {
         <div class="o-hots" id="oHots"></div>
         <div class="o-scrim" aria-hidden="true"></div>
         <div class="o-layers" id="oLayers"></div>
-        <button class="o-ctl o-unfocus" type="button" id="oUnfocus" hidden>← <span>Whole office</span></button>
-        <div class="o-pagerwrap" id="oPager"></div>
         <div class="o-stagectl">
           <button class="o-ctl" type="button" id="oListBtn" aria-pressed="false" aria-controls="oList">▤ <span>List</span></button>
           <button class="o-ctl" type="button" id="oWideBtn" aria-pressed="false" aria-label="Hide the chat panel">⤢</button>
@@ -62,13 +61,11 @@ function _omMount(p) {
     </div>`;
   host.querySelector('#oListBtn').onclick = () => _omToggleList();
   host.querySelector('#oWideBtn').onclick = () => _omWide(!OM.wide);
-  host.querySelector('#oUnfocus').onclick = () => OM.unfocusTeam();
 
   OE.mount(host.querySelector('#oBox'));
   _omHotspots();
   OP.mount(host.querySelector('#oPanel'));
   _omStageA11y();
-  OPG.mount(host.querySelector('#oPager'));
   document.addEventListener('keydown', _omKeys);
   window.addEventListener('resize', _omResize);
   officeRefresh();
@@ -126,7 +123,6 @@ function _omStageA11y() {
 }
 OM.clickActor = function (id) {
   const a = wsAgent(id); if (!a) return;
-  OPG.visited(id);
   if (a.activity.kind === 'sleeping') { OP.sleeperPoke(id); return; }
   OP.open(id, { from: 'scene' });
 };
@@ -152,7 +148,6 @@ function _omKeys(e) {
   if (e.key === 'Escape' && !typing) {
     if (OM.listOpen) { _omToggleList(false); return; }
     if (OM.layer) { e.preventDefault(); OB.escape(); return; }
-    if (OM.focusKey) { e.preventDefault(); OM.unfocusTeam(); return; }
     if (OP.thread !== 'pixel') { OP.open('pixel'); return; }
   }
   if (typing) return;
@@ -250,43 +245,7 @@ OM.showPanel = function () {
 /* ------------------------------------------------------------ layers: office → board → features → feature */
 function _omLayer(sub) {
   const prev = OM.layer; OM.layer = sub;
-  if (sub && OM.focusKey) OM.unfocusTeam(true);
+  OPG.refresh();   /* the pager steps aside while you're zoomed into a board */
   if (!sub) { OB.close(); if (prev && OM.opener && document.contains(OM.opener)) { try { OM.opener.focus({ preventScroll: true }); } catch (e) { } } return; }
   OB.show(sub);
 }
-
-/* ------------------------------------------------------------ pager → team focus
-   The camera glides to a team's pod (or a solo desk) and a soft glow marks it.
-   The room stays live and clickable. Leaving the focus = the visit is over:
-   asks you went to see and left alone drop off the pager (OPG.leave). */
-function _omFocusRect(entry) {
-  const P = THEME_OFFICE.plan;
-  let rugs = entry.teamId ? P.pods.filter(p => p.teamId === entry.teamId).map(p => p.rug) : [];
-  if (!rugs.length) { const r = OE.actors[entry.agentId]; if (!r) return null; rugs = [{ x: r.x - 80, y: r.y - 72, w: 160, h: 136 }]; }
-  const x0 = Math.min(...rugs.map(r => r.x)), x1 = Math.max(...rugs.map(r => r.x + r.w));
-  const y0 = Math.min(...rugs.map(r => r.y)), y1 = Math.max(...rugs.map(r => r.y + r.h));
-  return { glow: { x: x0 - 26, y: y0 - 18, w: x1 - x0 + 52, h: y1 - y0 + 36 }, cam: { x: x0 - 90, y: y0 - 190, w: x1 - x0 + 180, h: y1 - y0 + 230 } };
-}
-OM.focusTeam = function (entry) {
-  if (!entry) return;
-  if (OM.layer) { omGo('office'); setTimeout(() => OM.focusTeam(entry), 80); return; }
-  if (OM.focusKey && OM.focusKey !== entry.key) OPG.leave();
-  const r = _omFocusRect(entry); if (!r) return;
-  OM.focusKey = entry.key;
-  OE.focusRect(r.cam, r.glow);
-  const name = entry.teamId ? teamById(entry.teamId).name : OP._name(entry.agentId);
-  const b = document.getElementById('oUnfocus'); b.hidden = false;
-  b.setAttribute('aria-label', `Leave ${name} — back to the whole office`);
-  document.getElementById('oStage').classList.add('team-focus');
-  announce(`Looking at ${name}. ${entry.asks.map(a => OP._name(a.agentId) + ' needs ' + a.short).join('. ')}.`);
-  OM.focusActor(entry.asks[0].agentId);
-  OPG.refresh();
-};
-OM.unfocusTeam = function (quiet) {
-  if (!OM.focusKey) return;
-  OM.focusKey = null;
-  OPG.leave();
-  const b = document.getElementById('oUnfocus'); if (b) b.hidden = true;
-  const st = document.getElementById('oStage'); if (st) st.classList.remove('team-focus');
-  if (OE.box) OE.focusRect(null, null, quiet);
-};

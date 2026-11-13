@@ -299,16 +299,15 @@
 @media (prefers-reduced-motion:reduce){
   .o-cam{transition:opacity .2s}
   .o-cam.opening,.o-bang b,.o-bubble,.o-bubble i,.o-actor[class*=" r-"] .hero,.ot-art *,.o-desk *,.typing i,.o-pager,.o-actor.assembling .hero,.o-actor.assembled .hero{animation:none!important}
-  .o-podglow{transition:none}
   .o-body{transition:none}
   .ob-card,.o-list,.o-panel,.o-scrim{transition:none}
 }
 
 
-/* ---------------- v5: the pager (bottom-left) ---------------- */
-.o-pagerwrap{position:absolute;left:14px;bottom:14px;z-index:6}
-.o-stagewrap.zooming .o-pagerwrap{display:none}
-@media (max-width:899px){.o-pagerwrap{bottom:84px}}
+/* ---------------- the pager (global, bottom-left; office-pager.js) ---------------- */
+.o-pagerwrap{position:fixed;left:14px;bottom:14px;z-index:60}
+.o-pagerwrap[hidden]{display:none}
+@media (max-width:899px){.o-pagerwrap.in-office{bottom:84px}}
 .o-pager{position:relative;width:248px;display:flex;align-items:stretch;gap:8px;padding:10px 10px 10px 12px;border-radius:20px;
   background:linear-gradient(180deg,#3a2f5c,#241a44);box-shadow:0 0 0 2px var(--ink),inset 0 2px 0 rgba(255,255,255,.12),0 10px 24px rgba(10,4,30,.45)}
 .o-pager::before{content:"";position:absolute;left:18px;top:-9px;width:18px;height:11px;border-radius:5px 5px 0 0;background:#3a2f5c;box-shadow:0 0 0 2px var(--ink)}
@@ -332,14 +331,6 @@
 .o-pager.wiggle{animation:o-wiggle .5s ease-in-out}
 @keyframes o-wiggle{20%{transform:rotate(-3deg)}45%{transform:rotate(2.5deg)}70%{transform:rotate(-1.5deg)}}
 
-/* pager focus: a soft glow on the pod, a way back */
-.o-podglow{position:absolute;z-index:1;border-radius:40px;pointer-events:none;opacity:0;transition:opacity .35s;
-  background:radial-gradient(closest-side,rgba(255,226,140,.38),rgba(255,226,140,0));box-shadow:0 0 0 calc(4*var(--ui)) rgba(255,194,75,.85)}
-.o-podglow.on{opacity:1}
-.o-unfocus{position:absolute;left:14px;top:14px;z-index:6}
-.o-unfocus[hidden]{display:none}
-.o-stagewrap.zooming .o-unfocus{display:none}
-
 /* the safe's dial turns once when you open Access */
 .ot-art #safeDial{transform-box:fill-box;transform-origin:center}
 .ot-art #safeDial.spin{animation:o-dial .6s var(--ease-out)}
@@ -361,3 +352,4 @@
 .ob-pi{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:rgba(36,26,68,.07);font-weight:900;flex:none}
 .ob-pv{flex:1;min-width:0;font-weight:600;color:var(--ink-soft)}
 .ob-pv code{font-family:var(--mono);font-size:12.5px;background:rgba(155,108,255,.1);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.o-pg-name .logo-tile{width:18px;height:18px;border-radius:6px;flex:none}

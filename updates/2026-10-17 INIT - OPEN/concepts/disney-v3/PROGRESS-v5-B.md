@@ -41,3 +41,18 @@ Shots: scratchpad shot.sh → shots/v5b-*.png
 - The bot "pop" is ~1s — headless stills catch walk-in and result, rarely the pop itself; judge in a real browser.
 - Pod focus keeps the box's paint containment, so the zoomed room is clipped to its letterbox (dark bands top/bottom).
 - Fresh offices reuse SIM_AMBIENT file names (PriceTag.tsx…) once the ambient loop starts.
+
+## v6 — pager pages OFFICES (user: "only offices, not individual teams")
+- office-pager.js is now global: self-mounts on document.body (#pager, fixed bottom-left, z 60), follows
+  hashchange itself; shown on Projects/Cast/Access/Blueprint and in every office; hidden on #new… / #setup…
+  routes and while an office board layer is open; sits above the chat drawer in offices < 900px.
+- One page per project: logo tile + name + calm line ("Scarlett needs you" / "2 need you" / the project's note).
+  Press → that office (#office for Aurora, #office/<id> otherwise).
+- Sources (data-office.js wsPagerOffices): WS.pending of the live office, _WS_STORE offices, and projects
+  with status 'needs' (their note). The office you're standing in never pages you (its "!" does).
+- Rule kept: OPG.enter(pid) on office mount, OPG.leave() on closeOffice → wsPagerVisited marks that
+  office's asks seen (PAGER.seen, keyed project:ask); a NEW ask brings it back with one wiggle.
+- Removed: team focus (OM.focusTeam/unfocusTeam, OE.focusRect/_glow, #oUnfocus, .o-podglow, ?demo=focus).
+- Self-test ALL PASS; no console errors on projects/cast/access/blueprint/office. Shots: shots/v6p-*.png.
+- Gap: on Projects the floating pager can cover the last back-lot card when scrolled to the very bottom
+  (studio padding is C's CSS).

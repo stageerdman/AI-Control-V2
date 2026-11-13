@@ -17,7 +17,6 @@
      OE.sparkle(x, y)           six soft stars (a new bot is built)
      OE.deskSync(seatId?)       refresh desk(s) from WS
      OE.zoomTo(objectId|null)   OE.fit()
-     OE.focusRect(camRect|null, glowRect)  pager focus on a pod (room stays live)
      OE.actors (id → actor record), OE.W, OE.speed, OE.instant
    ============================================================ */
 
@@ -384,35 +383,15 @@ const OE = {
     this.box.style.setProperty('--k', k);
     this._ox = ox; this._oy = oy;
     if (this.zoom.obj) this.zoomTo(this.zoom.obj, true);
-    else if (this.zoom.rect) this.focusRect(this.zoom.rect, this.zoom.glow, true);
   },
   /* fit an object's bounds into the viewport; null = back to the office */
   zoomTo(objId, quiet) {
     if (!this.box) return null;
-    this._glow(null);
     let b = null;
     if (objId) { const o = this.plan.objects[objId] || this.plan.objects.whiteboard; b = { x: o.x - 16, y: o.y - 16, w: o.w + 32, h: o.h + 32 }; }
     this._camTo(b, quiet, { obj: objId, zmax: Infinity });
     this.box.classList.toggle('zoomed', !!objId);
     return true;
-  },
-  /* pager focus: glide to a world rect (a team pod) and glow it; the room stays live.
-     cam/glow are world rects {x,y,w,h}; null = back to the whole office. */
-  focusRect(cam, glow, quiet) {
-    if (!this.box) return null;
-    this.box.classList.remove('zoomed');
-    this._camTo(cam, quiet, { rect: cam, glow, zmax: 1.75 });
-    this._glow(cam ? glow : null, quiet);
-    return true;
-  },
-  _glow(r, quiet) {
-    let g = this.layer && this.layer.querySelector('.o-podglow');
-    if (!r) { if (g) { g.classList.remove('on'); clearTimeout(this._gt); this._gt = setTimeout(() => g.remove(), 400); } return; }
-    clearTimeout(this._gt);
-    if (!g) { g = document.createElement('div'); g.className = 'o-podglow'; g.setAttribute('aria-hidden', 'true'); this.layer.appendChild(g); }
-    g.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
-    /* lights up after the camera lands — never restyles during the move */
-    if (quiet || this.instant || reducedMotion()) g.classList.add('on'); else setTimeout(() => g.classList.add('on'), 520);
   },
   /* the one camera move. b = world rect (null = whole room).
      Perf: during the move the GPU slides the room as ONE flat layer (.moving =
@@ -428,15 +407,8 @@ const OE = {
       const cx = b.x + b.w / 2, cy = by + b.h / 2;
       const ccx = (Wv / 2 - this._ox) / this.k, ccy = (H / 2 - this._oy) / this.k;
       tx = ccx - z * cx; ty = ccy - z * cy;
-      /* a pod focus never shows the void beside the room: keep the room covering the view */
-      if (o.rect) {
-        const lo = (Wv - this._ox) / this.k - z * this.W, hi = -this._ox / this.k;
-        if (lo <= hi) tx = Math.max(lo, Math.min(hi, tx));
-        const tlo = (H - this._oy) / this.k - z * 1000, thi = -this._oy / this.k;
-        if (tlo <= thi) ty = Math.max(tlo, Math.min(thi, ty));
-      }
     }
-    this.zoom = { z, tx, ty, obj: o.obj || null, rect: o.rect || null, glow: o.glow || null };
+    this.zoom = { z, tx, ty, obj: o.obj || null };
     const cam = this.cam, box = this.box, zoomedObj = !!o.obj;
     const settle = () => {
       cam.classList.remove('moving');

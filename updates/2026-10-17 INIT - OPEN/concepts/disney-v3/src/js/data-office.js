@@ -7,7 +7,8 @@
            wsTok(n), wsDemoSize(),
            wsAg(id)        the roster entry behind an office actor ('pixel' = the
                            project's orchestrator, PROJECTS[i].orchestrator → a-pixel)
-           wsPager()       who needs you, grouped per team/solo agent, minus visits
+           wsPagerOffices() the pager: offices that need you, minus visited asks (PAGER.seen)
+           wsPagerVisited(projectId) you went there and left — its asks are seen
            wsUse(projectId) swap WS to that project's office (Aurora demo, or a fresh
                            office built from PROJECTS[i].office); state kept per project
    Separation: config = who sits where (layout derives the floor plan) ·
@@ -183,8 +184,6 @@ const WS = {
   github: _wsGithub(),
   /* apps run on this computer — never an online test URL */
   run: { where: '~/dev/aurora', cmd: 'npm run app', built: '1h ago' },
-  /* pager: ask ids you already went to look at (and left alone) */
-  pager: { seen: {} },
   /* the health board: grade + what's good + what to fix, in plain words */
   checkup: { when: '2h ago', items: [
     { key: 'modularity', name: 'Modularity', grade: 'B', good: 'Screens, data and styles live in their own modules. Most files do one job.', fix: 'checkout.ts and search.ts each do two jobs — split them so each can be fixed on its own.' },
@@ -251,18 +250,30 @@ const WS = {
 };
 
 const wsAgent = id => (id === 'pixel' || id === 'director') ? WS.director : WS.agents.find(a => a.id === id);
-/* the pager's entries: one per team (or solo agent) with an ask you haven't been to see.
-   Visiting and leaving without answering marks those asks seen; a NEW ask brings it back. */
-function wsPager() {
-  const by = {};
-  WS.pending.forEach(ask => {
-    if (WS.pager.seen[ask.id]) return;
-    const a = wsAgent(ask.agentId); if (!a || !a.onProject) return;
-    const key = a.teamId ? 'team:' + a.teamId : 'agent:' + a.id;
-    (by[key] = by[key] || { key, teamId: a.teamId || null, agentId: a.id, asks: [] }).asks.push(ask);
-  });
-  return Object.values(by);
+/* ---------- the pager: one page per OFFICE that needs you (v6) ----------
+   Sources: every office's pending asks (the one in WS + the ones kept in
+   _WS_STORE), and projects with no office state yet but status 'needs'
+   (their note is the ask). An ask you already went to see — you opened that
+   office and left without answering — is in PAGER.seen and stays quiet; a
+   NEW ask brings the office back. Entry: { projectId, asks:[{id, agentId?, short}] } */
+const PAGER = { seen: {} };
+const _pgKey = (pid, askId) => pid + ':' + askId;
+function wsPendingFor(pid) {
+  if (WS.project === pid) return WS.pending;
+  const st = _WS_STORE[pid]; if (st) return st.ws.pending || [];
+  const p = projById(pid);
+  return p && p.status === 'needs' ? [{ id: 'needs', short: p.note || 'Needs you' }] : [];
 }
+function wsPagerOffices() {
+  /* Aurora + offices built from a config own their asks; other projects page only via status 'needs' */
+  return PROJECTS.filter(p => p.id === 'aurora' || p.office || p.status === 'needs').map(p => {
+    const pid = p.id;
+    const asks = wsPendingFor(pid).filter(a => !PAGER.seen[_pgKey(pid, a.id)]);
+    return asks.length ? { projectId: pid, asks } : null;
+  }).filter(Boolean);
+}
+/* you opened that office and left: everything it was asking is seen */
+function wsPagerVisited(pid) { wsPendingFor(pid).forEach(a => { PAGER.seen[_pgKey(pid, a.id)] = true; }); }
 const wsOnProject = () => WS.agents.filter(a => a.onProject);
 const wsFeature = id => WS.features.find(f => f.id === id);
 /* teams in the office, in config order */
@@ -366,7 +377,6 @@ function _wsFresh(p) {
     grants: { gh: true, anthropic: true },
     github: Object.assign(g, { pushedAgo: 'just now', branch: 'main', fresh: false }),
     run: { where: p.folder || '~/dev/' + p.id, cmd: 'npm run app', built: 'not yet' },
-    pager: { seen: {} },
     checkup: { when: 'not yet', items: [] },
     office: { demo: { t: 0 } },
     director: { id: 'pixel', seat: 'director', at: 'director', home: 'director', onProject: true,
