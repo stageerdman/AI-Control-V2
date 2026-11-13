@@ -41,6 +41,8 @@ src/
   db/                connection, migrations (PRAGMA user_version), one repo per aggregate,
                      trash.ts (delete + restore tokens), store.ts (wires them)
   routes/            one file per resource
+  blueprint/         modules → CLAUDE.md compile, scaffold file templates (read-only on AI Control home)
+  setter/            scaffold/adopt/inspect, local git, finishDraft (draft → project)
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -63,6 +65,10 @@ strict — unknown keys are 422.
 | `DELETE /projects/:id` | 204; forgets the record, never touches the folder |
 | `GET POST /drafts` · `GET PATCH DELETE /drafts/:id` | setup drafts: mode, step, orchestrator, `plan` (opaque JSON), `chat` |
 | `POST /trash/:token/restore` | undo a delete |
+| `GET /blueprint` | global modules (name, description) + the scaffold tree the Setter creates |
+| `POST /drafts/:id/finish` | Project Setter: draft → project + scaffold (new or adopt) + local commit; returns `{project, steps, commit}` |
+| `GET /projects/:id/scaffold` | what's on disk vs the expected scaffold, plus git head/commit count |
+| `GET /sandbox/folders` | top-level sandbox folders not yet under AI Studio (Adopt picker) |
 
 **Delete & restore.** `DELETE` on an agent, role, team or draft hard-deletes it and returns
 `{ deleted: {kind, id}, restoreToken }`. The token restores it once, within 7 days, as far

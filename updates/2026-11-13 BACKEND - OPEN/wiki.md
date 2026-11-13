@@ -41,3 +41,11 @@ Durable knowledge from this update. Status lives in `update v1.md`.
 - **Screenshots from an agent shell fail** (`screencapture` → "could not create image": no
   Screen Recording permission). Workaround that tests the real UI: headless Chrome via CDP on the
   Vite dev URL with `window.__TAURI_INTERNALS__.invoke` mocked to return the live `/health` body.
+- **Scaffold = add-only, preflight first.** Resolve every target through the sandbox guard before
+  writing anything, create with `wx` (fails on an existing file or a dangling symlink), and count
+  symlinks as "present" (never follow one to write). Then the same code is safe for new and adopt,
+  and a second run is a no-op by construction.
+- **Commit exactly what you added.** `git add -- <paths>` + `git commit --only -- <paths>` leaves the
+  user's own staged/dirty work alone in an adopted repo.
+- **Filesystem work inside the db transaction, last.** Running the (sync) scaffold as the final step of
+  `store.tx` means any failure rolls back the record; the only manual cleanup is removing a folder we created.

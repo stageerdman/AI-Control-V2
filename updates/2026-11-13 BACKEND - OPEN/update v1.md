@@ -114,4 +114,10 @@ Tailwind components, wire to this API).
     deleting an orchestrator hands its projects/drafts to the first other orchestrator
     (fixes the prototype gap in issues.txt), restore hands them back; 409 = a studio rule blocks
     it, 422 = malformed input or unknown referenced id.
-- ⏳ B2 next.
+- ✅ **B2 — Blueprint & Project Setter** (2026-11-13): modules → CLAUDE.md compile, scaffold/adopt
+  (add-only, preflight sandbox check, local git commit of exactly what was added), draft → project
+  in one transaction (`POST /drafts/:id/finish`), `GET /blueprint`, `/projects/:id/scaffold`,
+  `/sandbox/folders`. 27 tests (106 total). First real sandbox project: `hello-studio`. Notes: `PROGRESS-B2.md`.
+  - Decisions: the first `updates/` folder is a real INIT update (so updates/ is committable); adopt
+    appends `.env` to a `.gitignore` that lacks it (append-only — the only edit it ever makes);
+    `.env` is created empty and never committed; GitHub stays out (opt-in later).
