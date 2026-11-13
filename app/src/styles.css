@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* AI Studio tokens — mirrored from the Disney prototype palette (concepts/disney-v3/src/css/base.css).
+   One font stack; the 7 character hues + twilight background, cream text, ink on light panels. */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-sun: #ffc24b;
+  --color-sun-deep: #ff9b3d;
+  --color-coral: #ff6f73;
+  --color-teal: #2fd3c3;
+  --color-sky: #4ea8ff;
+  --color-grape: #9b6cff;
+  --color-mint: #8be88b;
+  --color-rose: #ff9ecf;
+
+  --color-twilight-0: #1a1430;
+  --color-twilight-1: #241a44;
+  --color-twilight-2: #2e2156;
+  --color-cream: #fff6e9;
+  --color-ink: #241a44;
+  --color-ink-soft: #5b5280;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-twilight-0 font-sans text-cream antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 15% -5%, #3a2a6e 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #6b3b7a 0%, transparent 55%),
+      linear-gradient(160deg, var(--color-twilight-0), var(--color-twilight-1) 60%, #15102a 100%);
+  }
+}

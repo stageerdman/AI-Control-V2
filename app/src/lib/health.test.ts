@@ -1,0 +1,61 @@
+import { describe, expect, it } from 'vitest';
+import { parseHealth, startBackend } from './health';
+
+const body = {
+  ok: true,
+  version: '0.1.0',
+  paths: {
+    home: '/h/.ai-studio',
+    sandbox: '/h/sb',
+    controlHome: '/h/.ai-control',
+    db: '/h/.ai-studio/studio.db',
+  },
+  db: { ok: true },
+};
+const started =
+  (b: unknown, reused = false) =>
+  async () => ({ reused, health: JSON.stringify(b) });
+
+describe('parseHealth', () => {
+  it('accepts the server shape and keeps only what the UI needs', () => {
+    const h = parseHealth(JSON.stringify(body));
+    expect(h).toEqual({ ok: true, version: '0.1.0', paths: body.paths });
+  });
+
+  it('rejects non-JSON and wrong shapes with readable errors', () => {
+    expect(() => parseHealth('<html>')).toThrow(/not with JSON/);
+    expect(() => parseHealth('null')).toThrow(/unexpected/);
+    expect(() => parseHealth(JSON.stringify({ ...body, paths: { home: 1 } }))).toThrow(/unexpected/);
+  });
+});
+
+describe('startBackend', () => {
+  it('is ready when the server is healthy (spawned or reused)', async () => {
+    expect(await startBackend(started(body))).toMatchObject({ kind: 'ready', reused: false });
+    expect(await startBackend(started(body, true))).toMatchObject({ kind: 'ready', reused: true });
+  });
+
+  it('calls the backend_start command', async () => {
+    const calls: string[] = [];
+    await startBackend(async (cmd) => {
+      calls.push(cmd);
+      return { reused: false, health: JSON.stringify(body) };
+    });
+    expect(calls).toEqual(['backend_start']);
+  });
+
+  it('turns a rejected start into an honest error (Rust sends strings)', async () => {
+    const s = await startBackend(async () => {
+      throw "The server didn't answer on port 4319 within 30s.";
+    });
+    expect(s).toEqual({ kind: 'error', message: "The server didn't answer on port 4319 within 30s." });
+  });
+
+  it('reports an unhealthy db and a garbled body as errors', async () => {
+    expect((await startBackend(started({ ...body, ok: false }))).kind).toBe('error');
+    expect(await startBackend(async () => ({ reused: false, health: 'oops' }))).toMatchObject({
+      kind: 'error',
+      message: expect.stringMatching(/JSON/),
+    });
+  });
+});
