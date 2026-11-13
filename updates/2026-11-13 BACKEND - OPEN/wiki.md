@@ -74,3 +74,25 @@ Durable knowledge from this update. Status lives in `update v1.md`.
   answer; the request still runs. Refuse unknown Origins with 403 so no web page can drive the file system.
 - **Dangling symlinks are escapes too.** Writing through one creates its target — the guard follows it.
 
+## Claude Code CLI (2.1.322) for headless agents — findings
+- **Isolation flags:** `--restricted` (ignores user/project/local settings → no personal plugins or hooks;
+  confines file tools to cwd; Bash only if `--tools` names it), `--strict-mcp-config` + `--mcp-config`
+  (only our server), `--disable-slash-commands` (skills off), `--no-chrome`. Verified on the live init line:
+  plugins built-in only, skills/slash commands empty, `apiKeySource: none`.
+- **Don't use `--bare`:** it skips CLAUDE.md discovery and only accepts ANTHROPIC_API_KEY — the user wants
+  the Claude Code login. Also never pass ANTHROPIC_API_KEY & co. into the run env (a project grant would
+  silently switch billing to the key).
+- **Permissions:** `--permission-mode dontAsk` + `--permission-prompts none` + `--allowed-tools` patterns
+  (`Bash(git *)`…). A compound command is denied if ANY part isn't allowed (`printf … > f && git …`), so
+  tell the agent to run one plain command at a time and to write files with Write/Edit. The model handles a
+  denial gracefully (switched to Write, then asked the user).
+- **Caps:** `--max-budget-usd` exists; there is no max-turns flag — count assistant messages (dedupe by
+  message id: one message streams as several lines with the same usage) and stop the process group.
+- **Sessions:** `--session-id <uuid>` lets us pick the id up front (= runId); `--resume <id>` continues.
+- **Stream-json input:** send one `{type:'user', message:{role:'user', content}}` line, keep stdin open until
+  the `result` line, then close it so the CLI exits.
+- **The shell alias trap:** spawn the resolved binary path, never `claude` via a shell — the user's alias adds
+  a personal `--plugin-dir`.
+- **One backend per port:** the Tauri app launches (or reuses) its own backend on :4319; a dev server started
+  next to it fails with EADDRINUSE and requests silently go to the app's backend.
+

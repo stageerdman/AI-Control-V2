@@ -145,3 +145,10 @@ Tailwind components, wire to this API).
     setup history is copied to the project on finish; redact rather than reject (a run never dies on
     a log line); foreign origins are refused outright, not just left unreadable; dev publish route
     only outside production.
+- 🟡 **B5 — Agent runtime** (2026-11-13): built and tested (24 tests, 175 total): Runner seam,
+  FakeRunner, ClaudeCliRunner (headless `claude -p`, stream-json, `--restricted`, `dontAsk` +
+  allow-list, only our MCP server, own process group), `ask_user` MCP server, prompt composer, runs/asks
+  API, env = base + granted secrets only. Live run: isolation confirmed (login auth, no personal
+  plugins/skills/MCP), Write + ask_user worked live; the commit didn't happen (compound Bash denied by
+  design, then the run's host process — the app's own backend on :4319 — quit while it waited on the
+  ask). Needs one resumed run to show the commit. Notes: `PROGRESS-B5.md`.

@@ -27,6 +27,8 @@ brings back things you deleted.
 | `AI_CONTROL_HOME` | `~/.ai-control` | global modules (read only) + secrets: `.env` is the one file we write here (0600, atomic, other lines kept) |
 | `PORT` | `4319` | |
 | `HOST` | `127.0.0.1` | local only by default |
+| `AI_STUDIO_CLAUDE_BIN` | first of `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`, `~/.claude/local/claude`, `~/.local/bin/claude` | Claude Code CLI for agent runs (absolute path; never a shell alias) |
+| `AI_STUDIO_MODEL` | `claude-opus-5-5` | model for agent runs |
 
 ## Layout
 
@@ -74,6 +76,9 @@ strict — unknown keys are 422.
 | `GET /sandbox/folders` | top-level sandbox folders not yet under AI Studio (Adopt picker) |
 | `GET /projects/:id/events` | SSE: the project's event log — replay after `Last-Event-ID` / `?after=` (default: all), then live; heartbeats |
 | `GET /drafts/:id/events` | SSE: the Project Setter's `setup.step`s while `POST /drafts/:id/finish` runs (open it first) |
+| `POST /projects/:id/runs` | start an agent run `{agentId, teamId?, task, caps?: {maxTurns, maxBudgetUsd}, resumeRunId?}` — headless Claude Code in the project folder; one live run per agent per project |
+| `GET /projects/:id/runs[/:runId]` · `POST /projects/:id/runs/:runId/cancel` | run history (status, usage, cost, session) · stop a run (kills its process group) |
+| `GET /projects/:id/asks[?status=open]` · `POST /projects/:id/asks/:askId/answer` | questions agents asked via `ask_user` · answer one (the run continues) |
 | `POST /projects/:id/events` | **dev only** (absent when `NODE_ENV=production`): publish `{type, payload}` by hand |
 | `GET POST /credentials` · `GET PATCH DELETE /credentials/:id` | Key Cabinet: `name`, `envVar` (fixed; derived from name if omitted), `serves`, `docsUrl`, `instructions`; `value` on POST only; responses carry `hasValue`, `last4`, `projectIds` |
 | `PUT /credentials/:id/value` | replace key `{value}` (write-only) |
