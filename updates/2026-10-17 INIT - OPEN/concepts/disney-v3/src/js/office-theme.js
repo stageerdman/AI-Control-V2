@@ -8,7 +8,7 @@
      art(plan, ctx)         → SVG string, the dollhouse room (viewBox 0 -70 W 1062)
                               ctx = { title, teams: {teamId: team} }
      sync(svgRoot, ws)      → live bits: whiteboard (ring, bars, list), health grades,
-                              outbox flag
+                              outbox flag, the Director's % plaque
      desk(kind, o)          → SVG string of one desk (local coords, origin = seat)
      chair(hue)             → SVG string of the chair behind a seat
      couchFront(plan)       → SVG string of the couch's front cushions (occludes sleepers)
@@ -183,8 +183,33 @@ function _otWindow(x0) {
   </g>`;
 }
 
-/* Pixel's glass corner: own wallpaper, one corkboard, a plant. Drawn in v3's
-   1206…1600 frame and shifted to the room's right edge. */
+/* the Director's wall safe (= the project's Access) — frame coords 1342…1442 × 112…216 */
+function _otSafe() {
+  const ticks = Array.from({ length: 8 }, (_, i) => { const a = i * 45 * Math.PI / 180;
+    return `<path d="M${(Math.sin(a) * 15).toFixed(1)} ${(-Math.cos(a) * 15).toFixed(1)} L${(Math.sin(a) * 19).toFixed(1)} ${(-Math.cos(a) * 19).toFixed(1)}" stroke="${OT_INK}" stroke-width="2" stroke-linecap="round"/>`; }).join('');
+  return `<g id="otSafe" transform="translate(1342 112)">
+    <rect x="-6" y="-6" width="112" height="116" rx="12" fill="${OT.woodLo}" ${_o()}/>
+    <rect x="0" y="0" width="100" height="104" rx="9" fill="${OT.steel}" ${_o()}/>
+    <rect x="9" y="9" width="82" height="86" rx="6" fill="${OT.metal}" ${_o(2.5)}/>
+    <circle cx="11" cy="28" r="3" fill="${OT_INK}"/><circle cx="11" cy="76" r="3" fill="${OT_INK}"/>
+    <g transform="translate(50 50)"><g id="safeDial"><circle r="24" fill="#efe9f7" ${_o(2.5)}/>${ticks}<circle r="11" fill="${OT.steel}" ${_o(2.5)}/><path d="M0 -11 V-5" stroke="${OT_INK}" stroke-width="3" stroke-linecap="round"/></g></g>
+    <rect x="76" y="40" width="9" height="22" rx="4.5" fill="${PALETTE.sun}" ${_o(2)}/>
+    <rect x="34" y="84" width="32" height="6" rx="3" fill="${OT_INK}" opacity=".35"/>
+  </g>`;
+}
+/* the tiny progress plaque on the Director's wall (overall %, since there is no top bar) */
+function _otPlaque2() {
+  return `<g id="otBossPlaque" transform="translate(1322 40)">
+    <rect width="140" height="40" rx="9" fill="#e7b75a" ${_o(2.5)}/>
+    <rect x="5" y="5" width="130" height="30" rx="6" fill="none" stroke="#b98a35" stroke-width="1.6"/>
+    <text id="bossPct" x="16" y="26.5" font-size="17" font-weight="900" fill="#4a2c10">64%</text>
+    <rect x="66" y="16" width="58" height="8" rx="4" fill="#fff3d6" stroke="#4a2c10" stroke-width="1.6"/>
+    <rect id="bossBar" x="67.5" y="17.5" width="35" height="5" rx="2.5" fill="${PALETTE.teal}"/>
+  </g>`;
+}
+
+/* the Director's glass corner: own wallpaper, the wall safe (Access), the % plaque,
+   a plant. Drawn in v3's 1206…1600 frame and shifted to the room's right edge. */
 function _otBossOffice(plan) {
   return `<g id="otBoss" transform="translate(${plan.W - 1600} 0)">
     <rect x="1206" y="-40" width="394" height="420" fill="url(#otBoss)"/>
@@ -193,11 +218,8 @@ function _otBossOffice(plan) {
     <rect x="1206" y="264" width="394" height="104" fill="#e6a85c" opacity=".5"/>
     <path d="M1206 380 H1600 V624 H1240Z" fill="${OT.carpet}"/>
     <path d="M1206 380 H1600 V624 H1240Z" fill="url(#otKnit)"/>
-    <g transform="translate(1316 112)">
-      <rect width="150" height="100" rx="6" fill="${OT.woodLo}" ${_o()}/>
-      <rect x="8" y="8" width="134" height="84" fill="#d9a066"/>
-      ${[[22, -4, PALETTE.sun], [84, 3, PALETTE.teal]].map(([x, r, c]) => `<g transform="translate(${x} 20) rotate(${r})"><rect width="44" height="54" fill="${OT.paper}" ${_o(2)}/><rect width="44" height="10" fill="${c}"/><circle cx="22" cy="5" r="3.5" fill="${PALETTE.coral}" ${_o(1.5)}/></g>`).join('')}
-    </g>
+    ${_otSafe()}
+    ${_otPlaque2()}
     <g transform="translate(1566 600)">
       <path d="M-18 0 L-14 -36 H14 L18 0Z" fill="${PALETTE.grape}" ${_o(2.5)}/>
       ${[[-40, -120, -10], [30, -140, 14], [-20, -170, -4], [26, -96, 30], [-44, -80, -34]].map(([dx, dy, r]) => `<path d="M0 -36 Q${dx / 2} ${dy / 2} ${dx} ${dy}" stroke="#3f8a54" stroke-width="3" fill="none"/><ellipse cx="${dx}" cy="${dy}" rx="13" ry="24" transform="rotate(${r} ${dx} ${dy})" fill="#5fbf73" ${_o(2)}/>`).join('')}
@@ -293,6 +315,8 @@ function _otSync(root, ws) {
   const pct = ws.overall;
   $('wbPct').textContent = pct + '%';
   $('wbRing').setAttribute('stroke-dasharray', `${(315 * pct / 100).toFixed(1)} 315`);
+  $('bossPct').textContent = pct + '%';
+  $('bossBar').setAttribute('width', Math.max(0, 55 * pct / 100).toFixed(1));
   const now = ws.features.filter(f => f.status === 'now').slice(0, 3);
   $('wbBars').innerHTML = now.map((f, i) => {
     const y = 112 + i * 52; const w = 180 * f.pct / 100;
@@ -343,7 +367,7 @@ function _otGlyph(name, hue) {
   }
 }
 
-/* desk kinds: 'pod' (team stripe), 'hot' (neutral), 'boss' (Pixel's).
+/* desk kinds: 'pod' (team stripe), 'hot' (neutral), 'boss' (the Director's).
    o = { hue (team hue), accent (owner hue), item ('mug'|'plant'|'telescope'|null) } */
 function _otDesk(kind, o = {}) {
   const wide = kind === 'boss';

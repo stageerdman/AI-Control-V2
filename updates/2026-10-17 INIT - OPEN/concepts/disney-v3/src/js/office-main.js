@@ -19,6 +19,7 @@ function openOffice(projectId, sub = '') {
   _omLayer(sub || '');
 }
 function closeOffice() {
+  if (OM.focusKey) OM.unfocusTeam(true);
   if (typeof OS !== 'undefined') OS.stop();
   OE.unmount(); OM.mounted = false; OM.project = null;
   document.removeEventListener('keydown', _omKeys);
@@ -29,26 +30,18 @@ function closeOffice() {
 function _omMount(p) {
   OM.project = p.id; OM.mounted = true;
   const host = document.getElementById('office');
+  /* v5: no top bar — the room and the chat fill the screen. The door leaves,
+     the safe is Access, the whiteboard + the Director's plaque carry the %. */
   host.innerHTML = `
-    <header class="o-top" role="banner">
-      <a class="ws-chip o-back" href="#projects" aria-label="Back to all projects">← <span>Projects</span></a>
-      <div class="o-title">${logoTile(p, true)}<div><b>${escapeHtml(p.name)}</b><span>The Office</span></div></div>
-      <button class="o-prog" id="oProg" type="button" aria-label="Open the whiteboard"></button>
-      <span class="spacer"></span>
-      <div class="o-chips">
-        <a class="ws-chip" href="#" id="oGh"></a>
-        <button class="ws-chip" type="button" id="oPriv"></button>
-        <a class="ws-chip live-dot" href="#" id="oTest"></a>
-        <button class="ws-chip" type="button" id="oAccess">🔑 <span class="o-lbl">Access</span></button>
-        <button class="ws-chip" type="button" id="oBell"></button>
-      </div>
-    </header>
     <div class="o-main">
       <section class="o-stagewrap" id="oStage" aria-roledescription="office scene">
+        <h1 class="sr-only">${escapeHtml(p.name)} — the office</h1>
         <div class="o-box" id="oBox"></div>
         <div class="o-hots" id="oHots"></div>
         <div class="o-scrim" aria-hidden="true"></div>
         <div class="o-layers" id="oLayers"></div>
+        <button class="o-ctl o-unfocus" type="button" id="oUnfocus" hidden>← <span>Whole office</span></button>
+        <div class="o-pagerwrap" id="oPager"></div>
         <div class="o-stagectl">
           <button class="o-ctl" type="button" id="oListBtn" aria-pressed="false" aria-controls="oList">▤ <span>List</span></button>
           <button class="o-ctl" type="button" id="oWideBtn" aria-pressed="false" aria-label="Hide the chat panel">⤢</button>
@@ -57,20 +50,15 @@ function _omMount(p) {
       </section>
       <aside class="o-panel" id="oPanel"></aside>
     </div>`;
-  /* top bar wiring */
-  host.querySelector('#oProg').onclick = () => go('board');
-  host.querySelector('#oGh').onclick = e => { e.preventDefault(); toast(`🐙 Pushed ${escapeHtml(WS.github.pushedAgo)} · branch <span style="font-family:var(--mono)">${escapeHtml(WS.github.branch)}</span>`); };
-  host.querySelector('#oTest').onclick = e => { e.preventDefault(); toast('↗ Opening the preview (prototype — no real link)'); };
-  host.querySelector('#oPriv').onclick = _omPrivacy;
-  host.querySelector('#oAccess').onclick = () => openProjectAccess(WS.grants, p.name.split(' ')[0]);
-  host.querySelector('#oBell').onclick = () => { const ask = WS.pending[0]; if (ask) OP.open(ask.agentId, { from: 'bell' }); else toast('Nobody is waiting on you 🎈'); };
   host.querySelector('#oListBtn').onclick = () => _omToggleList();
   host.querySelector('#oWideBtn').onclick = () => _omWide(!OM.wide);
+  host.querySelector('#oUnfocus').onclick = () => OM.unfocusTeam();
 
   OE.mount(host.querySelector('#oBox'));
   _omHotspots();
   OP.mount(host.querySelector('#oPanel'));
   _omStageA11y();
+  OPG.mount(host.querySelector('#oPager'));
   document.addEventListener('keydown', _omKeys);
   window.addEventListener('resize', _omResize);
   officeRefresh();
@@ -78,12 +66,27 @@ function _omMount(p) {
 }
 function _omResize() { OE.fit(); if (OM.layer) OB.reposition(); }
 
-/* ------------------------------------------------------------ the only three interactive objects */
+/* ------------------------------------------------------------ the few interactive objects */
 const OM_HOTS = [
+  { id: 'door', label: 'Leave office — back to all projects', act: () => _omLeave() },
   { id: 'dossier', label: 'Features — now, planned, shipped', act: () => go('features') },
   { id: 'whiteboard', label: 'Whiteboard — progress and tasks', act: () => go('board') },
-  { id: 'health', label: 'Health check — modularity, cleanliness, reusability', act: () => go('health') },
+  { id: 'health', label: 'Health check — code health, GitHub, how it runs', act: () => go('health') },
+  { id: 'safe', label: 'Safe — what this project can reach (Access)', act: () => _omAccess() },
 ];
+/* the door: it swings open, then you're back on Projects */
+function _omLeave() {
+  if (OE.instant || reducedMotion()) { go('projects'); return; }
+  THEME_OFFICE.door(OE.art, true);
+  setTimeout(() => { if (APP.view === 'office') go('projects'); }, 260);
+}
+/* the safe: the project's access grants (values masked), the existing sheet */
+function _omAccess() {
+  const p = projById(OM.project) || {};
+  const dial = OE.art && OE.art.querySelector('#safeDial');
+  if (dial && !OE.instant && !reducedMotion()) { dial.classList.remove('spin'); void dial.getBBox; dial.classList.add('spin'); }
+  openProjectAccess(WS.grants, (p.name || 'Aurora').split(' ')[0]);
+}
 function _omHotspots() {
   const box = document.querySelector('#oBox .o-world');
   OM_HOTS.forEach(h => {
@@ -113,6 +116,7 @@ function _omStageA11y() {
 }
 OM.clickActor = function (id) {
   const a = wsAgent(id); if (!a) return;
+  OPG.visited(id);
   if (a.activity.kind === 'sleeping') { OP.sleeperPoke(id); return; }
   OP.open(id, { from: 'scene' });
 };
@@ -138,6 +142,7 @@ function _omKeys(e) {
   if (e.key === 'Escape' && !typing) {
     if (OM.listOpen) { _omToggleList(false); return; }
     if (OM.layer) { e.preventDefault(); OB.escape(); return; }
+    if (OM.focusKey) { e.preventDefault(); OM.unfocusTeam(); return; }
     if (OP.thread !== 'pixel') { OP.open('pixel'); return; }
   }
   if (typing) return;
@@ -171,7 +176,7 @@ function officeChanged() {
 }
 function officeRefresh() {
   if (!OM.mounted) return;
-  _omTop(); _omList();
+  _omList(); OPG.refresh();
   const n = WS.pending.length, people = 1 + wsOnProject().length;
   document.getElementById('oStage').setAttribute('aria-label', `Office — ${people} people${n ? `, ${n} need${n === 1 ? 's' : ''} you` : ''}. Arrow keys move between people; ! jumps to whoever needs you.`);
   document.getElementById('oStage').setAttribute('role', 'group');
@@ -180,44 +185,31 @@ function officeRefresh() {
   OP.refresh();
   if (OM.layer) OB.refresh();
 }
-function _omTop() {
-  const $ = id => document.getElementById(id);
-  $('oProg').innerHTML = `<b>${WS.overall}%</b><span class="o-pbar"><i style="width:${WS.overall}%"></i></span><span class="o-ptgt">→ ${escapeHtml(WS.target)}</span>`;
-  $('oProg').setAttribute('aria-label', `${WS.overall}% to ${WS.target} — open the whiteboard`);
-  $('oGh').innerHTML = `<span class="ok">●</span> <span class="o-lbl">GitHub</span> ✓`;
-  $('oGh').title = `Pushed ${WS.github.pushedAgo} · branch ${WS.github.branch}`;
-  $('oGh').setAttribute('aria-label', `GitHub connected — pushed ${WS.github.pushedAgo}`);
-  $('oPriv').innerHTML = WS.private ? '🔒 <span class="o-lbl">Private</span>' : '🌐 <span class="o-lbl">Public</span>';
-  $('oTest').innerHTML = `Test ↗ <span class="o-lbl o-url">${escapeHtml(WS.testUrl)}</span>`;
-  $('oTest').title = `Preview ${WS.testFresh}`;
-  $('oTest').classList.toggle('fresh', !!OM.testFresh);
-  const n = WS.pending.length;
-  $('oBell').innerHTML = `🔔${n ? `<span class="bell-badge">${n}</span>` : ''}`;
-  $('oBell').setAttribute('aria-label', n ? `${n} ${n === 1 ? 'person needs' : 'people need'} your input — open the oldest` : 'Nobody is waiting on you');
-}
+/* privacy toggle — reached from the health report's GitHub line */
 function _omPrivacy() {
-  const goingPublic = WS.private;
+  const goingPublic = WS.github.private, name = ((projById(OM.project) || {}).name || 'Aurora').split(' ')[0];
   const body = document.createElement('div');
-  body.innerHTML = `<h2>${goingPublic ? 'Make Aurora public?' : 'Make Aurora private?'}</h2>
+  body.innerHTML = `<h2>${goingPublic ? `Make ${escapeHtml(name)} public?` : `Make ${escapeHtml(name)} private?`}</h2>
     <p class="hint" style="margin:8px 0 18px;font-size:14px">${goingPublic ? 'Anyone with the GitHub link will see the code. Secrets stay masked and never leave the vault.' : 'Only you and granted agents will see the repo.'}</p>
     <div class="row"><button class="btn btn-ghost" id="pvNo">Keep ${goingPublic ? 'private' : 'public'}</button><button class="btn btn-hero" id="pvYes">${goingPublic ? 'Make public' : 'Make private'}</button></div>`;
   openSheet(body, 'Change visibility');
   body.querySelector('#pvNo').onclick = closeSheet;
-  body.querySelector('#pvYes').onclick = () => { WS.private = !WS.private; closeSheet(); toast(WS.private ? '🔒 Aurora is private' : '🌐 Aurora is public'); officeRefresh(); };
+  body.querySelector('#pvYes').onclick = () => { WS.github.private = !WS.github.private; closeSheet(); toast(WS.github.private ? `🔒 ${escapeHtml(name)} is private` : `🌐 ${escapeHtml(name)} is public`); officeRefresh(); };
 }
+OM.privacy = _omPrivacy;
 
 /* list mirror: same state, grouped; rows do what clicking the agent does */
 function _omList() {
   const el = document.getElementById('oList'); if (!el) return;
   const row = a => {
-    const ag = agentById(a.id === 'pixel' ? 'director' : a.id); const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
+    const ag = wsAg(a.id); const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
     const needs = a.activity.kind === 'needs-input';
     return `<li><button type="button" class="o-lrow${needs ? ' needs' : ''}" data-id="${a.id}">
       <span class="o-lface" style="background:${hueHex(ag.hue)}" aria-hidden="true">${escapeHtml(ag.name[0])}</span>
       <span class="o-lt"><b>${escapeHtml(ag.name)}</b><span class="o-lact">${act.icon} ${escapeHtml(needs ? 'Needs you' : a.session === 'asleep' ? 'Off shift' : a.activity.detail || a.activity.label)}</span></span></button></li>`;
   };
   const on = wsOnProject();
-  const groups = [['Director', [WS.director]]];
+  const groups = [['Director', [WS.director]]];  /* the project's orchestrator */
   wsTeamIds().forEach(t => groups.push([teamById(t).name, on.filter(a => a.teamId === t && a.session !== 'asleep')]));
   groups.push(['Solo', on.filter(a => !a.teamId && a.session !== 'asleep')]);
   groups.push(['Off shift', on.filter(a => a.session === 'asleep')]);
@@ -248,6 +240,42 @@ OM.showPanel = function () {
 /* ------------------------------------------------------------ layers: office → board → features → feature */
 function _omLayer(sub) {
   const prev = OM.layer; OM.layer = sub;
+  if (sub && OM.focusKey) OM.unfocusTeam(true);
   if (!sub) { OB.close(); if (prev && OM.opener && document.contains(OM.opener)) { try { OM.opener.focus({ preventScroll: true }); } catch (e) { } } return; }
   OB.show(sub);
 }
+
+/* ------------------------------------------------------------ pager → team focus
+   The camera glides to a team's pod (or a solo desk) and a soft glow marks it.
+   The room stays live and clickable. Leaving the focus = the visit is over:
+   asks you went to see and left alone drop off the pager (OPG.leave). */
+function _omFocusRect(entry) {
+  const P = THEME_OFFICE.plan;
+  let rugs = entry.teamId ? P.pods.filter(p => p.teamId === entry.teamId).map(p => p.rug) : [];
+  if (!rugs.length) { const r = OE.actors[entry.agentId]; if (!r) return null; rugs = [{ x: r.x - 80, y: r.y - 72, w: 160, h: 136 }]; }
+  const x0 = Math.min(...rugs.map(r => r.x)), x1 = Math.max(...rugs.map(r => r.x + r.w));
+  const y0 = Math.min(...rugs.map(r => r.y)), y1 = Math.max(...rugs.map(r => r.y + r.h));
+  return { glow: { x: x0 - 26, y: y0 - 18, w: x1 - x0 + 52, h: y1 - y0 + 36 }, cam: { x: x0 - 90, y: y0 - 190, w: x1 - x0 + 180, h: y1 - y0 + 230 } };
+}
+OM.focusTeam = function (entry) {
+  if (!entry) return;
+  if (OM.layer) { go('office'); setTimeout(() => OM.focusTeam(entry), 80); return; }
+  if (OM.focusKey && OM.focusKey !== entry.key) OPG.leave();
+  const r = _omFocusRect(entry); if (!r) return;
+  OM.focusKey = entry.key;
+  OE.focusRect(r.cam, r.glow);
+  const name = entry.teamId ? teamById(entry.teamId).name : OP._name(entry.agentId);
+  const b = document.getElementById('oUnfocus'); b.hidden = false;
+  b.setAttribute('aria-label', `Leave ${name} — back to the whole office`);
+  document.getElementById('oStage').classList.add('team-focus');
+  announce(`Looking at ${name}. ${entry.asks.map(a => OP._name(a.agentId) + ' needs ' + a.short).join('. ')}.`);
+  OM.focusActor(entry.asks[0].agentId);
+};
+OM.unfocusTeam = function (quiet) {
+  if (!OM.focusKey) return;
+  OM.focusKey = null;
+  OPG.leave();
+  const b = document.getElementById('oUnfocus'); if (b) b.hidden = true;
+  const st = document.getElementById('oStage'); if (st) st.classList.remove('team-focus');
+  if (OE.box) OE.focusRect(null, null, quiet);
+};

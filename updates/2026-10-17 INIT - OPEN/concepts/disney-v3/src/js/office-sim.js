@@ -7,9 +7,11 @@
 
    Public: OS.start(), OS.stop(), OS.replay(), OS.skipTo(t),
            OS.onAnswer(ask, answer)  consequences of answering a "!"
-           OS.wake(id)               Pixel brings a sleeper in
+           OS.wake(id)               the Director brings a sleeper in
+           OS.create(need)           the Agent Creator builds a new bot at a free desk
    Dev hooks (URL ?demo=…, not in UI): fast · t<sec> · ask · chat · talk ·
-           ship · end · sleepy · peek · list · size2|size6|size12|size20 · selftest
+           ship · end · sleepy · peek · list · creator · pager · focus · orch2 ·
+           size2|size6|size12|size20 · selftest
    ============================================================ */
 
 const OS = { timers: [], running: false, t0: 0, cycleN: 0, seed: 7, busy: {} };
@@ -30,6 +32,8 @@ OS.start = async function () {
   if (demo.includes('ask') || demo.includes('chat')) skip = Math.max(skip, 25);
   if (demo.includes('talk')) skip = Math.max(skip, 8);
   if (demo.includes('ship')) skip = Math.max(skip, 47);
+  if (demo.includes('creator')) skip = Math.max(skip, 61);
+  if (demo.includes('pager') || demo.includes('focus')) skip = Math.max(skip, 75);
   if (demo.includes('end')) skip = Math.max(skip, SIM_ACT1_END + 1);
   if (skip) await this.skipTo(skip);
   else this._schedule(0);
@@ -40,6 +44,7 @@ OS._hooks = function (demo) {
   if (demo.includes('pete')) setTimeout(() => OP.open('a-pete', { from: 'scene' }), 30);
   if (demo.includes('sleepy')) setTimeout(() => OP.sleeperPoke('a-query'), 30);
   if (demo.includes('list')) setTimeout(() => _omToggleList(true), 30);
+  if (demo.includes('focus')) setTimeout(() => { const e = wsPager()[0]; if (e) OM.focusTeam(e); }, 30);
   if (demo.includes('peek')) setTimeout(() => { const b = document.querySelector('.o-body[data-id="a-semic"]'); if (b) b.classList.add('peek'); }, 30);
   if (demo.includes('talk')) setTimeout(() => { const ids = wsOnProject().filter(a => a.session !== 'asleep').map(a => a.id); OE.instant = false; if (ids.length > 1) OE.converse(ids[0], ids[1], 8); }, 30);
 };
@@ -158,7 +163,7 @@ OS.H = {
     if (b.feature) { const f = wsFeature(b.feature); if (f) f.pct = b.pct; }
     officeChanged();
     await OE.sleep(1600);
-    if (id === 'a-pete') OE.setActivity(id, 'idle', { short: 'Voice done', detail: 'Voice search is green — waiting for the preview', featureId: 'voice' });
+    if (id === 'a-pete') OE.setActivity(id, 'idle', { short: 'Voice done', detail: 'Voice search is green — waiting for the next build', featureId: 'voice' });
     else OE.setActivity(id, 'coding', { short: 'Contrast pass', detail: 'Contrast pass on the merged <Card>', target: 'Card.tsx', featureId: 'cleanup' });
   },
 
@@ -185,12 +190,11 @@ OS.H = {
     const id = b.actor; await OE.free(id);
     const prev = { ..._osA(id).activity };
     const home = _osA(id).at;
-    OE.setActivity(id, 'deploying', { short: 'Preview', detail: 'Deploying a fresh preview', featureId: 'voice' });
+    OE.setActivity(id, 'deploying', { short: 'Build', detail: 'Shipping a fresh local build', featureId: 'voice' });
     await OE.walkTo(id, 'console');
     await OE.sleep(700);
     const btn = OE.art && OE.art.querySelector('#consoleBtn'); if (btn && !OE.instant) { btn.classList.remove('press'); void btn.getBBox; btn.classList.add('press'); }
-    WS.testFresh = 'deployed just now'; OM.testFresh = true; officeChanged();
-    if (!OE.instant) setTimeout(() => { OM.testFresh = false; officeChanged(); }, 6000);
+    WS.run.built = 'just now'; officeChanged();
     this._tick(id, 4000); _osA(id).tasksDone++;
     await OE.sleep(900);
     await OE.walkTo(id, home);
@@ -207,13 +211,13 @@ OS.H = {
     if (r) OE.burst(r.x, r.y - 120);
     if (!OE.instant) toast(`✨ ${escapeHtml(f.name)} shipped`);
     announce(`${f.name} shipped.`);
-    OP.post('pixel', { from: 'pixel', kind: 'text', text: `${f.name} is live on the preview 🎉 — want me to start Multi-currency?`, stream: !OE.instant });
+    OP.post('pixel', { from: 'pixel', kind: 'text', text: `${f.name} is in the fresh build 🎉 — want me to start Multi-currency?`, stream: !OE.instant });
     officeChanged();
     await OE.sleep(2600);
     OE.setActivity(id, 'idle', { short: 'Free', detail: `Free! Last thing I did: shipped ${f.name}` });
   },
 
-  /* Pixel walks to the whiteboard and adds a line (purposeful walk) */
+  /* the Director walks to the whiteboard and adds a line (purposeful walk) */
   async whiteboard(b) {
     const id = 'pixel'; await OE.free(id);
     const prev = { ...WS.director.activity };
@@ -242,7 +246,7 @@ OS.H = {
     OE.setActivity(id, b.kind, { short: 'Release notes', detail: b.label, target: b.target, featureId: 'voice' });
   },
 
-  /* Pixel calls a sleeper in from his desk ("…"); they stretch and walk to their desk */
+  /* the Director calls a sleeper in from his desk ("…"); they stretch and walk to their desk */
   async wake(b) {
     const target = b.target; const t = _osA(target); if (!t || t.session !== 'asleep') return;
     await OE.free('pixel');
@@ -256,6 +260,77 @@ OS.H = {
     OE.setActivity(target, b.kind || 'reading', { short: 'Rates API', detail: b.label || 'Reading rates API docs', target: b.file || 'rates API docs', featureId: 'multicur' });
   },
 };
+/* ------------------------------------------------------------ the Agent Creator moment
+   The Director needs someone who doesn't exist yet: the Agent Creator walks in
+   through the door, a new bot assembles at a free desk (parts fly in, it pops
+   together), the creator leaves. The new agent joins the Cast and the List. */
+OS._freeSeat = function () {
+  return (OE.plan.spare || []).find(sid => !WS.agents.some(a => a.onProject && (a.seat === sid || a.home === sid)));
+};
+OS._mint = function (b, seat) {
+  const id = b.id || 'a-new-' + (WS.agents.length + 1);
+  if (!agentById(id)) {
+    const base = agentById(b.base || 'a-query') || AGENTS[0];
+    const ag = Object.assign({}, base, { id, name: b.name, nick: b.nick || b.name.split(' ')[0], role: b.role, hue: b.hue || base.hue, kind: 'agent',
+      stats: { projects: 1, tokens: 0 }, prompt: b.prompt || '', createdBy: 'a-creator' });
+    if (base.look) ag.look = Object.assign({}, base.look, b.look || {}, { hue: b.hue || base.look.hue });
+    AGENTS.push(ag);
+  }
+  const rec = { id, teamId: null, home: seat, seat, at: seat, onProject: true,
+    activity: { kind: 'idle', label: 'Just built', detail: 'Just built — reading the brief', target: null, featureId: b.featureId || null },
+    session: 'idle', tokens: { total: 0 }, tasksDone: 0, reach: [], locked: [], unread: 0,
+    brief: { left: b.left || 'Getting up to speed.', changed: [] } };
+  WS.agents.push(rec); OE.plan.home[id] = seat; WS.config.solo.push(id);
+  return rec;
+};
+OS.H.create = async function (b) {
+  const cid = 'a-creator'; const c = _osA(cid); const seat = this._freeSeat();
+  if (!c || !seat) return;
+  const s = OE.plan.seats[seat]; const stand = { x: s.x + 96, y: s.y + 6 };
+  /* the Director calls for help (a "…" toward the door), the creator comes in */
+  await OE.free('pixel');
+  OE.say('pixel', '', { ms: 1300 });
+  const r = OE.actors[cid];
+  THEME_OFFICE.door(OE.art, true);
+  if (r) { OE._moveNow(r, OE.anchor('door').x, OE.anchor('door').y); r.wrap.classList.remove('gone'); }
+  c.at = 'door';
+  OE.setActivity(cid, 'arriving', { short: 'Agent Creator', detail: `Here to build a ${b.role.toLowerCase()} for ${OP._dir()}` });
+  announce(`The Agent Creator came in to build a ${b.role}.`);
+  await OE.sleep(500);
+  await OE.walkTo(cid, stand);
+  THEME_OFFICE.door(OE.art, false);
+  if (r) setFacing(r.hero, 'side', { dir: 'left' });
+  OE.setActivity(cid, 'writing', { short: 'Building', detail: `Assembling a ${b.role.toLowerCase()} at the free desk`, facing: 'side', dir: 'left' });
+  /* parts fly in, the desk dresses, the bot pops together */
+  const rec = this._mint(b, seat);
+  OE.adopt(seat, rec.id);
+  const nr = OE._actor(rec);
+  nr.wrap.classList.add('assembling');
+  const to = { x: s.x, y: s.y - 70 };
+  if (!OE.instant) ['bolt', 'gear', 'spark'].forEach((k, i) => setTimeout(() => OE.fly(k, { x: stand.x - 20, y: stand.y - 110 }, to, 520), i * 220));
+  await OE.sleep(900);
+  nr.wrap.classList.remove('assembling'); nr.wrap.classList.add('assembled');
+  OE.sparkle(s.x, s.y - 120);
+  await OE.sleep(1100);
+  nr.wrap.classList.remove('assembled');
+  OE.react(rec.id, 'hop');
+  OE.setActivity(rec.id, 'reading', { short: 'The brief', detail: b.first || 'Reading the brief', target: b.target || null, featureId: b.featureId || null });
+  if (!OE.instant) toast(`✨ The Agent Creator built ${escapeHtml(b.name)} — now in your Cast`);
+  announce(`${b.name} was built by the Agent Creator and joined the Cast.`);
+  officeChanged();
+  /* and out again */
+  await OE.sleep(600);
+  OE.setActivity(cid, 'leaving', { short: 'Leaving', detail: 'Off to the next studio' });
+  await OE.walkTo(cid, 'door');
+  THEME_OFFICE.door(OE.art, true);
+  await OE.sleep(350);
+  if (r) r.wrap.classList.add('gone');
+  c.at = 'door';
+  THEME_OFFICE.door(OE.art, false);
+  officeChanged();
+};
+OS.create = function (b) { return this._run(Object.assign({ do: 'create', actor: 'a-creator' }, b)); };
+
 OS._couch = function () {
   const taken = WS.agents.filter(a => a.onProject).map(a => a.at);
   for (let i = 1; i <= 3; i++) if (!taken.includes('couch-' + i)) return 'couch-' + i;

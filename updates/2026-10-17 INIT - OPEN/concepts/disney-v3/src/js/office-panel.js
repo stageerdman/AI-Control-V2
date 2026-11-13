@@ -55,8 +55,10 @@ OP.open = function (id, o = {}) {
   if (card) { const f = card.querySelector('button,input'); if (f && o.from !== 'type') setTimeout(() => f.focus(), 60); }
   else if (o.from !== 'scene' && o.from !== 'type') this.el.querySelector('#opInput').focus({ preventScroll: true });
 };
-OP._name = id => agentById(id === 'pixel' ? 'director' : id).name;
-OP._short = id => id === 'pixel' ? 'Pixel' : shortName(agentById(id));
+/* 'pixel' = the Director actor = this project's orchestrator (wsAg resolves it) */
+OP._name = id => wsAg(id).name;
+OP._short = id => { const ag = wsAg(id); return id === 'pixel' ? (ag.nick || ag.name.split(' ')[0]) : shortName(ag); };
+OP._dir = () => OP._short('pixel');
 
 /* "tell me what you're doing" — one plain message, only if it changed */
 OP._summary = function (a) {
@@ -101,7 +103,7 @@ OP._fmt = s => escapeHtml(s).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`
 /* ------------------------------------------------------------ header */
 OP.refresh = function () {
   if (!this.el) return;
-  const id = this.thread; const a = wsAgent(id); const ag = agentById(id === 'pixel' ? 'director' : id);
+  const id = this.thread; const a = wsAgent(id); const ag = wsAg(id);
   const team = a.teamId ? teamById(a.teamId) : null; const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
   const head = this.el.querySelector('#opHead');
   const key = [id, a.activity.kind, a.activity.detail, a.session].join('|');
@@ -109,13 +111,13 @@ OP.refresh = function () {
   head.dataset.key = key;
   const status = id === 'pixel' ? 'Your director · big picture only'
     : a.activity.kind === 'needs-input' ? '❗ Needs you'
-    : a.session === 'asleep' ? '💤 Off shift — Pixel can bring them in'
+    : a.session === 'asleep' ? `💤 Off shift — ${escapeHtml(this._dir())} can bring them in`
     : `${act.icon} ${escapeHtml(a.activity.detail || a.activity.label)}`;
   head.innerHTML = `<div class="op-portrait"></div>
     <div class="op-who"><b>${escapeHtml(ag.name)}</b>
-      <span class="op-role">${escapeHtml(ag.role)}${team ? ` · ${escapeHtml(team.name.replace(/^The /, ''))}` : id === 'pixel' ? '' : ' · Solo'}</span>
+      <span class="op-role">${escapeHtml(id === 'pixel' ? 'Orchestrator' : wsRole(ag))}${team ? ` · ${escapeHtml(team.name.replace(/^The /, ''))}` : id === 'pixel' ? '' : ' · Solo'}</span>
       <span class="op-status">${status}</span></div>
-    ${id !== 'pixel' ? `<button type="button" class="op-backpix" id="opBack" aria-label="Back to Pixel">← Pixel</button>` : ''}`;
+    ${id !== 'pixel' ? `<button type="button" class="op-backpix" id="opBack" aria-label="Back to ${escapeAttr(this._dir())}">← ${escapeHtml(this._dir())}</button>` : ''}`;
   head.querySelector('.op-portrait').appendChild(hero(ag, { size: 72, pose: a.activity.kind === 'sleeping' ? 'sleeping' : a.activity.kind === 'needs-input' ? 'needs-input' : 'talking', facing: 'front', props: false }));
   const b = head.querySelector('#opBack'); if (b) b.onclick = () => this.open('pixel');
   this.el.setAttribute('aria-label', 'Chat with ' + ag.name);
@@ -146,8 +148,9 @@ OP._user = function (text) {
 };
 OP._routeName = function (text) {
   const m = /^\s*(?:@|hey\s+|hi\s+|ok\s+)?([a-z][a-z-]+)[\s,:]+(.*)$/i.exec(text); if (!m) return null;
-  const word = m[1].toLowerCase(); if (word === 'pixel' && /^\s*(?:@|hey\s+)?pixel\b/i.test(text)) return { id: 'pixel', rest: m[2] };
-  const hit = wsOnProject().find(a => { const n = agentById(a.id).name.toLowerCase(); return n.split(/[\s-]/).includes(word) && !['pixel', 'von', 'sir', 'the'].includes(word); });
+  const word = m[1].toLowerCase(); const dir = this._dir().toLowerCase();
+  if ((word === 'pixel' || word === dir || word === 'director') && /^\s*(?:@|hey\s+)?[a-z]+\b/i.test(text)) return { id: 'pixel', rest: m[2] };
+  const hit = wsOnProject().find(a => { const n = wsAg(a.id).name.toLowerCase(); return n.split(/[\s-]/).includes(word) && !['pixel', 'von', 'sir', 'the'].includes(word); });
   if (!hit || !(/^\s*(@|hey|hi|ok)/i.test(text))) return null;
   return { id: hit.id, rest: m[2] };
 };
@@ -163,7 +166,7 @@ OP._say = function (tid, text, extra = {}) { this.post(tid, Object.assign({ from
 OP._reply = function (tid, text) {
   const t = text.toLowerCase(); const a = wsAgent(tid);
   if (tid === 'pixel') {
-    if (/^(pixel,?\s*)?(close|back|go back|back to the office)\b/.test(t)) { if (OM.layer) { this._say('pixel', 'Closing that.'); OB.escape(); } else this._say('pixel', 'You’re already in the office.'); return; }
+    if (/^(\w+,?\s*)?(close|back|go back|back to the office)\b/.test(t)) { if (OM.layer) { this._say('pixel', 'Closing that.'); OB.escape(); } else this._say('pixel', 'You’re already in the office.'); return; }
     const drop = /(?:drop|remove|cut|strike)\s+(.+?)\s+from\s+(?:the\s+)?(.+?)[.!?]*$/.exec(t);
     if (drop) {
       const f = WS.features.find(x => x.name.toLowerCase().includes(drop[2].trim().split(' ')[0]));
@@ -179,17 +182,17 @@ OP._reply = function (tid, text) {
     if (/who needs|waiting/.test(t)) { const p = WS.pending[0]; this._say('pixel', p ? `${this._name(p.agentId)} — ${p.short.toLowerCase()}. Tap the “!”.` : 'Nobody right now — everyone’s unblocked.'); return; }
     if (/currenc|start it/.test(t)) { this._say('pixel', 'On it — Multi-currency is in progress. Checkout stays the priority.'); const f = wsFeature('multicur'); if (f && f.status === 'planned') { f.status = 'now'; f.pct = 2; officeChanged(); } return; }
     const wake = /wake\s+(\w+)/.exec(t);
-    if (wake) { const who = wsOnProject().find(x => agentById(x.id).name.toLowerCase().includes(wake[1]) && x.session === 'asleep'); if (who) { this._say('pixel', `Bringing ${this._name(who.id)} in.`); OS.wake(who.id); return; } }
-    if (/deploy|preview/.test(t)) { this._say('pixel', 'Baron handles deploys — I’ll ask him for a fresh preview after the next green run.'); return; }
+    if (wake) { const who = wsOnProject().find(x => wsAg(x.id).name.toLowerCase().includes(wake[1]) && x.session === 'asleep'); if (who) { this._say('pixel', `Bringing ${this._name(who.id)} in.`); OS.wake(who.id); return; } }
+    if (/deploy|preview|build|run it|test it/.test(t)) { this._say('pixel', `Baron handles builds — the app runs locally: \`${WS.run.cmd}\` in ${WS.run.where}. I’ll ask him for a fresh build after the next green run.`); return; }
     this._say('pixel', 'Got it — I’ll take that to the crew and keep you posted here.'); return;
   }
   if (/wake|come in/.test(t) && a.session === 'asleep') { this.open('pixel'); this._say('pixel', `Waking ${this._name(tid)} — give them a sec.`); OS.wake(tid); return; }
-  if (a.session === 'asleep') { this._say(tid, 'zzz… (off shift — ask Pixel to bring me in)'); return; }
+  if (a.session === 'asleep') { this._say(tid, `zzz… (off shift — ask ${this._dir()} to bring me in)`); return; }
   if (/left|remain|plate|how.?s|going/.test(t)) { this._say(tid, a.brief ? a.brief.left : 'Nearly there.'); return; }
   if (/chang|diff|touch/.test(t)) { this._say(tid, 'Here’s what I touched:', { files: a.brief ? a.brief.changed : [] }); return; }
   if (/token/.test(t)) { this._say(tid, `${wsTok(a.tokens.total)} tokens on this project so far.`); return; }
-  if (/next/.test(t)) { this._say(tid, a.activity.kind === 'idle' ? 'Whatever Pixel hands me — I’m free.' : `After ${a.activity.target || 'this'}: ${a.brief ? a.brief.left : 'whatever Pixel says.'}`); return; }
-  if (/priority|plan|scope|deadline|should we|roadmap|launch/.test(t)) { this._say(tid, 'That’s Pixel’s call — ask him and he’ll steer us.'); return; }
+  if (/next/.test(t)) { this._say(tid, a.activity.kind === 'idle' ? `Whatever ${this._dir()} hands me — I’m free.` : `After ${a.activity.target || 'this'}: ${a.brief ? a.brief.left : `whatever ${this._dir()} says.`}`); return; }
+  if (/priority|plan|scope|deadline|should we|roadmap|launch/.test(t)) { this._say(tid, `That’s ${this._dir()}’s call — ask and they’ll steer us.`); return; }
   this._say(tid, `Noted — I’ll keep that in mind for ${a.activity.target ? '`' + a.activity.target + '`' : 'this task'}.`);
 };
 

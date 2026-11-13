@@ -26,6 +26,7 @@ js/office-theme.js
 js/office-engine.js
 js/office-panel.js
 js/office-board.js
+js/office-pager.js
 js/office-sim.js
 js/office-main.js
 js/office-selftest.js

@@ -4,7 +4,10 @@
    Public: OFFICE_CONFIGS, OFFICE_CONFIG (the one in use), WS, THEME_OFFICE,
            SIM_SCRIPT (Act 1, Aurora only), SIM_AMBIENT (Act 2 material),
            wsAgent(id), wsOnProject(), wsFeature(id), wsTeamIds(), wsCaptain(teamId),
-           wsTok(n), wsDemoSize()
+           wsTok(n), wsDemoSize(),
+           wsAg(id)        the roster entry behind an office actor ('pixel' = the
+                           project's orchestrator, PROJECTS[i].orchestrator → a-pixel)
+           wsPager()       who needs you, grouped per team/solo agent, minus visits
    Separation: config = who sits where (layout derives the floor plan) ·
                WS = state · engine moves actors · theme draws.
    Secrets: asks reference credential ids only; values never appear.
@@ -20,6 +23,7 @@ const OFFICE_CONFIGS = {
       { id: 'polish', members: ['a-lint', 'a-twinkle', 'a-doc'] },
     ],
     solo: ['a-baron', 'a-query', 'a-merge'],
+    spare: 1,                    /* one free desk: where the Agent Creator assembles a new bot */
   },
   size2: {
     project: 'aurora', director: 'pixel',
@@ -94,7 +98,7 @@ const _AURORA = {
     brief: { left: 'Nothing right now — docs follow what ships.', changed: ['README.md', 'cart/README.md'] } },
   'a-baron': { activity: { kind: 'idle', label: 'Free', detail: 'Feet up. Preview pipeline is green and a rollback is ready', target: null, featureId: null },
     tokens: 41000, tasksDone: 2, reach: ['vercel', 'gh'],
-    brief: { left: 'Ready to deploy a preview whenever Pixel says.', changed: ['vercel.json'] } },
+    brief: { left: 'Ready to ship a fresh local build whenever the Director says.', changed: ['vercel.json'] } },
   'a-query': { seat: null, at: 'couch-1', activity: { kind: 'sleeping', label: 'Off shift', detail: 'Cast on Aurora, no running session', target: null, featureId: 'multicur' },
     tokens: 15000, tasksDone: 1, reach: [], locked: ['pg'],
     brief: { left: 'Rates provider research for Multi-currency.', changed: ['rates-notes.md'] } },
@@ -120,21 +124,64 @@ function _wsAgents(cfg, plan, story) {
       session: s.activity ? ({ sleeping: 'asleep', idle: 'idle' }[s.activity.kind] || 'running') : 'running',
       tokens: { total: s.tokens != null ? s.tokens : 20000 + (i * 37000) % 160000 }, tasksDone: s.tasksDone != null ? s.tasksDone : 1 + i % 6,
       reach: s.reach || ['gh'], locked: s.locked || [], unread: 0,
-      brief: s.brief || { left: 'Finishing ' + (w[2] || 'this task') + ', then whatever Pixel hands me.', changed: w[2] ? [w[2]] : [] },
+      brief: s.brief || { left: 'Finishing ' + (w[2] || 'this task') + ', then whatever the Director hands me.', changed: w[2] ? [w[2]] : [] },
     });
   };
   cfg.teams.forEach(t => t.members.forEach(id => add(id, t.id)));
   cfg.solo.forEach(id => add(id, null));
+  /* the Agent Creator: a studio visitor, never on the project — comes in through the door when needed */
+  out.push({ id: 'a-creator', teamId: null, home: null, seat: null, at: 'door', onProject: false, visitor: true,
+    activity: { kind: 'idle', label: 'Agent Creator', detail: 'Designs new agents when the Director needs one', target: null, featureId: null },
+    session: 'idle', tokens: { total: 0 }, tasksDone: 0, reach: [], locked: [], unread: 0, brief: { left: '', changed: [] } });
   return out;
 }
 
 const OFFICE_PLAN = officeLayout(OFFICE_CONFIG);
+
+/* ---------- the Director = this project's chosen orchestrator (contract v5) ----------
+   Actor id stays 'pixel' inside the office; the agent behind it comes from
+   PROJECTS[i].orchestrator. Falls back to Pixel (a-pixel / legacy DIRECTOR). */
+const _WS_LOCAL_AG = {};   /* stand-ins when a roster entry hasn't landed yet */
+function wsDirectorAg() {
+  const p = projById(OFFICE_CONFIG.project) || {};
+  const demo = /[?&]demo=[^&#]*?orch(\d)/.exec(location.search);
+  if (demo && typeof orchestrators === 'function') { const o = orchestrators()[+demo[1] - 1]; if (o) return o; }
+  return (p.orchestrator && agentById(p.orchestrator)) || agentById('a-pixel') || agentById('director');
+}
+/* the Agent Creator stand-in until the shared roster has a-creator (contract v5) */
+function _wsCreatorStandIn() {
+  if (agentById('a-creator') || _WS_LOCAL_AG['a-creator']) return;
+  const base = agentById('a-prof') || AGENTS[0];
+  _WS_LOCAL_AG['a-creator'] = Object.assign({}, base, { id: 'a-creator', name: 'Agent Creator', nick: 'Creator', role: 'Agent Creator', kind: 'creator', hue: 'grape' });
+}
+function wsAg(id) {
+  if (id === 'pixel' || id === 'director') return wsDirectorAg();
+  return agentById(id) || _WS_LOCAL_AG[id];
+}
+/* a role is a user-defined label now (contract v5): id → name, or a free name */
+function wsRole(ag) {
+  if (!ag) return '';
+  if (ag.kind === 'orchestrator' || ag.id === 'director') return 'Orchestrator';
+  if (typeof roleName === 'function') { try { const n = roleName(ag.role); if (n) return n; } catch (e) { } }
+  const r = Array.isArray(typeof ROLES !== 'undefined' ? ROLES : null) ? ROLES.find(x => x && typeof x === 'object' && x.id === ag.role) : null;
+  return r ? r.name : (typeof ag.role === 'string' ? ag.role : '');
+}
+/* GitHub + how the app runs: from the project (contract), with calm defaults */
+function _wsGithub() {
+  const g = (projById(OFFICE_CONFIG.project) || {}).github;
+  const o = typeof g === 'object' && g ? g : { connected: g !== false, private: true };
+  return { connected: o.connected !== false, private: o.private !== false, pushedAgo: '4 min ago', branch: 'voice-search', fresh: true };
+}
+_wsCreatorStandIn();
 const WS = {
   project: OFFICE_CONFIG.project, story: wsDemoSize() === 'size6' ? 'aurora' : 'demo',
   config: OFFICE_CONFIG, overall: 64, target: 'v1.0',
   grants: { gh: true, oai: true, anthropic: true, stripe: false, figma: true, vercel: true, pg: false, resend: false },
-  github: { connected: true, pushedAgo: '4 min ago', branch: 'voice-search', fresh: true },
-  testUrl: 'aurora-preview.studio.app', testFresh: 'deployed 1h ago', private: true,
+  github: _wsGithub(),
+  /* apps run on this computer — never an online test URL */
+  run: { where: '~/dev/aurora', cmd: 'npm run app', built: '1h ago' },
+  /* pager: ask ids you already went to look at (and left alone) */
+  pager: { seen: {} },
   /* the health board: grade + what's good + what to fix, in plain words */
   checkup: { when: '2h ago', items: [
     { key: 'modularity', name: 'Modularity', grade: 'B', good: 'Screens, data and styles live in their own modules. Most files do one job.', fix: 'checkout.ts and search.ts each do two jobs — split them so each can be fixed on its own.' },
@@ -201,6 +248,18 @@ const WS = {
 };
 
 const wsAgent = id => (id === 'pixel' || id === 'director') ? WS.director : WS.agents.find(a => a.id === id);
+/* the pager's entries: one per team (or solo agent) with an ask you haven't been to see.
+   Visiting and leaving without answering marks those asks seen; a NEW ask brings it back. */
+function wsPager() {
+  const by = {};
+  WS.pending.forEach(ask => {
+    if (WS.pager.seen[ask.id]) return;
+    const a = wsAgent(ask.agentId); if (!a || !a.onProject) return;
+    const key = a.teamId ? 'team:' + a.teamId : 'agent:' + a.id;
+    (by[key] = by[key] || { key, teamId: a.teamId || null, agentId: a.id, asks: [] }).asks.push(ask);
+  });
+  return Object.values(by);
+}
 const wsOnProject = () => WS.agents.filter(a => a.onProject);
 const wsFeature = id => WS.features.find(f => f.id === id);
 /* teams in the office, in config order */
@@ -242,6 +301,10 @@ const SIM_SCRIPT = [
   { t: 52, actor: 'pixel', do: 'whiteboard', addCheck: { featureId: 'multicur', text: 'Multi-currency: rate provider', assignees: ['a-query'] } },
   { t: 55, actor: 'a-merge', do: 'arrive', kind: 'reading', label: 'Reading release notes', target: 'CHANGELOG.md' },
   { t: 59, actor: 'pixel', do: 'wake', target: 'a-query', kind: 'reading', label: 'Reading rates API docs', file: 'rates API docs' },
+  /* nobody on the cast knows currencies → the Agent Creator builds one at the free desk */
+  { t: 62, actor: 'a-creator', do: 'create', id: 'a-penny', name: 'Penny Exchange', nick: 'Penny', role: 'Currency specialist', hue: 'rose', base: 'a-query',
+    featureId: 'multicur', first: 'Reading the Multi-currency brief', target: 'multicur.md', left: 'Pick the rates provider with Querious, then wire prices.',
+    prompt: 'You are a currency specialist. Prices, rates and rounding rules; never float maths for money.' },
   { t: 67, actor: 'a-lint', do: 'handoff', to: 'a-merge', artifact: 'PR #42', review: 'APPROVED' },
   { t: 74, actor: 'a-twinkle', do: 'ask', ask: { id: 'ask-twinkle', agentId: 'a-twinkle', type: 'decision', short: 'Cart button copy',
     q: 'Cart button copy — which reads better?', ctx: 'Not blocking — a quick call', options: ['Add to bag', 'Add to cart'], featureId: 'cleanup' } },

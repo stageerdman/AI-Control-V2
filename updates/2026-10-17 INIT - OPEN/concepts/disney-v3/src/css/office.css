@@ -3,34 +3,11 @@
    Scale trick: the room is a 1600×1000 box scaled by --k (letterbox) and the
    camera by --z; overlays that must stay a constant on-screen size use
    --ui = 1 screen px expressed in local units.
+   v5: no top bar. Wall objects you can use: door (leave) · features · whiteboard ·
+   health · safe (Access). The pager sits bottom-left.
    ============================================================ */
 #office{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;color:var(--cream);overflow:hidden}
 #office .spacer{flex:1}
-
-/* ---------------- top bar ---------------- */
-.o-top{display:flex;align-items:center;gap:12px;padding:10px 16px;height:60px;flex:none;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,12,44,.55);backdrop-filter:blur(8px)}
-.ws-chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.1);color:var(--cream);border:0;font-family:inherit;cursor:pointer;transition:background .15s;text-decoration:none;white-space:nowrap}
-.ws-chip:hover{background:rgba(255,255,255,.18)}
-.ws-chip:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
-.ws-chip .ok{color:var(--teal)}
-.ws-chip.live-dot::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--teal);animation:pulse 1.4s infinite}
-.ws-chip.live-dot.fresh{box-shadow:0 0 0 2px var(--teal)}
-.ws-chip .bell-badge{background:var(--coral);color:#fff;border-radius:999px;min-width:18px;height:18px;padding:0 5px;font-size:11px;display:grid;place-items:center;margin-left:2px}
-.o-url{font-family:var(--mono);font-weight:700;opacity:.85}
-.o-chips{display:flex;gap:6px;align-items:center}
-.o-title{display:flex;align-items:center;gap:10px;min-width:0}
-.o-title b{display:block;font-size:15px;white-space:nowrap}
-.o-title span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,246,233,.6)}
-.o-title .logo-tile{width:36px;height:36px;border-radius:11px}
-.o-prog{appearance:none;border:0;background:rgba(255,255,255,.08);color:var(--cream);font-family:inherit;display:inline-flex;align-items:center;gap:9px;padding:7px 14px;border-radius:999px;cursor:pointer;font-size:13px}
-.o-prog:hover{background:rgba(255,255,255,.15)}
-.o-prog:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
-.o-prog b{font-weight:900}
-.o-prog{white-space:nowrap;flex:none}
-@media (max-width:1099px){.o-ptgt{display:none}}
-.o-pbar{width:90px;height:8px;border-radius:9px;background:rgba(255,255,255,.15);overflow:hidden}
-.o-pbar i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--teal));border-radius:9px;transition:width .6s var(--ease-out)}
-.o-ptgt{font-weight:800;color:rgba(255,246,233,.75)}
 
 /* ---------------- layout ---------------- */
 .o-main{flex:1;min-height:0;display:flex}
@@ -298,17 +275,12 @@
 @media (max-width:1199px){
   .o-panel{width:320px}
   #office.wide .o-panel{margin-right:-320px}
-  .o-chips .o-url{display:none}
-  .o-pbar{width:60px}
 }
 @media (max-width:899px){
-  .o-top{gap:8px;padding:8px 10px}
-  .o-chips .o-lbl{display:none}
-  .o-title>div span{display:none}
-  .o-ptgt{display:none}
   .o-main{flex-direction:column;position:relative}
   .o-stagewrap{flex:1}
   .o-stagectl{bottom:84px}
+  .o-pagerwrap{bottom:84px}
   .o-list{bottom:82px}
   .o-panel{position:absolute;left:0;right:0;bottom:0;width:auto;height:70px;z-index:20;border-left:0;border-radius:20px 20px 0 0;box-shadow:0 -10px 30px rgba(10,4,30,.45);transition:height .32s var(--ease-out)}
   #office.drawer-up .o-panel{height:62%}
@@ -323,14 +295,69 @@
   .ob-cols{width:100%}
 }
 @media (max-width:599px){
-  .o-chips #oGh,.o-chips #oTest{display:none}
-  .o-prog .o-pbar{display:none}
+  .o-pager{width:212px}
 }
 @media (prefers-reduced-motion:reduce){
   .o-cam{transition:opacity .2s}
-  .o-cam.opening,.o-bang b,.o-bubble,.o-bubble i,.o-actor[class*=" r-"] .hero,.ot-art *,.o-desk *,.ws-chip.live-dot::after,.typing i{animation:none!important}
+  .o-cam.opening,.o-bang b,.o-bubble,.o-bubble i,.o-actor[class*=" r-"] .hero,.ot-art *,.o-desk *,.typing i,.o-pager,.o-actor.assembling .hero,.o-actor.assembled .hero{animation:none!important}
+  .o-podglow{transition:none}
   .o-body{transition:none}
   .ob-card,.o-list,.o-panel,.o-scrim{transition:none}
 }
-.o-title>div{min-width:0;overflow:hidden}
-.o-title b{overflow:hidden;text-overflow:ellipsis}
+
+
+/* ---------------- v5: the pager (bottom-left) ---------------- */
+.o-pagerwrap{position:absolute;left:14px;bottom:14px;z-index:6}
+.o-stagewrap.zooming .o-pagerwrap{display:none}
+.o-pager{position:relative;width:248px;display:flex;align-items:stretch;gap:8px;padding:10px 10px 10px 12px;border-radius:20px;
+  background:linear-gradient(180deg,#3a2f5c,#241a44);box-shadow:0 0 0 2px var(--ink),inset 0 2px 0 rgba(255,255,255,.12),0 10px 24px rgba(10,4,30,.45)}
+.o-pager::before{content:"";position:absolute;left:18px;top:-9px;width:18px;height:11px;border-radius:5px 5px 0 0;background:#3a2f5c;box-shadow:0 0 0 2px var(--ink)}
+.o-pg-led{position:absolute;right:16px;top:-5px;width:9px;height:9px;border-radius:50%;background:#5b5280;box-shadow:0 0 0 2px var(--ink)}
+.o-pager.has .o-pg-led{background:var(--coral);box-shadow:0 0 0 2px var(--ink),0 0 8px rgba(255,111,115,.8)}
+.o-pg-screen{flex:1;min-width:0;appearance:none;border:0;cursor:pointer;text-align:left;font-family:var(--mono);color:#1f3a1c;
+  background:linear-gradient(180deg,#c9e8b4,#b5dc9c);border-radius:10px;padding:7px 10px 8px;box-shadow:inset 0 2px 4px rgba(0,0,0,.25),inset 0 0 0 1.5px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:2px}
+.o-pg-screen:hover:not(:disabled){background:linear-gradient(180deg,#d3eec0,#c0e3a8)}
+.o-pg-screen:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.o-pg-screen:disabled{cursor:default;opacity:.7}
+.o-pg-top{display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:.1em;opacity:.7}
+.o-pg-name{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:900;font-family:inherit;white-space:nowrap;overflow:hidden}
+.o-pg-name>span{overflow:hidden;text-overflow:ellipsis}
+.o-pg-name .emblem{flex:none}
+.o-pg-what{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.o-pg-keys{display:flex;flex-direction:column;gap:6px;justify-content:center}
+.o-pg-btn{appearance:none;border:0;cursor:pointer;width:28px;height:26px;border-radius:9px;background:var(--cream);color:var(--ink);font-size:10px;line-height:1;box-shadow:0 2px 0 #b9a98f,0 0 0 1.5px var(--ink)}
+.o-pg-btn:active:not(:disabled){transform:translateY(2px);box-shadow:0 0 0 #b9a98f,0 0 0 1.5px var(--ink)}
+.o-pg-btn:disabled{opacity:.35;cursor:default}
+.o-pg-btn:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.o-pager.wiggle{animation:o-wiggle .5s ease-in-out}
+@keyframes o-wiggle{20%{transform:rotate(-3deg)}45%{transform:rotate(2.5deg)}70%{transform:rotate(-1.5deg)}}
+
+/* pager focus: a soft glow on the pod, a way back */
+.o-podglow{position:absolute;z-index:1;border-radius:40px;pointer-events:none;opacity:0;transition:opacity .35s;
+  background:radial-gradient(closest-side,rgba(255,226,140,.38),rgba(255,226,140,0));box-shadow:0 0 0 calc(4*var(--ui)) rgba(255,194,75,.85)}
+.o-podglow.on{opacity:1}
+.o-unfocus{position:absolute;left:14px;top:14px;z-index:6}
+.o-unfocus[hidden]{display:none}
+.o-stagewrap.zooming .o-unfocus{display:none}
+
+/* the safe's dial turns once when you open Access */
+.ot-art #safeDial{transform-box:fill-box;transform-origin:center}
+.ot-art #safeDial.spin{animation:o-dial .6s var(--ease-out)}
+@keyframes o-dial{to{transform:rotate(160deg)}}
+
+/* the Agent Creator moment: parts fly in, the bot pops together */
+.o-actor.assembling .hero{animation:o-asm-in .9s steps(1) forwards}
+@keyframes o-asm-in{0%{opacity:0}}
+.o-actor.assembling .o-over{visibility:hidden}
+.o-actor.assembled .hero{animation:o-asm 1s cubic-bezier(.34,1.56,.64,1)}
+@keyframes o-asm{0%{transform:scale(.25,.1);opacity:.2}55%{transform:scale(1.06,.96);opacity:1}100%{transform:none}}
+.o-spark{position:absolute;width:12px;height:12px;margin:-6px;background:var(--sun);clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%);animation:o-spark .8s ease-out forwards}
+@keyframes o-spark{to{transform:translate(var(--dx),var(--dy)) scale(.4);opacity:0}}
+
+/* health report: the repo + how the app runs */
+.ob-proj{list-style:none;margin:0 0 18px;padding:12px 14px;border-radius:12px;background:#fff;box-shadow:0 0 0 1px var(--line);display:flex;flex-direction:column;gap:8px}
+.ob-proj li{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px}
+.ob-proj b{font-size:14.5px}
+.ob-pi{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:rgba(36,26,68,.07);font-weight:900;flex:none}
+.ob-pv{flex:1;min-width:0;font-weight:600;color:var(--ink-soft)}
+.ob-pv code{font-family:var(--mono);font-size:12.5px;background:rgba(155,108,255,.1);padding:1px 5px;border-radius:5px;color:var(--ink)}

@@ -3,7 +3,8 @@
    Pure geometry: no DOM, no art, no story. See spec-office-config.md.
 
    Public: officeLayout(cfg) → PLAN
-     cfg  = { teams: [{ id, members: [agentId…] }], solo: [agentId…] }
+     cfg  = { teams: [{ id, members: [agentId…] }], solo: [agentId…], spare: n }
+            spare = free solo desks (no owner yet — the Agent Creator builds bots there)
      PLAN = {
        W                    room width (≥ 1600; grows so pods never overflow)
        rows: [y…]           seat y of each desk row (1 or 2 rows)
@@ -12,7 +13,8 @@
        home:  { agentId: seatId }        every configured agent's desk
        director: {x,y} · couch: [{x,y}] (couch-1..3)
        lanes: { back, mid } · gaps: [x]  (where walkers cross between lanes)
-       objects: { door, outbox, console, dossier, whiteboard, health, clock } {x,y,w,h,stand?}
+       spare: [seatId…]                  free desks (seat with no home)
+       objects: { door, outbox, console, dossier, whiteboard, health, clock, safe, plaque } {x,y,w,h,stand?,label?}
        windows: [{x}] · lamps: [x]
      }
    Room is a dollhouse: wall y −40…380, floor 380…900, right column (400 wide)
@@ -27,7 +29,7 @@ function officeLayout(cfg) {
   (cfg.teams || []).forEach(t => {
     for (let i = 0; i < t.members.length; i += OL.PER_POD) blocks.push({ teamId: t.id, members: t.members.slice(i, i + OL.PER_POD) });
   });
-  const solo = cfg.solo || [];
+  const solo = [...(cfg.solo || []), ...Array(cfg.spare || 0).fill(null)];
   for (let i = 0; i < solo.length; i += OL.PER_POD) blocks.push({ teamId: null, members: solo.slice(i, i + OL.PER_POD) });
   blocks.forEach(b => { b.w = (b.members.length - 1) * OL.DX + OL.RUG; });
 
@@ -50,7 +52,7 @@ function officeLayout(cfg) {
   if (rows.length === 1 && blocks.length >= 3) rows.push(rows[0].splice(Math.ceil(blocks.length / 2)));
 
   const rowY = rows.length === 1 ? [604] : [530, 794];
-  const plan = { W, rows: rowY, pods: [], seats: {}, home: {} };
+  const plan = { W, rows: rowY, pods: [], seats: {}, home: {}, spare: [] };
   const areaL = OL.LEFT, areaR = W - OL.RIGHT;
   const count = {};
   rows.forEach((r, ri) => {
@@ -62,7 +64,8 @@ function officeLayout(cfg) {
       b.members.forEach((agentId, i) => {
         const sid = `${key}-${++count[key]}`;
         plan.seats[sid] = { x: x + OL.RUG / 2 + i * OL.DX, y, row: ri, pod: pod.id };
-        plan.home[agentId] = sid; pod.seats.push(sid);
+        if (agentId) plan.home[agentId] = sid; else plan.spare.push(sid);
+        pod.seats.push(sid);
       });
       plan.pods.push(pod);
       x += b.w + OL.GAP;
@@ -83,13 +86,16 @@ function officeLayout(cfg) {
   const center = (areaL + areaR) / 2;
   const gx = Math.max(392, Math.min(center - 388, W - 400 - 40 - 776));
   plan.objects = {
-    door: { x: 26, y: 136, w: 136, h: 250, stand: { x: 96, y: 414 } },
+    door: { x: 26, y: 136, w: 136, h: 250, stand: { x: 96, y: 414 }, label: 'Leave office' },
     clock: { x: 64, y: 40, w: 60, h: 60 },
     outbox: { x: 196, y: 262, w: 62, h: 86, stand: { x: 227, y: 424 } },
     console: { x: 282, y: 318, w: 72, h: 96, stand: { x: 318, y: 430 } },
     dossier: { x: gx, y: 96, w: 80, h: 112, label: 'Features' },
     whiteboard: { x: gx + 104, y: 44, w: 528, h: 264, stand: { x: gx + 104 + 300, y: 416 }, label: 'Whiteboard' },
     health: { x: gx + 104 + 528 + 28, y: 76, w: 116, h: 160, label: 'Health check' },
+    /* the Director's wall: the project's safe (Access) and a tiny % plaque above it */
+    safe: { x: W - 258, y: 112, w: 100, h: 104, label: 'Access' },
+    plaque: { x: W - 278, y: 40, w: 140, h: 40 },
   };
   plan.windows = [];
   for (let x = gx + 776 + 70; x + 180 <= W - 440 && plan.windows.length < 2; x += 260) plan.windows.push({ x });

@@ -13,9 +13,11 @@
      OE.face(id) / OE.unface(id) / OE.free(id) → Promise (resolves when not held)
      OE.bang(id, on)            the "!" badge
      OE.react(id, kind)         one-off flourishes: 'hop' | 'bighop' | 'stretch' | 'roll' | 'snug' | 'pop-z'
-     OE.fly(kind, from, to)     a paper plane / envelope in flight
+     OE.fly(kind, from, to)     'plane' | 'envelope' | 'bolt' | 'gear' | 'spark' in flight
+     OE.sparkle(x, y)           six soft stars (a new bot is built)
      OE.deskSync(seatId?)       refresh desk(s) from WS
      OE.zoomTo(objectId|null)   OE.fit()
+     OE.focusRect(camRect|null, glowRect)  pager focus on a pod (room stays live)
      OE.actors (id → actor record), OE.W, OE.speed, OE.instant
    ============================================================ */
 
@@ -71,7 +73,7 @@ const OE = {
   _desk(id, kind, s, hue) {
     if (!s) return;
     const owner = id === 'director' ? WS.director : WS.agents.find(a => a.seat === id || a.home === id);
-    const ag = owner ? agentById(owner.id === 'pixel' ? 'director' : owner.id) : null;
+    const ag = owner ? wsAg(owner.id) : null;
     const el = document.createElement('div'); el.className = 'o-prop o-desk'; el.dataset.seat = id;
     el.innerHTML = THEME_OFFICE.desk(kind, { hue, accent: ag && ag.hue, item: id === 'director' ? 'telescope' : ['mug', 'plant', null][Object.keys(this.desks).length % 3] });
     const sc = THEME_OFFICE.depth(s.y);
@@ -85,7 +87,7 @@ const OE = {
   _place(el, x, y, z, s = 1) { el.style.transform = `translate(${x}px,${y}px) scale(${s})`; el.style.zIndex = Math.round(z); },
 
   _actor(a) {
-    const ag = agentById(a.id === 'pixel' ? 'director' : a.id);
+    const ag = wsAg(a.id);
     const team = a.teamId ? teamById(a.teamId) : null;
     const isCaptain = team && wsCaptain(a.teamId) === a.id;
     const act = ACTIVITY[a.activity.kind] || ACTIVITY.idle;
@@ -121,7 +123,7 @@ const OE = {
     if (a.activity.kind === 'sleeping') doing = 'Off shift';
     const key = [a.activity.kind, doing].join('|');
     if (rec._cardKey === key) return; rec._cardKey = key;
-    rec.btn.querySelector('.o-card').innerHTML = `<b>${escapeHtml(ag.name)}</b><span class="o-cmeta">${escapeHtml(a.id === 'pixel' ? 'Big picture' : ag.role)} · ${where}</span><span class="o-cact">${act.icon} ${escapeHtml(doing)}</span>`;
+    rec.btn.querySelector('.o-card').innerHTML = `<b>${escapeHtml(ag.name)}</b><span class="o-cmeta">${escapeHtml(a.id === 'pixel' ? 'Big picture' : wsRole(ag))} · ${where}</span><span class="o-cact">${act.icon} ${escapeHtml(doing)}</span>`;
   },
 
   /* ---------------------------------------------------------- anchors */
@@ -260,7 +262,7 @@ const OE = {
       const s = { glyph: 'off', hue: d.hue || 'grape', tray: d.tray };
       if (owner) {
         const act = ACTIVITY[owner.activity.kind] || ACTIVITY.idle;
-        s.hue = agentById(owner.id === 'pixel' ? 'director' : owner.id).hue;
+        s.hue = wsAg(owner.id).hue;
         s.glyph = owner.session === 'asleep' ? 'off' : act.glyph;
         d.chair.classList.toggle('empty', owner.at !== sid);
       } else d.chair.classList.add('empty');
@@ -271,7 +273,7 @@ const OE = {
   adopt(seatId, agentId) {
     if (!this.desks[seatId]) this._desk(seatId, 'hot', this.plan.seats[seatId], null);
     const d = this.desks[seatId]; if (!d) return;
-    const ag = agentById(agentId);
+    const ag = wsAg(agentId);
     d.el.innerHTML = THEME_OFFICE.desk(d.kind, { hue: d.hue, accent: ag.hue, item: 'mug' });
     d.chair.innerHTML = THEME_OFFICE.chair(ag.hue);
     this.deskSync(seatId);
@@ -332,9 +334,7 @@ const OE = {
   async fly(kind, from, to, ms = 1100) {
     if (this.instant || reducedMotion() || !this.fxLayer) return;
     const el = document.createElement('div'); el.className = 'o-flyer'; el.setAttribute('aria-hidden', 'true');
-    el.innerHTML = kind === 'plane'
-      ? `<svg viewBox="-20 -14 40 28" width="40" height="28"><path d="M-18 2 L18 -12 L4 12 L0 4Z" fill="#fff6e9" stroke="#241a44" stroke-width="2.5" stroke-linejoin="round"/></svg>`
-      : `<svg viewBox="-14 -10 28 20" width="30" height="22"><rect x="-12" y="-8" width="24" height="16" rx="2" fill="#f3d79e" stroke="#241a44" stroke-width="2.2"/><path d="M-12 -8 L0 2 L12 -8" fill="none" stroke="#241a44" stroke-width="2"/></svg>`;
+    el.innerHTML = OE_FLYERS[kind] || OE_FLYERS.envelope;
     this.fxLayer.appendChild(el);
     el.style.transform = `translate(${from.x}px,${from.y}px)`;
     void el.offsetWidth;
@@ -342,6 +342,16 @@ const OE = {
     el.style.transform = `translate(${to.x}px,${to.y}px)`;
     await this.sleep(ms);
     el.remove();
+  },
+  /* a soft, brief sparkle (the new-bot moment) — six little stars, no confetti */
+  sparkle(x, y) {
+    if (this.instant || reducedMotion() || !this.fxLayer) return;
+    for (let i = 0; i < 6; i++) {
+      const p = document.createElement('i'); p.className = 'o-spark'; const a = i / 6 * Math.PI * 2;
+      p.style.left = x + 'px'; p.style.top = y + 'px';
+      p.style.setProperty('--dx', (Math.cos(a) * 70).toFixed(0) + 'px'); p.style.setProperty('--dy', (Math.sin(a) * 50).toFixed(0) + 'px');
+      this.fxLayer.appendChild(p); setTimeout(() => p.remove(), 900);
+    }
   },
   burst(x, y) {
     if (this.instant || reducedMotion()) return;
@@ -374,52 +384,87 @@ const OE = {
     this.box.style.setProperty('--k', k);
     this._ox = ox; this._oy = oy;
     if (this.zoom.obj) this.zoomTo(this.zoom.obj, true);
+    else if (this.zoom.rect) this.focusRect(this.zoom.rect, this.zoom.glow, true);
   },
   /* fit an object's bounds into the viewport; null = back to the office */
   zoomTo(objId, quiet) {
     if (!this.box) return null;
+    this._glow(null);
+    let b = null;
+    if (objId) { const o = this.plan.objects[objId] || this.plan.objects.whiteboard; b = { x: o.x - 16, y: o.y - 16, w: o.w + 32, h: o.h + 32 }; }
+    this._camTo(b, quiet, { obj: objId, zmax: Infinity });
+    this.box.classList.toggle('zoomed', !!objId);
+    return true;
+  },
+  /* pager focus: glide to a world rect (a team pod) and glow it; the room stays live.
+     cam/glow are world rects {x,y,w,h}; null = back to the whole office. */
+  focusRect(cam, glow, quiet) {
+    if (!this.box) return null;
+    this.box.classList.remove('zoomed');
+    this._camTo(cam, quiet, { rect: cam, glow, zmax: 2.1 });
+    this._glow(cam ? glow : null, quiet);
+    return true;
+  },
+  _glow(r, quiet) {
+    let g = this.layer && this.layer.querySelector('.o-podglow');
+    if (!r) { if (g) { g.classList.remove('on'); clearTimeout(this._gt); this._gt = setTimeout(() => g.remove(), 400); } return; }
+    clearTimeout(this._gt);
+    if (!g) { g = document.createElement('div'); g.className = 'o-podglow'; g.setAttribute('aria-hidden', 'true'); this.layer.appendChild(g); }
+    g.style.cssText = `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
+    /* lights up after the camera lands — never restyles during the move */
+    if (quiet || this.instant || reducedMotion()) g.classList.add('on'); else setTimeout(() => g.classList.add('on'), 520);
+  },
+  /* the one camera move. b = world rect (null = whole room).
+     Perf: during the move the GPU slides the room as ONE flat layer (.moving =
+     will-change). Restyle-heavy work (--z feeds every overlay's size; pausing
+     every animation) waits until the camera lands, so the move itself never
+     triggers a full-scene style/raster pass. */
+  _camTo(b, quiet, o) {
     const vp = this.box.parentElement; const Wv = vp.clientWidth, H = vp.clientHeight;
     let z = 1, tx = 0, ty = 0;
-    if (objId) {
-      const o = this.plan.objects[objId] || this.plan.objects.whiteboard;
-      const bx = o.x - 16, by = o.y + 70 - 16, bw = o.w + 32, bh = o.h + 32;
-      z = Math.min((Wv * 0.94) / (bw * this.k), (H * 0.9) / (bh * this.k));
-      const cx = bx + bw / 2, cy = by + bh / 2;
+    if (b) {
+      const by = b.y + 70; /* world → box (the world sits 70px down the box) */
+      z = Math.min(o.zmax, (Wv * 0.94) / (b.w * this.k), (H * 0.9) / (b.h * this.k));
+      const cx = b.x + b.w / 2, cy = by + b.h / 2;
       const ccx = (Wv / 2 - this._ox) / this.k, ccy = (H / 2 - this._oy) / this.k;
       tx = ccx - z * cx; ty = ccy - z * cy;
     }
-    this.zoom = { z, tx, ty, obj: objId };
-    const cam = this.cam, box = this.box;
-    /* Perf: during the move the GPU slides the room as ONE flat layer (.moving =
-       will-change). Restyle-heavy work (--z feeds every overlay's size; pausing
-       every animation) waits until the camera lands, so the move itself never
-       triggers a full-scene style/raster pass. */
+    this.zoom = { z, tx, ty, obj: o.obj || null, rect: o.rect || null, glow: o.glow || null };
+    const cam = this.cam, box = this.box, zoomedObj = !!o.obj;
     const settle = () => {
       cam.classList.remove('moving');
       box.style.setProperty('--z', z);
-      const st = document.getElementById('oStage'); if (st) st.classList.toggle('settled', !!objId);
+      const st = document.getElementById('oStage'); if (st) st.classList.toggle('settled', zoomedObj);
     };
     clearTimeout(this._zt);
     cam.classList.toggle('quiet', !!quiet);
-    if (quiet || OE.instant || reducedMotion()) { cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : ''; settle(); }
+    const tf = b ? `translate(${tx}px,${ty}px) scale(${z})` : '';
+    if (quiet || OE.instant || reducedMotion()) { cam.style.transform = tf; settle(); }
     else {
       const st = document.getElementById('oStage'); if (st) st.classList.remove('settled');
       cam.classList.add('moving');
-      requestAnimationFrame(() => { cam.style.transform = objId ? `translate(${tx}px,${ty}px) scale(${z})` : ''; });
+      requestAnimationFrame(() => { cam.style.transform = tf; });
       this._zt = setTimeout(settle, 560);
     }
-    box.classList.toggle('zoomed', !!objId);
-    return true;
   },
+};
+
+/* things that fly across the room: pushes, hand-offs, and bot parts */
+const OE_FLYERS = {
+  plane: `<svg viewBox="-20 -14 40 28" width="40" height="28"><path d="M-18 2 L18 -12 L4 12 L0 4Z" fill="#fff6e9" stroke="#241a44" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+  envelope: `<svg viewBox="-14 -10 28 20" width="30" height="22"><rect x="-12" y="-8" width="24" height="16" rx="2" fill="#f3d79e" stroke="#241a44" stroke-width="2.2"/><path d="M-12 -8 L0 2 L12 -8" fill="none" stroke="#241a44" stroke-width="2"/></svg>`,
+  bolt: `<svg viewBox="-10 -10 20 20" width="20" height="20"><path d="M-6 -3 L0 -7 L6 -3 V3 L0 7 L-6 3Z" fill="#c9c3dd" stroke="#241a44" stroke-width="2" stroke-linejoin="round"/><circle r="2.2" fill="#241a44"/></svg>`,
+  gear: `<svg viewBox="-12 -12 24 24" width="24" height="24"><path d="M-2 -10 H2 L3 -7 L6 -8 L8 -6 L7 -3 L10 -2 V2 L7 3 L8 6 L6 8 L3 7 L2 10 H-2 L-3 7 L-6 8 L-8 6 L-7 3 L-10 2 V-2 L-7 -3 L-8 -6 L-6 -8 L-3 -7Z" fill="#ffc24b" stroke="#241a44" stroke-width="1.8" stroke-linejoin="round"/><circle r="3" fill="#fff6e9" stroke="#241a44" stroke-width="1.6"/></svg>`,
+  spark: `<svg viewBox="-10 -10 20 20" width="20" height="20"><path d="M0 -9 L2.4 -2.4 L9 0 L2.4 2.4 L0 9 L-2.4 2.4 L-9 0 L-2.4 -2.4Z" fill="#8be88b" stroke="#241a44" stroke-width="1.8" stroke-linejoin="round"/></svg>`,
 };
 
 /* the accessible name of an actor — full sentence, never colour-only */
 function actorLabel(a) {
-  const ag = agentById(a.id === 'pixel' ? 'director' : a.id);
+  const ag = wsAg(a.id);
   const team = a.teamId ? teamById(a.teamId) : null;
   const where = a.id === 'pixel' ? 'Director' : team ? team.name : 'Solo';
   let st = a.activity.detail || a.activity.label;
   if (a.activity.kind === 'needs-input') { const ask = WS.pending.find(p => p.agentId === a.id); st = 'needs your input' + (ask ? ': ' + ask.short : a.activity.detail ? ': ' + a.activity.detail : ''); }
   if (a.activity.kind === 'sleeping') st = 'off shift, asleep on the couch';
-  return `${ag.name}, ${a.id === 'pixel' ? 'Director' : ag.role}, ${where} — ${st}`;
+  return `${ag.name}, ${a.id === 'pixel' ? 'Director (orchestrator)' : wsRole(ag)}, ${where} — ${st}`;
 }

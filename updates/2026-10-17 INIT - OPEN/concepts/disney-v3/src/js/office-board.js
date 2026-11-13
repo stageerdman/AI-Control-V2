@@ -1,7 +1,8 @@
 /* ============================================================
    office-board.js — the three things you can zoom into (spec-office §4):
      #board          whiteboard: the big %, features in progress, the task list
-     #health         health board: Modularity · Cleanliness · Reusability report
+     #health         health board: GitHub (connected · private/public) · runs locally ·
+                     Modularity · Cleanliness · Reusability report
      #features       features folder: Now / Planned / Shipped (identical rows)
      #feature/<id>   one feature: Description + Vision as plain text blocks
    The camera zooms onto the object, the scene behind is covered by a still
@@ -107,8 +108,16 @@ OB._board = function () {
 OB._health = function () {
   const word = { A: 'Great', B: 'Good', C: 'Needs work' };
   this.el.setAttribute('aria-label', 'Health check report');
+  const g = WS.github, r = WS.run;
+  const gh = g.connected
+    ? `<b>GitHub</b><span class="ob-pv">Connected · ${g.private ? '🔒 Private' : '🌐 Public'}</span><button type="button" class="btn btn-ghost btn-sm" data-key="priv" id="obPriv">Make ${g.private ? 'public' : 'private'}</button>`
+    : `<b>GitHub</b><span class="ob-pv">Not connected</span><button type="button" class="btn btn-ghost btn-sm" data-key="ghc" id="obGhc">Connect</button>`;
   return `${_obBack('Office', 'Back to the office')}
     <header class="ob-hhead"><h2>Health check</h2><span>Checked ${escapeHtml(WS.checkup.when)}</span></header>
+    <ul class="ob-proj" aria-label="Repository and how the app runs">
+      <li><span class="ob-pi" aria-hidden="true">⎇</span>${gh}</li>
+      <li><span class="ob-pi" aria-hidden="true">⌂</span><b>Runs locally</b><span class="ob-pv">open with <code>${escapeHtml(r.cmd)}</code> in <code>${escapeHtml(r.where)}</code> · built ${escapeHtml(r.built)}</span></li>
+    </ul>
     <ul class="ob-health">${WS.checkup.items.map(it => `<li>
       <div class="ob-hk"><span class="ob-grade g-${it.grade}" aria-hidden="true">${it.grade}</span><b>${escapeHtml(it.name)}</b><span class="ob-hw">${word[it.grade] || ''}<span class="sr-only"> (grade ${it.grade})</span></span></div>
       <p><span class="ob-hl">Good</span>${escapeHtml(it.good)}</p>
@@ -138,7 +147,7 @@ OB._featurePage = function () {
     <textarea id="obVis" class="ob-ta" data-key="vis" data-sec="vision" rows="4">${escapeHtml(d.vision)}</textarea>
     <footer class="ob-foot">${this._confirm
       ? `<div class="ob-confirm" role="alert"><span>Unsaved changes.</span><button type="button" class="btn btn-ghost btn-sm" data-c="keep">Keep editing</button><button type="button" class="btn btn-ghost btn-sm" data-c="discard">Discard</button><button type="button" class="btn btn-hero btn-sm" data-c="save">Save</button></div>`
-      : `<span class="ob-saved" aria-live="polite">${f.revisedAt && !dirty ? 'Saved' : ''}</span><button type="button" class="btn btn-hero btn-sm" id="obSave" data-key="save" ${dirty ? '' : 'disabled'}>Save &amp; brief Pixel</button>`}</footer>`;
+      : `<span class="ob-saved" aria-live="polite">${f.revisedAt && !dirty ? 'Saved' : ''}</span><button type="button" class="btn btn-hero btn-sm" id="obSave" data-key="save" ${dirty ? '' : 'disabled'}>Save &amp; brief ${escapeHtml(OP._dir())}</button>`}</footer>`;
 };
 
 /* ------------------------------------------------------------ wiring */
@@ -146,6 +155,8 @@ OB._wire = function (kind) {
   const el = this.el;
   el.querySelector('.ob-back').onclick = () => this.escape();
   el.querySelectorAll('[data-feat],[data-fid]').forEach(b => b.onclick = () => go('feature/' + (b.dataset.feat || b.dataset.fid)));
+  const pv = el.querySelector('#obPriv'); if (pv) pv.onclick = () => OM.privacy();
+  const gc = el.querySelector('#obGhc'); if (gc) gc.onclick = () => { WS.github.connected = true; toast('🐙 GitHub connected (prototype)'); officeChanged(); };
   if (kind !== 'feature') return;
   el.querySelectorAll('textarea').forEach(ta => ta.oninput = () => {
     this.draft[ta.dataset.sec] = ta.value;
@@ -171,12 +182,12 @@ OB._save = function () {
     if (tellId && wsAgent(tellId) && wsAgent(tellId).onProject) msg += ` Telling ${OP._short(tellId)} now.`; else tellId = null;
   }
   OP.post('pixel', { from: 'pixel', kind: 'text', text: msg, stream: true });
-  toast('Saved — Pixel is briefed');
+  toast(`Saved — ${escapeHtml(OP._dir())} is briefed`);
   if (tellId) OE.say('pixel', '', { to: tellId, ms: 1600 });
   officeChanged();
 };
 
-/* voice path: Pixel removes the sentence that mentions <word>; you confirm with "Save it" */
+/* voice path: the Director removes the sentence that mentions <word>; you confirm with "Save it" */
 OB.stageDrop = function (fid, word) {
   const f = wsFeature(fid); if (!f) return false;
   const cut = s => { const parts = s.match(/[^.!?]+[.!?]*\s*/g) || [s]; const keep = parts.filter(p => !p.toLowerCase().includes(word.toLowerCase())); return keep.length === parts.length ? null : keep.join('').trim(); };
