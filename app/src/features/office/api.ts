@@ -7,7 +7,12 @@ const e = encodeURIComponent;
 export type AgentStatusName = 'idle' | 'working' | 'waiting' | 'blocked' | 'done';
 export type ServerActivity = { kind: string; label: string; detail?: string; target?: string };
 /** An agent's latest status as the office view reports it (no `since` = never reported here). */
-export type AgentStatus = { status: AgentStatusName; activity?: ServerActivity; runId?: string; since?: string };
+export type AgentStatus = {
+  status: AgentStatusName;
+  activity?: ServerActivity;
+  runId?: string;
+  since?: string;
+};
 export type OfficeTeam = {
   id: string;
   name: string;
@@ -43,7 +48,9 @@ export type Feature = {
   createdAt: string;
   updatedAt: string;
 };
-export type FeatureCreate = Partial<Pick<Feature, 'status' | 'order' | 'pct' | 'owner' | 'description' | 'vision'>> & {
+export type FeatureCreate = Partial<
+  Pick<Feature, 'status' | 'order' | 'pct' | 'owner' | 'description' | 'vision'>
+> & {
   name: string;
 };
 export type FeaturePatch = Partial<Omit<FeatureCreate, never>>;
@@ -78,22 +85,27 @@ export type StudioAsk = {
 export const officeApi = {
   office: (pid: string) => http.get<OfficeView>(`/projects/${e(pid)}/office`),
   features: (pid: string) => http.get<Feature[]>(`/projects/${e(pid)}/features`),
-  createFeature: (pid: string, body: FeatureCreate) => http.post<Feature>(`/projects/${e(pid)}/features`, body),
+  createFeature: (pid: string, body: FeatureCreate) =>
+    http.post<Feature>(`/projects/${e(pid)}/features`, body),
   updateFeature: (pid: string, fid: string, body: FeaturePatch) =>
     http.patch<Feature>(`/projects/${e(pid)}/features/${e(fid)}`, body),
   deleteFeature: (pid: string, fid: string) => http.del<void>(`/projects/${e(pid)}/features/${e(fid)}`),
-  thread: (pid: string, agentId: string) => http.get<Thread>(`/projects/${e(pid)}/threads/${e(agentId)}/messages`),
+  thread: (pid: string, agentId: string) =>
+    http.get<Thread>(`/projects/${e(pid)}/threads/${e(agentId)}/messages`),
   say: (pid: string, agentId: string, text: string) =>
-    http.post<{ message: ThreadMessage; runId: string }>(`/projects/${e(pid)}/threads/${e(agentId)}/messages`, {
-      text,
-    }),
+    http.post<{ message: ThreadMessage; runId: string }>(
+      `/projects/${e(pid)}/threads/${e(agentId)}/messages`,
+      {
+        text,
+      },
+    ),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
 };
 
 /** Query keys (strings; invalidate by prefix). */
 export const keys = {
-  office: (pid: string) => `office:${pid}`,
+  office: (pid: string) => `officeview:${pid}`,
   features: (pid: string) => `office:${pid}:features`,
   work: (pid: string) => `office:${pid}:work`,
   health: (pid: string) => `office:${pid}:health`,

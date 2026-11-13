@@ -1,0 +1,221 @@
+/* The office's live state, pure (tested): the backend's statuses + open asks → what each robot is
+   doing in the scene (the prototype's ACTIVITY kinds), thread merging, the wall's facts.
+   The scene (engine.ts) only renders what deriveActor() says; nothing here touches the DOM. */
+import type { Goal, ProjectHealth, StudioEvent } from '../../api';
+import type { Pose } from '../../characters';
+import type { AgentStatus, Feature, OfficeView, ThreadMessage } from './api';
+import type { BoardFacts } from './theme';
+
+/** One row per activity kind (prototype office-engine.js ACTIVITY): pose, prop, monitor glyph. */
+export const ACTIVITY = {
+  reading: { icon: '📖', tag: 'Reading', pose: 'reading', holding: 'binder', glyph: 'read', seated: true },
+  planning: { icon: '💭', tag: 'Planning', pose: 'thinking', glyph: 'caret', seated: true },
+  coding: { icon: '⌨️', tag: 'Coding', pose: 'typing', glyph: 'code', seated: true },
+  testing: { icon: '🧪', tag: 'Testing', pose: 'waiting', glyph: 'dots', seated: true },
+  'needs-input': { icon: '❗', tag: 'Needs you', pose: 'needs-input', glyph: 'pause', seated: false },
+  waiting: { icon: '⏳', tag: 'Waiting', pose: 'waiting', glyph: 'hourglass', seated: true },
+  reviewing: { icon: '🔍', tag: 'Reviewing', pose: 'writing', holding: 'pen', glyph: 'diff', seated: true },
+  idle: { icon: '☕', tag: 'Free', pose: 'chilling', holding: 'mug', glyph: 'emblem', seated: true },
+  sleeping: { icon: '💤', tag: 'Off shift', pose: 'sleeping', glyph: 'off', seated: true },
+} as const satisfies Record<
+  string,
+  { icon: string; tag: string; pose: Pose; holding?: string; glyph: string; seated: boolean }
+>;
+export type ActKind = keyof typeof ACTIVITY;
+export type ActivityDef = (typeof ACTIVITY)[ActKind] & { holding?: string };
+export const activityOf = (k: ActKind): ActivityDef => ACTIVITY[k];
+
+/** asleep = no session on this project yet (never reported); idle = free; running = on a run. */
+export type Session = 'asleep' | 'idle' | 'running';
+export type Actor = { id: string; kind: ActKind; label: string; session: Session; runId?: string };
+export type PendingAsk = {
+  id: string;
+  agentId: string;
+  question: string;
+  options: string[] | null;
+  runId?: string;
+};
+
+export type Live = {
+  director: string;
+  /** Everyone in the office: the director first, then team members, then solo (office order). */
+  ids: string[];
+  /** Latest backend status per agent; null = never reported here (asleep). */
+  status: Record<string, AgentStatus | null>;
+  pending: PendingAsk[];
+};
+
+/* server activity kinds (runtime/stream.ts, crew) → the scene's */
+const KIND: Record<string, ActKind> = {
+  reading: 'reading',
+  searching: 'reading',
+  editing: 'coding',
+  tool: 'coding',
+  running: 'testing',
+  writing: 'reviewing',
+  reviewing: 'reviewing',
+  thinking: 'planning',
+  starting: 'planning',
+  asking: 'needs-input',
+};
+
+/** What one robot shows, from its latest status and whether it has an open ask. */
+export function deriveActor(live: Live, id: string): Actor {
+  const s = live.status[id];
+  const ask = live.pending.find((p) => p.agentId === id);
+  const director = id === live.director;
+  const runId = s?.runId;
+  if (ask) return { id, kind: 'needs-input', label: 'Needs you', session: 'running', runId };
+  if (!s) return director ? { id, kind: 'planning', label: 'Big picture', session: 'idle' } : sleeping(id);
+  const label = s.activity?.label;
+  switch (s.status) {
+    case 'working': {
+      const kind = KIND[s.activity?.kind ?? ''] ?? 'coding';
+      return {
+        id,
+        kind: kind === 'needs-input' ? 'waiting' : kind,
+        label: label || ACTIVITY[kind].tag,
+        session: 'running',
+        runId,
+      };
+    }
+    case 'waiting':
+      return { id, kind: 'waiting', label: label || 'Waiting', session: 'running', runId };
+    case 'blocked':
+      return { id, kind: 'waiting', label: label || 'Blocked', session: 'running', runId };
+    default: /* idle · done */
+      return director
+        ? { id, kind: 'planning', label: 'Big picture', session: 'idle' }
+        : {
+            id,
+            kind: 'idle',
+            label: s.status === 'done' ? 'Done — free for the next thing' : 'Free',
+            session: 'idle',
+          };
+  }
+}
+const sleeping = (id: string): Actor => ({ id, kind: 'sleeping', label: 'Off shift', session: 'asleep' });
+
+export function initLive(office: OfficeView, asks: PendingAsk[] = []): Live {
+  const ids = [office.director, ...office.teams.flatMap((t) => t.members), ...office.solo].filter(
+    (id, i, a) => a.indexOf(id) === i,
+  );
+  const status: Record<string, AgentStatus | null> = {};
+  /* never reported (no `since`) = no session here yet = asleep */
+  for (const id of ids) status[id] = office.agents[id]?.since ? office.agents[id] : null;
+  return { director: office.director, ids, status, pending: asks.filter((a) => ids.includes(a.agentId)) };
+}
+
+/** Apply one event from the project's stream. Unknown agents / types leave the state as it is. */
+export function reduce(live: Live, ev: StudioEvent): Live {
+  switch (ev.type) {
+    case 'agent.status': {
+      const p = ev.payload;
+      if (!live.ids.includes(p.agentId)) return live;
+      const { agentId: _, ...st } = p;
+      return { ...live, status: { ...live.status, [p.agentId]: { ...st, since: ev.at } } };
+    }
+    case 'ask.opened': {
+      const p = ev.payload;
+      if (!live.ids.includes(p.agentId) || live.pending.some((a) => a.id === p.askId)) return live;
+      const ask: PendingAsk = {
+        id: p.askId,
+        agentId: p.agentId,
+        question: p.question,
+        options: p.options ?? null,
+        runId: p.runId,
+      };
+      return { ...live, pending: [...live.pending, ask] };
+    }
+    case 'ask.answered':
+      return live.pending.some((a) => a.id === ev.payload.askId)
+        ? { ...live, pending: live.pending.filter((a) => a.id !== ev.payload.askId) }
+        : live;
+    default:
+      return live;
+  }
+}
+
+/** Which actors look different between two states (the scene restyles only those). */
+export function changedActors(a: Live, b: Live): string[] {
+  return b.ids.filter((id) => {
+    const x = deriveActor(a, id);
+    const y = deriveActor(b, id);
+    return x.kind !== y.kind || x.label !== y.label || x.session !== y.session;
+  });
+}
+
+/* ------------------------------------------------------------ threads */
+/** A `thread.message` event → the stored message shape. */
+export function threadMessageOf(ev: StudioEvent<'thread.message'>): ThreadMessage {
+  const p = ev.payload;
+  return {
+    id: p.messageId,
+    from: p.from === 'user' ? 'user' : p.agentId,
+    kind: p.kind,
+    text: p.text,
+    runId: p.runId ?? null,
+    reportId: p.reportId ?? null,
+    at: ev.at,
+  };
+}
+/** Merge one message into a thread: no duplicates (by id), oldest first. */
+export function mergeMessage(list: ThreadMessage[], m: ThreadMessage): ThreadMessage[] {
+  if (list.some((x) => x.id === m.id)) return list.map((x) => (x.id === m.id ? m : x));
+  const out = [...list, m];
+  return out.every((x, i) => i === 0 || out[i - 1].at <= x.at)
+    ? out
+    : out.slice().sort((x, y) => (x.at < y.at ? -1 : x.at > y.at ? 1 : 0));
+}
+
+/* ------------------------------------------------------------ the wall */
+/** The tasks the whiteboard lists: every running goal's items, else the newest goal's (oldest first). */
+export function boardTasks(goals: Goal[]): { id: string; text: string; done: boolean; status: string }[] {
+  const running = goals.filter((g) => g.status === 'running');
+  const shown = running.length ? running : goals.slice(0, 1);
+  return shown
+    .slice()
+    .reverse()
+    .flatMap((g) =>
+      g.items.map((i) => ({ id: i.id, text: i.text, done: i.status === 'done', status: i.status })),
+    );
+}
+/** The big number: the newest goal's progress, and what it's towards. */
+export function boardProgress(goals: Goal[]): { pct: number; toward: string | null } {
+  const g = goals.find((x) => x.status === 'running') ?? goals[0];
+  return g ? { pct: g.pct, toward: g.summary || g.text } : { pct: 0, toward: null };
+}
+export const nowFeatures = (features: Feature[]) =>
+  features.filter((f) => f.status === 'now').sort((a, b) => a.order - b.order);
+
+export const ASPECTS = [
+  ['modularity', 'Modularity'],
+  ['cleanliness', 'Cleanliness'],
+  ['reusability', 'Reusability'],
+] as const;
+
+export function boardFacts(d: {
+  goals?: Goal[];
+  features?: Feature[];
+  health?: ProjectHealth;
+  unreadReports?: number;
+}): BoardFacts {
+  const latest = d.health?.latest;
+  return {
+    overall: boardProgress(d.goals ?? []).pct,
+    now: nowFeatures(d.features ?? []).map((f) => ({ name: f.name, pct: f.pct ?? 0 })),
+    tasks: boardTasks(d.goals ?? []),
+    fresh: d.health?.git ? d.health.git.clean !== false : true,
+    grades: latest ? ASPECTS.map(([key, name]) => ({ key, name, grade: latest[key].grade })) : [],
+    unreadReports: d.unreadReports ?? 0,
+  };
+}
+
+/** "Build the checkout" → a goal; "how's it going?" → conversation. */
+export function looksLikeGoal(text: string): boolean {
+  const t = text.trim();
+  if (!t || /\?\s*$/.test(t)) return false;
+  return /^(please\s+)?(build|add|make|create|implement|fix|ship|write|set up|setup|research|compare|investigate|find out|review|refactor|design|improve|update|remove|migrate|test|document)\b/i.test(
+    t,
+  );
+}
