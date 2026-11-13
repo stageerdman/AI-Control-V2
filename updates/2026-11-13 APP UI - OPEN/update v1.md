@@ -50,6 +50,22 @@ Key cabinet (masked), per-project grants; Blueprint (modules, scaffold tree, pri
 End-to-end click-through on the fake runner, a11y + reduced motion, perf, packaging check (`tauri build`),
 then one live demo run with the user's go.
 
+## Overnight final build (2026-11-14) — "a final app … real AI … tested properly … build real apps in the morning"
+Live runs on the user's Claude Code subscription are approved for this build (real-AI testing), kept purposeful.
+- **F1a — Cast finish (U3):** roles editor + reporter switches, verify the whole Cast on the backend, screenshots.
+- **F1b — Engine for real work (server):** collaboration design (B8: orchestrator-designed communication plan —
+  who talks to whom, review/handoff gates such as QA / quality manager / user tester, optional crash tester;
+  agent toolkits folder for quality/test agents); **git worktrees per run** so agents can work in parallel safely
+  and merge back; project status lifecycle; orchestrator replies to goals persisted in its thread; report
+  follow-ups carry the report; overall project progress (target + features).
+- **F2 — Whole-app pass (U6):** UI for collaboration (plan in setup team step, handoffs/reviews visible in the
+  office), gaps from U2/U4/U5 notes, end-to-end click-through, a11y/reduced motion, release build that works from
+  Finder.
+- **F3 — Real-AI end-to-end:** through the real app/API with the real runner: create a real small app project,
+  orchestrator chat → plan → Tinker → work with reviews → reports → health; fix every issue found; repeat until
+  it reliably builds a working app.
+- **F4 — Ship:** final `.app`, a short "How to use AI Studio" guide, status + memory.
+
 ## Status
 - ✅ U0 front-end foundation — characters ported byte-identical (823 golden cases, 0 px diff vs the prototype gallery), tokens, API client + query + SSE hooks, shell/router/placeholders, ui primitives, #gallery; 60 tests (PROGRESS-U0.md, app/src/README.md).
 - ⏳ U0 + U1 starting (parallel), plus a UX spec for the Reports space.
