@@ -338,7 +338,9 @@ describe('features follow goals (F1c)', () => {
     expect(r.body.featureId).toBe('f-search');
     expect(s.crew.crewCalls()[0]?.task).toContain('Features: []');
     // F3 live: a follow-up goal linked the already-shipped feature, so nothing on the features folder moved
-    expect(s.crew.crewCalls()[0]?.task).toMatch(/A Shipped feature is done: a goal that ADDS something new to it[^.]*gets a NEW feature/);
+    expect(s.crew.crewCalls()[0]?.task).toMatch(
+      /A Shipped feature is done: a goal that ADDS something new to it[^.]*gets a NEW feature/,
+    );
     const g = await settled(h, r.body.id);
     expect(g).toMatchObject({ status: 'done', featureId: 'f-search', ships: true });
     const f = (await h.call('GET', '/projects/aurora/features/f-search')).body;
