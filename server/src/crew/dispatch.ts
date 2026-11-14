@@ -553,6 +553,8 @@ export function createDispatch(deps: {
     try {
       run = runtime.start(it.projectId, {
         ...spec,
+        /* the office's work clock: a gate's review, a report item's research, everything else is building */
+        kind: it.stage === 'review' ? 'reviewing' : it.report ? 'research' : 'building',
         ...(caps ? { caps } : {}),
         ...(it.workspace ? { workdir: it.workspace.cwd } : {}),
       });
@@ -828,6 +830,7 @@ export function createDispatch(deps: {
       ({ value } = await crew.call({
         who: captain.name,
         contract: TEAM_SPLIT,
+        track: { scope: 'project', ownerId: it.projectId, agentId: captain.id, kind: 'thinking' },
         systemPrompt: call.systemPrompt,
         task: call.task,
         caps: SPLIT_CAPS,
@@ -1141,6 +1144,7 @@ export function createDispatch(deps: {
           ({ value } = await crew.call({
             who: orch.name,
             contract: DISPATCH,
+            track: { scope: 'project', ownerId: projectId, agentId: orch.id, kind: 'thinking' },
             systemPrompt: crewSystemPrompt(orch, ORCHESTRATOR_ALTITUDE),
             task,
             validate: validateWith(DispatchSchema, (d) => dispatchIssues(d, crewing(projectId))),

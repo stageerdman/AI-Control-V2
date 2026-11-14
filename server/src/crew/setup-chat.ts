@@ -93,6 +93,7 @@ export function createSetupChat(deps: { store: Store; events: EventLog; crew: Cr
         const { value } = await crew.call({
           who: orch.name,
           contract: SETUP_CHAT,
+          track: { scope: 'draft', ownerId: draftId, agentId: orch.id, kind: 'thinking' },
           systemPrompt: crewSystemPrompt(orch, ORCHESTRATOR_ALTITUDE),
           task,
           validate: validateWith(SetupReplySchema, (r) => planIssues(r.plan, cast()).map((i) => i.message)),

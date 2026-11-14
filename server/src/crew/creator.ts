@@ -115,6 +115,8 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
       earlier?: Design[];
       specialists?: readonly string[];
       onTokens?: (i: number, o: number) => void;
+      /** The draft whose setup time this is (the work clock). */
+      draftId?: string;
     },
   ): Promise<Design> {
     const me = creator();
@@ -126,6 +128,9 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
       `Agent names already taken: ${json(ctx.agentNames)}`,
       `Look options (pick one value per slot; give mates on a team different looks): ${json(LOOK_OPTIONS)}`,
     ];
+    const track = opts.draftId
+      ? ({ scope: 'draft', ownerId: opts.draftId, agentId: me.id, kind: 'setup' } as const)
+      : undefined;
     const onEvent = (e: { kind: string; input?: number; output?: number }) => {
       if (e.kind === 'tokens') opts.onTokens?.(e.input ?? 0, e.output ?? 0);
     };
@@ -133,6 +138,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
       const { value } = await crew.call({
         who: me.name,
         contract: MINT_AGENT,
+        ...(track ? { track } : {}),
         systemPrompt: crewSystemPrompt(me, CREATOR_ALTITUDE),
         task: [
           ...common,
@@ -146,6 +152,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
     const { value } = await crew.call({
       who: me.name,
       contract: MINT_TEAM,
+      ...(track ? { track } : {}),
       systemPrompt: crewSystemPrompt(me, CREATOR_ALTITUDE),
       task: [
         ...common,
@@ -266,6 +273,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
             await design(b.kind, b.brief, {
               project: { name: draft.name, about: draft.about },
               earlier: designs,
+              draftId,
               specialists: plan.specialists.map((s) => s.agentId),
               onTokens: (input, output) =>
                 events.append('draft', draftId, {

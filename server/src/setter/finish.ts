@@ -24,6 +24,7 @@ import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox, SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
 import type { Github } from '../github/github.ts';
+import type { WorkClock } from '../office/work-time.ts';
 import { type Step, scaffold } from './scaffold.ts';
 
 export type FinishDeps = {
@@ -35,6 +36,8 @@ export type FinishDeps = {
   today: () => string;
   /** G1: the GitHub step at the end of setup (absent → no GitHub step). */
   github?: Github;
+  /** The office's work clock: Rivet's setup time, moved to the project on finish. */
+  clock?: WorkClock;
 };
 export type FinishResult = { project: Project; steps: Step[]; commit: string | null };
 
@@ -83,7 +86,16 @@ function folderOf(deps: FinishDeps, draft: Draft): string {
   return folder;
 }
 
-async function runSetup(deps: FinishDeps, draft: Draft): Promise<SetupResult> {
+/** Rivet at work: the scaffold, timed on the draft (the work clock's "Setup"). */
+function runSetup(deps: FinishDeps, draft: Draft): Promise<SetupResult> {
+  const rivet = deps.store.agents.list().find((a) => a.kind === 'setter');
+  if (!deps.clock || !rivet) return scaffoldDraft(deps, draft);
+  return deps.clock.track({ scope: 'draft', ownerId: draft.id, agentId: rivet.id, kind: 'setup' }, () =>
+    scaffoldDraft(deps, draft),
+  );
+}
+
+async function scaffoldDraft(deps: FinishDeps, draft: Draft): Promise<SetupResult> {
   const { store, sandbox, events } = deps;
   const folder = folderOf(deps, draft);
   const abs = guard(() => resolveInSandbox(sandbox, folder));
@@ -191,6 +203,7 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
     const project = store.tx(() => {
       const p = store.projects.create(input);
       events.copy({ scope: 'draft', id: draft.id }, { scope: 'project', id: p.id });
+      deps.clock?.moveDraft(draft.id, p.id);
       store.drafts.deleteRecord(draft.id);
       return p;
     });

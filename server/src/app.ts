@@ -26,6 +26,7 @@ import { createFeatures } from './office/features.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createOffice } from './office/office.ts';
 import { createThreads } from './office/threads.ts';
+import { createWorkClock } from './office/work-time.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
 import { accessesRoutes } from './routes/accesses.ts';
 import { agentRoutes } from './routes/agents.ts';
@@ -49,6 +50,7 @@ import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
 import { teamRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
+import { timeRoutes } from './routes/time.ts';
 import { trashRoutes } from './routes/trash.ts';
 import { AGENT_SHELL, loadCaps, type StudioCaps } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
@@ -171,8 +173,12 @@ export function buildApp({
   });
   runtime.recover();
   onRuntime?.(runtime);
+  /* the office's work clock: runs + the crew calls that never become runs */
+  const clock = createWorkClock(db);
+  clock.recover();
   /* the studio crew (orchestrator, Agent Creator): tool-less runs in a scratch dir, never a project folder */
   const crew = createCrew({
+    clock,
     runner,
     model,
     scratchDir: join(config.home, 'scratch'),
@@ -295,7 +301,8 @@ export function buildApp({
   for (const routes of [roleRoutes, agentRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
   app.register(blueprintRoutes({ config }));
-  app.register(setterRoutes({ store, config, events, github }));
+  app.register(setterRoutes({ store, config, events, github, clock }));
+  app.register(timeRoutes({ store, clock }));
   app.register(githubRoutes({ github }));
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),

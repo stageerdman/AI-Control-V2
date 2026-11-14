@@ -4,6 +4,7 @@
    - the run's env = minimal base + the project's GRANTED secrets only;
    - every event goes through the log (validated, secrets redacted — including this
      run's granted values), never straight to a client. */
+
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
@@ -16,6 +17,7 @@ import { slugify } from '../domain/ids.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
+import type { WorkKind } from '../office/work-time.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { DEFAULT_CAPS } from './config.ts';
@@ -33,6 +35,8 @@ export type StartRun = {
   /** A big-picture run (the orchestrator's office chat): this system prompt instead of the composed one,
       no tools at all, no secrets, no ask tool — it answers in its reply. */
   bigPicture?: { systemPrompt: string };
+  /** What kind of work this is, for the office's work clock (office/work-time.ts). Absent → read from the row. */
+  kind?: WorkKind;
 };
 type Live = { run: Run; handle: RunHandle; token: string; secrets: string[]; reporter: boolean };
 /** The reports seam (src/reports): who may file, and filing itself. */
@@ -251,6 +255,7 @@ export function createRuntime(deps: RuntimeDeps) {
       runner: runner.name,
       model: deps.model,
       caps,
+      kind: req.kind ?? null,
     });
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
     const toolkit = big ? null : toolkitFor(agent);

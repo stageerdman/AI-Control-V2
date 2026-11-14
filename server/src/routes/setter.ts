@@ -11,6 +11,7 @@ import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Github } from '../github/github.ts';
 import { githubRepo, safeRemoteUrl } from '../health/git-status.ts';
+import type { WorkClock } from '../office/work-time.ts';
 import { finishDraft, localDate, setupDraft } from '../setter/finish.ts';
 import { firstRemoteUrl, isRepo } from '../setter/git.ts';
 import { inspect } from '../setter/scaffold.ts';
@@ -24,11 +25,13 @@ export const setterRoutes =
     config,
     events,
     github,
+    clock,
   }: {
     store: Store;
     config: Config;
     events: EventLog;
     github?: Github;
+    clock?: WorkClock;
   }): FastifyPluginAsync =>
   async (app) => {
     const deps = {
@@ -38,6 +41,7 @@ export const setterRoutes =
       controlHome: config.controlHome,
       modules: () => readModules(config.controlHome),
       today: () => localDate(),
+      ...(clock ? { clock } : {}),
       ...(github ? { github } : {}),
     };
 

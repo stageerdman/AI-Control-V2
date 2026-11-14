@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import type { z } from 'zod';
 import { agentError, conflict } from '../errors.ts';
+import type { Track, WorkClock } from '../office/work-time.ts';
 import { ORCHESTRATOR_CAPS } from '../runtime/config.ts';
 import { runEnv } from '../runtime/env.ts';
 import type { Caps, RunEvent, Runner, RunOutcome } from '../runtime/runner.ts';
@@ -26,6 +27,8 @@ export type CrewDeps = {
   parentEnv?: NodeJS.ProcessEnv;
   /** Default caps for crew calls (the orchestrator's). */
   caps?: Caps;
+  /** The office's work clock: calls with a `track` record their time (office/work-time.ts). */
+  clock?: WorkClock;
 };
 
 export type CrewCall<T> = {
@@ -41,6 +44,8 @@ export type CrewCall<T> = {
   onEvent?: (e: RunEvent) => void;
   /** A read-only look at a project (health check): its folder + a read-only tool set. Default: scratch, no tools. */
   workspace?: { cwd: string; tools: readonly string[]; allowedTools: readonly string[] };
+  /** Whose time this is on the work clock (project or draft, agent, kind of work). */
+  track?: Track;
 };
 export type CrewResult<T> = { value: T; attempts: number; outcomes: RunOutcome[] };
 
@@ -111,7 +116,17 @@ export function createCrew(deps: CrewDeps) {
         },
       },
     );
-    return handle.done;
+    const clock = call.track && deps.clock;
+    if (!clock) return handle.done;
+    const id = clock.start(call.track as Track);
+    let turns = 0;
+    try {
+      const o = await handle.done;
+      turns = o.turns;
+      return o;
+    } finally {
+      clock.end(id, turns);
+    }
   };
 
   return {

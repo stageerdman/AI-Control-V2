@@ -451,10 +451,13 @@ export function createThreads(deps: {
       const k = key(projectId, s.agent.id);
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
+      const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
       const run = runtime.start(projectId, {
         agentId: s.agent.id,
         ...(s.teamId ? { teamId: s.teamId } : {}),
         task,
+        /* the work clock: the director thinks; an agent's chat turn builds (a reporter's researches) */
+        kind: s.orchestrator ? 'thinking' : reporter ? 'research' : 'building',
         ...(resumeRunId ? { resumeRunId } : {}),
         ...(s.orchestrator
           ? {

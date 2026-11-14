@@ -21,6 +21,8 @@ export type Run = {
   turns: number;
   startedAt: string;
   endedAt: string | null;
+  /** The kind of work (office work clock); null = older runs, read from the row. */
+  kind: string | null;
 };
 export type Ask = {
   id: string;
@@ -75,6 +77,7 @@ const toRun = (r: RunRow): Run => ({
   turns: r.turns as number,
   startedAt: r.started_at as string,
   endedAt: (r.ended_at as string) ?? null,
+  kind: (r.kind as string) ?? null,
 });
 const toAsk = (r: RunRow): Ask => ({
   id: r.id as string,
@@ -93,12 +96,25 @@ const toAsk = (r: RunRow): Ask => ({
 export function runsRepo(db: Db) {
   return {
     insert(
-      r: Pick<Run, 'id' | 'projectId' | 'agentId' | 'teamId' | 'task' | 'runner' | 'model' | 'caps'>,
+      r: Pick<Run, 'id' | 'projectId' | 'agentId' | 'teamId' | 'task' | 'runner' | 'model' | 'caps'> & {
+        kind?: string | null;
+      },
     ): Run {
       db.prepare(
-        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at)
-         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
-      ).run(r.id, r.projectId, r.agentId, r.teamId, r.task, r.runner, r.model, JSON.stringify(r.caps), now());
+        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind)
+         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)`,
+      ).run(
+        r.id,
+        r.projectId,
+        r.agentId,
+        r.teamId,
+        r.task,
+        r.runner,
+        r.model,
+        JSON.stringify(r.caps),
+        now(),
+        r.kind ?? null,
+      );
       return this.get(r.id) as Run;
     },
     get: (id: string): Run | null => {

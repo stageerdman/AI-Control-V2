@@ -117,6 +117,7 @@ export function createCollaboration(deps: {
         const { value } = await crew.call({
           who: orch.name,
           contract: COLLABORATION,
+          track: { scope: 'project', ownerId: projectId, agentId: orch.id, kind: 'thinking' },
           systemPrompt: crewSystemPrompt(orch, ORCHESTRATOR_ALTITUDE),
           task: [
             `Project: ${json({ name: p.name, about: p.note })}`,

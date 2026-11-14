@@ -163,6 +163,7 @@ export function createHealth(deps: {
         const r = await crew.call({
           who: orch.name,
           contract: HEALTH,
+          track: { scope: 'project', ownerId: projectId, agentId: orch.id, kind: 'reviewing' },
           systemPrompt: crewSystemPrompt(orch, ALTITUDE),
           task,
           validate: validateWith(HealthSchema),

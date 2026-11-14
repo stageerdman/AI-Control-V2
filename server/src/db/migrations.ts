@@ -453,6 +453,28 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (project_id, agent_id)
   );
   `,
+  /* 25 — the office's work clock (OFFICE): a run's kind of work (thinking | building | reviewing | research |
+     setup; NULL = read from the row, older runs), and crew_time — the crew calls that never become runs (goal
+     planning, a captain's split, team design, health checks, the setup chat, the Agent Creator, Rivet's setup),
+     on a draft until it's finished, then on its project. */
+  `
+  ALTER TABLE runs ADD COLUMN kind TEXT;
+  CREATE TABLE crew_time (
+    id         TEXT PRIMARY KEY,
+    scope      TEXT NOT NULL CHECK (scope IN ('project', 'draft')),
+    owner_id   TEXT NOT NULL,
+    agent_id   TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    turns      INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT NOT NULL,
+    ended_at   TEXT
+  );
+  CREATE INDEX crew_time_owner ON crew_time(scope, owner_id);
+  CREATE TRIGGER crew_time_project_gone AFTER DELETE ON projects
+    BEGIN DELETE FROM crew_time WHERE scope = 'project' AND owner_id = OLD.id; END;
+  CREATE TRIGGER crew_time_draft_gone AFTER DELETE ON drafts
+    BEGIN DELETE FROM crew_time WHERE scope = 'draft' AND owner_id = OLD.id; END;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
