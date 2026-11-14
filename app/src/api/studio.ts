@@ -101,6 +101,7 @@ export const studio = {
     github: (id: string) => http.get<GithubView>(`/projects/${e(id)}/github`),
     publish: (id: string, body: { name?: string; visibility: 'private' | 'public' }) =>
       http.post<GithubView & { pushed: boolean }>(`/projects/${e(id)}/github/publish`, body),
+    pushGithub: (id: string) => http.post<GithubView>(`/projects/${e(id)}/github/push`),
     setVisibility: (id: string, visibility: 'private' | 'public') =>
       http.patch<GithubView>(`/projects/${e(id)}/github`, { visibility }),
     rebuildClaudeMd: (id: string) => http.post<ClaudeMdRebuild>(`/projects/${e(id)}/claude-md/rebuild`),

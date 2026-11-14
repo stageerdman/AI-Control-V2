@@ -2,7 +2,13 @@
 import { type Draft, http, type SetupStep } from '../../api';
 
 /** GET /sandbox/folders — top-level sandbox folders not yet under AI Studio (the Adopt picker). */
-export type SandboxFolder = { folder: string; git: boolean; marked: boolean };
+export type SandboxFolder = {
+  folder: string;
+  git: boolean;
+  marked: boolean;
+  /** G3: its first remote (credentials stripped); an adopted folder keeps it. */
+  remote?: { url: string; github: string | null } | null;
+};
 export const sandboxFolders = () => http.get<SandboxFolder[]>('/sandbox/folders');
 /** Where the sandbox lives (for the path under the tile). */
 export const sandboxPath = () =>

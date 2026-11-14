@@ -2,13 +2,14 @@
    scaffold), the principles it follows (the global modules, read-only here: their source is
    <AI Control home>/modules), and per-project freshness (GET /projects/:id/scaffold). */
 import { useState } from 'react';
-import { useQuery } from '../../api/query';
+import { setQueryData, useQuery } from '../../api/query';
+import { studio } from '../../api/studio';
 import type { Project } from '../../api/types';
 import { Hero } from '../../characters/Hero';
 import type { HeroAgent } from '../../characters/hero-svg';
 import { hexTint, PALETTE, type PaletteKey, shade } from '../../design/palette';
 import type { PageProps } from '../../shell/pages';
-import { Button, ErrorState, Loading, Panel, Sheet } from '../../ui';
+import { Button, ErrorState, Loading, Panel, Sheet, Switch, toast } from '../../ui';
 import { LogoTile } from '../projects/LogoTile';
 import { Markdown } from '../reports/markdown';
 import { type BlueprintModule, blueprintApi, keys } from './api';
@@ -94,6 +95,7 @@ export function BlueprintPage(_: PageProps<'blueprint'>) {
             <ul className="tree" aria-label="Starter kit">
               <TreeNodes nodes={kitTree(bp.data.tree, localDay(new Date().toISOString()))} />
             </ul>
+            <GithubDefault />
           </Panel>
         )}
         {bp.data && tab === 'pri' && <Principles modules={bp.data.modules} modulesDir={bp.data.modulesDir} />}
@@ -232,6 +234,49 @@ function FreshRow({ project: p, modules }: { project: Project; modules: Blueprin
       <div className={`st ${f?.state === 'ok' ? 'ok' : f ? 'stale' : ''}`}>
         {rep.loading ? 'Checking…' : rep.error ? `⚠ Can't check — ${rep.error.message}` : f?.label}
       </div>
+    </div>
+  );
+}
+
+/** The studio-wide default (G1 `GET/PATCH /settings`): new projects get a private GitHub repo at setup.
+   Each project can still switch it on its Name step. */
+function GithubDefault() {
+  const settings = useQuery('settings', studio.settings);
+  const [busy, setBusy] = useState(false);
+  const on = settings.data?.githubByDefault ?? true;
+  async function set(next: boolean) {
+    setBusy(true);
+    try {
+      setQueryData('settings', await studio.setSettings({ githubByDefault: next }));
+      toast(
+        next ? '⎇ New projects get a private GitHub repo' : '⎇ New projects stay local — publish any time',
+      );
+    } catch (e) {
+      toast(`⚠ Couldn’t change it — ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="bp-gh">
+      <span className="glyph" aria-hidden="true">
+        ⎇
+      </span>
+      <div>
+        <b>A private GitHub repo</b>
+        <p className="hint" id="bpGhHint">
+          {on
+            ? 'The Project Setter creates one and pushes main. Each project can still skip it on its Name step.'
+            : 'Off — new projects stay local. Each project can still turn it on, or publish later from Health.'}
+        </p>
+      </div>
+      <Switch
+        checked={on}
+        label="New projects get a private GitHub repo"
+        describedBy="bpGhHint"
+        disabled={busy || !settings.data}
+        onChange={(next) => void set(next)}
+      />
     </div>
   );
 }

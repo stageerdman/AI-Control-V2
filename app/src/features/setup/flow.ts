@@ -173,22 +173,79 @@ export const SETTER_STEPS: { step: string; label: string; detail: (mode: Draft['
   { step: 'updates/', label: 'updates/', detail: () => 'first update: INIT - OPEN' },
   { step: 'issues.txt', label: 'issues.txt', detail: () => 'running list of issues & TODOs' },
   { step: 'git', label: 'git', detail: () => 'a local repository' },
-  { step: 'commit', label: 'First commit', detail: () => 'commit what was added (local only)' },
+  { step: 'commit', label: 'First commit', detail: () => 'commit what was added' },
+  { step: 'github', label: 'GitHub', detail: () => 'a private repo' },
 ];
+
+/* ---------------- GitHub at setup (G1: a private repo by default) ---------------- */
+/** The Name step's switch: the draft's own choice, else the studio default. */
+export const githubOn = (d: Pick<Draft, 'github'>, studioDefault: boolean): boolean =>
+  d.github ?? studioDefault;
+
+/** "https://x@gitlab.com/me/app.git" → "gitlab.com/me/app" (the Name step's "keeps origin (…)"). */
+export function remoteLabel(r: { url: string; github: string | null }): string {
+  if (r.github) return r.github;
+  return r.url
+    .replace(/^[a-z][a-z0-9+.-]*:\/\/([^@/]*@)?/i, '')
+    .replace(/^[^@]+@([^:]+):/, '$1/')
+    .replace(/\.git$/, '');
+}
+
+const LATER = 'publish later from Health';
+/** The server's GitHub step line → the checklist's words (spec-ux-G2 §2a). GitHub never fails a setup. */
+export function githubDetail(ev: Pick<SetupStep, 'status' | 'detail'>, slug: string): string {
+  const d = ev.detail;
+  if (ev.status === 'running') return `creating ${slug} · pushing main`;
+  if (ev.status === 'done') {
+    const repo = /github\.com\/([^\s)]+)/.exec(d)?.[1] ?? slug;
+    return /push failed/.test(d) ? `${repo} · private · first push didn’t go through` : `${repo} · private`;
+  }
+  if (ev.status === 'kept') {
+    const m = /Kept its GitHub repo (\S+)/.exec(d) ?? /Kept its remote \(([^)]+)\)/.exec(d);
+    return `kept origin (${m ? remoteLabel({ url: m[1] as string, github: null }) : 'its remote'})`;
+  }
+  if (/off for this project/.test(d)) return `skipped — ${LATER}`;
+  if (/isn’t installed|isn't installed|isn’t logged in|isn't logged in|not logged/.test(d))
+    return `skipped — GitHub CLI not signed in · ${LATER}`;
+  if (/already exists/i.test(d)) return `skipped — ${slug} already exists · ${LATER}`;
+  return `skipped — couldn’t reach GitHub · ${LATER}`;
+}
 
 export type RowState = '' | 'doing' | 'done' | 'kept' | 'skipped';
 export type SetterRow = { step: string; label: string; detail: string; state: RowState };
 export type SetterState = { rows: SetterRow[]; failed: string | null; done: boolean };
 
-export const setterStart = (mode: Draft['mode']): SetterState => ({
-  rows: SETTER_STEPS.map((s) => ({ step: s.step, label: s.label, detail: s.detail(mode), state: '' })),
+/** `github`: what the GitHub row says while it waits (on = "a private repo"; off; or "keeps origin (…)"). */
+export const setterStart = (mode: Draft['mode'], github: boolean | string = true): SetterState => ({
+  rows: SETTER_STEPS.map((s) => ({
+    step: s.step,
+    label: s.label,
+    detail:
+      s.step !== 'github'
+        ? s.detail(mode)
+        : typeof github === 'string'
+          ? `keeps origin (${github})`
+          : github
+            ? 'a private repo'
+            : `off — ${LATER}`,
+    state: '',
+  })),
   failed: null,
   done: false,
 });
 
 /** Fold one `setup.step` (running → done / kept / skipped). A new 'folder running' = a new run. */
-export function setterStep(st: SetterState, ev: SetupStep, mode: Draft['mode']): SetterState {
-  const base = ev.step === 'folder' && ev.status === 'running' ? setterStart(mode) : st;
+export function setterStep(
+  st: SetterState,
+  ev: SetupStep,
+  _mode: Draft['mode'],
+  slug = 'the repo',
+): SetterState {
+  const base =
+    ev.step === 'folder' && ev.status === 'running'
+      ? { ...st, failed: null, done: false, rows: st.rows.map((r) => ({ ...r, state: '' as RowState })) }
+      : st;
+  if (ev.step === 'github') ev = { ...ev, detail: githubDetail(ev, slug) };
   const known = base.rows.some((r) => r.step === ev.step);
   const rows = known
     ? base.rows
@@ -209,15 +266,25 @@ export const setterFailed = (st: SetterState, message: string): SetterState => (
   rows: st.rows.map((r) => (r.state === 'doing' ? { ...r, state: '' } : r)),
 });
 /** The finish response is the truth: every step it reports, then done. */
-export function setterDone(steps: SetupStep[], mode: Draft['mode']): SetterState {
-  let s = setterStart(mode);
-  for (const ev of steps) s = setterStep(s, ev, mode);
-  return { ...s, done: true };
+export function setterDone(
+  steps: SetupStep[],
+  mode: Draft['mode'],
+  slug?: string,
+  github: boolean | string = true,
+): SetterState {
+  let s = setterStart(mode, github);
+  for (const ev of steps) s = setterStep(s, ev, mode, slug);
+  /* a server without the GitHub step (or one that never reported it) leaves no row hanging */
+  return { ...s, rows: s.rows.filter((r) => r.step !== 'github' || r.state), done: true };
 }
-/** A draft set up earlier (this session didn't see the steps): every row done. */
+/** A draft set up earlier (this session didn't see the steps): every row done (GitHub: see health). */
 export const setterAlreadyDone = (mode: Draft['mode']): SetterState => {
   const s = setterStart(mode);
-  return { ...s, rows: s.rows.map((r) => ({ ...r, state: 'done' })), done: true };
+  return {
+    ...s,
+    rows: s.rows.filter((r) => r.step !== 'github').map((r) => ({ ...r, state: 'done' })),
+    done: true,
+  };
 };
 /** 0–100: finished rows over all rows. */
 export const setterPct = (st: SetterState): number =>

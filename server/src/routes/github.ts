@@ -29,6 +29,7 @@ export const githubRoutes =
       const { id } = parse(IdParams, req.params);
       return reply.status(201).send(await github.publish(id, parse(PublishBody, req.body ?? {})));
     });
+    app.post('/projects/:id/github/push', async (req) => github.pushNow(parse(IdParams, req.params).id));
     app.patch('/projects/:id/github', async (req) => {
       const { id } = parse(IdParams, req.params);
       return github.setVisibility(id, parse(VisibilityBody, req.body).visibility);

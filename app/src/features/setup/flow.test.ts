@@ -4,10 +4,13 @@ import {
   briefLine,
   canContinue,
   draftCard,
+  githubDetail,
+  githubOn,
   orchLine,
   pendingBriefs,
   planLine,
   planView,
+  remoteLabel,
   resetsTeamTalk,
   STEP,
   setterAlreadyDone,
@@ -203,7 +206,9 @@ describe('plan on stage', () => {
 describe('Project Setter checklist', () => {
   it('folds live steps; kept/skipped count as finished', () => {
     let s = setterStart('new');
-    expect(s.rows).toHaveLength(9);
+    expect(s.rows).toHaveLength(10);
+    expect(s.rows.at(-1)).toMatchObject({ step: 'github', label: 'GitHub', detail: 'a private repo' });
+    expect(s.rows.find((r) => r.step === 'commit')?.detail).toBe('commit what was added');
     expect(setterPct(s)).toBe(0);
     s = setterStep(s, { step: 'folder', status: 'running', detail: 'Preparing kite' }, 'new');
     expect(s.rows[0].state).toBe('doing');
@@ -212,7 +217,7 @@ describe('Project Setter checklist', () => {
     s = setterStep(s, { step: 'commit', status: 'skipped', detail: 'nothing' }, 'new');
     expect(s.rows.map((r) => r.state).slice(0, 2)).toEqual(['done', 'kept']);
     expect(s.rows[0].detail).toBe('Created kite');
-    expect(setterPct(s)).toBe(33);
+    expect(setterPct(s)).toBe(30);
   });
   it('a new run (folder running) starts over; a failure stops the spinner', () => {
     let s = setterStep(setterStart('adopt'), { step: '.env', status: 'done', detail: '' }, 'adopt');
@@ -240,5 +245,81 @@ describe('Project Setter checklist', () => {
     expect(s.done).toBe(true);
     expect(s.rows.at(-1)).toMatchObject({ step: 'lint', state: 'done' });
     expect(setterPct(s)).toBe(100);
+  });
+});
+
+describe('GitHub at setup', () => {
+  const slug = 'tip-splitter';
+  const step = (status: 'running' | 'done' | 'kept' | 'skipped', detail: string) =>
+    githubDetail({ status, detail }, slug);
+  it('the Name step switch: the draft decides, else the studio default (on)', () => {
+    expect(githubOn({ github: null }, true)).toBe(true);
+    expect(githubOn({}, false)).toBe(false);
+    expect(githubOn({ github: false }, true)).toBe(false);
+    expect(githubOn({ github: true }, false)).toBe(true);
+  });
+  it('an adopted folder keeps its origin: owner/repo on GitHub, host/path elsewhere', () => {
+    expect(remoteLabel({ url: 'https://github.com/stage/recipes.git', github: 'stage/recipes' })).toBe(
+      'stage/recipes',
+    );
+    expect(remoteLabel({ url: 'https://gitlab.com/me/app.git', github: null })).toBe('gitlab.com/me/app');
+    expect(remoteLabel({ url: 'git@gitlab.com:me/app.git', github: null })).toBe('gitlab.com/me/app');
+    expect(setterStart('adopt', 'stage/recipes').rows.at(-1)?.detail).toBe('keeps origin (stage/recipes)');
+    expect(setterStart('new', false).rows.at(-1)?.detail).toBe('off — publish later from Health');
+  });
+  it('every server line maps to the spec copy', () => {
+    expect(step('running', 'Connecting GitHub')).toBe('creating tip-splitter · pushing main');
+    expect(step('done', 'Created https://github.com/stage/tip-splitter (private) and pushed')).toBe(
+      'stage/tip-splitter · private',
+    );
+    expect(
+      step('done', 'Created https://github.com/stage/tip-splitter (private) — the push failed: denied'),
+    ).toBe('stage/tip-splitter · private · first push didn’t go through');
+    expect(step('kept', 'Kept its GitHub repo stage/recipes')).toBe('kept origin (stage/recipes)');
+    expect(step('kept', 'Kept its remote (https://gitlab.com/me/app.git) — not on GitHub')).toBe(
+      'kept origin (gitlab.com/me/app)',
+    );
+    expect(step('skipped', 'GitHub is off for this project — publish any time from health')).toBe(
+      'skipped — publish later from Health',
+    );
+    expect(
+      step(
+        'skipped',
+        'GitHub not connected — Publish — gh isn’t logged in — run `gh auth login` in Terminal',
+      ),
+    ).toBe('skipped — GitHub CLI not signed in · publish later from Health');
+    expect(
+      step('skipped', 'GitHub not connected — Publish — GitHub CLI (gh) isn’t installed — install it'),
+    ).toBe('skipped — GitHub CLI not signed in · publish later from Health');
+    expect(
+      step('skipped', 'GitHub not connected — Publish — GitHub didn’t create the repo: Name already exists'),
+    ).toBe('skipped — tip-splitter already exists · publish later from Health');
+    expect(step('skipped', 'GitHub not connected — Publish — something odd')).toBe(
+      'skipped — couldn’t reach GitHub · publish later from Health',
+    );
+  });
+  it('every GitHub failure lands as skipped and the setup still finishes', () => {
+    const s = setterDone(
+      [
+        { step: 'folder', status: 'done', detail: 'Created' },
+        { step: 'commit', status: 'done', detail: 'abc' },
+        { step: 'github', status: 'running', detail: 'Connecting GitHub' },
+        { step: 'github', status: 'skipped', detail: 'GitHub not connected — Publish — gh isn’t logged in' },
+      ],
+      'new',
+      slug,
+    );
+    expect(s.done && !s.failed).toBe(true);
+    expect(s.rows.find((r) => r.step === 'github')).toMatchObject({
+      state: 'skipped',
+      detail: 'skipped — GitHub CLI not signed in · publish later from Health',
+    });
+    expect(setterPct(s)).toBe(100);
+    /* an older server that never reports the step leaves no row hanging */
+    expect(
+      setterDone([{ step: 'folder', status: 'done', detail: '' }], 'new').rows.some(
+        (r) => r.step === 'github',
+      ),
+    ).toBe(false);
   });
 });

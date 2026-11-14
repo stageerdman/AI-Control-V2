@@ -202,8 +202,17 @@ describe('GitHub', () => {
     expect(health.github.lastPush).toMatchObject({ ok: false });
     expect(health.github.note).toMatch(/^Couldn’t push to GitHub: /);
 
+    /* "Try again" (G3): GitHub is back → the push goes through and the note is gone */
+    execFileSync('git', ['init', '-q', '--bare', gh.remote('pushy')]);
+    const again = await h.call('POST', `/projects/${project.id}/github/push`);
+    expect(again.status).toBe(200);
+    expect(again.body.lastPush).toMatchObject({ ok: true });
+    expect(again.body.note).toBeUndefined();
+    expect(pushes()).toHaveLength(3);
+
     /* not published → no push at all */
     const off = await make('Quiet', {}, { github: false });
+    expect((await h.call('POST', `/projects/${off.project.id}/github/push`)).status).toBe(409);
     h.events.append('project', off.project.id, {
       type: 'item.merged',
       payload: { itemId: 'i2', goalId: 'g2', branch: 'b' },

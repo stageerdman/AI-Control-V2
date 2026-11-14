@@ -26,6 +26,7 @@ import { Button, toast } from '../../ui';
 import { type Resolve, WorkDesign } from '../collab';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
+import { GithubRow } from './GithubRow';
 import {
   ASPECTS,
   appView,
@@ -36,6 +37,7 @@ import {
   taskHover,
   taskStage,
 } from './state';
+import { ago } from './time';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
   board: 'whiteboard',
@@ -632,9 +634,7 @@ function Health({ pid }: { pid: string }) {
   const h = health.data;
   const latest = h?.latest ?? null;
   const git = h?.git;
-  const gh = latest?.git.github ?? git?.github;
-  const isGithub = !!git?.remote && /github\.com/i.test(git.remote.url);
-  const vis = gh?.visibility;
+  const project = useQuery('projects', studio.projects.list).data?.find((p) => p.id === pid);
   return (
     <>
       <header className="ob-hhead">
@@ -656,19 +656,7 @@ function Health({ pid }: { pid: string }) {
         </p>
       )}
       <ul className="ob-proj" aria-label="Repository">
-        <li>
-          <span className="ob-pi" aria-hidden="true">
-            ⎇
-          </span>
-          <b>GitHub</b>
-          <span className="ob-pv">
-            {isGithub
-              ? `Connected${vis ? ` · ${vis === 'private' ? '🔒 Private' : vis === 'public' ? '🌐 Public' : vis}` : ''}${gh?.repo ? ` · ${gh.repo}` : ''}`
-              : git?.remote
-                ? `Not on GitHub · ${git.remote.name}`
-                : 'Not connected'}
-          </span>
-        </li>
+        <GithubRow pid={pid} name={project?.name ?? pid} folder={project?.folder ?? null} health={h} />
         <li>
           <span className="ob-pi" aria-hidden="true">
             ⌂
@@ -1011,13 +999,5 @@ function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
 
 /* ------------------------------------------------------------ helpers */
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-export function ago(iso: string, now = Date.now()): string {
-  const m = Math.round((now - Date.parse(iso)) / 60000);
-  if (!Number.isFinite(m)) return '';
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const days = Math.round(h / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
-}
+
+export { ago };

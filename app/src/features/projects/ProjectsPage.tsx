@@ -249,9 +249,11 @@ function ActiveCard({ p, agents, teams }: { p: Project; agents: Agent[]; teams: 
         {progressLine(p)}
       </div>
       {p.note && <div className="note">{p.note}</div>}
-      <div className="micro-row">
-        <span className="micro-badge">{ghBadge(p.github)}</span>
-      </div>
+      {p.github.connected && (
+        <div className="micro-row">
+          <span className="micro-badge">{ghBadge(p.github)}</span>
+        </div>
+      )}
     </button>
   );
 }

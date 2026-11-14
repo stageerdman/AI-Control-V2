@@ -74,7 +74,6 @@ describe('projects home', () => {
     ]);
   });
   it('badges, tags, edited-ago', () => {
-    expect(ghBadge({ connected: false, private: false })).toBe('GitHub not connected');
     expect(ghBadge({ connected: true, private: true })).toBe('🔒 GitHub · private');
     expect(backLotTag(project('x', { status: 'archived' }))).toEqual({ label: 'Archived', tone: 'archived' });
     const now = Date.parse('2026-11-13T12:00:00Z');

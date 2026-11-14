@@ -377,6 +377,14 @@ export function createGithub(deps: {
       return { ...v, pushed: r.pushed };
     },
 
+    /** POST /projects/:id/github/push — the health row's "Try again" after a failed push. */
+    async pushNow(projectId: string): Promise<GithubView> {
+      const { folder } = projectDir(projectId);
+      if (!repoRow(folder)) throw conflict('This project isn’t on GitHub yet — publish it first');
+      await pushAfterMerge(projectId);
+      return view(folder);
+    },
+
     /** PATCH /projects/:id/github — the public/private switch. */
     async setVisibility(projectId: string, visibility: Visibility): Promise<GithubView> {
       const { folder } = projectDir(projectId);

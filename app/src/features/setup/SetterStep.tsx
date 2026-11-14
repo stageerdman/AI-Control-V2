@@ -3,14 +3,24 @@
    GET /drafts/:id/events (`setup.step`); the setup response is the truth at the end. Idempotent on
    the server, so a retry only adds what's missing. Then: "Call in <orchestrator> →". */
 import { useEffect, useRef, useState } from 'react';
-import { type Agent, type Draft, invalidate, openEventStream, studio } from '../../api';
+import {
+  type Agent,
+  type Draft,
+  getQueryData,
+  invalidate,
+  openEventStream,
+  studio,
+  useQuery,
+} from '../../api';
 import { LogoTile } from '../projects/LogoTile';
 import { nickOf } from '../projects/model';
 import { tileFor } from '../projects/tile';
-import { type SetupResult, setupDraft } from './api';
+import { type SandboxFolder, type SetupResult, setupDraft } from './api';
 import { sparkle } from './confetti';
 import { DRAFTS_KEY } from './drafts';
 import {
+  githubOn,
+  remoteLabel,
   type SetterState,
   setterAlreadyDone,
   setterDone,
@@ -18,6 +28,7 @@ import {
   setterPct,
   setterStart,
   setterStep,
+  slugify,
 } from './flow';
 import { Actor, Foot, StepCard, StepTitle } from './parts';
 import { putDraft } from './useDraft';
@@ -38,8 +49,18 @@ export function SetterStep({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const settings = useQuery('settings', studio.settings);
+  const slug = d.folder ?? slugify(d.name);
+  /* what the GitHub row says while it waits: an adopted folder's origin wins, else the switch */
+  const origin =
+    d.mode === 'adopt'
+      ? getQueryData<SandboxFolder[]>('sandbox:folders')?.find((f) => f.folder === d.folder)?.remote
+      : null;
+  const gh: boolean | string = origin
+    ? remoteLabel(origin)
+    : githubOn(d, settings.data?.githubByDefault ?? true);
   const [st, setSt] = useState<SetterState>(() =>
-    d.setupAt ? setterAlreadyDone(d.mode) : setterStart(d.mode),
+    d.setupAt ? setterAlreadyDone(d.mode) : setterStart(d.mode, gh),
   );
   const [attempt, setAttempt] = useState(0);
   const next = useRef<HTMLButtonElement>(null);
@@ -55,7 +76,7 @@ export function SetterStep({
       studio.drafts.eventsUrl(d.id),
       (e) => {
         if (!alive || Date.parse(e.at) < t0) return;
-        if (e.type === 'setup.step') setSt((s) => setterStep(s, e.payload, d.mode));
+        if (e.type === 'setup.step') setSt((s) => setterStep(s, e.payload, d.mode, slug));
         if (e.type === 'setup.failed') setSt((s) => setterFailed(s, e.payload.message));
       },
       { types: ['setup.step', 'setup.failed'] },
@@ -76,7 +97,7 @@ export function SetterStep({
         void invalidate('sandbox:');
         if (!alive) return;
         stream.close();
-        setSt(setterDone(r.steps, d.mode));
+        setSt(setterDone(r.steps, d.mode, r.draft.folder ?? slug, gh));
         sparkle(50, 30);
         setTimeout(() => next.current?.focus(), 60);
       },
@@ -127,7 +148,9 @@ export function SetterStep({
           <p className="np-sub">
             {d.mode === 'adopt'
               ? 'It reads the folder first and only adds what is missing.'
-              : 'The standard AI Studio scaffold, nothing more.'}
+              : gh === true
+                ? 'The standard AI Studio scaffold and a private GitHub repo.'
+                : 'The standard AI Studio scaffold, nothing more.'}
           </p>
           <div
             className="progress np-prog"
@@ -175,7 +198,7 @@ export function SetterStep({
               className="btn btn-hero np-primary"
               data-autofocus
               onClick={() => {
-                setSt(setterStart(d.mode));
+                setSt(setterStart(d.mode, gh));
                 setAttempt((n) => n + 1);
               }}
             >

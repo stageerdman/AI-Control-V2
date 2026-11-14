@@ -219,3 +219,34 @@
   color: var(--ink-soft);
   margin-top: 2px;
 }
+
+/* G3: the studio-wide GitHub default, under the kit */
+.bp-gh {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(36, 26, 68, 0.04);
+}
+.bp-gh > div {
+  flex: 1;
+  min-width: 0;
+}
+.bp-gh b {
+  font-size: 14px;
+}
+.bp-gh .hint {
+  margin: 2px 0 0;
+}
+.bp-gh .glyph {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(36, 26, 68, 0.07);
+  font-weight: 900;
+  flex: none;
+}

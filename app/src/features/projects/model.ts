@@ -43,8 +43,9 @@ export function castOf(p: Pick<Project, 'teamIds' | 'agentIds'>, teams: Team[]):
   return ids;
 }
 
+/** Shown only when a project is on GitHub (G3 cut the "not connected" chip: it was on most cards and was noise). */
 export const ghBadge = (g: Project['github']): string =>
-  !g.connected ? 'GitHub not connected' : g.private ? '🔒 GitHub · private' : '🌐 GitHub · public';
+  g.private ? '🔒 GitHub · private' : '🌐 GitHub · public';
 
 const TAGS = {
   draft: 'Draft',

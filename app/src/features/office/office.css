@@ -452,3 +452,33 @@
 
 /* G3: the safe's "new access" dot (the pager's coral) */
 .o-hot-dot{position:absolute;top:calc(6*var(--ui));right:calc(6*var(--ui));width:calc(10*var(--ui));height:calc(10*var(--ui));border-radius:50%;background:var(--coral);box-shadow:0 0 0 calc(2*var(--ui)) var(--ink);pointer-events:none}
+/* G3: the GitHub row (published: link · Private/Public switch · last push; else Publish inline) */
+.ob-proj li.ob-gh{display:block}
+.ob-gh-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ob-gh-row .ob-pv{display:inline-flex;align-items:center;gap:6px 14px;flex-wrap:wrap}
+.ob-gh-vis{display:inline-flex;align-items:center;gap:8px}
+.ob-gh-vis .switch{transform:scale(.85)}
+.ob-gh-word{font-weight:800;color:var(--ink);min-width:3.4em}
+.ob-gh-push{font-size:13px;font-weight:700;color:var(--ink-soft)}
+.ob-gh-push.warn,.ob-gh-note{color:#8a5200}
+.ob-gh-note{margin:6px 0 0 36px;font-size:13px;font-weight:700}
+.ob-gh .ob-err{margin:8px 0 0 36px}
+.ob-gh-more{margin:8px 0 2px 36px}
+.ob-gh-more[hidden]{display:none}
+.ob-gh-hint{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;font-weight:600;color:var(--ink-soft)}
+.ob-gh-hint span{flex:1 1 260px}
+.ob-gh-more code{font-family:var(--mono);font-size:12.5px;background:rgba(155,108,255,.1);padding:1px 5px;border-radius:5px;color:var(--ink);user-select:all}
+.ob-gh-form{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(36,26,68,.04)}
+.ob-gh-form label[for],.ob-gh-lab{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.ob-gh-name{display:flex;align-items:center;gap:2px;min-width:0}
+.ob-gh-owner{font-family:var(--mono);font-size:13px;color:var(--ink-soft);white-space:nowrap}
+.ob-gh-name input{flex:1;min-width:0;font-family:var(--mono);font-size:13px;padding:7px 10px;border-radius:10px;border:2px solid var(--line);background:#fff;color:var(--ink)}
+.ob-gh-name input:focus{outline:0;border-color:var(--sun-deep);box-shadow:0 0 0 3px rgba(255,155,61,.16)}
+.ob-gh-name input[aria-invalid="true"]{border-color:var(--coral)}
+.ob-gh-bad{grid-column:2;margin-top:-6px;font-size:12px;font-weight:700;color:#a3242c}
+.ob-gh-radios{display:flex;flex-direction:column;gap:6px;font-size:13.5px;font-weight:700;color:var(--ink)}
+.ob-gh-radios label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.ob-gh-radios input{accent-color:var(--grape);margin:0}
+.ob-gh-btns{grid-column:2;display:flex;gap:8px;flex-wrap:wrap}
+.ob-gh-confirm{padding:12px 14px;border-radius:14px;background:rgba(36,26,68,.04)}
+.ob-gh-confirm p{margin:0 0 10px;font-size:14px;font-weight:700;color:var(--ink)}

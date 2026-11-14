@@ -1,12 +1,12 @@
 /* 1 — Name (+ the folder when adopting) and an optional one-liner the orchestrator reads.
    The stage shows the live logo tile and where the project will live. */
 import { useRef } from 'react';
-import { type Draft, useQuery } from '../../api';
-import { Button } from '../../ui';
+import { type Draft, studio, useQuery } from '../../api';
+import { Button, Switch } from '../../ui';
 import { LogoTile } from '../projects/LogoTile';
 import { tileFor } from '../projects/tile';
 import { sandboxFolders, sandboxPath } from './api';
-import { canContinue, STEP, slugify, tildePath, titleOf } from './flow';
+import { canContinue, githubOn, remoteLabel, STEP, slugify, tildePath, titleOf } from './flow';
 import { Foot, StepCard, StepTitle } from './parts';
 
 export function NameStep({
@@ -16,7 +16,7 @@ export function NameStep({
   onNext,
 }: {
   d: Draft;
-  edit: (p: { name?: string; about?: string; folder?: string | null }) => void;
+  edit: (p: { name?: string; about?: string; folder?: string | null; github?: boolean }) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -46,6 +46,7 @@ export function NameStep({
     if (e.key === 'Enter' && ok) onNext();
   };
   const sel = list.findIndex((f) => f.folder === d.folder);
+  const origin = adopt ? list[sel]?.remote : null;
   const showFields = !adopt || !!d.folder;
 
   return (
@@ -137,6 +138,11 @@ export function NameStep({
                 onKeyDown={enter}
               />
             </div>
+            <GithubLine
+              d={d}
+              origin={origin ? remoteLabel(origin) : null}
+              onChange={(github) => edit({ github })}
+            />
           </div>
         </>
       }
@@ -148,5 +154,52 @@ export function NameStep({
         </Foot>
       }
     />
+  );
+}
+
+/** "⎇ GitHub · private repo [switch]" — setup makes a private repo named after the folder (spec-ux-G2 §2a).
+   An adopted folder with a remote keeps it (no switch). gh not ready never blocks: just a quiet hint. */
+function GithubLine({
+  d,
+  origin,
+  onChange,
+}: {
+  d: Draft;
+  origin: string | null;
+  onChange: (on: boolean) => void;
+}) {
+  const settings = useQuery('settings', studio.settings);
+  const gh = useQuery('gh:status', studio.ghStatus);
+  if (origin)
+    return (
+      <p className="np-gh">
+        <span className="np-gh-i" aria-hidden="true">
+          ⎇
+        </span>
+        <span className="np-gh-t">GitHub · keeps origin ({origin})</span>
+      </p>
+    );
+  const on = githubOn(d, settings.data?.githubByDefault ?? true);
+  const notReady = on && gh.data && gh.data.gh !== 'ready';
+  return (
+    <div className="np-gh">
+      <span className="np-gh-i" aria-hidden="true">
+        ⎇
+      </span>
+      <span className={`np-gh-t${on ? '' : ' off'}`}>
+        {on ? 'GitHub · private repo' : 'GitHub · skipped — you can publish later from Health'}
+      </span>
+      <Switch
+        checked={on}
+        label="Create a private GitHub repo"
+        describedBy={notReady ? 'npGhHint' : undefined}
+        onChange={onChange}
+      />
+      {notReady && (
+        <p className="np-gh-hint" id="npGhHint">
+          GitHub CLI isn’t signed in — setup will finish without a repo, and you can publish later.
+        </p>
+      )}
+    </div>
   );
 }

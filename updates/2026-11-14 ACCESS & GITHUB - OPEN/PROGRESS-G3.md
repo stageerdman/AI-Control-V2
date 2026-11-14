@@ -17,7 +17,19 @@ Commits prefixed `ACCESS G3:` / `ACCESS G4:`. Spec: `spec-ux-G2.md`. Contract: `
    `POST …/access/seen` on open, dots kept until close; the office safe gets the dot and
    "Safe — <project> access, N new"; `access.changed` refetches. Shots `g3-access`, `g3-access-edit`,
    `g3-access-template`, `g3-safe-new`.
-2. ⏳ GitHub (Name step switch, Rivet's row, health row, studio default).
+2. ✅ GitHub — Name step: `⎇ GitHub · private repo` switch (draft `github`, default from `GET /settings`),
+   "keeps origin (owner/repo)" with no switch for an adopted folder with a remote, a quiet hint when gh isn't
+   signed in (never blocks). Rivet's checklist ends with a `GitHub` row; `githubDetail` maps every server line to
+   the spec copy (done / push failed / kept / off / CLI / name taken / other → skipped, setup still finishes);
+   "(local only)" gone. Health: `GithubRow` (`office/github.ts` pure state) — repo link ↗, Private/Public switch
+   (going public = inline confirm, focus on Keep private; private = at once), last push (`pushed 2 min ago` /
+   `not pushed yet` / amber `last push didn’t go through` + `Try again`), unpublished → `Publish to GitHub…` inline
+   form (owner from `GET /github/status`, name check, Private default) → one confirm sentence with the commit count;
+   gh not ready → how-to hint + `Check again`. Server: `POST /projects/:id/github/push` for Try again (tested).
+   Studio default: a switch under the Blueprint's Starter Kit ("A private GitHub repo"). Projects cards: the
+   "GitHub not connected" chip is gone (chip only when published). `github.changed` / `github.push` refetch health.
+   Shots `g3-setup-github`, `g3-setup-github-setter`, `g3-setup-github-skipped`, `g3-gh-missing`, `g3-gh-publish`,
+   `g3-gh-confirm`, `g3-gh-published`, `g3-gh-public-confirm`, `g3-gh-push-failed`, `g3-github-default`.
 3. ⏳ Ports (the Switchboard).
 4. ⏳ Blueprint Rebuild.
 5. ⏳ G4 ship.
