@@ -330,7 +330,7 @@ export class OfficeEngine {
     }
   }
 
-  /** The wall's live bits (whiteboard, health grades, outbox flag, plaque, tray sheets). */
+  /** The wall's live bits (whiteboard, health grades, outbox flag, work clock, tray sheets). */
   syncFacts(facts: BoardFacts): void {
     syncArt(this.art, facts);
   }

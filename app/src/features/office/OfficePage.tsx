@@ -3,7 +3,8 @@
    project's event stream from `lastEventId`. The scene (engine.ts) is generated from staffing
    (layout.ts) and follows the live state (state.ts); the chat panel, the wall's zoom cards, the
    safe's Access sheet and the list mirror are React.
-   v5: no top bar — the door leaves, the safe is Access, the whiteboard + plaque carry the %. */
+   v5: no top bar — the door leaves, the safe is Access, the whiteboard carries the %, the work clock
+   above the safe shows the crew's time (TimeSheet). */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -42,6 +43,7 @@ import {
   reduce,
   threadMessageOf,
 } from './state';
+import { clockLabel, TimeSheet, useWorkTime } from './TimeSheet';
 import './office.css';
 
 type Boot = { office: OfficeView; asks: Ask[] };
@@ -103,7 +105,17 @@ const HOTS: { id: ObjectId; label: string }[] = [
   { id: 'health', label: 'Health check — code health and GitHub' },
   { id: 'reports', label: 'Reports — what the crew found out' },
   { id: 'safe', label: 'Safe — what this project can reach (Access)' },
+  { id: 'timeclock', label: 'Agent time' },
 ];
+/* events that start or end agent time: the work clock reads again */
+const CLOCK_EVENTS = new Set([
+  'run.started',
+  'run.finished',
+  'goal.changed',
+  'team.split',
+  'health.checked',
+  'collaboration.changed',
+]);
 const SUB_OF: Partial<Record<ObjectId, OfficeSub>> = {
   dossier: 'features',
   whiteboard: 'board',
@@ -163,6 +175,7 @@ function Office({
   const work = useWork(pid);
   const features = useFeatures(pid);
   const health = useHealth(pid);
+  const time = useWorkTime(pid, 60_000);
   const reports = useQuery<ReportList>(reportsKey(pid), () => reportsApi.list(pid));
   const [inFlight, setInFlight] = useState(0); /* reports being carried to the tray */
   const unread = Math.max(0, (reports.data?.unread ?? 0) - inFlight);
@@ -174,8 +187,9 @@ function Office({
         health: health.data,
         unreadReports: unread,
         progress: progress.data,
+        time: time.data,
       }),
-    [work.data, features.data, health.data, unread, progress.data],
+    [work.data, features.data, health.data, unread, progress.data, time.data],
   );
 
   /* ---------- the scene */
@@ -315,6 +329,7 @@ function Office({
     (ev: StudioEvent) => {
       dispatch(ev);
       const e = engine.current;
+      if (CLOCK_EVENTS.has(ev.type)) void invalidate(keys.time(pid));
       switch (ev.type) {
         case 'goal.changed':
         case 'checklist.item':
@@ -450,6 +465,7 @@ function Office({
 
   /* ---------- the few interactive objects */
   const [accessOpen, setAccessOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
   const newAccess = useNewAccessCount(pid);
   const leave = () => {
     if (reducedMotion()) {
@@ -466,6 +482,7 @@ function Office({
       setAccessOpen(true);
       return;
     }
+    if (o === 'timeclock') return setTimeOpen(true);
     const s = SUB_OF[o];
     if (s) goSub(s);
   };
@@ -668,7 +685,9 @@ function Office({
                       ? `${h.label} — ${unread} new`
                       : safeNew
                         ? `Safe — ${office.name} access, ${newAccess} new`
-                        : h.label
+                        : h.id === 'timeclock'
+                          ? clockLabel(office.name, time.data)
+                          : h.label
                   }
                   style={{ left: o.x, top: o.y, width: o.w, height: o.h }}
                   onClick={(e) => {
@@ -786,6 +805,13 @@ function Office({
         />
       </aside>
       <AccessSheet pid={pid} name={office.name} open={accessOpen} onClose={() => setAccessOpen(false)} />
+      <TimeSheet
+        pid={pid}
+        name={office.name}
+        open={timeOpen}
+        onClose={() => setTimeOpen(false)}
+        agents={agentsById}
+      />
       <div className="sr-only" aria-live="polite">
         {said.polite}
       </div>

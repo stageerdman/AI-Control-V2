@@ -101,6 +101,19 @@ export type StudioAsk = {
   seen: boolean;
 };
 
+/** The office's work clock (GET /projects/:id/time): agent time, by kind and by agent; runs and turns, no money. */
+export type WorkKind = 'thinking' | 'building' | 'reviewing' | 'research' | 'setup';
+export type WorkTime = {
+  totalMs: number;
+  byKind: { kind: WorkKind; label: string; ms: number }[];
+  byAgent: { agentId: string; ms: number; runs: number }[];
+  runs: number;
+  turns: number;
+  since: string | null;
+  /** Runs going on right now (the clock counts up while > 0). */
+  live: number;
+};
+
 export const officeApi = {
   office: (pid: string) => http.get<OfficeView>(`/projects/${e(pid)}/office`),
   features: (pid: string) => http.get<Feature[]>(`/projects/${e(pid)}/features`),
@@ -132,6 +145,7 @@ export const officeApi = {
   stopApp: (pid: string) => http.post<ProjectApp>(`/projects/${e(pid)}/app/stop`, {}),
   setAppCommand: (pid: string, command: string) =>
     http.patch<ProjectApp>(`/projects/${e(pid)}/app`, { command }),
+  time: (pid: string) => http.get<WorkTime>(`/projects/${e(pid)}/time`),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
 };
@@ -148,5 +162,6 @@ export const keys = {
   collaboration: (pid: string) => `office:${pid}:collaboration`,
   progress: (pid: string) => `office:${pid}:progress`,
   app: (pid: string) => `office:${pid}:app`,
+  time: (pid: string) => `office:${pid}:time`,
   pager: 'pager:asks',
 };
