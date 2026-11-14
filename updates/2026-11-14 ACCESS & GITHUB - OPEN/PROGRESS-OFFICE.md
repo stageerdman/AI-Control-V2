@@ -97,3 +97,13 @@ visual) and image (just for the app's sake)".
   `office-portrait-sheet-picture`, `office-portrait-office-picture`, `office-portrait-wall`, `office-portrait-projects`,
   `office-portrait-office-narrow`. The sample picture was drawn in the headless browser (no personal files).
 - Shipped v3: backup `~/.ai-studio/backups/studio-before-office-portrait-20261114-231836.db` (integrity ok, v25, 5 projects); release `tauri build`; graceful quit (free in 2 s); replaced + reopened from /Applications — up in 3 s, `user_version` 26, the 5 projects with `imageUrl: null` (tiles until a picture is chosen), `GET …/image` 404 as expected, `/time` 200, health 200 after 15 s. Left running.
+
+## v3.1 — plaque fit + the flaky lock test ✅
+- The plaque is now as wide as the frame. Names up to 13 characters sit on one line; longer ones wrap onto two
+  lines at the space nearest the middle, each line squeezed to the plate if its letters are wide. An ellipsis appears
+  only past ~26 characters (`plaqueLines`, tested). Shots `office-plaque-3`, `-11`, `-20`, `-30`; a check confirms
+  the text stays inside the plate in each.
+- cargo: `a_stale_lock_falls_through_to_our_own_port` failed 1 in 3 runs. The fake `/health` read the request once
+  and closed with bytes still unread, which made the OS send a reset. `get_health` wrote the request with `write!`,
+  which sends it in several pieces. Fixed: the fake now reads the whole request head, and `get_health` sends the
+  request in one write. 15/15 green.

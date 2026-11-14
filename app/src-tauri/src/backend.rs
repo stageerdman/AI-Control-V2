@@ -326,8 +326,9 @@ pub fn get_health(port: u16) -> Result<String, String> {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(500)).map_err(|e| e.to_string())?;
     stream.set_read_timeout(Some(Duration::from_secs(2))).map_err(|e| e.to_string())?;
-    write!(stream, "GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n")
-        .map_err(|e| e.to_string())?;
+    // one write: `write!` on a raw stream sends each piece separately
+    let req = format!("GET /health HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
+    stream.write_all(req.as_bytes()).map_err(|e| e.to_string())?;
     let mut raw = String::new();
     stream.read_to_string(&mut raw).map_err(|e| e.to_string())?;
     parse_response(&raw)
@@ -407,8 +408,16 @@ mod tests {
         std::thread::spawn(move || {
             for s in l.incoming().take(n) {
                 let mut s = s.unwrap();
+                // read the whole request head: closing with unread bytes sends a reset, and the client's
+                // read then fails (the old 1-in-3 flake when the request arrived in pieces)
+                let mut head = Vec::new();
                 let mut buf = [0u8; 512];
-                let _ = s.read(&mut buf);
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match s.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => head.extend_from_slice(&buf[..n]),
+                    }
+                }
                 let _ = s.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\r\n{\"ok\":true}");
             }
         });

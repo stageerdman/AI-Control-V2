@@ -29,9 +29,24 @@ export function nameCheck(raw: string): { ok: true; name: string } | { ok: false
   return { ok: true, name };
 }
 
-/** The plaque under the frame fits ~11 characters. */
-export const plaqueName = (name: string, max = 11): string =>
-  name.length > max ? `${name.slice(0, max - 1).trimEnd()}…` : name;
+/** Characters one plaque line holds at its font (the plate is the frame's width). */
+export const PLAQUE_LINE = 14;
+const clipTo = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+/** The name on the plaque under the frame: one line for short names, two (split at a space near the middle) for
+    longer ones — a normal name of ~20–26 characters shows whole; only a really long one gets an ellipsis. */
+export function plaqueLines(raw: string): { lines: string[]; size: number } {
+  const name = raw.trim().replace(/\s+/g, ' ');
+  if (name.length <= PLAQUE_LINE - 1) return { lines: [name], size: 10 };
+  if (name.length <= PLAQUE_LINE) return { lines: [name], size: 9.5 };
+  const mid = name.length / 2;
+  let cut = -1;
+  for (let i = 0; i < name.length; i++)
+    if (name[i] === ' ' && i <= PLAQUE_LINE && (cut < 0 || Math.abs(i - mid) < Math.abs(cut - mid))) cut = i;
+  const first = cut > 0 ? name.slice(0, cut) : name.slice(0, PLAQUE_LINE);
+  const rest = (cut > 0 ? name.slice(cut + 1) : name.slice(PLAQUE_LINE)).trim();
+  return { lines: [first, clipTo(rest, PLAQUE_LINE)], size: 9 };
+}
 
 /** A picked file → a centred square PNG (PORTRAIT_PX) — the browser does the decoding. */
 export async function toSquarePng(file: Blob, px = PORTRAIT_PX): Promise<Blob> {

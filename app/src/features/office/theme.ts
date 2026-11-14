@@ -13,7 +13,7 @@
 import { escapeHtml, hueHex, PALETTE, shade } from '../../design/palette';
 import { tileGlyph } from '../projects/tile';
 import type { Plan, Pod } from './layout';
-import { plaqueName } from './portrait';
+import { plaqueLines } from './portrait';
 
 export type ArtTeam = { name: string; color: string };
 export type DeskKind = 'pod' | 'hot' | 'boss';
@@ -220,8 +220,8 @@ function _otPortrait(plan: Plan) {
     <clipPath id="otPortraitClip"><rect x="9" y="9" width="62" height="62" rx="2"/></clipPath>
     <g id="otPortraitPic" clip-path="url(#otPortraitClip)"></g>
     <rect x="9" y="9" width="62" height="62" rx="2" fill="none" ${_o(2)}/>
-    <rect x="2" y="92" width="76" height="22" rx="5" fill="#e7b75a" ${_o(2)}/>
-    <text id="otPortraitName" x="40" y="106.5" text-anchor="middle" font-size="9.5" font-weight="900" fill="#4a2c10"></text>
+    <rect id="otPortraitPlate" x="0" y="92" width="80" height="20" rx="5" fill="#e7b75a" ${_o(2)}/>
+    <text id="otPortraitName" text-anchor="middle" font-weight="900" fill="#4a2c10"></text>
   </g>`;
 }
 /* the portrait's inside: the picture, or the project's tile (gradient + glyph) */
@@ -462,17 +462,20 @@ export function syncArt(root: Element | null, ws: BoardFacts): void {
   set('otClock', 'class', ws.live > 0 ? 'ticking' : '');
   if (ws.portrait) {
     html('otPortraitPic', portraitInner(ws.portrait));
-    const plaque = plaqueName(ws.portrait.name);
-    html('otPortraitName', escapeHtml(plaque));
-    /* a long or wide name is squeezed to the plate, never past it */
-    const tn = $('otPortraitName');
-    if (plaque.length > 8) {
-      tn?.setAttribute('textLength', '66');
-      tn?.setAttribute('lengthAdjust', 'spacingAndGlyphs');
-    } else {
-      tn?.removeAttribute('textLength');
-      tn?.removeAttribute('lengthAdjust');
-    }
+    /* one or two lines on a plate as wide as the frame; a line of wide letters is squeezed to the plate */
+    const { lines, size } = plaqueLines(ws.portrait.name);
+    set('otPortraitPlate', 'height', lines.length > 1 ? '30' : '20');
+    set('otPortraitName', 'font-size', String(size));
+    html(
+      'otPortraitName',
+      lines
+        .map((l, i) => {
+          const y = lines.length > 1 ? 103.5 + i * 11 : 105.5;
+          const fit = l.length * size * 0.62 > 72 ? ' textLength="72" lengthAdjust="spacingAndGlyphs"' : '';
+          return `<tspan x="40" y="${y}"${fit}>${escapeHtml(l)}</tspan>`;
+        })
+        .join(''),
+    );
     html('otPlinthName', escapeHtml(ws.portrait.name.toUpperCase()));
   }
   html(

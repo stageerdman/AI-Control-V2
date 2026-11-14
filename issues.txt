@@ -21,4 +21,3 @@ RESOLVED
 - APP UI + BACKEND updates: whole app built on the real backend, real-AI end-to-end verified (F1–F3, 2026-11-14).
 - Stack locked: Tauri + React/Tailwind app, Node/Fastify/sqlite backend, Claude Code CLI runner.
 - Deleting an orchestrator now says its projects move to another (F2).
-- cargo test: backend::tests::a_stale_lock_falls_through_to_our_own_port is flaky (~1 in 3; fake_backend(2) answers only 2 requests, so a third health probe falls through to spawning) — seen 2026-11-14, unrelated to OFFICE.
