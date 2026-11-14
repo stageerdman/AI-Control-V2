@@ -58,4 +58,32 @@ describe('F3 live streams', () => {
     const bg = lines('build-lingers').filter((l) => l.includes('"run_in_background":true'));
     expect(bg.length).toBeGreaterThan(0); // the background server that kept the CLI alive
   });
+
+  it("on --resume the CLI first answers the last session's killed background shell: that notice is not the answer", () => {
+    // live: a reviewer's rework resumed the captain's session; the CLI opened with an empty 0-turn task-notification result,
+    // the runner took it for the answer, closed stdin — the rework did nothing and cost a send-back
+    const p = createStreamParser();
+    const real = lines('resume-notice-first');
+    const at = real.findIndex((l) => JSON.parse(l).type === 'result');
+    for (const l of real.slice(0, at + 1)) p.feed(l);
+    expect(p.finished()).toBe(false); // stdin stays open: the task is still to come
+    for (const l of real.slice(at + 1)) p.feed(l); // it went on reading files for the rework
+    expect(p.finished()).toBe(false);
+    p.feed(
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        result: 'Made both fixes.',
+        num_turns: 9,
+        total_cost_usd: 0.3,
+      }),
+    );
+    expect(p.finished()).toBe(true);
+    expect(p.outcome()).toMatchObject({
+      status: 'succeeded',
+      result: 'Made both fixes.',
+      turns: 9,
+      costUsd: 0.3,
+    });
+  });
 });

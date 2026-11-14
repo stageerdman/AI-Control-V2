@@ -94,6 +94,8 @@ type Line = {
   total_cost_usd?: number;
   usage?: Usage;
   errors?: string[];
+  /** Why the CLI produced this result: `task-notification` = its own background-task notice, not the task. */
+  origin?: { kind?: string };
 };
 
 /** One parser per run. feed() a stdout line → events; outcome() once the stream ends. */
@@ -103,7 +105,9 @@ export function createStreamParser(secretValues: readonly string[] = []) {
   let turns = 0;
   let final: RunOutcome | undefined;
   let lastText = '';
-  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  /** Turns and tokens of background-task notices that came before the answer. */
+  let extra = { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+  let cost: number | undefined;
   /* per-message usage (last line wins): the fallback when a run is stopped before its result line */
   const perMessage = new Map<string, Usage>();
   const streamed = () => {
@@ -167,38 +171,38 @@ export function createStreamParser(secretValues: readonly string[] = []) {
       }
       if (m.type === 'result') {
         const u = m.usage ?? {};
-        /* F3 live: an agent that started something in the background (`npm start` with run_in_background) gets a
-           SECOND result after its real answer — the CLI's reaction to that task ending ("the test server stopped…").
-           The task's answer (summary, verdict, rework line) is the first result; a follow-up only adds its turns,
-           tokens and the (cumulative) cost. */
-        if (final && final.status === 'succeeded') {
-          const prev = final.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-          final = {
-            ...final,
-            turns: (final.turns ?? 0) + (m.num_turns ?? 0),
-            usage: {
-              input: prev.input + (u.input_tokens ?? 0),
-              output: prev.output + (u.output_tokens ?? 0),
-              cacheRead: prev.cacheRead + (u.cache_read_input_tokens ?? 0),
-              cacheWrite: prev.cacheWrite + (u.cache_creation_input_tokens ?? 0),
-            },
-            ...(m.total_cost_usd === undefined ? {} : { costUsd: m.total_cost_usd }),
-          };
+        const add = (to: RunOutcome['usage']) => ({
+          input: to.input + (u.input_tokens ?? 0),
+          output: to.output + (u.output_tokens ?? 0),
+          cacheRead: to.cacheRead + (u.cache_read_input_tokens ?? 0),
+          cacheWrite: to.cacheWrite + (u.cache_creation_input_tokens ?? 0),
+        });
+        if (m.total_cost_usd !== undefined) cost = Math.max(cost ?? 0, m.total_cost_usd); // the CLI's total is cumulative
+        /* F3 live: the CLI also answers its own background-task notices with a result (`origin.kind:
+           task-notification`) — AFTER the task's answer (a background `npm start` stopped: "the test server stopped…")
+           or, on --resume, BEFORE it (the last session's killed shell: an empty 0-turn result). Neither is the answer:
+           it only adds turns, tokens and cost. A second plain result after a successful answer is treated the same. */
+        const notice = m.origin?.kind === 'task-notification' || final?.status === 'succeeded';
+        if (notice) {
+          extra = { turns: extra.turns + (m.num_turns ?? 0), usage: add(extra.usage) };
+          if (final)
+            final = {
+              ...final,
+              turns: (final.turns ?? 0) + (m.num_turns ?? 0),
+              usage: add(final.usage),
+              ...(cost === undefined ? {} : { costUsd: cost }),
+            };
           return out;
         }
-        usage.input = u.input_tokens ?? 0;
-        usage.output = u.output_tokens ?? 0;
-        usage.cacheRead = u.cache_read_input_tokens ?? 0;
-        usage.cacheWrite = u.cache_creation_input_tokens ?? 0;
         const ok = m.subtype === 'success' && !m.is_error;
         final = {
           status: ok ? 'succeeded' : 'failed',
-          turns: m.num_turns ?? turns,
-          usage: { ...usage },
+          turns: (m.num_turns ?? turns) + extra.turns,
+          usage: add(extra.usage),
           ...(m.result ? { result: scrub(m.result) } : {}),
           ...(ok ? {} : { error: scrub(m.errors?.join('; ') || m.subtype || 'error') }),
           ...(sessionId ? { sessionId } : {}),
-          ...(m.total_cost_usd === undefined ? {} : { costUsd: m.total_cost_usd }),
+          ...(cost === undefined ? {} : { costUsd: cost }),
         };
       }
       return out;
