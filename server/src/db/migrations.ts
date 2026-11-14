@@ -441,6 +441,18 @@ export const MIGRATIONS: readonly string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  /* 24 — director chat freshness (G1): the orchestrator's thread runs as one resumed CLI session at a time.
+     started_at = when the current session began (its turns = user turns since then); rotate = start a fresh one on
+     the next turn (a new goal was posted after one had finished). A rotation carries a short recap of the thread. */
+  `
+  CREATE TABLE thread_sessions (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id   TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    rotate     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (project_id, agent_id)
+  );
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

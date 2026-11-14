@@ -6,7 +6,7 @@ The UI builder's contract: exact API + event shapes. Commits prefixed `ACCESS G1
 1. ✅ Accesses (multi-field) — migration 21, `/accesses` API, grants per access, `.env` sync of every field, "new" dot, prompts.
 2. ✅ GitHub — a repo by default at setup (user's change), opt-outs, publish / visibility, auto-push, agents never push.
 3. ✅ Ports + setting-prefixed commands — a stable 5-port block per project, PORT per run, `NAME=value <cmd>` hook, `GET /ports`.
-4. ⏳ Director chat freshness
+4. ✅ Director chat freshness — truth-labelled snapshot every turn, session rotation (12 turns / new goal after a finished one) with a recap.
 5. ⏳ CLAUDE.md rebuild endpoint
 
 ## 1. Accesses
@@ -163,3 +163,35 @@ allow-list; `git push` is refused. A refusal reaches the agent as the hook's rea
 ```
 `listening` is a live 200 ms connect check on 127.0.0.1 and ::1 (something answers — the studio's app, an agent's server or
 anything else on the Mac). No events; poll it while the Ports room is open (every few seconds is cheap).
+
+## 4. Director chat freshness
+
+Server-only; nothing changes in the API. Every orchestrator chat turn's task starts with
+`Studio summary right now: {…}` (one JSON line) and then: `This summary is the truth right now: exactly N goals are active on
+the whiteboard. Where it disagrees with anything said earlier in this chat, trust it.` The summary's `whiteboard` now holds
+**active goals only** (with items), plus `activeGoals: N` and `finishedGoals: [{goal, status}]` (last 3); features, people, health,
+unread reports and open questions as before. Its system prompt says to trust the summary and drop older ideas.
+
+**Rotation** (migration 24, `thread_sessions`): the orchestrator thread's resumed CLI session starts fresh (a) after 12 turns,
+or (b) on the first chat turn after the user posts a goal while an earlier goal has finished. The fresh session's task carries
+"This is a fresh session. A short recap of this chat so far …" with the last 6 lines (each ≤ 300 chars). The thread the user
+sees is unchanged — one continuous conversation.
+
+Regression test: `server/test/office/director-freshness.test.ts` (the stale session says "four goals"; after one goal finished
+and ONE new one is posted, the next turn is a fresh session told "exactly 1 goal is active", and the turn after resumes the new
+session) + the 12-turn rotation.
+
+## Live check — 2026-11-14 (real Claude Code 2.1.322, claude-opus-5-5)
+Isolated backend on **:4701**: data dir + AI Control home in the scratchpad (`g1/home`, `g1/control` = a copy of the modules —
+the real `~/.ai-control/.env` is untouched, md5 checked before/after), `AI_STUDIO_GH_BIN` = a **stub gh** (bare repos in the
+scratchpad, `GIT_CONFIG_*` insteadOf for the push — no real GitHub repo), real runner.
+| step | result |
+|---|---|
+| access | `POST /accesses` "Demo API": Key (secret) → `DEMO_API_KEY` (last4 shown), User (non-secret) → `DEMO_API_USER` (value shown) |
+| project | draft "G1 Port Check" → setup → `github: done` "Created https://github.com/stub-owner/g1-port-check (private) and pushed" (stub) → finish → `~/dev/AI-Studio-Sandbox/g1-port-check`, payload `github.published: true` |
+| grant | `PUT /projects/g1-port-check/access/a-demo-api` → granted 1. (First try sent `content-type: application/json` with no body → Fastify 400 — see For the UI.) |
+| ports | block app 3339, spares 3340–3343 |
+| run | Captain Semicolon, task: write server.js on `process.env.PORT` answering which access env vars are set (booleans only), start it with `PORT=<your PORT> node server.js`, fetch, stop |
+| outcome | the agent ran **`PORT=3340 node server.js`** (background) — **approved by the hook on the first try** — fetched `{"port":3340,"DEMO_API_KEY":true,"DEMO_API_USER":true}`, stopped it (it noted `kill` isn't allowed and used a node one-liner), no commit. 7 turns, succeeded |
+| leaks | the key's value: 0 hits in the run's stream log, the server log, the events table and the sqlite bytes (db + WAL) |
+**Plan usage:** 2 Claude Code runs, 8 turns (1 run cancelled at 1 turn after the bad grant call, 1 run of 7 turns). No crew calls.

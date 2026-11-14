@@ -45,6 +45,10 @@ export type ThreadMessage = {
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
 
 const HISTORY = 200;
+/** G1: the orchestrator's resumed session is rotated after this many turns (it drifts back to old ideas). */
+export const ROTATE_AFTER_TURNS = 12;
+/** How many recent messages a rotated session's recap carries. */
+const RECAP = 6;
 /** How much of a report's body a follow-up turn carries. */
 const REPORT_EXCERPT = 4000;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -62,7 +66,8 @@ export function orchestratorChatPrompt(
     [
       '## How you talk here',
       '',
-      'The user is chatting with you in the project’s office. You have no tools: every message carries a fresh summary of the whiteboard, the features folder and the latest health check — that is what you know about the work.',
+      'The user is chatting with you in the project’s office. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.',
+      'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
       'You do not do the work yourself. When the user wants something built, suggest they post it as ONE goal on the whiteboard (when it is posted you break it into checklist items yourself — the user does not split it), and say which of the people on the project (the summary’s "people") you would brief. Details belong to the teams — the user can tap any agent to talk to them directly.',
       'Research, comparisons, reviews and write-ups end in a report in the Reports tray, filed by a reporter (a role or team marked "files reports"). Route such requests to a reporter on the project; if nobody on it files reports, say so in one line and offer to add one. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
@@ -170,10 +175,54 @@ export function createThreads(deps: {
         .all(projectId, agentId),
     )[0]?.run_id ?? null;
 
+  /* ---- the orchestrator's session (G1): rotate after ROTATE_AFTER_TURNS turns, or when a new goal follows a finished one */
+  const sessionOf = (projectId: string, agentId: string) =>
+    rows<{ started_at: string; rotate: number }>(
+      db
+        .prepare('SELECT started_at, rotate FROM thread_sessions WHERE project_id = ? AND agent_id = ?')
+        .all(projectId, agentId),
+    )[0] ?? null;
+  const turnsSince = (projectId: string, agentId: string, since: string) =>
+    (
+      db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM thread_messages WHERE project_id = ? AND agent_id = ? AND sender = 'user' AND run_id IS NOT NULL AND created_at >= ?",
+        )
+        .get(projectId, agentId, since) as { n: number }
+    ).n;
+  const setSession = (projectId: string, agentId: string, patch: { startedAt?: string; rotate: boolean }) =>
+    db
+      .prepare(
+        `INSERT INTO thread_sessions (project_id, agent_id, started_at, rotate) VALUES (?, ?, ?, ?)
+         ON CONFLICT(project_id, agent_id) DO UPDATE SET rotate = excluded.rotate${patch.startedAt ? ', started_at = excluded.started_at' : ''}`,
+      )
+      .run(projectId, agentId, patch.startedAt ?? '', patch.rotate ? 1 : 0);
+  /** A fresh session's memory of the thread: the last few lines, clipped. */
+  function recapOf(projectId: string, agentId: string): string | null {
+    const last = rows<Row>(
+      db
+        .prepare(
+          `SELECT sender, text FROM thread_messages WHERE project_id = ? AND agent_id = ? AND kind = 'text'
+           ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+        )
+        .all(projectId, agentId, RECAP),
+    ).reverse();
+    if (!last.length) return null;
+    return [
+      'This is a fresh session. A short recap of this chat so far (older details are gone on purpose — the summary above is what is true now):',
+      ...last.map(
+        (m) =>
+          `- ${m.sender === 'user' ? 'The user' : 'You'}: ${clip(String(m.text).replace(/\s+/g, ' '), 300)}`,
+      ),
+    ].join('\n');
+  }
+
   /** What the orchestrator knows, fresh each turn: whiteboard, features, health, open asks. */
   function summary(p: Project) {
     const name = (id: string) => store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id;
-    const goals = work.goals(p.id).slice(0, 3);
+    const all = work.goals(p.id);
+    const active = all.filter((g) => g.status === 'running');
+    const finished = all.filter((g) => g.status !== 'running').slice(0, 3);
     const health = deps.health.latest(p.id);
     /* name + role, and `reporter` when the role files reports (only reporters may take research) */
     const person = (id: string) => {
@@ -200,12 +249,15 @@ export function createThreads(deps: {
         specialists: p.agentIds.map(person),
         howWeWork: p.collaboration?.summary ?? 'You brief the team captains; no review gates.',
       },
-      whiteboard: goals.map((g) => ({
+      /* active goals only, with their items (G1: finished ones made the orchestrator count old goals as current) */
+      whiteboard: active.map((g) => ({
         goal: clip(g.text, 300),
         status: g.status,
         pct: g.pct,
         items: g.items.map((i) => ({ text: i.text, owner: name(i.agentId), status: i.status })),
       })),
+      activeGoals: active.length,
+      finishedGoals: finished.map((g) => ({ goal: clip(g.text, 200), status: g.status })),
       features: deps.features.repo.list(p.id).map((f) => ({
         name: f.name,
         status: f.status,
@@ -240,12 +292,27 @@ export function createThreads(deps: {
     ].join('\n');
   }
 
-  function taskFor(p: Project, s: ReturnType<typeof seat>, text: string, reportId?: string): string {
+  function taskFor(
+    p: Project,
+    s: ReturnType<typeof seat>,
+    text: string,
+    reportId?: string,
+    recap?: string | null,
+  ): string {
     const about = reportId ? aboutReport(p.id, reportId) : '';
-    if (s.orchestrator)
-      return [`Studio summary right now: ${json(summary(p))}`, about, `The user says: ${json(text)}`]
+    if (s.orchestrator) {
+      const now = summary(p);
+      const n = now.activeGoals;
+      return [
+        `Studio summary right now: ${json(now)}`,
+        `This summary is the truth right now: ${n === 0 ? 'no goal is' : n === 1 ? 'exactly 1 goal is' : `exactly ${n} goals are`} active on the whiteboard. Where it disagrees with anything said earlier in this chat, trust it.`,
+        recap ?? '',
+        about,
+        `The user says: ${json(text)}`,
+      ]
         .filter(Boolean)
         .join('\n\n');
+    }
     const orch = store.agents.get(p.orchestratorId)?.name ?? 'the orchestrator';
     return [
       'The user is talking with you directly in the AI Studio office chat — a conversation, not a checklist item.',
@@ -311,10 +378,23 @@ export function createThreads(deps: {
     ): { message: ThreadMessage; runId: string } {
       const p = store.projects.require(projectId);
       const s = seat(p, agentId);
-      const task = taskFor(p, s, text, opts.reportId); // an unknown report is a 404 before anything starts
+      let resumeRunId = lastRunWithSession(projectId, s.agent.id);
+      /* the orchestrator's long-resumed session drifts back to old ideas (F3: "four goals" after being told one) */
+      let recap: string | null = null;
+      let fresh = false;
+      if (s.orchestrator) {
+        const sess = sessionOf(projectId, s.agent.id);
+        const turns = turnsSince(projectId, s.agent.id, sess?.started_at ?? '');
+        if (!resumeRunId) fresh = true;
+        else if (sess?.rotate || turns >= ROTATE_AFTER_TURNS) {
+          recap = recapOf(projectId, s.agent.id);
+          resumeRunId = null;
+          fresh = true;
+        }
+      }
+      const task = taskFor(p, s, text, opts.reportId, recap); // an unknown report is a 404 before anything starts
       const k = key(projectId, s.agent.id);
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
-      const resumeRunId = lastRunWithSession(projectId, s.agent.id);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
       const run = runtime.start(projectId, {
         agentId: s.agent.id,
@@ -330,6 +410,7 @@ export function createThreads(deps: {
       });
       busy.add(k);
       turns.set(run.id, { projectId, agentId: s.agent.id });
+      if (fresh) setSession(projectId, s.agent.id, { startedAt: now(), rotate: false });
       const message = insert(projectId, s.agent.id, {
         sender: 'user',
         kind: 'text',
@@ -347,6 +428,11 @@ export function createThreads(deps: {
       agentId: string,
       m: { sender: 'user' | 'agent'; kind?: ThreadMessage['kind']; text: string; goalId?: string | null },
     ): ThreadMessage {
+      /* a new goal after one finished: the orchestrator's next chat turn starts a fresh session (with a recap) */
+      if (m.sender === 'user' && m.goalId && agentId === store.projects.get(projectId)?.orchestratorId) {
+        const finishedBefore = work.goals(projectId).some((g) => g.id !== m.goalId && g.status !== 'running');
+        if (finishedBefore) setSession(projectId, agentId, { rotate: true });
+      }
       return insert(projectId, agentId, {
         sender: m.sender,
         kind: m.kind ?? 'text',
