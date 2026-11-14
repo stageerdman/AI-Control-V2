@@ -475,6 +475,10 @@ export const MIGRATIONS: readonly string[] = [
   CREATE TRIGGER crew_time_draft_gone AFTER DELETE ON drafts
     BEGIN DELETE FROM crew_time WHERE scope = 'draft' AND owner_id = OLD.id; END;
   `,
+  /* 26 — the project's picture (OFFICE portrait): JSON {ext, v} of <data dir>/images/<id>.<ext>; NULL = the tile. */
+  `
+  ALTER TABLE projects ADD COLUMN image TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

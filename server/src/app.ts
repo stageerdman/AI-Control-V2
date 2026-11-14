@@ -25,6 +25,7 @@ import type { OpenStreams } from './http/sse.ts';
 import { createFeatures } from './office/features.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createOffice } from './office/office.ts';
+import { createPortraits } from './office/portrait.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
@@ -41,6 +42,7 @@ import { featureRoutes } from './routes/features.ts';
 import { githubRoutes } from './routes/github.ts';
 import { healthRoutes } from './routes/health.ts';
 import { officeRoutes } from './routes/office.ts';
+import { portraitRoutes } from './routes/portrait.ts';
 import { portRoutes } from './routes/ports.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
@@ -303,6 +305,7 @@ export function buildApp({
   app.register(blueprintRoutes({ config }));
   app.register(setterRoutes({ store, config, events, github, clock }));
   app.register(timeRoutes({ store, clock }));
+  app.register(portraitRoutes({ portraits: createPortraits({ db, store, events, home: config.home }) }));
   app.register(githubRoutes({ github }));
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),

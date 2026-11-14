@@ -25,6 +25,8 @@ type ProjectRecord = {
   github_connected: number;
   github_private: number;
   tile: string;
+  /** OFFICE: JSON {ext, v} of the picture in <data dir>/images; null = show the tile. */
+  image: string | null;
   collaboration: string | null;
   target: string | null;
   position: number;
@@ -50,6 +52,8 @@ export type Project = {
     visibility: 'public' | 'private' | 'internal' | null;
   };
   tile: Tile;
+  /** OFFICE: the project's picture (GET /projects/:id/image?v=…, versioned for caches); null = show the tile. */
+  imageUrl: string | null;
   teamIds: string[];
   /** Individual specialists (teams come first). */
   agentIds: string[];
@@ -168,6 +172,15 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         }
       : { connected: false, private: true, published: false, url: null, visibility: null };
   };
+  const imageUrlOf = (r: ProjectRecord): string | null => {
+    if (!r.image) return null;
+    try {
+      const { v } = JSON.parse(r.image) as { v: string };
+      return `/projects/${encodeURIComponent(r.id)}/image?v=${encodeURIComponent(v)}`;
+    } catch {
+      return null;
+    }
+  };
   const toProject = (r: ProjectRecord): Project => ({
     id: r.id,
     name: r.name,
@@ -178,6 +191,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     orchestratorId: r.orchestrator_id,
     github: githubOf(r.folder),
     tile: JSON.parse(r.tile) as Tile,
+    imageUrl: imageUrlOf(r),
     teamIds: links(r.id, 'teams'),
     agentIds: links(r.id, 'agents'),
     collaboration: readCollaboration(r.collaboration),

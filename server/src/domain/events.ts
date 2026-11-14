@@ -185,6 +185,11 @@ export const EVENT_SCHEMAS = {
   }),
   /** G1: the studio pushed main after a merge (a failure is a calm note, never the item's). */
   'github.push': z.strictObject({ ok: z.boolean(), commit: text(64).optional(), note: text(300).optional() }),
+  /** OFFICE: the project's picture or display name changed (views refresh their project). */
+  'project.changed': z.strictObject({
+    imageUrl: text(300).nullable().optional(),
+    name: text(200).optional(),
+  }),
   /** G1: an access granted to this project was granted / revoked / edited / deleted (ids only — never a value). */
   'access.changed': z.strictObject({
     accessId: id,
