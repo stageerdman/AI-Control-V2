@@ -26,9 +26,7 @@ export type Report = {
   archivedAt: string | null;
 };
 export type ReportRow = Omit<Report, 'body'>;
-export type StudioReportRow = ReportRow & { projectName: string };
 export type ReportList = { reports: ReportRow[]; unread: number };
-export type StudioReportList = { reports: StudioReportRow[]; unread: number };
 
 const e = encodeURIComponent;
 export const reportsApi = {
@@ -37,15 +35,11 @@ export const reportsApi = {
   get: (projectId: string, rid: string) => http.get<Report>(`/projects/${e(projectId)}/reports/${e(rid)}`),
   patch: (projectId: string, rid: string, body: { read?: boolean; archived?: boolean }) =>
     http.patch<Report>(`/projects/${e(projectId)}/reports/${e(rid)}`, body),
-  studio: (limit?: number) => http.get<StudioReportList>(`/reports${limit ? `?limit=${limit}` : ''}`),
 };
 
-export const STUDIO_REPORTS_KEY = 'reports:studio';
 export const reportsKey = (projectId: string, archived = false) =>
   `reports:${projectId}${archived ? ':archived' : ''}`;
 export const reportKey = (projectId: string, rid: string) => `reports:${projectId}:one:${rid}`;
-/** Refetch every reports list/page on screen (studio + projects). The projectId narrows it. */
+/** Refetch every reports list/page on screen. The projectId narrows it. */
 export const invalidateReports = (projectId?: string): Promise<void> =>
-  projectId
-    ? Promise.all([invalidate(`reports:${projectId}`), invalidate(STUDIO_REPORTS_KEY)]).then(() => undefined)
-    : invalidate('reports:');
+  projectId ? invalidate(`reports:${projectId}`) : invalidate('reports:');

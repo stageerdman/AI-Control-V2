@@ -25,7 +25,7 @@ import { go, type OfficeSub } from '../../shell/router';
 import { ErrorState, Loading, toast } from '../../ui';
 import { refreshProjectAccess, useNewAccessCount } from '../access';
 import type { Resolve } from '../collab';
-import { invalidateReports, type ReportList, reportsApi, reportsKey, takePendingFollowUp } from '../reports';
+import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
 import { AccessSheet } from './AccessSheet';
 import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
@@ -319,17 +319,6 @@ function Office({
     [director, showPanel, announce, nameOf],
   );
   useEffect(() => () => clearTimeout(holdT.current), []);
-
-  /* a follow-up asked from the studio-wide #reports opens here */
-  // biome-ignore lint/correctness/useExhaustiveDependencies: once, after the scene is up
-  useEffect(() => {
-    if (!world) return;
-    const f = takePendingFollowUp(pid);
-    if (f && liveRef.current.ids.includes(f.agentId)) {
-      setContext({ title: f.title, reportId: f.reportId });
-      openThread(f.agentId, 'report');
-    }
-  }, [world]);
 
   /* ---------- the stream */
   const onEvent = useCallback(

@@ -15,7 +15,6 @@ export function ReportView({
   onBack,
   onFollowUp,
   onArchived,
-  projectName,
 }: {
   projectId: string;
   reportId: string;
@@ -23,8 +22,6 @@ export function ReportView({
   /** agentId = who to ask: the author, or the project's orchestrator when the author is gone. */
   onFollowUp: (r: Report, agentId: string) => void;
   onArchived?: () => void;
-  /** Studio-wide view: the meta line names the project and links to its office. */
-  projectName?: string;
 }) {
   const q = useQuery(reportKey(projectId, reportId), () => reportsApi.get(projectId, reportId));
   const project = useQuery(`project:${projectId}`, () => studio.projects.get(projectId));
@@ -127,14 +124,6 @@ export function ReportView({
                 ·
               </span>
               <time dateTime={r.createdAt}>{fullWhen(r.createdAt)}</time>
-              {projectName && (
-                <>
-                  <span className="rp-sep" aria-hidden="true">
-                    ·
-                  </span>
-                  <a href={`#office/${encodeURIComponent(projectId)}`}>{projectName}</a>
-                </>
-              )}
             </>
           }
         />

@@ -26,7 +26,6 @@ const TITLE: Record<Route['name'], string> = {
   blueprint: 'Blueprint',
   new: 'Project setup',
   office: 'Office',
-  reports: 'Reports',
   gallery: 'Gallery',
 };
 

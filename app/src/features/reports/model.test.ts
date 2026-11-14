@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { ReportRow } from './api';
-import { setPendingFollowUp, takePendingFollowUp } from './followup';
 import { applyReportEvent, fullWhen, relWhen, rowLabel, shortName, unreadCount } from './model';
 
 const NOW = new Date(2026, 10, 13, 15, 0, 0); // 13 Nov 2026 15:00 local
@@ -84,8 +83,8 @@ describe('labels + names', () => {
     expect(rowLabel(row('1'), NOW)).toBe(
       'Unread. Report 1, by Scout, Research Crew, 2 hours ago. Stripe wins on fees.',
     );
-    expect(rowLabel({ ...row('2', { readAt: at(13, 14) }), projectName: 'Aurora' }, NOW)).toBe(
-      'Report 2, by Scout, Research Crew, Aurora, 2 hours ago. Stripe wins on fees.',
+    expect(rowLabel(row('2', { readAt: at(13, 14) }), NOW)).toBe(
+      'Report 2, by Scout, Research Crew, 2 hours ago. Stripe wins on fees.',
     );
     expect(
       rowLabel(row('3', { author: { agentId: 'x', name: 'Solo Sam', teamId: null, teamName: null } }), NOW),
@@ -94,18 +93,5 @@ describe('labels + names', () => {
   it('shortName: nick, else first word', () => {
     expect(shortName({ name: 'Scout Ranger', nick: null })).toBe('Scout');
     expect(shortName({ name: 'Professor Prompt', nick: 'Prof' })).toBe('Prof');
-  });
-});
-
-describe('follow-up handoff', () => {
-  it('is taken once, only by its project', () => {
-    setPendingFollowUp({ projectId: 'aurora', agentId: 'a-scout', title: 'Payments', reportId: 'rep_1' });
-    expect(takePendingFollowUp('lumi')).toBeNull();
-    expect(takePendingFollowUp('aurora')).toEqual({
-      agentId: 'a-scout',
-      title: 'Payments',
-      reportId: 'rep_1',
-    });
-    expect(takePendingFollowUp('aurora')).toBeNull();
   });
 });

@@ -1,52 +1,5 @@
 /* Reports (spec-reports §2–§5): the list rows (siblings of the features folder rows) and the
-   reading page. Inside the office the card is the board's .ob-card (.ob-k-reports / .ob-k-report);
-   on the studio #reports the same card look comes from .rp-scene. Prefix rp-. */
-
-/* ---------- studio scene card (static .ob-card) ---------- */
-.rp-scene {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0 24px;
-}
-.rp-scene .rp-card {
-  position: relative;
-  width: min(600px, 100%);
-  max-height: calc(100vh - 290px);
-  overflow: auto;
-  background: #fdfcf7;
-  color: var(--ink);
-  border-radius: 16px;
-  box-shadow: 0 30px 60px rgba(8, 4, 24, 0.5);
-  padding: 20px 26px 24px;
-  box-sizing: border-box;
-}
-.rp-scene .rp-card.wide {
-  width: min(720px, 100%);
-}
-.rp-scene .ob-back {
-  appearance: none;
-  border: 0;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 800;
-  font-size: 13px;
-  padding: 7px 13px;
-  border-radius: 999px;
-  background: rgba(36, 26, 68, 0.07);
-  color: var(--ink);
-}
-.rp-scene .ob-back:hover {
-  background: rgba(36, 26, 68, 0.13);
-}
-.rp-scene .ob-back:focus-visible {
-  outline: 3px solid var(--grape);
-  outline-offset: 2px;
-}
-.rp-scene h2 {
-  margin: 0;
-  font-size: 22px;
-  letter-spacing: -0.01em;
-}
+   reading page. Inside the office the card is the board's .ob-card (.ob-k-reports / .ob-k-report). Prefix rp-. */
 
 /* ---------- list ---------- */
 .rp-hhead {

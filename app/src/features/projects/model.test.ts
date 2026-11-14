@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Draft, Project, Team } from '../../api';
-import { backLotTag, castOf, editedAgo, ghBadge, isOnSet, progressLine, shelfCount, shelves } from './model';
+import { backLotTag, castOf, editedAgo, ghBadge, isOnSet, progressLine, shelves } from './model';
 import { tileFor } from './tile';
 
 const project = (id: string, p: Partial<Project> = {}): Project => ({
@@ -41,11 +41,11 @@ describe('projects home', () => {
     project('Pebble', { status: 'archived' }),
     project('Orchard', { status: 'idle' }),
   ];
-  it('splits on set / back lot / in setup and counts', () => {
+  it('splits on set / back lot / in setup', () => {
     const s = shelves(ps, [draft('d1', 'Kite')], '');
     expect(s.onSet.map((p) => p.id)).toEqual(['Aurora Storefront', 'Lumi Health']);
     expect(s.backLot.map((p) => p.id)).toEqual(['Muse Docs', 'Pebble', 'Orchard']);
-    expect(shelfCount(s)).toBe('1 in setup · 2 on set · 3 in the back lot');
+    expect(s.drafts).toHaveLength(1);
   });
   it('an idle real project worked on this week stays on set; old or folderless idle → back lot', () => {
     const now = Date.parse('2026-11-14T08:00:00Z');
@@ -57,9 +57,8 @@ describe('projects home', () => {
   });
   it('search matches names and notes, and drafts by name (untitled too)', () => {
     expect(shelves(ps, [], 'checkout').onSet).toHaveLength(1);
-    expect(shelfCount(shelves(ps, [draft('d1', ''), draft('d2', 'Kite')], 'UNTITLED'))).toBe(
-      '1 in setup · 0 on set · 0 in the back lot',
-    );
+    const u = shelves(ps, [draft('d1', ''), draft('d2', 'Kite')], 'UNTITLED');
+    expect([u.drafts.length, u.onSet.length, u.backLot.length]).toEqual([1, 0, 0]);
   });
   it('the cast: team members first (once each), then specialists', () => {
     const teams = [

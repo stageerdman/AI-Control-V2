@@ -1,36 +1,28 @@
 /* The Reports list (spec-reports §2): newest first, one button per row, unread = bold + coral dot,
-   `Archived (n)` swaps to the archive. projectId null = studio-wide (rows gain the project name). */
+   `Archived (n)` swaps to the archive. */
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '../../api';
 import { Button } from '../../ui';
-import { type ReportRow, reportsApi, reportsKey, STUDIO_REPORTS_KEY, type StudioReportRow } from './api';
+import { type ReportRow, reportsApi, reportsKey } from './api';
 import { isUnread, relWhen, rowLabel } from './model';
 import { AuthorLine, useCast, useHasReporter } from './parts';
 import './reports.css';
-
-type Row = ReportRow & { projectName?: string };
 
 export function ReportsList({
   projectId,
   onOpen,
   back,
 }: {
-  projectId: string | null;
-  onOpen: (row: ReportRow & { projectName?: string }) => void;
+  projectId: string;
+  onOpen: (row: ReportRow) => void;
   back?: { label: string; onClick: () => void };
 }) {
   const [archived, setArchived] = useState(false);
   const backRef = useRef<HTMLButtonElement>(null);
   const first = useRef(true);
-  const list = useQuery<{ reports: Row[]; unread: number }>(
-    projectId ? reportsKey(projectId, archived) : STUDIO_REPORTS_KEY,
-    () =>
-      projectId
-        ? reportsApi.list(projectId, archived)
-        : (reportsApi.studio() as Promise<{ reports: StudioReportRow[]; unread: number }>),
-  );
-  const archive = useQuery(projectId && !archived ? reportsKey(projectId, true) : null, () =>
-    reportsApi.list(projectId as string, true),
+  const list = useQuery(reportsKey(projectId, archived), () => reportsApi.list(projectId, archived));
+  const archive = useQuery(!archived ? reportsKey(projectId, true) : null, () =>
+    reportsApi.list(projectId, true),
   );
   const nArchived = archive.data?.reports.length ?? 0;
   const { agents, teams } = useCast();
@@ -104,21 +96,7 @@ export function ReportsList({
                 <span className="rp-when">{relWhen(r.createdAt, now)}</span>
               </span>
               <span className="rp-by">
-                <AuthorLine
-                  author={r.author}
-                  agents={agents}
-                  teams={teams}
-                  tail={
-                    r.projectName && (
-                      <>
-                        <span className="rp-sep" aria-hidden="true">
-                          ·
-                        </span>
-                        <span>{r.projectName}</span>
-                      </>
-                    )
-                  }
-                />
+                <AuthorLine author={r.author} agents={agents} teams={teams} />
               </span>
               <span className="rp-sum">{r.summary}</span>
               <span className="rp-chev" aria-hidden="true">

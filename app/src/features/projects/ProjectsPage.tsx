@@ -1,26 +1,14 @@
-/* Projects home (#projects) — the prototype's renderProjects(): head with "+ New project" (and the
-   Reports button), search (press /), then shelves: In setup (drafts) · On set today · The back lot. */
+/* Projects home (#projects) — the prototype's renderProjects(): head with "+ New project",
+   search (press /), then shelves: In setup (drafts) · On set today · The back lot. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Agent, type Draft, type Project, studio, type Team, useQuery } from '../../api';
 import { Hero } from '../../characters/Hero';
 import { go } from '../../shell/router';
 import { Button, EmptyState, ErrorState, Loading, Pill, Progress } from '../../ui';
-import { PortsSheet } from '../ports';
 import { DraftCard } from '../setup/DraftCard';
 import { DRAFTS_KEY } from '../setup/drafts';
-import { studioReports } from './api';
 import { LogoTile } from './LogoTile';
-import {
-  backLotTag,
-  castOf,
-  editedAgo,
-  ghBadge,
-  nickOf,
-  progressLine,
-  type Shelves,
-  shelfCount,
-  shelves,
-} from './model';
+import { backLotTag, castOf, editedAgo, ghBadge, nickOf, progressLine, type Shelves, shelves } from './model';
 import './projects.css';
 
 const newProject = () => go({ name: 'new', draftId: null });
@@ -32,7 +20,6 @@ export function ProjectsPage() {
   const agents = useQuery('agents', studio.agents.list);
   const teams = useQuery('teams', studio.teams.list);
   const [q, setQ] = useState(lastQuery);
-  const [portsOpen, setPortsOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   lastQuery = q;
 
@@ -75,7 +62,6 @@ export function ProjectsPage() {
           <h1>Every production, at a glance</h1>
         </div>
         <div className="spacer" />
-        <ReportsButton />
         <Button variant="hero" onClick={newProject}>
           ＋ New project
         </Button>
@@ -106,18 +92,6 @@ export function ProjectsPage() {
             }}
           />
         </div>
-        <div className="result-count">
-          <span aria-live="polite">{!loading && !err ? shelfCount(s) : ''}</span>
-          {!loading && !err && (
-            <>
-              {' · '}
-              <button type="button" className="count-link" onClick={() => setPortsOpen(true)}>
-                Ports
-              </button>
-            </>
-          )}
-        </div>
-        <PortsSheet open={portsOpen} onClose={() => setPortsOpen(false)} />
       </div>
       {err ? (
         <ErrorState
@@ -283,21 +257,5 @@ function BackLotCard({ p }: { p: Project }) {
       </div>
       <Pill tone={tag.tone}>{tag.label}</Pill>
     </button>
-  );
-}
-
-/** "Reports" — the studio-wide Reports space; a coral dot while something is unread. */
-function ReportsButton() {
-  const r = useQuery('reports:studio', studioReports);
-  const unread = r.data?.unread ?? 0;
-  return (
-    <a
-      href="#reports"
-      className="btn btn-ghost on-dark reports-btn"
-      aria-label={unread ? `Reports — ${unread} unread` : 'Reports'}
-    >
-      📄 Reports
-      {unread > 0 && <span className="unread-dot" aria-hidden="true" />}
-    </a>
   );
 }

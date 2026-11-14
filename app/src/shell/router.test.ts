@@ -19,8 +19,6 @@ const cases: [string, Route][] = [
   ['#office/aurora/feature/f-2', { name: 'office', projectId: 'aurora', sub: 'feature', id: 'f-2' }],
   ['#office/aurora/reports', { name: 'office', projectId: 'aurora', sub: 'reports' }],
   ['#office/aurora/report/r-7', { name: 'office', projectId: 'aurora', sub: 'report', id: 'r-7' }],
-  ['#reports', { name: 'reports' }],
-  ['#reports/aurora/rep_1', { name: 'reports', projectId: 'aurora', id: 'rep_1' }],
   ['#gallery', { name: 'gallery', section: '' }],
   ['#gallery/poses', { name: 'gallery', section: 'poses' }],
 ];

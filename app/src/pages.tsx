@@ -16,7 +16,6 @@ export const pages: PageRegistry = {
   blueprint: lazy(() =>
     import('./features/blueprint/BlueprintPage').then((m) => ({ default: m.BlueprintPage })),
   ),
-  reports: lazy(() => import('./features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage }))),
   projects: lazy(() => import('./features/projects/ProjectsPage').then((m) => ({ default: m.ProjectsPage }))),
   new: lazy(() => import('./features/setup/SetupPage').then((m) => ({ default: m.SetupPage }))),
   office: lazy(() => import('./features/office/OfficePage').then((m) => ({ default: m.OfficePage }))),

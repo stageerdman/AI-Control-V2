@@ -28,9 +28,6 @@ export function shelves(projects: Project[], drafts: Draft[], q: string): Shelve
     backLot: ps.filter((p) => !isOnSet(p)),
   };
 }
-/** "1 in setup · 3 on set · 6 in the back lot" */
-export const shelfCount = (s: Shelves): string =>
-  `${s.drafts.length ? `${s.drafts.length} in setup · ` : ''}${s.onSet.length} on set · ${s.backLot.length} in the back lot`;
 
 /** Everyone on the project: its teams' members (teams first), then the specialists — once each. */
 export function castOf(p: Pick<Project, 'teamIds' | 'agentIds'>, teams: Team[]): string[] {

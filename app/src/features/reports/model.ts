@@ -71,8 +71,8 @@ export function applyReportEvent<T extends ReportRow>(
 }
 
 /** Screen-reader label for a row (spec §5): never colour-only. */
-export function rowLabel(r: ReportRow & { projectName?: string }, now: Date = new Date()): string {
-  const who = [r.author.name, r.author.teamName, r.projectName].filter(Boolean).join(', ');
+export function rowLabel(r: ReportRow, now: Date = new Date()): string {
+  const who = [r.author.name, r.author.teamName].filter(Boolean).join(', ');
   return `${isUnread(r) ? 'Unread. ' : ''}${r.title}, by ${who}, ${relWhen(r.createdAt, now, true).toLowerCase()}. ${r.summary}`;
 }
 

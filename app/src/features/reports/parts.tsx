@@ -63,16 +63,13 @@ export function AuthorLine({
 
 const flag = (x: unknown) => (x as { reporter?: boolean }).reporter === true;
 
-/** Does anyone file reports — on this project (null = anywhere in the studio)? undefined = still loading. */
-export function useHasReporter(projectId: string | null): boolean | undefined {
+/** Does anyone file reports on this project? undefined = still loading. */
+export function useHasReporter(projectId: string): boolean | undefined {
   const roles = useQuery('roles', studio.roles.list);
   const { agents, teams } = useCast();
-  const project = useQuery(projectId ? `project:${projectId}` : null, () =>
-    studio.projects.get(projectId as string),
-  );
+  const project = useQuery(`project:${projectId}`, () => studio.projects.get(projectId));
   if (!roles.data || !agents.length) return undefined;
   const reporterRoles = new Set(roles.data.filter(flag).map((r) => r.id));
-  if (!projectId) return teams.some(flag) || reporterRoles.size > 0;
   const p = project.data;
   if (!p) return undefined;
   const pTeams = teams.filter((t) => p.teamIds.includes(t.id));
