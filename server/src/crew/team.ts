@@ -79,6 +79,8 @@ export function splitCall(o: {
   orchestrator: string;
   name: (id: string) => string;
   role: (id: string) => string;
+  /** What the goal's earlier items finished (dispatch's "Done before you"), or ''. */
+  earlier?: string;
 }) {
   const { team, item } = o;
   const members = team.members.map((m) => ({
@@ -93,6 +95,7 @@ export function splitCall(o: {
     `Goal from ${o.orchestrator} (your orchestrator): ${json(clip(o.goal.text, 2000))}`,
     `Your team's item: ${json(item.text)}`,
     `Brief: ${json(item.brief)}`,
+    o.earlier ?? '',
     `Your team: ${json({ name: team.name, whatWeDo: clip(team.instr, 600), howWeCode: clip(team.code, 600), members })}`,
     [
       'You are in the item’s checkout (its own git branch). You may glance around with Read, Glob, Grep and read-only commands (ls, git log, git ls-files) — a few files at most; you cannot change anything here.',
@@ -113,7 +116,9 @@ export function splitCall(o: {
         },
       ],
     })}`,
-  ].join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   return { systemPrompt, task, workspace: { cwd: item.workspace?.cwd ?? '', ...SPLIT_WORKSPACE } };
 }
 
@@ -126,6 +131,7 @@ export function memberTask(o: {
   name: (id: string) => string;
   siblings: ChecklistItem[];
   rework?: string | null;
+  earlier?: string;
 }): string {
   const { sub, parent } = o;
   const captain = o.name(parent.agentId);
@@ -135,6 +141,7 @@ export function memberTask(o: {
     `${captain} (captain of ${o.team.name}) leads your team's item "${parent.text}" and gave you a part of it.`,
     `Your sub-task: ${sub.text}`,
     `Brief: ${sub.brief}`,
+    o.earlier ?? '',
     o.rework ? `${captain} looked at your earlier part and sends it back. Their notes: ${o.rework}` : '',
     /* F3 live: with only the titles, "use the shapes from the captain's sub-task" pointed at nothing and the member had
        to ask the user. Their briefs carry the interfaces they promise. */

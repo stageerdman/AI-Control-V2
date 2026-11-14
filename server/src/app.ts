@@ -166,6 +166,13 @@ export function buildApp({
     ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
     canFile: reports.canFile,
     filedBy: (runId) => reports.byRun(runId).length > 0,
+    reportFor: (projectId, reportId) => {
+      try {
+        return reports.get(projectId, reportId);
+      } catch {
+        return null;
+      }
+    },
     worktrees: worktrees(join(config.home, 'worktrees')),
     sandbox: config.sandbox,
     reviewCaps: caps.review,

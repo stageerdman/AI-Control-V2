@@ -297,6 +297,42 @@ describe('reports', () => {
     expect(itemTask).toMatch(/file_report tool \(question: "Research payment providers for checkout"\)/);
   });
 
+  it('a mixed goal: the build item after a report item gets what the report found (F3 live)', async () => {
+    const seen: RunSpec[] = [];
+    const plan = {
+      summary: 'Compare, then build.',
+      items: [
+        { text: 'Compare providers', assignee: 'a-prof', brief: 'Compare.', report: true },
+        { text: 'Build checkout payments', assignee: 'a-baron', brief: 'Build on the report.' },
+      ],
+    };
+    h = studio((s) => {
+      seen.push(s);
+      if (s.task.startsWith('AI Studio contract: dispatch')) return [{ result: JSON.stringify(plan) }];
+      if (s.task.includes('file_report tool')) return [{ report: REPORT }, { result: 'Filed.' }];
+      return [{ result: 'Built it.' }];
+    });
+    const g = await h.call('POST', '/projects/aurora/work', {
+      goal: 'Pick a payment provider, then build it',
+    });
+    expect(g.status).toBe(201);
+    let goal = g.body;
+    for (let i = 0; i < 200 && goal.status === 'running'; i++) {
+      await new Promise((x) => setTimeout(x, 5));
+      goal = (await h.call('GET', `/projects/aurora/work/${goal.id}`)).body;
+    }
+    expect(goal.status).toBe('done');
+    const build =
+      seen.find((s) => s.task.includes('Your checklist item: Build checkout payments'))?.task ?? '';
+    expect(build).toContain('Done before you on this goal');
+    expect(build).toContain('Professor Prompt filed the report "Payment providers compared"');
+    expect(build).toContain(REPORT.summary);
+    expect(build).toContain('Stripe — 1.5% + 25c'); // the body excerpt
+    // the first item has nothing before it
+    const first = seen.find((s) => s.task.includes('Your checklist item: Compare providers'))?.task ?? '';
+    expect(first).not.toContain('Done before you');
+  });
+
   it('a report item whose run never files is failed; a report item for a non-reporter is sent back', async () => {
     h = studio((s) =>
       s.task.startsWith('AI Studio contract: dispatch')

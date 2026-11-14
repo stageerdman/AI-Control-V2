@@ -159,6 +159,8 @@ function describeCollaboration(c: Collaboration, name: (id: string) => string) {
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+/** How much of an earlier report item's body a later item's task carries. */
+const REPORT_EXCERPT = 4000;
 
 export function createDispatch(deps: {
   db: Db;
@@ -181,6 +183,11 @@ export function createDispatch(deps: {
   onPlanned?: (e: { projectId: string; goalText: string; goal: Goal | null; error?: string }) => void;
   /** The features folder (F1c): goals link to a feature, which ships when the goal lands. Absent → no linking. */
   features?: Features;
+  /** A filed report (F3): later items of the goal get what an earlier report item found. Absent → title only. */
+  reportFor?: (
+    projectId: string,
+    reportId: string,
+  ) => { title: string; summary: string; body: string } | null;
 }) {
   const { store, events, crew, runtime } = deps;
   const cap = deps.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
@@ -318,6 +325,7 @@ export function createDispatch(deps: {
       `Goal from ${orchName(it.projectId)} (your orchestrator): ${goal.text}`,
       `Your checklist item: ${it.text}`,
       `Brief: ${it.brief}`,
+      earlierWork(it, goal),
       team
         ? captain
           ? `You are the captain of ${team.name}: you own this item for the team. Do the work yourself in this run; note anything a teammate should pick up in issues.txt.`
@@ -338,6 +346,20 @@ export function createDispatch(deps: {
     ]
       .filter(Boolean)
       .join('\n\n');
+  }
+  /** What the goal's earlier items finished — F3 live: "build on what the report recommends" while the build run
+      never saw the report (it lives in the Reports tray, not the folder). Done items only; a report's summary + excerpt. */
+  function earlierWork(it: ChecklistItem, goal: Goal): string {
+    if (it.parentId) return '';
+    const before = goal.items.filter((x) => x.position < it.position && x.status === 'done');
+    if (!before.length) return '';
+    const lines = before.map((x) => {
+      const r = x.reportId ? deps.reportFor?.(x.projectId, x.reportId) : null;
+      if (r)
+        return `• ${x.text} — ${name(x.agentId)} filed the report "${r.title}": ${r.summary}\n  Report (excerpt): ${clip(r.body, REPORT_EXCERPT)}`;
+      return `• ${x.text} — ${name(x.agentId)}: ${clip(x.note ?? 'done', 600)}`;
+    });
+    return `Done before you on this goal (build on it):\n${lines.join('\n')}`;
   }
   const reworkTask = (it: ChecklistItem, from: string) =>
     [
@@ -431,6 +453,7 @@ export function createDispatch(deps: {
           name,
           siblings: parent.subtasks.filter((s) => s.status === 'todo' || s.status === 'running'),
           rework: it.notes,
+          earlier: earlierWork(parent, goal),
         }),
         caps,
       };
@@ -798,6 +821,7 @@ export function createDispatch(deps: {
       orchestrator: orchName(it.projectId),
       name,
       role: (id) => store.agents.get(id)?.role ?? '',
+      earlier: earlierWork(it, goal),
     });
     let value: z.output<typeof TeamSplitSchema> | null = null;
     try {
