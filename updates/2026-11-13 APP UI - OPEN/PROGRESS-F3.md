@@ -41,6 +41,27 @@ Usage: 18 runs, 108 turns (≈ $3.44 API-equivalent).
 | app | Run the app → `npm start` → `http://localhost:3000`; curl: 2× POST 201, POST without url → 400, `?tag=js` → 1, **stop + start through the studio → both still there**, DELETE → 204 → gone |
 Usage: 9 runs, ≈ 95 turns (≈ $1.94 API-equivalent).
 
+### Run 3 — F3 Recipe Scaler (fresh web app, team + reporter, mixed goal) — ✅ **clean: no user answer, no send-back, no hand stop**
+`~/dev/AI-Studio-Sandbox/f3-recipe-scaler`, Pixel; fixes 1–6 live. Run in parallel with run 4.
+| step | what happened |
+|---|---|
+| setup | "a web team + QA, and a short report first" → F1c Web Crew + Professor Prompt (reporter) + Scarlett, gate quality after the crew. 26 s |
+| goal | report item first (the Professor), then 2 team items for the captain; feature **Recipe Scaler** |
+| report | "Reading and friendly-rounding recipe ingredient amounts" (~45 example lines) |
+| item 2 | captain's split (self) wrote an exact interface (`parseLine → {qty, qtyMax, unit, unitType: kitchen\|metricSmall\|…}`) straight from the report — the build "Done before you" carried it; tests use the report's example lines → Scarlett approved first time → merged |
+| item 3 | split → captain (recent-recipes module), Pete (page), Twinkle (styles), parallel; members coded against each other's briefs ("follows the brief's interface exactly") → integrated → approved first time → merged |
+| outcome | goal done, feature **Shipped**, 1 unread report; 0 asks, 0 send-backs; no worktree / `studio/*` left, tree clean; `npm test` 69/69 |
+| app | Run the app → `http://localhost:3000`; headless Chrome: default 4→6 servings "1 1/2 cups flour" → "2 1/4 cups flour", 200 g → 300 g, "salt to taste" kept; new recipe 2→3: "3/4 cup sugar" → "1 1/4 cup sugar", 250 ml → 380 ml, 3 eggs → 5; servings 0 → "Servings must be numbers greater than 0."; recents survive reload; 0 console errors (`shots/f3-recipe-scaler-app.png`). Nit (app, not engine): "1 1/4 cup" not "cups" |
+Usage: ≈ 13 runs, ≈ 160 turns (≈ $3.8 API-equivalent).
+
+### Run 4 — follow-up goal on Habit Hatch (iteration) — ✅ shipped + works (2 issues → fixed)
+"Add a weekly view: last 7 days as dots, tick yesterday too; keep tests passing, add tests." Parallel with run 3.
+- dispatch: 1 team item; **linked the already-shipped feature "Habit tracking"** → nothing moved on the features folder; overall stayed 100 % while new work ran (bug 7).
+- split → captain (logic `src/week.js` + tests), Pete (page), Twinkle (styles). Pete's part conflicted with the captain's (`src/week.js`) → **merge-fix sent back to Pete, resolved on its own** → integrated (52 tests).
+- Scarlett: changes (duplicated day helper, dead `isYesterday`) → the captain's rework **did nothing**: on `--resume` the CLI first answered the last session's killed background shell with an empty result and the runner took it as the answer (bug 8) → Scarlett: "neither fix is in" (send-back 2 of 2) → the captain fixed both → approved → merged.
+- outcome: goal done, main +8 commits, nothing left behind, `npm test` 52/52. Browser: 7 dots per habit, Yesterday tick + today → "2 days", 2 filled dots after reload, 0 errors (`shots/f3-habit-hatch-weekly.png`).
+Usage: ≈ 13 runs, ≈ 110 turns (≈ $3.1 API-equivalent).
+
 ## Issues found → fixed
 1. **(b33f888) The orchestrator's office chat didn't know who was on the project** — its per-turn summary had the whiteboard, features
    and health but no staffing, so it told a staffed project "I don't see a team yet" and offered to mint one. Summary now carries
@@ -66,6 +87,12 @@ Usage: 9 runs, ≈ 95 turns (≈ $1.94 API-equivalent).
    CLI alive after the result (stdin closed); nothing ended the run. Now: 10 s after the answer the run's whole process group is stopped
    (the leftover server too) and the answer stands. Test: `claude-cli.test.ts` (fake CLI that answers then waits on a child; fails
    without the fix).
+7. **(6f9eec8) A follow-up linked the shipped feature** → the dispatch rule now says a Shipped feature is done: a goal that ADDS
+   something new gets a NEW feature; link a shipped one only for a fix. Test: `team-flow.test.ts` (prompt).
+8. **(3ced630) A `task-notification` result taken as the answer** — the CLI answers its own background-task notices with a result
+   (`origin.kind: task-notification`): after the answer (fix 2) and, on `--resume`, BEFORE the task (the last session's killed shell; empty,
+   0 turns). The runner closed stdin on it, so the rework never ran. Now a notice is never the answer (before or after it only adds
+   turns/tokens; cost = the CLI's cumulative max). Fixture `live-f3-resume-notice-first.jsonl` → `live-f3.test.ts` (fails without).
 
 ## Plan usage (subscription: runs + turns; the CLI's $ is API-equivalent only)
 
