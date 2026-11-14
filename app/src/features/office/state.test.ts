@@ -335,3 +335,43 @@ describe('goal lines from the server thread', () => {
     expect(threadHasGoal([m('orch', 'g2')], 'g1')).toBe(false);
   });
 });
+
+describe('F4 — app view, notes, new work', () => {
+  it('app: url + port from the server; a CLI exit 0 ran and finished; only nonzero is a problem', async () => {
+    const { appView } = await import('./state');
+    const base = { command: 'node x.js', source: '.project', pid: null, startedAt: null, log: ['done'] };
+    const run = appView({
+      ...base,
+      status: 'running',
+      url: 'http://localhost:3931',
+      port: 3931,
+      exitCode: null,
+    });
+    expect(run).toMatchObject({ label: 'running', url: 'http://localhost:3931', port: 3931, action: 'Stop' });
+    const cli = appView({ ...base, status: 'exited', url: null, port: null, exitCode: 0 });
+    expect(cli).toMatchObject({ label: 'ran and finished', tone: 'ok', showLog: true, action: 'Run again' });
+    const bad = appView({ ...base, status: 'exited', url: null, port: null, exitCode: 1 });
+    expect(bad).toMatchObject({ label: 'failed (exit 1)', tone: 'bad', showLog: true });
+    expect(appView({ ...base, command: null, status: 'stopped', url: null, exitCode: null }).label).toBe(
+      'no run command yet',
+    );
+  });
+  it('notes: first sentence, clipped, ellipsis when there is more', async () => {
+    const { noteLine } = await import('./state');
+    expect(noteLine("It's committed on my branch and not pushed. Tests pass: 24/24.")).toBe(
+      "It's committed on my branch and not pushed. …",
+    );
+    expect(noteLine('Short.')).toBe('Short.');
+    expect(noteLine('x'.repeat(300))?.length).toBe(140);
+    expect(noteLine('  ')).toBeNull();
+  });
+  it('progress: a follow-up on a new feature reads as new work added', async () => {
+    const { boardProgress } = await import('./state');
+    const g = { id: 'g', status: 'running', pct: 0, featureId: 'f2', items: [] } as unknown as Goal;
+    const p = { pct: 50, shipped: 1, total: 2, target: null, goal: null };
+    expect(boardProgress([g], p).shipped).toBe('New work added · 1 of 2 features shipped');
+    expect(boardProgress([{ ...g, status: 'done' }], { ...p, shipped: 2, pct: 100 }).shipped).toBe(
+      '2 of 2 features shipped',
+    );
+  });
+});

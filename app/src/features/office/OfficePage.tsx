@@ -692,7 +692,13 @@ function Office({
         </div>
         <div className="o-stagectl">
           {app.data?.status === 'running' && app.data.url && (
-            <a className="o-ctl o-openapp" href={app.data.url} target="_blank" rel="noreferrer">
+            <a
+              className="o-ctl o-openapp"
+              href={app.data.url}
+              target="_blank"
+              rel="noreferrer"
+              title={app.data.port ? `Open the app (port ${app.data.port})` : 'Open the app'}
+            >
               ▶ <span>Open app</span>
             </a>
           )}

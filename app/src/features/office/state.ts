@@ -1,7 +1,7 @@
 /* The office's live state, pure (tested): the backend's statuses + open asks → what each robot is
    doing in the scene (the prototype's ACTIVITY kinds), thread merging, the wall's facts.
    The scene (engine.ts) only renders what deriveActor() says; nothing here touches the DOM. */
-import type { ChecklistItem, Goal, ProjectHealth, StudioEvent } from '../../api';
+import type { ChecklistItem, Goal, ProjectApp, ProjectHealth, StudioEvent } from '../../api';
 import type { Pose } from '../../characters';
 import type { AgentStatus, Feature, OfficeProgress, OfficeView, ThreadMessage } from './api';
 import type { BoardFacts } from './theme';
@@ -193,8 +193,26 @@ export function boardProgress(
   const g = goals.find((x) => x.status === 'running') ?? goals[0];
   const pct = Math.round(prog ? prog.pct : (g?.pct ?? 0));
   const target = prog?.target?.trim() || null;
-  const shipped = prog && prog.total > 0 ? `${prog.shipped} of ${prog.total} features shipped` : null;
+  /* a follow-up goal on a new feature lowers the % (100 → 50): say so calmly, it's expected */
+  const added =
+    !!prog && prog.shipped > 0 && prog.shipped < prog.total && g?.status === 'running' && !!g.featureId;
+  const shipped =
+    prog && prog.total > 0
+      ? `${added ? 'New work added · ' : ''}${prog.shipped} of ${prog.total} features shipped`
+      : null;
   return { pct, target, shipped, aria: target ? `${pct}% to ${target}` : `${pct}% done` };
+}
+
+/** An agent's note, clipped for the board: its first sentence (≤ 140 chars) with an ellipsis when
+    there's more — the full text stays on hover. Agents often open with process talk. */
+export function noteLine(note: string | null | undefined): string | null {
+  const t = (note ?? '').replace(/\s+/g, ' ').trim();
+  if (!t) return null;
+  const m = /^(.+?[.!?])(\s|$)/.exec(t);
+  let first = m ? m[1] : t;
+  if (first.length > 140) first = `${first.slice(0, 139).trimEnd()}…`;
+  else if (first.length < t.length) first = `${first} …`;
+  return first;
 }
 
 /** A whiteboard task row's stage, in a few calm words (none while building or done). */
@@ -223,7 +241,7 @@ export const gateKindWord = (k: string) => KIND_WORD[k] ?? k;
 
 /** The hover line of a task row: who is reviewing, or what the reviewer said. */
 export function taskHover(i: ChecklistItem, nameOf: (id: string) => string): string | null {
-  if (i.status === 'done' || i.status === 'failed') return i.note ?? null;
+  if (i.status === 'done' || i.status === 'failed') return i.note ?? null; // full text (title)
   if (i.stage === 'review') {
     const g = i.gates?.[i.gateIndex ?? 0];
     return g ? `${nameOf(g.reviewer)} is reviewing (${gateKindWord(g.kind)})` : null;
@@ -270,4 +288,45 @@ export function looksLikeGoal(text: string): boolean {
   return /^(please\s+)?(build|add|make|create|implement|fix|ship|write|set up|setup|research|compare|investigate|find out|review|refactor|design|improve|update|remove|migrate|test|document)\b/i.test(
     t,
   );
+}
+
+/** The health card's App row, from the server's view (url + port are the server's — never assumed).
+    A CLI that ends with exit 0 "ran and finished" (its output shown); only a nonzero exit is a problem. */
+export function appView(a: ProjectApp): {
+  label: string;
+  tone: 'ok' | 'bad' | null;
+  url: string | null;
+  port: number | null;
+  showLog: boolean;
+  action: 'Stop' | 'Start' | 'Run again';
+} {
+  const port = a.port ?? null;
+  if (a.status === 'running')
+    return { label: 'running', tone: 'ok', url: a.url ?? null, port, showLog: false, action: 'Stop' };
+  if (a.status === 'exited' && a.exitCode === 0)
+    return {
+      label: 'ran and finished',
+      tone: 'ok',
+      url: null,
+      port: null,
+      showLog: true,
+      action: 'Run again',
+    };
+  if (a.status === 'exited')
+    return {
+      label: `failed${a.exitCode != null ? ` (exit ${a.exitCode})` : ''}`,
+      tone: 'bad',
+      url: null,
+      port: null,
+      showLog: true,
+      action: 'Start',
+    };
+  return {
+    label: a.command ? 'not running' : 'no run command yet',
+    tone: null,
+    url: null,
+    port: null,
+    showLog: false,
+    action: 'Start',
+  };
 }

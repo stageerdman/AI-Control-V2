@@ -26,7 +26,16 @@ import { Button, toast } from '../../ui';
 import { type Resolve, WorkDesign } from '../collab';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
-import { ASPECTS, boardProgress, boardTasks, nowFeatures, taskHover, taskStage } from './state';
+import {
+  ASPECTS,
+  appView,
+  boardProgress,
+  boardTasks,
+  noteLine,
+  nowFeatures,
+  taskHover,
+  taskStage,
+} from './state';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
   board: 'whiteboard',
@@ -353,6 +362,11 @@ function TaskRow({
       </span>
       {st.tag && <span className={`ob-stage${st.tone ? ` t-${st.tone}` : ''}`}>{st.tag}</span>}
       {hover && <span className="sr-only"> — {hover}</span>}
+      {item.status === 'failed' && noteLine(item.note) && (
+        <span className="ob-note" aria-hidden="true">
+          {noteLine(item.note)}
+        </span>
+      )}
       {!sub && item.teamPlan && <span className="ob-plan">{item.teamPlan}</span>}
       {!sub && kids.length > 0 && (
         <ul className="ob-sub" aria-label={`${item.text} — the team’s parts`}>
@@ -515,6 +529,7 @@ function AppRow({ pid }: { pid: string }) {
     void act(() => officeApi.setAppCommand(pid, v));
   };
   const running = a?.status === 'running';
+  const v = a ? appView(a) : null;
   return (
     <li className="ob-app">
       <div className="ob-app-row">
@@ -523,30 +538,27 @@ function AppRow({ pid }: { pid: string }) {
         </span>
         <b>App</b>
         <span className="ob-pv">
-          {!a ? (
+          {!a || !v ? (
             app.error ? (
               'Couldn’t read the app'
             ) : (
               '…'
             )
-          ) : running ? (
+          ) : (
             <>
-              <span className="ob-ok">running</span>
-              {a.url && (
+              <span className={v.tone === 'ok' ? 'ob-ok' : v.tone === 'bad' ? 'ob-bad' : undefined}>
+                {v.label}
+              </span>
+              {v.port && <span className="ob-port"> · port {v.port}</span>}
+              {v.url && (
                 <>
                   {' · '}
-                  <a href={a.url} target="_blank" rel="noreferrer" className="ob-applink">
+                  <a href={v.url} target="_blank" rel="noreferrer" className="ob-applink">
                     Open app ↗
                   </a>
                 </>
               )}
             </>
-          ) : a.status === 'exited' ? (
-            `stopped${a.exitCode != null ? ` (exit ${a.exitCode})` : ''}`
-          ) : a.command ? (
-            'not running'
-          ) : (
-            'no run command yet'
           )}
         </span>
         <span className="ob-app-acts">
@@ -557,7 +569,7 @@ function AppRow({ pid }: { pid: string }) {
               disabled={busy || (!running && !a.command)}
               onClick={() => void act(() => (running ? officeApi.stopApp(pid) : officeApi.startApp(pid)))}
             >
-              {busy ? '…' : running ? 'Stop' : 'Start'}
+              {busy ? '…' : (v?.action ?? 'Start')}
             </Button>
           )}
           <button
@@ -577,6 +589,9 @@ function AppRow({ pid }: { pid: string }) {
         <p className="ob-err" role="alert">
           {err}
         </p>
+      )}
+      {!open && v?.showLog && a && a.log.length > 0 && (
+        <pre className="ob-app-log ob-app-out">{a.log.slice(-12).join('\n')}</pre>
       )}
       {open && a && (
         <div className="ob-app-more">

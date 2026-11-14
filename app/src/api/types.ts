@@ -328,6 +328,8 @@ export type ProjectApp = {
   exitCode: number | null;
   /** Last log lines, secrets masked server-side. */
   log: string[];
+  /** The PORT the studio gave it while running (per project, 3100–3999); null otherwise. */
+  port?: number | null;
 };
 
 /* ---------- health check ---------- */

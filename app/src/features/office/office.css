@@ -444,3 +444,8 @@
 .ob-ships{appearance:none;border:0;background:none;padding:0;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;margin:-4px 0 8px}
 .ob-ships:hover{color:var(--ink);text-decoration:underline}
 .o-openapp{text-decoration:none}
+.ob-note{flex-basis:100%;margin:-2px 0 0 30px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ob-plan{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ob-proj .ob-bad{color:#a3242c;font-weight:800}
+.ob-port{font-family:var(--mono);font-size:12.5px}
+.ob-app-out{margin:8px 0 2px 36px;max-height:140px}
