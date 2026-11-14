@@ -62,3 +62,12 @@ project in clock, so when I press it I can see total time spent coding thinking 
     `GET /projects/habit-hatch/time` answers (0m: the real projects have no runs yet). All 5 projects are listed
     (Habit Hatch, Bookmark Box, Recipe Scaler, Todo CLI, Tip Splitter 2). `/health` still returned 200 after 20 s.
   - **Left running.** No chat was sent to the real director.
+
+## v2 — the clock is the wall clock above the door ✅ (user correction)
+User: "you've put some time above safe, remove it, it's supposed to be on clock icon, so when I click clock above the
+doors I'd see time". The hourglass and its time above the safe are gone, and nothing replaces them there. The
+existing wall clock above the door is now the control. It's a hotspot `<button>` (focus ring, pointer, a small lift
+on hover or focus, aria-label "Agent time: 11h 5m", or "…, 2 agents working now" / "Agent time: none yet"). It has
+no label under it. Mouse, Enter or Space open the same Agent time sheet. While agents work, its hands tick slowly
+(they stay still in reduced motion). Shots: `office-v2-office`, `office-v2-wall` (empty above the safe),
+`office-v2-clock-hover`, `office-v2-clock-sheet`, `office-v2-clock-ticking`. The hourglass shots were removed.

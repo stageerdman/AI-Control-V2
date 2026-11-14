@@ -6,7 +6,7 @@
 
      officeArt(plan, ctx) → SVG string, the dollhouse room (viewBox 0 -70 W 1062)
      syncArt(svgRoot, facts) → live bits: whiteboard (ring, bars, list), health grades, outbox flag,
-                               the Director's work clock, sheets in the reports tray
+                               sheets in the reports tray
      desk / chair / couchFront / glyph / deskSync / setDoor */
 /* biome-ignore-all lint/style/useTemplate: ported art, kept close to the prototype */
 import { escapeHtml, hueHex, PALETTE, shade } from '../../design/palette';
@@ -32,8 +32,7 @@ export type BoardFacts = {
   fresh: boolean;
   grades: { key: string; name: string; grade: string }[];
   unreadReports: number;
-  /** The work clock: agent time on the project ("12h 40m") and how many runs are going now. */
-  worked: string;
+  /** The wall clock by the door is the work clock: its hands tick slowly while agents work (live runs). */
   live: number;
 };
 
@@ -133,7 +132,7 @@ function _otCut(plan: Plan) {
     .join('')}`;
 }
 
-/* door + a plain wall clock above it (decor — not interactive) */
+/* door + the wall clock above it — the work clock (OFFICE): it opens Agent time; its hands tick while agents work */
 function _otDoor() {
   const ticks = Array.from({ length: 12 }, (_, i) => {
     const a = (i * 30 * Math.PI) / 180;
@@ -156,13 +155,13 @@ function _otDoor() {
       <rect x="50" y="304" width="88" height="62" rx="5" fill="none" stroke="${OT.woodLo}" stroke-width="3"/>
       <circle cx="140" cy="272" r="6" fill="${PALETTE.sun}" ${_o(2)}/>
     </g>
-    <g transform="translate(94 70)">
+    <g transform="translate(94 70)"><g id="otClock">
       <circle r="28" fill="${PALETTE.coral}" ${_o()}/><circle r="23" fill="#fffdf6" ${_o(2)}/>
       ${ticks}
-      <path d="M0 3 L0 -15" stroke="${OT_INK}" stroke-width="3.4" stroke-linecap="round"/>
-      <path d="M0 3 L11 -4" stroke="${OT_INK}" stroke-width="3.4" stroke-linecap="round"/>
+      <path class="ot-hand-m" d="M0 3 L0 -15" stroke="${OT_INK}" stroke-width="3.4" stroke-linecap="round"/>
+      <path class="ot-hand-h" d="M0 3 L11 -4" stroke="${OT_INK}" stroke-width="3.4" stroke-linecap="round"/>
       <circle r="3" fill="${PALETTE.sun}" ${_o(1.6)}/>
-    </g>
+    </g></g>
   </g>`;
 }
 
@@ -289,25 +288,7 @@ function _otSafe() {
     <rect x="34" y="84" width="32" height="6" rx="3" fill="${OT_INK}" opacity=".35"/>
   </g>`;
 }
-/* the work clock on the Director's wall: a brass counter with an hourglass and the agent time on the project
-   (no face, no hands — the wall clock by the door is decor; this one counts the crew's time). While agents work,
-   a thread of sand runs through the neck (still in reduced motion). */
-function _otTimeClock() {
-  return `<g id="otTimeClock" transform="translate(1322 40)">
-    <rect width="140" height="40" rx="9" fill="#e7b75a" ${_o(2.5)}/>
-    <rect x="5" y="5" width="130" height="30" rx="6" fill="none" stroke="#b98a35" stroke-width="1.6"/>
-    <g transform="translate(18 20)">
-      <path d="M-7 -12 H7 L1 -1 V1 L7 12 H-7 L-1 1 V-1Z" fill="#fff3d6" stroke="${OT_INK}" stroke-width="2" stroke-linejoin="round"/>
-      <path id="otSandTop" d="M-4.5 -9 H4.5 L0.6 -2.4 H-0.6Z" fill="${PALETTE.sun}"/>
-      <path d="M-5 10 Q0 3.5 5 10Z" fill="${PALETTE.sun}"/>
-      <path id="otTimeSand" class="ot-sand" d="M0 -2 V9" stroke="${PALETTE.sun}" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 2" visibility="hidden"/>
-      <path d="M-9 -13 H9 M-9 13 H9" stroke="${OT_INK}" stroke-width="2.5" stroke-linecap="round"/>
-    </g>
-    <text id="otTimeTxt" x="36" y="26.5" font-size="17" font-weight="900" fill="#4a2c10" style="font-variant-numeric:tabular-nums">0m</text>
-  </g>`;
-}
-
-/* the Director's glass corner: own wallpaper, the wall safe (Access), the work clock,
+/* the Director's glass corner: own wallpaper, the wall safe (Access),
    a plant. Drawn in v3's 1206…1600 frame and shifted to the room's right edge. */
 function _otBossOffice(plan: Plan) {
   return `<g id="otBoss" transform="translate(${plan.W - 1600} 0)">
@@ -318,7 +299,6 @@ function _otBossOffice(plan: Plan) {
     <path d="M1206 380 H1600 V624 H1240Z" fill="${OT.carpet}"/>
     <path d="M1206 380 H1600 V624 H1240Z" fill="url(#otKnit)"/>
     ${_otSafe()}
-    ${_otTimeClock()}
     <g transform="translate(1566 600)">
       <path d="M-18 0 L-14 -36 H14 L18 0Z" fill="${PALETTE.grape}" ${_o(2.5)}/>
       ${[
@@ -446,8 +426,7 @@ export function syncArt(root: Element | null, ws: BoardFacts): void {
   const pct = Math.max(0, Math.min(100, Math.round(ws.overall)));
   html('wbPct', `${pct}%`);
   set('wbRing', 'stroke-dasharray', `${((315 * pct) / 100).toFixed(1)} 315`);
-  html('otTimeTxt', escapeHtml(ws.worked));
-  set('otTimeSand', 'visibility', ws.live > 0 ? 'visible' : 'hidden');
+  set('otClock', 'class', ws.live > 0 ? 'ticking' : '');
   html(
     'wbBars',
     ws.now

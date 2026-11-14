@@ -3,8 +3,8 @@
    project's event stream from `lastEventId`. The scene (engine.ts) is generated from staffing
    (layout.ts) and follows the live state (state.ts); the chat panel, the wall's zoom cards, the
    safe's Access sheet and the list mirror are React.
-   v5: no top bar — the door leaves, the safe is Access, the whiteboard carries the %, the work clock
-   above the safe shows the crew's time (TimeSheet). */
+   v5: no top bar — the door leaves, the safe is Access, the whiteboard carries the %, the wall clock
+   above the door opens the crew's time (TimeSheet). */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -105,7 +105,7 @@ const HOTS: { id: ObjectId; label: string }[] = [
   { id: 'health', label: 'Health check — code health and GitHub' },
   { id: 'reports', label: 'Reports — what the crew found out' },
   { id: 'safe', label: 'Safe — what this project can reach (Access)' },
-  { id: 'timeclock', label: 'Agent time' },
+  { id: 'clock', label: 'Agent time' },
 ];
 /* events that start or end agent time: the work clock reads again */
 const CLOCK_EVENTS = new Set([
@@ -482,7 +482,7 @@ function Office({
       setAccessOpen(true);
       return;
     }
-    if (o === 'timeclock') return setTimeOpen(true);
+    if (o === 'clock') return setTimeOpen(true);
     const s = SUB_OF[o];
     if (s) goSub(s);
   };
@@ -685,8 +685,8 @@ function Office({
                       ? `${h.label} — ${unread} new`
                       : safeNew
                         ? `Safe — ${office.name} access, ${newAccess} new`
-                        : h.id === 'timeclock'
-                          ? clockLabel(office.name, time.data)
+                        : h.id === 'clock'
+                          ? clockLabel(time.data)
                           : h.label
                   }
                   style={{ left: o.x, top: o.y, width: o.w, height: o.h }}

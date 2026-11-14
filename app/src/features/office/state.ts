@@ -5,7 +5,6 @@ import type { ChecklistItem, Goal, ProjectApp, ProjectHealth, StudioEvent } from
 import type { Pose } from '../../characters';
 import type { AgentStatus, Feature, OfficeProgress, OfficeView, ThreadMessage, WorkTime } from './api';
 import type { BoardFacts } from './theme';
-import { worked } from './time';
 
 /** One row per activity kind (prototype office-engine.js ACTIVITY): pose, prop, monitor glyph. */
 export const ACTIVITY = {
@@ -280,7 +279,6 @@ export function boardFacts(d: {
     fresh: d.health?.git ? d.health.git.clean !== false : true,
     grades: latest ? ASPECTS.map(([key, name]) => ({ key, name, grade: latest[key].grade })) : [],
     unreadReports: d.unreadReports ?? 0,
-    worked: worked(d.time?.totalMs ?? 0),
     live: d.time?.live ?? 0,
   };
 }

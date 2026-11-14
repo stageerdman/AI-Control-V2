@@ -26,11 +26,11 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-/** The wall's label for the clock button. */
-export function clockLabel(name: string, t: WorkTime | undefined): string {
-  if (!t || (!t.totalMs && !t.live)) return `Agent time — none yet on ${name}`;
+/** The wall clock's label (it is the button that opens Agent time). */
+export function clockLabel(t: WorkTime | undefined): string {
+  if (!t || (!t.totalMs && !t.live)) return 'Agent time: none yet';
   const now = t.live ? `, ${plural(t.live, 'agent')} working now` : '';
-  return `Agent time — ${worked(t.totalMs)} on ${name}${now}`;
+  return `Agent time: ${worked(t.totalMs)}${now}`;
 }
 
 export function TimeSheet({

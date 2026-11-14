@@ -487,9 +487,15 @@
 .ob-linkbtn{appearance:none;border:0;background:none;padding:0;font:inherit;cursor:pointer}
 .ob-linkbtn:focus-visible{outline:3px solid var(--grape);outline-offset:2px;border-radius:4px}
 
-/* the work clock (OFFICE): sand runs through the hourglass while agents work (still in reduced motion — .ot-art *) */
-.ot-art .ot-sand{animation:o-sand 1.4s linear infinite}
-@keyframes o-sand{to{stroke-dashoffset:-8}}
+/* the wall clock above the door = Agent time (OFFICE): a small lift on hover/focus; while agents work its hands
+   tick slowly (stopped in reduced motion — .ot-art *) */
+.ot-art #otClock{transform-box:fill-box;transform-origin:center;transition:transform .15s var(--ease-out)}
+.o-world:has(.o-hot[data-obj="clock"]:hover) #otClock,.o-world:has(.o-hot[data-obj="clock"]:focus-visible) #otClock{transform:translateY(-3px) scale(1.04)}
+.o-hot[data-obj="clock"]{border-radius:50%}
+.ot-art #otClock .ot-hand-m,.ot-art #otClock .ot-hand-h{transform-box:view-box;transform-origin:0 0}
+.ot-art #otClock.ticking .ot-hand-m{animation:o-tick 60s steps(60) infinite}
+.ot-art #otClock.ticking .ot-hand-h{animation:o-tick 720s steps(60) infinite}
+@keyframes o-tick{to{transform:rotate(360deg)}}
 .ts h2{margin:0 0 4px}
 .ts h3{margin:22px 0 8px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
 .ts-total{display:flex;align-items:center;gap:12px;margin:14px 0 2px}

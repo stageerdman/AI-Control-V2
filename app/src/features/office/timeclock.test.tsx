@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-/* OFFICE: the work clock replaces the second progress bar above the safe. */
+/* OFFICE: the second progress bar above the safe is gone; the wall clock above the door opens Agent time. */
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Agent } from '../../api';
@@ -65,26 +65,25 @@ describe('the work clock', () => {
     expect(worked(Number.NaN)).toBe('0m');
   });
 
-  it('replaces the % plaque: the layout has a timeclock, the art its readout and no second bar', () => {
+  it('the plaque above the safe is gone (no bar, no time); the wall clock above the door is the control', () => {
     const plan = officeLayout({ teams: [], solo: [] });
-    expect(plan.objects.timeclock).toMatchObject({ w: 140, h: 40, label: 'Agent time' });
-    expect('plaque' in plan.objects).toBe(false);
+    expect(plan.objects.clock).toMatchObject({ x: 64, y: 40, w: 60, h: 60 });
+    expect(Object.keys(plan.objects)).not.toContain('timeclock');
+    expect(Object.keys(plan.objects)).not.toContain('plaque');
     const host = document.createElement('div');
     host.innerHTML = officeArt(plan, { title: 'Habit Hatch', teams: {} });
-    expect(host.querySelector('#bossBar')).toBeNull();
-    expect(host.querySelector('#bossPct')).toBeNull();
+    for (const gone of ['#bossBar', '#bossPct', '#otTimeClock', '#otTimeTxt'])
+      expect(host.querySelector(gone)).toBeNull();
     syncArt(host, boardFacts({ time: some }));
-    expect(host.querySelector('#otTimeTxt')?.textContent).toBe('12h 40m');
-    expect(host.querySelector('#otTimeSand')?.getAttribute('visibility')).toBe('visible');
+    expect(host.querySelector('#otClock')?.getAttribute('class')).toBe('ticking');
     syncArt(host, boardFacts({ time: none }));
-    expect(host.querySelector('#otTimeTxt')?.textContent).toBe('0m');
-    expect(host.querySelector('#otTimeSand')?.getAttribute('visibility')).toBe('hidden');
+    expect(host.querySelector('#otClock')?.getAttribute('class')).toBe('');
   });
 
   it('the clock’s label says the time and who is working', () => {
-    expect(clockLabel('Habit Hatch', undefined)).toBe('Agent time — none yet on Habit Hatch');
-    expect(clockLabel('Habit Hatch', none)).toBe('Agent time — none yet on Habit Hatch');
-    expect(clockLabel('Habit Hatch', some)).toBe('Agent time — 12h 40m on Habit Hatch, 2 agents working now');
+    expect(clockLabel(undefined)).toBe('Agent time: none yet');
+    expect(clockLabel(none)).toBe('Agent time: none yet');
+    expect(clockLabel(some)).toBe('Agent time: 12h 40m, 2 agents working now');
   });
 
   it('the sheet: total, kinds that have time, who put it in, runs and turns — no money', () => {

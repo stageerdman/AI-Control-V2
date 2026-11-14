@@ -8,7 +8,7 @@
      seats/home   seat geometry · agentId → its desk
      director · couch (3 seats) · lanes (back, mid) · gaps (where walkers cross)
      objects      door · clock · outbox · console · dossier (features) · whiteboard · health ·
-                  reports (the tray) · safe · timeclock (agent time)
+                  reports (the tray) · safe   (the clock above the door = Agent time)
      windows · lamps
    The room is a dollhouse: wall y −40…380, floor 380…900, the right column (400 wide) is the
    Director's corner (top) + the couch (bottom). */
@@ -32,8 +32,7 @@ export type ObjectId =
   | 'whiteboard'
   | 'health'
   | 'reports'
-  | 'safe'
-  | 'timeclock';
+  | 'safe';
 export type Plan = {
   W: number;
   rows: number[];
@@ -173,6 +172,7 @@ export function officeLayout(cfg: LayoutConfig): Plan {
   const rx = hx + 116 + WALL.TRAY_GAP;
   plan.objects = {
     door: { x: 26, y: 136, w: 136, h: 250, stand: { x: 96, y: 414 }, label: 'Leave office' },
+    /* the wall clock = the work clock: opens Agent time (no label under it — it's a clock) */
     clock: { x: 64, y: 40, w: 60, h: 60 },
     outbox: { x: 196, y: 262, w: 62, h: 86, stand: { x: 227, y: 424 } },
     console: { x: 282, y: 318, w: 72, h: 96, stand: { x: 318, y: 430 } },
@@ -187,9 +187,8 @@ export function officeLayout(cfg: LayoutConfig): Plan {
     },
     health: { x: hx, y: 76, w: 116, h: 160, label: 'Health check' },
     reports: { x: rx, y: 236, w: 92, h: 150, stand: { x: rx + 46, y: 424 }, label: 'Reports' },
-    /* the Director's wall: the project's safe (Access) and the work clock above it (agent time on the project) */
+    /* the Director's wall: the project's safe (Access) */
     safe: { x: W - 258, y: 112, w: 100, h: 104, label: 'Access' },
-    timeclock: { x: W - 278, y: 40, w: 140, h: 40, label: 'Agent time' },
   };
   /* windows only where there's room after the tray (a narrow room drops them first) */
   for (let x = rx + WALL.TRAY_W + 40; x + 180 <= W - 440 && plan.windows.length < 2; x += 260)
