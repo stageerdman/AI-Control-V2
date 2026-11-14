@@ -55,3 +55,13 @@ access holds several keys or other private info, and a director chat that doesn'
   clear ask becomes the goal, a question or a maybe gets a reply that asks); the second progress bar above the safe
   is now a work clock (agent time; sheet by kind of work and by agent, runs and turns, no money; `GET
   /projects/:id/time`, migration 25). App 233 · server 384 · cargo 13. Release reinstalled in /Applications and left running.
+- ✅ DECLUTTER (user request): Cast drops every "Used in N projects" line and the long "Required — the studio always
+  has exactly one…" note; the setter, orchestrators and creator keep one short line ("Sets up new projects.", "Runs a
+  project — big picture.", "Makes new agents and teams."). The orchestrator's "deleting hands N projects to another"
+  warning stays. Projects drops the count line, "· Ports" and the "Reports" button; the studio-wide `#reports` page,
+  its follow-up handoff and route are gone (reports live in the office's filing cabinet; the Switchboard still opens
+  from the office health card). Access drops "Import from .env" and the import copy; the empty state is the title
+  plus "Add new access". Server endpoints unchanged. App 236 tests, typecheck and biome clean. Shots
+  `shots/declutter-before-*` / `declutter-after-*` (fake runner :4911, Vite :1911). Shipped: backup
+  `~/.ai-studio/backups/studio-before-declutter-20261114-234329.db` (integrity ok, v27), release `tauri build`,
+  graceful quit, replaced in /Applications, reopened — backend up, UI loads, left running.
