@@ -1,4 +1,4 @@
-# PROGRESS — G1 Server (accesses, GitHub, ports, director freshness)
+# PROGRESS — G1 Server (accesses, GitHub, ports, director freshness) — ✅ done (372 tests, live check run)
 
 The UI builder's contract: exact API + event shapes. Commits prefixed `ACCESS G1:`. Full API table: `server/README.md`.
 
@@ -7,7 +7,7 @@ The UI builder's contract: exact API + event shapes. Commits prefixed `ACCESS G1
 2. ✅ GitHub — a repo by default at setup (user's change), opt-outs, publish / visibility, auto-push, agents never push.
 3. ✅ Ports + setting-prefixed commands — a stable 5-port block per project, PORT per run, `NAME=value <cmd>` hook, `GET /ports`.
 4. ✅ Director chat freshness — truth-labelled snapshot every turn, session rotation (12 turns / new goal after a finished one) with a recap.
-5. ⏳ CLAUDE.md rebuild endpoint
+5. ✅ CLAUDE.md rebuild endpoint — `POST /projects/:id/claude-md/rebuild`.
 
 ## 1. Accesses
 
@@ -181,6 +181,16 @@ Regression test: `server/test/office/director-freshness.test.ts` (the stale sess
 and ONE new one is posted, the next turn is a fresh session told "exactly 1 goal is active", and the turn after resumes the new
 session) + the 12-turn rotation.
 
+## 5. CLAUDE.md rebuild
+
+`POST /projects/:id/claude-md/rebuild` (no body) → `{file: 'CLAUDE.md', changed: boolean, modules: string[], commit: string | null}`.
+Recompiles from the global modules; everything from the last `## Project-specific rules` heading (outside code fences) to the end
+is kept byte for byte. No such heading → 409 "CLAUDE.md has no "## Project-specific rules" section — add that heading above the
+project's own rules, then rebuild" (file untouched); no folder / no CLAUDE.md → 409. Stamps `.project` `claude_md_generated:
+<today>`, commits both (`AI Studio: rebuild CLAUDE.md from the modules`), pushes when published. Again with nothing new →
+`changed: false, commit: null`. Pairs with the Blueprint's "modules changed since" (`GET /projects/:id/scaffold` →
+`claudeMdGenerated` vs `GET /blueprint` module `updatedAt`).
+
 ## Live check — 2026-11-14 (real Claude Code 2.1.322, claude-opus-5-5)
 Isolated backend on **:4701**: data dir + AI Control home in the scratchpad (`g1/home`, `g1/control` = a copy of the modules —
 the real `~/.ai-control/.env` is untouched, md5 checked before/after), `AI_STUDIO_GH_BIN` = a **stub gh** (bare repos in the
@@ -195,3 +205,33 @@ scratchpad, `GIT_CONFIG_*` insteadOf for the push — no real GitHub repo), real
 | outcome | the agent ran **`PORT=3340 node server.js`** (background) — **approved by the hook on the first try** — fetched `{"port":3340,"DEMO_API_KEY":true,"DEMO_API_USER":true}`, stopped it (it noted `kill` isn't allowed and used a node one-liner), no commit. 7 turns, succeeded |
 | leaks | the key's value: 0 hits in the run's stream log, the server log, the events table and the sqlite bytes (db + WAL) |
 **Plan usage:** 2 Claude Code runs, 8 turns (1 run cancelled at 1 turn after the bad grant call, 1 run of 7 turns). No crew calls.
+
+## For the UI (G3)
+1. **Access sheet → "Add new access":** `POST /accesses` with `fields[]`; edit fields in place (`PATCH …/fields/:fieldId`), add
+   (`POST …/fields`), remove (`DELETE …/fields/:fieldId`; the last one is 409 — offer "delete the access"), set a value
+   (`PUT …/fields/:fieldId/value`, write-only — never prefill). Show `last4` for secret fields, `value` for non-secret ones
+   (`secret: false`: usernames, URLs). Suggested env var = `NAME_LABEL` (the server derives it when `envVar` is omitted).
+2. **"New" dot:** `GET /projects/:id/access` → `newCount` / per-access `isNew`; call `POST /projects/:id/access/seen` when the
+   user opens that project's Access sheet (the dot goes away). Refetch on `access.changed`.
+3. **Grant/revoke:** `PUT` / `DELETE /projects/:id/access/:accessId` (or the old `PUT {grants}`), then `POST …/access/sync` to write
+   the project's `.env` (agents get the env directly either way).
+4. **Old routes:** `/credentials*` still work (first-field view) — switch to `/accesses` and they can go.
+5. **Empty-body requests:** don't send `content-type: application/json` without a body (Fastify answers 400). Send `{}` or no
+   content-type for `PUT …/access/:accessId`, `POST …/seen`, `POST …/sync`, `POST …/claude-md/rebuild`, `POST …/github/publish`.
+6. **GitHub in health:** `github.note` is the calm line ("GitHub not connected — Publish" → a Publish button; "Couldn’t push to
+   GitHub: …"). Publish = `POST …/github/publish {visibility}` (private default, ask before public); the switch = `PATCH …/github
+   {visibility}` — **confirm before going public** (the server doesn't ask). 409 messages are user-ready.
+7. **Setup screen:** a GitHub toggle (default on, from `GET /settings`) → `POST /drafts/:id/setup {github}` or the draft's `github`;
+   the Setter's step list gains a last `github` step (done / kept / skipped with a plain reason). The setup flow's commit-step copy
+   "commit what was added (local only)" (`app/src/features/setup/flow.ts`) should drop "(local only)" — the server's did.
+8. **Ports room:** poll `GET /ports`; show each project's block, the app port, which spare a running agent holds (`heldBy.agentId`),
+   and `listening`. No events.
+9. **Project payload:** `github.published/url/visibility` are real now; the seed projects read "not on GitHub" (their old
+   "connected" flags were placeholders). `PATCH /projects` no longer takes `github`.
+
+## Known gaps
+- `kill` isn't on the agent shell allow-list — agents stop their own servers with a node one-liner (worked live). Fine for now.
+- The auto-push uses `gh auth git-credential` for https; an origin with ssh uses the user's ssh setup as-is.
+- Visibility for an adopted repo is asked once at setup; if it changes on github.com, the studio's record is stale until the
+  next switch (health checks still probe it live in `git.github`).
+- Auto-push runs only on `item.merged` (top-level items into main); the user's own commits are pushed with the next merge.

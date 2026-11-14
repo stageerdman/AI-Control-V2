@@ -158,7 +158,7 @@ export async function scaffold(input: ScaffoldInput): Promise<ScaffoldResult> {
     emit(
       'commit',
       'done',
-      `${mode === 'new' ? 'First commit' : 'Committed the additions'} ${commit.slice(0, 7)} (local only)`,
+      `${mode === 'new' ? 'First commit' : 'Committed the additions'} ${commit.slice(0, 7)}`,
     );
   }
   return { steps, added, commit };

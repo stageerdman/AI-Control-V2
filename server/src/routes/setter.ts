@@ -3,10 +3,12 @@ import { join } from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { readModules } from '../blueprint/modules.ts';
+import { rebuildClaudeMd } from '../blueprint/rebuild.ts';
 import type { Config } from '../config.ts';
 import type { Store } from '../db/store.ts';
 import { conflict, parse } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
+import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Github } from '../github/github.ts';
 import { finishDraft, localDate, setupDraft } from '../setter/finish.ts';
 import { isRepo } from '../setter/git.ts';
@@ -58,6 +60,20 @@ export const setterRoutes =
       const p = store.projects.require(parse(IdParams, req.params).id);
       if (!p.folder) throw conflict(`Project '${p.id}' has no folder yet`);
       return inspect(config.sandbox, p.folder);
+    });
+
+    /* G1: rebuild CLAUDE.md from the modules — the generated part only; "Project-specific rules" stay */
+    app.post('/projects/:id/claude-md/rebuild', async (req) => {
+      const p = store.projects.require(parse(IdParams, req.params).id);
+      if (!p.folder) throw conflict(`Project '${p.id}' has no folder yet`);
+      const dir = resolveInSandbox(config.sandbox, p.folder);
+      const r = await rebuildClaudeMd(
+        dir,
+        { name: p.name, about: p.note, modules: deps.modules(), controlHome: config.controlHome },
+        deps.today(),
+      );
+      if (r.commit) void github?.pushAfterMerge(p.id); // a published project gets it on GitHub too
+      return r;
     });
 
     /* top-level sandbox folders not yet under AI Studio — the Adopt picker */
