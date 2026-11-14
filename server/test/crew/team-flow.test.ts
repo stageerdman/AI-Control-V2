@@ -130,6 +130,11 @@ describe('captains delegate (F1c)', () => {
     expect(new Set(members.map((m) => m.cwd)).size).toBe(2);
     expect(members[0]?.task).toMatch(/from the team's branch studio\/build-the-search-page-/);
     expect(members[0]?.task).toContain('Teammates build the other parts');
+    // F3 live: a member sees each teammate's brief (the interfaces they promise), not just its title
+    const pete = members.find((m) => subtask(m) === 'Search UI') as RunSpec;
+    expect(pete.task).toContain('• Scarlett Scenario: Search tests — brief: tests.txt');
+    expect(pete.task).toMatch(/Don't ask the user about a teammate's part/);
+    expect(splitCall?.task).toMatch(/exact interface[\s\S]*BOTH briefs/);
     // the captain integrates in the item's checkout, sees both parts, then Lint reviews it there
     const integ = seen.find(isIntegrate) as RunSpec;
     expect(integ.task).toContain('Search UI — Pixel Pete (merged into your branch): made ui.txt');

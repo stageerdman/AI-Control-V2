@@ -99,7 +99,7 @@ export function splitCall(o: {
       'Decide how your team does this item:',
       `- "mode": "team" — split it when that saves time or a part matches a member's job: 1–${MAX_SUBTASKS} sub-tasks, each for ONE member (one each; you may take one yourself), each touching different files so they build side by side in their own checkouts. Set "parallel": false on a sub-task that needs the one before it. When they are done you pull their work together and check it.`,
       '- "mode": "self" — do it yourself when it is small (one file, a quick fix): splitting tiny work only adds handoffs.',
-      '"text" is a short line; "brief" says what done looks like and which files/folder it owns. "summary" is your split in one plain sentence.',
+      '"text" is a short line; "brief" says what done looks like and which files/folder it owns. When one part uses another part\'s code, write the exact interface (file, function names and arguments, data shapes) into BOTH briefs — members build side by side and cannot see each other\'s work. "summary" is your split in one plain sentence.',
     ].join('\n'),
     `Answer with one JSON object shaped like this: ${json({
       mode: 'team',
@@ -136,8 +136,10 @@ export function memberTask(o: {
     `Your sub-task: ${sub.text}`,
     `Brief: ${sub.brief}`,
     o.rework ? `${captain} looked at your earlier part and sends it back. Their notes: ${o.rework}` : '',
+    /* F3 live: with only the titles, "use the shapes from the captain's sub-task" pointed at nothing and the member had
+       to ask the user. Their briefs carry the interfaces they promise. */
     others.length
-      ? `Teammates build the other parts at the same time — stay within yours: ${others.map((s) => `${o.name(s.agentId)}: ${s.text}`).join('; ')}.`
+      ? `Teammates build the other parts at the same time, in their own checkouts — their work is NOT in yours yet. Stay within your part and code against what their briefs promise (files, function names, data shapes); ${captain} fits the parts together afterwards. Don't ask the user about a teammate's part — if a detail is missing, make the simplest reasonable choice and say it in your summary.\n${others.map((s) => `• ${o.name(s.agentId)}: ${s.text} — brief: ${clip(s.brief, 1500)}`).join('\n')}`
       : '',
     sub.workspace
       ? `You work in your own checkout on branch ${sub.workspace.branch} (from the team's branch ${sub.workspace.main}): commit your work there (plain \`git add\` / \`git commit\`) — ${captain} merges it into the team's branch. Do not push.`
