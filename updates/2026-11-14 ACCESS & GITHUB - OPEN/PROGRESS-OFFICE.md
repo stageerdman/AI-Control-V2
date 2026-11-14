@@ -107,3 +107,4 @@ visual) and image (just for the app's sake)".
   and closed with bytes still unread, which made the OS send a reset. `get_health` wrote the request with `write!`,
   which sends it in several pieces. Fixed: the fake now reads the whole request head, and `get_health` sends the
   request in one write. 15/15 green.
+- Shipped v3.1 (with master's AGENTS auto-approve): backup `~/.ai-studio/backups/studio-before-office-plaque-20261114-232950.db` (integrity ok, v26, 0 projects — the user removed them); release build; graceful quit (free in 2 s); replaced + reopened — up in 3 s, `user_version` 27, `GET /settings` = `{githubByDefault: true, autoApprove: true}`, `/projects` = `[]`, health 200 after 15 s. No projects created in ~/.ai-studio. Left running.
