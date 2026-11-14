@@ -4,10 +4,11 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
-- [ ] APP UI update in progress (updates/2026-11-13 APP UI - OPEN): whole prototype in the Tauri app on the real backend + Reports space.
-- [ ] BACKEND update in progress (updates/2026-11-13 BACKEND - OPEN): B0 ✅ B1 ✅ B2 ✅ B3 ✅ B4 ✅ B5 ✅ — next B6 orchestrator & Agent Creator → B7 health check.
-- [ ] Disney v6 (standalone setup space, orchestrator chat, office pager) built — awaiting user review. Gaps: deleting an orchestrator doesn't reassign its projects; Pizza Planet emblem weak at 24px; new-project offices reuse Aurora-flavoured file names in their idle loop.
-- [ ] Lock the stack (Tauri+React vs. web-only) — decide during the INIT update after reviewing UI concepts.
+- [ ] Agents can't see a page in a real browser — they verify with tests + scripted requests. (F3)
+- [ ] Agent shell refuses env-prefixed commands (`PORT=… npm start`); agents work around it. (F3)
+- [ ] One server test failed once at the start of F3 and never again in ~12 full runs — not pinned down. (F3)
+- [ ] Orchestrator chat can repeat an older idea from earlier in its thread. (F3)
+- [ ] Pager for a reviewer's final send-back is unit-tested only (fake runner always approves). (F2)
 - [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
 - [ ] Voice in/out provider choice not finalized (Deepgram vs. Whisper for STT; ElevenLabs for TTS) — validate in a research spike.
 - [ ] Blueprint "Rebuild" / "Rebuild outdated" buttons — need a server endpoint (e.g. POST /projects/:id/claude-md/rebuild); the row says "Rebuild with the rebuild-claude-md routine" for now. (F2)
@@ -16,4 +17,6 @@ OPEN
 
 RESOLVED
 --------
-(none yet)
+- APP UI + BACKEND updates: whole app built on the real backend, real-AI end-to-end verified (F1–F3, 2026-11-14).
+- Stack locked: Tauri + React/Tailwind app, Node/Fastify/sqlite backend, Claude Code CLI runner.
+- Deleting an orchestrator now says its projects move to another (F2).
