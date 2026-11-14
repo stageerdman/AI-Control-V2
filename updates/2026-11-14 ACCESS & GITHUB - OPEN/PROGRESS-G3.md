@@ -42,4 +42,32 @@ Commits prefixed `ACCESS G3:` / `ACCESS G4:`. Spec: `spec-ux-G2.md`. Contract: `
    compile date moves on even when the text came out the same (a touched module left the row stale for ever),
    and only files git sees as changed are committed (a stamp written back to HEAD's content was a 500).
    Shot `g3-rebuild`.
-5. ⏳ G4 ship.
+5. ⏸ G4 ship — **PAUSED** (coordinator: the user is watching a movie; no tests, builds, browsers or app launches).
+
+## G3 checks (done)
+App: 230 vitest tests pass, `tsc --noEmit` and biome are clean. Server: 373 tests pass, tsc and biome are clean. `cargo test`: 13 pass.
+A release `vite build` caught a broken Switchboard selector that the dev server had let through. It is fixed and committed.
+Shots are in `shots/g3-*`. Narrow 560 px: the editor and the Switchboard don't scroll sideways.
+
+## G4: where it stopped (2026-11-14 ~18:50)
+- ✅ Backup: `~/.ai-studio/backups/studio-before-access-github-20261114-184601.db` (no -wal/-shm existed;
+  integrity ok; 13 projects, 0 credentials). No old backend was running and there was no lock.
+- ✅ `tauri build` (release) went through → `~/.cargo-shared-target/release/bundle/macos/AI Studio.app`. Installed with
+  `ditto` to `/Applications/AI Studio.app`. `backend.rs` finds `server/` by the compile-time absolute
+  `CARGO_MANIFEST_DIR/../../server` (seen in the binary), not by the bundle location, so there was nothing to fix.
+- ✅ The first open from /Applications worked. The backend came up on 4319 with the new code, the lock was written
+  `{pid, port: 4319}`, `user_version` went 20 → 24 (migrations 21–24), and `GET /projects` returned 13 (the user's
+  real ones). `GET /accesses` returned 0, because there were 0 credentials before, so nothing was lost. The global `.env` md5 is
+  unchanged. `GET /settings` returned `{githubByDefault: true}`, `GET /github/status` returned ready, and `GET /ports` returned 13 blocks. The server log shows
+  the app's UI loading `/projects`, `/drafts`, `/teams`, `/settings`, `/ports` and `/github/status`.
+- ⚠ **Open issue:** about 15 s after that first open, the app quit by itself. The lock was removed cleanly and there is no
+  crash report. It happened right after I ran `osascript -e 'tell application "AI Studio" to activate'` and a
+  `screencapture`, which failed with "could not create image from display", so those may have caused it. A second open to see whether it
+  stays up was cut short by the pause. I quit the app gently with `osascript … quit`, and 4319 is free.
+- Test servers (:4711 fake runner + stub gh, Vite :1711 and :1712, listener :3331) are all stopped.
+- **Left to do:** (1) Open the app from /Applications and watch whether it stays up for more than 60 s without
+  osascript. If it quits again, read `~/.ai-studio/logs/app-server.log` and the app's stderr. (2) Take read-only screenshots of the real data
+  (`g3/real.cjs` through Vite :1712 proxying to 4319: projects, ports, access). (3) Quit, check 4319 is free, reopen
+  and leave it running. (4) Update `HOW-TO-USE.md` (open from Applications; GitHub by default and how to turn it off
+  (Name step switch / Blueprint › Starter Kit); Add new access; Ports and `PORT=… npm start`). (5) Update the Status in
+  `update v1.md`. The plan's agent run with `PORT=… npm start` plus a 2-field access was already done live in G1.
