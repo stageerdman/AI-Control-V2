@@ -1,7 +1,7 @@
 /* The store: every repository wired to one db. Routes get this, nothing else. */
+import { accessesRepo } from './accesses.ts';
 import { agentsRepo } from './agents.ts';
 import { type Db, tx } from './connection.ts';
-import { credentialsRepo } from './credentials.ts';
 import { draftsRepo } from './drafts.ts';
 import { projectsRepo } from './projects.ts';
 import { rolesRepo } from './roles.ts';
@@ -15,7 +15,7 @@ export function createStore(db: Db, opts: { sandbox: string }) {
   const projects = projectsRepo(db, { agents, teams, sandbox: opts.sandbox });
   const drafts = draftsRepo(db, { agents, teams, sandbox: opts.sandbox });
   const trash = trashRepo(db, { roles, agents, teams, projects, drafts });
-  const credentials = credentialsRepo(db);
+  const accesses = accessesRepo(db);
   return {
     db,
     tx: <T>(fn: () => T): T => tx(db, fn),
@@ -25,7 +25,7 @@ export function createStore(db: Db, opts: { sandbox: string }) {
     projects,
     drafts,
     trash,
-    credentials,
+    accesses,
   };
 }
 export type Store = ReturnType<typeof createStore>;

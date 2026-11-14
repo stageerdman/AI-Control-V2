@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cabinet } from '../../src/secrets/cabinet.ts';
 import { BLOCK_BEGIN, BLOCK_END, projectAccess } from '../../src/secrets/projectAccess.ts';
 import { fileSecretStore } from '../../src/secrets/secretStore.ts';
 import { secretsApp } from '../secrets/harness.ts';
@@ -49,7 +50,7 @@ describe('credentials API (Key Cabinet)', () => {
     expect(c.body).toMatchObject({ envVar: 'MY_PIN', hasValue: true, last4: null });
     const dup = await h.call('POST', '/credentials', { name: 'Other', envVar: 'MY_PIN' });
     expect(dup.status).toBe(409);
-    expect(dup.body.error.details).toEqual({ existingId: 'c-pin' });
+    expect(dup.body.error.details).toMatchObject({ existingId: 'c-pin' });
   });
 
   it('without a value adopts what the .env already has, or has none', async () => {
@@ -255,7 +256,8 @@ describe('project access API', () => {
   });
 
   it('envFor (for the agent runtime) returns exactly the granted values', async () => {
-    const access = projectAccess(h.store, fileSecretStore(h.envPath), h.config.sandbox);
+    const file = fileSecretStore(h.envPath);
+    const access = projectAccess(h.store, file, h.config.sandbox, { cabinet: cabinet(h.store, file) });
     expect(access.envFor('kite')).toEqual({});
     await h.call('PUT', '/projects/kite/access', { grants: { 'c-openai': true, 'c-stripe': true } });
     expect(access.envFor('kite')).toEqual({ OPENAI_API_KEY: OAI });

@@ -177,6 +177,11 @@ export const EVENT_SCHEMAS = {
   /** F1c: every item of a goal that works on this feature landed — the feature moved to Shipped. */
   'feature.shipped': z.strictObject({ featureId: id, goalId: id, name: text(120) }),
   /** F1c: the project's app (its dev server / start command) started, printed its address, stopped or exited. */
+  /** G1: an access granted to this project was granted / revoked / edited / deleted (ids only — never a value). */
+  'access.changed': z.strictObject({
+    accessId: id,
+    change: z.enum(['granted', 'revoked', 'updated', 'deleted']),
+  }),
   'app.status': z.strictObject({
     status: z.enum(['running', 'stopped', 'exited']),
     url: text(300).optional(),

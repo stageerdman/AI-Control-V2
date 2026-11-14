@@ -15,6 +15,7 @@ import { slugify } from '../domain/ids.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
+import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { DEFAULT_CAPS } from './config.ts';
 import { runEnv } from './env.ts';
@@ -49,6 +50,8 @@ export type RuntimeDeps = {
   model: string;
   /** Granted secrets for a project (B3 projectAccess.envFor). */
   envFor: (projectId: string) => Record<string, string>;
+  /** What each granted access provides, by label + env var (no values) — named in the agent's prompt (G1). */
+  accessFor?: (projectId: string) => AgentAccess[];
   parentEnv?: NodeJS.ProcessEnv;
   /** Reporter runs get file_report (absent → nobody files). */
   reports?: ReportDesk;
@@ -291,6 +294,7 @@ export function createRuntime(deps: RuntimeDeps) {
             project: { name: project.name },
             toolkit,
             ...(deps.shell ? { shell: deps.shell } : {}),
+            ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
           }),
         task: req.task,
         model: deps.model,

@@ -10,11 +10,18 @@ export type ComposeInput = {
   toolkit?: { dir: string; projectDir: string } | null;
   /** Shell commands pre-approved for this run (default: git, ls, cat, pwd). */
   shell?: readonly string[];
+  /** The project's granted accesses (G1): what each provides, by label + env var — never a value. */
+  access?: readonly {
+    name: string;
+    serves: string;
+    instructions: string;
+    fields: { label: string; envVar: string; hasValue: boolean }[];
+  }[];
 };
 
 const section = (title: string, body: string) => (body.trim() ? `## ${title}\n\n${body.trim()}` : '');
 
-export function composePrompt({ agent, team, project, toolkit, shell }: ComposeInput): string {
+export function composePrompt({ agent, team, project, toolkit, shell, access }: ComposeInput): string {
   const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
   const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
   const who = `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`;
@@ -37,6 +44,23 @@ export function composePrompt({ agent, team, project, toolkit, shell }: ComposeI
             `- Your persistent toolkit (yours across every project): \`${toolkit.dir}\`. Reuse what is there before writing something new; keep each tool small, with a one-line note on what it checks in \`${toolkit.dir}/README.md\`.`,
             `- Checks specific to this project go in \`${toolkit.projectDir}/\` here (commit them with your work).`,
             '- Before you judge anything, read the big picture: CLAUDE.md, the open update plan in `updates/` (goal, phases, status) and issues.txt — check the work against what the project is trying to be, and push back on anything that makes it bigger or more complicated than it needs to be.',
+          ].join('\n'),
+        )
+      : '',
+    access?.length
+      ? section(
+          'Access you have',
+          [
+            'These are in your environment (and in the project’s .env once synced). Use them by env var name; never print, log or commit a value.',
+            ...access.map((a) => {
+              const fields = a.fields
+                .map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`)
+                .join(', ');
+              const how = a.instructions.trim()
+                ? ` How: ${a.instructions.trim().replace(/\s+/g, ' ').slice(0, 300)}`
+                : '';
+              return `- ${a.name}${a.serves ? ` (${a.serves})` : ''}: ${fields}.${how}`;
+            }),
           ].join('\n'),
         )
       : '',

@@ -25,7 +25,7 @@ import { createLifecycle } from './office/lifecycle.ts';
 import { createOffice } from './office/office.ts';
 import { createThreads } from './office/threads.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
-import { accessRoutes } from './routes/access.ts';
+import { accessesRoutes } from './routes/accesses.ts';
 import { agentRoutes } from './routes/agents.ts';
 import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
@@ -112,7 +112,27 @@ export function buildApp({
   registerCors(app);
   /* SSE responses are hijacked: end them on shutdown so close() never hangs */
   const open: OpenStreams = new Set();
-  const access = projectAccess(store, secrets, config.sandbox);
+  /* access changes reach the projects they're granted to as `access.changed` (ids only) */
+  const accessNote = (
+    projectId: string,
+    accessId: string,
+    change: 'granted' | 'revoked' | 'updated' | 'deleted',
+  ) => {
+    try {
+      events.append('project', projectId, { type: 'access.changed', payload: { accessId, change } });
+    } catch {
+      /* a progress line never fails the change */
+    }
+  };
+  const theCabinet = cabinet(store, secrets, {
+    notify: (n) => {
+      for (const p of n.projectIds) accessNote(p, n.accessId, n.change);
+    },
+  });
+  const access = projectAccess(store, secrets, config.sandbox, {
+    cabinet: theCabinet,
+    notify: (p, a, granted) => accessNote(p, a, granted ? 'granted' : 'revoked'),
+  });
   const reports = createReports({ db, store, events, secretValues: secretValuesOf(secrets) });
   const runtime = createRuntime({
     db,
@@ -122,6 +142,7 @@ export function buildApp({
     model,
     sandbox: config.sandbox,
     envFor: access.envFor,
+    accessFor: access.agentAccess,
     toolkitsRoot: join(config.home, 'toolkits'),
     worktreesRoot: join(config.home, 'worktrees'),
     defaultCaps: caps.agent,
@@ -248,8 +269,8 @@ export function buildApp({
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );
-  app.register(credentialRoutes({ cabinet: cabinet(store, secrets) }));
-  app.register(accessRoutes({ access }));
+  app.register(credentialRoutes({ cabinet: theCabinet }));
+  app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps }));

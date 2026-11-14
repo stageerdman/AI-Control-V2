@@ -120,11 +120,14 @@ Bodies are strict — unknown keys are 422.
 | `GET /asks[?status=open\|answered\|cancelled\|all][&unseen=true]` | the pager: asks across every project (default `open`), oldest first → `[{id, projectId, projectName, agentId, agentName, runId, question, options, status, since, seen}]`; `unseen=true` drops asks you already went to see |
 | `POST /asks/seen` `{projectId}` | you opened that office and left: every ask open there now is seen (`{seen: n}`); a NEW ask brings the office back. Project asks carry `seenAt` |
 | `POST /projects/:id/events` | **dev only** (absent when `NODE_ENV=production`): publish `{type, payload}` by hand |
-| `GET POST /credentials` · `GET PATCH DELETE /credentials/:id` | Key Cabinet: `name`, `envVar` (fixed; derived from name if omitted), `serves`, `docsUrl`, `instructions`; `value` on POST only; responses carry `hasValue`, `last4`, `projectIds` |
-| `PUT /credentials/:id/value` | replace key `{value}` (write-only) |
-| `POST /credentials/import` | register keys already in the global `.env` (also runs on startup), refresh last-4 after hand edits |
-| `GET PUT /projects/:id/access` | every cabinet entry with `granted`; `PUT {grants: {credentialId: bool}}` toggles (partial) |
-| `POST /projects/:id/access/sync` | write the granted secrets into `<folder>/.env` (managed block, 0600), ensure `.gitignore` has `.env`; returns `{file, written, removed, missing, gitignore}` — names only |
+| `GET POST /accesses` · `GET PATCH DELETE /accesses/:id` | the cabinet (G1): an **access** = `{id, name, serves, docsUrl, instructions, fields[], projectIds, createdAt, updatedAt}`; a field = `{id, label, envVar (unique across the cabinet), secret, hasValue, last4, value? (non-secret fields only)}`. `POST {name, serves?, docsUrl?, instructions?, fields: [{label, envVar? (default NAME_LABEL), secret? (default true), value?}] (1–20)}`; `DELETE` → `{deleted: {kind: 'access', id}, restorable: false, projectIds}` (values removed) |
+| `POST /accesses/:id/fields` · `PATCH DELETE /accesses/:id/fields/:fieldId` · `PUT …/fields/:fieldId/value` | add `{label, envVar?, secret?, value?}` (201) · rename / move / flip `{label?, envVar?, secret?}` (a moved env var takes its value along) · remove (409 on the last field) · set a value `{value}` (write-only) → the access |
+| `POST /accesses/import` | register keys already in the global `.env` as one-field accesses (also on startup), refresh last-4 after hand edits → `{imported, refreshed}` |
+| `GET POST /credentials` · `GET PATCH DELETE /credentials/:id` · `PUT /credentials/:id/value` · `POST /credentials/import` | **B3 compat** (the app still calls them until G3): a credential = an access read through its first field |
+| `GET PUT /projects/:id/access` | `{projectId, granted, total, seenAt, newCount, accesses: [access + {granted, isNew}], entries (B3 rows)}`; `PUT {grants: {accessId: bool}}` toggles (partial) |
+| `PUT DELETE /projects/:id/access/:accessId` | grant / revoke one access (all its fields) → the view; event `access.changed {accessId, change: granted\|revoked}` (also `updated` / `deleted` when a granted access is edited / deleted) |
+| `POST /projects/:id/access/seen` | the project looked: `{projectId, seenAt}`; accesses created after it read `isNew` |
+| `POST /projects/:id/access/sync` | write every field of every granted access into `<folder>/.env` (managed block, 0600), ensure `.gitignore` has `.env`; returns `{file, written, removed, missing, gitignore}` — names only |
 
 **Delete & restore.** `DELETE` on an agent, role, team or draft hard-deletes it and returns
 `{ deleted: {kind, id}, restoreToken }`. The token restores it once, within 7 days, as far
@@ -136,10 +139,12 @@ hands them back.
 **Secrets.** Values live only in `$AI_CONTROL_HOME/.env` (and, once synced, in a granted
 project's `.env`). The db holds metadata + last-4 (none for values under 12 chars). No
 response, header or log line ever contains a value — `test/secrets/leak.test.ts` checks every
-endpoint and error path, and the sqlite bytes. Credential `DELETE` removes the value too and
+endpoint and error path, and the sqlite bytes. Access `DELETE` removes its values too and
 is **not restorable** (`restorable: false`; an undo snapshot would have to keep the value);
 it lists `projectIds` whose `.env` still holds the key until their next sync. Projects reach
-nothing until granted.
+nothing until granted. Agent runs get every field of the granted accesses in their env, and their prompt
+lists each access by name, field label and env var ("Access you have") — never a value. Non-secret fields
+(`secret: false`) are the one exception: their value is shown in responses on purpose.
 
 **Plan** (`src/domain/plan.ts`): `{teams: [{teamId, why}], specialists: [{agentId, why}], newAgents: [{brief}],
 newTeams: [{brief}], summary}`. Teams first is the orchestrator's *guidance* (prompt), not a cap — it decides how many teams and

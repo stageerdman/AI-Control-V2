@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { Store } from '../db/store.ts';
 import { conflict } from '../errors.ts';
 import { resolveInSandbox, SandboxError } from '../fs/sandbox.ts';
+import type { Access, Cabinet } from './cabinet.ts';
 import { type EnvLine, formatLine, parseEnv, serializeEnv } from './dotenv.ts';
 import { readEnvFile, type SecretStore, writeFileAtomic } from './secretStore.ts';
 
@@ -14,6 +15,7 @@ export const BLOCK_BEGIN = '# >>> AI Studio access (managed: rewritten on every 
 export const BLOCK_END = '# <<< AI Studio access <<<';
 const GITIGNORE_COVERS_ENV = new Set(['.env', '/.env', '.env*', '/.env*', '*.env']);
 
+/** B3 row (the current app's Access sheet): an access read through its first field. */
 export type AccessEntry = {
   credentialId: string;
   name: string;
@@ -23,7 +25,31 @@ export type AccessEntry = {
   last4: string | null;
   granted: boolean;
 };
-export type ProjectAccessView = { projectId: string; granted: number; total: number; entries: AccessEntry[] };
+/** G1 row: the whole access (non-secret values included, as in GET /accesses) + this project's view of it. */
+export type ProjectAccessItem = Access & {
+  granted: boolean;
+  /** Added to the cabinet since this project last looked (POST …/access/seen). */
+  isNew: boolean;
+};
+export type ProjectAccessView = {
+  projectId: string;
+  granted: number;
+  total: number;
+  /** When the project last looked (its creation before the first look). */
+  seenAt: string;
+  /** How many accesses are new since then (the "new" dot). */
+  newCount: number;
+  accesses: ProjectAccessItem[];
+  /** @deprecated B3 shape, kept while the app still reads it. */
+  entries: AccessEntry[];
+};
+/** What an agent is told it can reach: names, labels and env vars — never a value. */
+export type AgentAccess = {
+  name: string;
+  serves: string;
+  instructions: string;
+  fields: { label: string; envVar: string; hasValue: boolean }[];
+};
 export type SyncResult = {
   /** Sandbox-relative path of the project's .env. */
   file: string;
@@ -58,7 +84,12 @@ function ensureGitignore(dir: string): SyncResult['gitignore'] {
   return 'added';
 }
 
-export function projectAccess(store: Store, secrets: SecretStore, sandbox: string) {
+export function projectAccess(
+  store: Store,
+  secrets: SecretStore,
+  sandbox: string,
+  deps: { cabinet: Cabinet; notify?: (projectId: string, accessId: string, granted: boolean) => void },
+) {
   const projectDir = (projectId: string) => {
     const p = store.projects.require(projectId);
     if (!p.folder) throw conflict(`Project '${p.name}' has no folder yet — set it up first`);
@@ -76,39 +107,61 @@ export function projectAccess(store: Store, secrets: SecretStore, sandbox: strin
     return { dir, folder: p.folder };
   };
 
-  /** The granted env vars that have a value — the ONLY place values leave the store. */
+  const granted = (projectId: string) => {
+    const ids = new Set(store.accesses.grantedIds(projectId));
+    return store.accesses.list().filter((a) => ids.has(a.id));
+  };
+  /** Every field of every granted access that has a value — the ONLY place values leave the store. */
   const grantedEnv = (projectId: string) => {
-    const granted = new Set(store.credentials.grantedIds(projectId));
     const env: Record<string, string> = {};
     const missing: string[] = [];
-    for (const c of store.credentials.list()) {
-      if (!granted.has(c.id)) continue;
-      const v = secrets.get(c.envVar);
-      if (v) env[c.envVar] = v;
-      else missing.push(c.envVar);
-    }
+    for (const a of granted(projectId))
+      for (const f of a.fields) {
+        const v = secrets.get(f.envVar);
+        if (v) env[f.envVar] = v;
+        else missing.push(f.envVar);
+      }
     return { env, missing };
   };
-
   const svc = {
     view(projectId: string): ProjectAccessView {
-      const granted = new Set(store.credentials.grantedIds(projectId));
-      const entries = store.credentials.list().map((c) => ({
-        credentialId: c.id,
-        name: c.name,
-        envVar: c.envVar,
-        serves: c.serves,
-        hasValue: c.hasValue,
-        last4: c.last4,
-        granted: granted.has(c.id),
-      }));
-      return { projectId, granted: granted.size, total: entries.length, entries };
+      const ids = new Set(store.accesses.grantedIds(projectId));
+      const seenAt = store.accesses.seenAt(projectId);
+      const all = store.accesses.list();
+      const accesses = deps.cabinet
+        .list()
+        .map((a) => ({ ...a, granted: ids.has(a.id), isNew: a.createdAt > seenAt }));
+      const entries = all.map((a) => {
+        const f = a.fields[0];
+        return {
+          credentialId: a.id,
+          name: a.name,
+          envVar: f?.envVar ?? '',
+          serves: a.serves,
+          hasValue: !!f?.hasValue,
+          last4: f?.last4 ?? null,
+          granted: ids.has(a.id),
+        };
+      });
+      return {
+        projectId,
+        granted: ids.size,
+        total: all.length,
+        seenAt,
+        newCount: accesses.filter((a) => a.isNew).length,
+        accesses,
+        entries,
+      };
     },
 
     setGrants(projectId: string, grants: Record<string, boolean>): ProjectAccessView {
-      store.tx(() => store.credentials.setGrants(projectId, grants));
+      const changed = store.tx(() => store.accesses.setGrants(projectId, grants));
+      for (const id of changed) deps.notify?.(projectId, id, grants[id] as boolean);
       return svc.view(projectId);
     },
+
+    /** The project looked at its access now: nothing reads as new until another access is added. */
+    markSeen: (projectId: string) => ({ projectId, seenAt: store.accesses.markSeen(projectId) }),
 
     sync(projectId: string): SyncResult {
       const { dir, folder } = projectDir(projectId);
@@ -143,6 +196,15 @@ export function projectAccess(store: Store, secrets: SecretStore, sandbox: strin
 
     /** For the agent runtime (B5): the env a run in this project may see. Never send over HTTP. */
     envFor: (projectId: string): Record<string, string> => grantedEnv(projectId).env,
+
+    /** For agents' prompts: what each granted access provides, by label and env var. No values. */
+    agentAccess: (projectId: string): AgentAccess[] =>
+      granted(projectId).map((a) => ({
+        name: a.name,
+        serves: a.serves,
+        instructions: a.instructions,
+        fields: a.fields.map((f) => ({ label: f.label, envVar: f.envVar, hasValue: f.hasValue })),
+      })),
   };
   return svc;
 }

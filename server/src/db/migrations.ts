@@ -371,6 +371,52 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE goals ADD COLUMN feature_id TEXT;
   ALTER TABLE goals ADD COLUMN ships INTEGER NOT NULL DEFAULT 1;
   `,
+  /* 21 — accesses (G1): an access is a named bundle of fields (keys, tokens, usernames, URLs…), granted per
+     project as a whole. Every B3 credential becomes a one-field access with the same id (field 'f-<id>', label
+     'Key', secret), its grants carried over as they were. Values still live only in the global .env; a field
+     row holds metadata + last-4. access_seen_at = when the project last looked at its access (the "new" dot). */
+  `
+  CREATE TABLE accesses (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    serves       TEXT NOT NULL DEFAULT '',
+    docs_url     TEXT,
+    instructions TEXT NOT NULL DEFAULT '',
+    position     INTEGER NOT NULL,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+  );
+  INSERT INTO accesses (id, name, serves, docs_url, instructions, position, created_at, updated_at)
+    SELECT id, name, serves, docs_url, instructions, position, created_at, updated_at FROM credentials;
+
+  CREATE TABLE access_fields (
+    id         TEXT PRIMARY KEY,
+    access_id  TEXT NOT NULL REFERENCES accesses(id) ON DELETE CASCADE,
+    label      TEXT NOT NULL,
+    env_var    TEXT NOT NULL UNIQUE,          -- the key in ~/.ai-control/.env (one namespace for every field)
+    secret     INTEGER NOT NULL DEFAULT 1,    -- 0 = may be shown (a username, a URL)
+    has_value  INTEGER NOT NULL DEFAULT 0,
+    last4      TEXT,
+    position   INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  INSERT INTO access_fields (id, access_id, label, env_var, secret, has_value, last4, position, created_at, updated_at)
+    SELECT 'f-' || id, id, 'Key', env_var, 1, has_value, last4, 0, created_at, updated_at FROM credentials;
+
+  CREATE TABLE access_grants (
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    access_id  TEXT NOT NULL REFERENCES accesses(id) ON DELETE CASCADE,
+    granted_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, access_id)
+  );
+  INSERT INTO access_grants (project_id, access_id, granted_at)
+    SELECT project_id, credential_id, granted_at FROM project_access;
+
+  DROP TABLE project_access;
+  DROP TABLE credentials;
+  ALTER TABLE projects ADD COLUMN access_seen_at TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
