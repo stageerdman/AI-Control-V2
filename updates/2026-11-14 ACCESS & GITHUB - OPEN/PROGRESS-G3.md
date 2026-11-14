@@ -42,7 +42,7 @@ Commits prefixed `ACCESS G3:` / `ACCESS G4:`. Spec: `spec-ux-G2.md`. Contract: `
    compile date moves on even when the text came out the same (a touched module left the row stale for ever),
    and only files git sees as changed are committed (a stamp written back to HEAD's content was a 500).
    Shot `g3-rebuild`.
-5. ⏸ G4 ship — **PAUSED** (coordinator: the user is watching a movie; no tests, builds, browsers or app launches).
+5. ✅ G4 shipped (resumed after the pause).
 
 ## G3 checks (done)
 App: 230 vitest tests pass, `tsc --noEmit` and biome are clean. Server: 373 tests pass, tsc and biome are clean. `cargo test`: 13 pass.
@@ -71,3 +71,12 @@ Shots are in `shots/g3-*`. Narrow 560 px: the editor and the Switchboard don't s
   and leave it running. (4) Update `HOW-TO-USE.md` (open from Applications; GitHub by default and how to turn it off
   (Name step switch / Blueprint › Starter Kit); Add new access; Ports and `PORT=… npm start`). (5) Update the Status in
   `update v1.md`. The plan's agent run with `PORT=… npm start` plus a 2-field access was already done live in G1.
+
+## G4 resumed — finished (2026-11-14)
+- The earlier quit was the user closing the app, not a crash.
+- Opened from `/Applications`: backend up in 3 s, lock `{port: 4319}`, `/health` 200 after more than 70 s, app process alive.
+- Read-only checks of the real data (Vite :1712 proxying 4319, GET only): Projects shows 7 on set and 6 in the back lot with no
+  "GitHub not connected" chips, and "· Ports" works. The Switchboard shows the 4 projects with folders. Shots `g4-real-projects`,
+  `g4-real-ports`, `g4-real-access`. No project was created on the real data dir. Vite was stopped afterwards.
+- Quit with `osascript … quit`: 4319 free, lock released. Reopened: up in 2 s, `user_version` 24. **Left running.**
+- `HOW-TO-USE.md` and the Status in `update v1.md` are updated.

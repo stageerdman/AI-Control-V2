@@ -42,4 +42,12 @@ access holds several keys or other private info, and a director chat that doesn'
 
 ## Status
 - ✅ G2 UX spec (`spec-ux-G2.md`).
-- ⏳ G1 server running.
+- ✅ G1 server (`PROGRESS-G1.md`): accesses, GitHub by default, ports and `NAME=value` commands, director freshness,
+  CLAUDE.md rebuild. Live check: an agent ran `PORT=3340 node server.js` and saw both fields of a 2-field access.
+- ✅ G3 app UI (`PROGRESS-G3.md`): Add new access (multi-field, templates, the safe's new dot), GitHub (Name step switch,
+  Rivet's row, health row with publish / visibility / push, studio default), the Switchboard, Blueprint Rebuild.
+  App 230 tests · server 373 · cargo 13 · typecheck and lint clean. Shots `shots/g3-*`, `shots/g4-*`.
+- ✅ G4 shipped: DB backed up (`~/.ai-studio/backups/studio-before-access-github-20261114-184601.db`), release app installed
+  at `/Applications/AI Studio.app`; opened from there, backend on 4319 with the new code, migrations 21–24, the
+  user's 13 projects, `/settings`, `/ports`; stays up; quit frees 4319 and the lock; reopened and left running.
+  `HOW-TO-USE.md` updated.

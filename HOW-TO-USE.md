@@ -5,7 +5,8 @@ git project on your Mac. The agents run on your Claude Code subscription, using 
 
 ## Start it
 
-- **Open the app:** `~/.cargo-shared-target/release/bundle/macos/AI Studio.app`. Drag it to `/Applications` if you like.
+- **Open the app:** **Applications → AI Studio** (`/Applications/AI Studio.app`). After a rebuild (`npm run build` in `app/`),
+  copy the fresh `~/.cargo-shared-target/release/bundle/macos/AI Studio.app` over it. It always runs this repo's `server/`.
 - **Backend:** the app starts its backend from this repo's `server/` folder on port 4319. If a backend is already
   running on your data, the app reuses it. If the backend crashes, the app restarts it.
   - Logs: `~/.ai-studio/logs/`
@@ -19,7 +20,10 @@ git project on your Mac. The agents run on your Claude Code subscription, using 
 **Projects → New** walks you through **Start · Name · Orchestrator · Setup · Team**.
 - **Start** — begin from scratch or *Adopt* an existing folder in the sandbox. Adopting never changes your files on its own.
 - **Orchestrator** — pick the director. Directors see the big picture only.
-- **Setup** — Rivet, the technician, prepares the folder: git, `.project`, `CLAUDE.md`, `.gitignore`.
+- **Name** — the **GitHub · private repo** switch is on by default: setup creates a private repo named after the folder and
+  pushes `main`. Switch it off to stay local. An adopted folder that already has a remote keeps it ("keeps origin").
+- **Setup** — Rivet, the technician, prepares the folder: git, `.project`, `CLAUDE.md`, `.gitignore`, the first commit, and
+  the GitHub repo. A GitHub problem (no `gh`, not signed in) never stops setup; publish later from the health board.
   Unfinished setups wait as "In setup" cards. Deleting one never deletes the folder.
 - **Team** — the director proposes teams and specialists and how they'll work: who reviews whom, and send-back rules. You can change any of it.
 
@@ -37,12 +41,23 @@ git project on your Mac. The agents run on your Claude Code subscription, using 
 
 Other places:
 - **Cast** — agents and teams: looks, roles, prompts, "Job on this team", and reporter and own-tools switches.
-- **Access** — the safe behind the director: which keys this project can reach. Values are never shown.
-- **Blueprint** — the global rule modules that build each project's `CLAUDE.md`.
+- **Access** — the Key Cabinet. **＋ Add new access** saves everything one service needs as one access: several fields
+  (keys, a username, a URL), each with its env var and a secret switch. Templates: *API key*, *Username + password*,
+  *URL + token*. Edit an access to replace one field's value; secrets are never shown again, only `••••last4`.
+  The **safe** behind the director grants whole accesses to that project; a coral dot marks accesses added since you
+  last opened it. Granted agents get every field in their environment.
+- **Ports** — the **Ports** link on the Projects count line opens the Switchboard: each project's block of 5 ports,
+  its app port, and what is listening. The health board's App → Details shows the same line for one project.
+- **Blueprint** — the global rule modules that build each project's `CLAUDE.md`. **Rebuild** on an outdated project
+  recompiles it and keeps its own "Project-specific rules". The Starter Kit tab has the studio-wide switch
+  **A private GitHub repo** (turn it off and new projects stay local by default).
 
 ## Good to know
 
-- **Building is local only.** Agents commit locally and never push or create GitHub remotes. The studio does the merging.
+- **GitHub:** agents never push; the studio does. After each merge to `main`, a published project is pushed
+  automatically. The health board's GitHub row shows the repo link, a **Private / Public** switch (going public asks
+  first) and the last push, with **Try again** if it failed. Projects that aren't on GitHub get **Publish to GitHub…**;
+  it needs the GitHub CLI signed in (`brew install gh`, then `gh auth login`).
 - **Example projects:** four apps built overnight are in the sandbox, ready to adopt:
   - `f3-habit-hatch`
   - `f3-bookmark-box`
@@ -50,5 +65,7 @@ Other places:
   - `f3-todo-cli`
 - **Limits:**
   - Agents check their work with tests and scripted requests, not by looking at a real browser.
-  - Shell commands with an environment prefix (`PORT=… npm start`) are refused; agents work around it.
-- **More detail:** see `server/README.md`, and the progress notes in `updates/2026-11-13 APP UI - OPEN/`.
+- **Ports for agents:** every agent run gets its own free port as `PORT` (plus the project's spares in
+  `AI_STUDIO_PORTS`), so agents can run setting-prefixed commands such as `PORT=3331 npm start`. Literal values only;
+  `$(…)`, pipes and `;` are refused.
+- **More detail:** see `server/README.md`, and the progress notes in `updates/2026-11-13 APP UI - OPEN/` and `updates/2026-11-14 ACCESS & GITHUB - OPEN/`.
