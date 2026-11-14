@@ -432,6 +432,15 @@ export const MIGRATIONS: readonly string[] = [
   );
   ALTER TABLE drafts ADD COLUMN github INTEGER;
   `,
+  /* 23 — ports (G1): each project owns a stable block of 5 ports in 3100–3999: base = its app's port ("Run the app"),
+     base+1…base+4 = spares for agents' own servers (each run gets one as PORT). Blocks never overlap. */
+  `
+  CREATE TABLE port_blocks (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    base       INTEGER NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

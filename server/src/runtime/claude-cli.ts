@@ -44,13 +44,15 @@ export type CliOptions = {
   /** Raw (redacted) stream log per run, for debugging and fixtures. */
   logDir?: string;
   allowedTools?: string[];
+  /** G1: the PreToolUse hook command that approves setting-prefixed commands (`PORT=… node …`); see shell-hook.ts. */
+  shellHook?: string;
   /** How long the CLI may linger after its answer before its process group is stopped (tests shorten it). */
   afterResultMs?: number;
 };
 
 export function cliArgs(
   spec: RunSpec,
-  opts: Pick<CliOptions, 'askServer' | 'node' | 'allowedTools'>,
+  opts: Pick<CliOptions, 'askServer' | 'node' | 'allowedTools' | 'shellHook'>,
 ): string[] {
   const mcp = spec.askBridge
     ? {
@@ -92,6 +94,9 @@ export function cliArgs(
     tools.join(','), // '' disables every built-in tool
     ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
     ...(tools.includes('Bash') ? ['--disallowed-tools', DENIED.join(',')] : []),
+    ...(tools.includes('Bash') && opts.shellHook && !spec.tools
+      ? ['--settings', JSON.stringify(shellHookSettings(opts.shellHook))]
+      : []),
     '--permission-mode',
     'dontAsk',
     '--permission-prompts',
@@ -107,6 +112,14 @@ export function cliArgs(
     ...(spec.resumeSessionId ? ['--resume', spec.resumeSessionId] : ['--session-id', spec.runId]),
   ];
 }
+
+/** `--settings` for the setting-prefix hook (restricted mode still applies --settings). */
+export const shellHookSettings = (command: string) => ({
+  hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command, timeout: 10 }] }] },
+});
+/** The hook's command line: this node + shell-hook.ts + the allowed commands. */
+export const shellHookCommand = (hookScript: string, allowed: readonly string[], node = process.execPath) =>
+  [node, hookScript, allowed.join(',')].map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ');
 
 /** Kill the whole process group (the CLI and anything it spawned). */
 function killGroup(child: ChildProcess, signal: NodeJS.Signals) {

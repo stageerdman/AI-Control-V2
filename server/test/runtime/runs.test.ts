@@ -198,9 +198,17 @@ describe('agent runs (FakeRunner end-to-end)', () => {
           '__CF_USER_TEXT_ENCODING',
           'PATH',
           'STRIPE_KEY',
+          'PORT', // G1: the run's port block
+          'AI_STUDIO_PORTS',
+          'AI_STUDIO_APP_PORT',
         ].includes(k),
       ),
     ).toBe(true);
+    /* G1: a spare of the project's block (never the app's own port) */
+    expect(Number(env.PORT)).toBe(Number(env.AI_STUDIO_APP_PORT) + 1);
+    expect(env.AI_STUDIO_PORTS?.split(',').map(Number)).toEqual(
+      [1, 2, 3, 4].map((i) => Number(env.AI_STUDIO_APP_PORT) + i),
+    );
     const all = JSON.stringify(h.events.after('project', 'aurora'));
     expect(all).not.toContain('sk_test_granted_value_9');
     expect(all).toContain('Authorization: ••••');

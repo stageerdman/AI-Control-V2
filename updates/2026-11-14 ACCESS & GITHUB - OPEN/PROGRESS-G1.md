@@ -5,7 +5,7 @@ The UI builder's contract: exact API + event shapes. Commits prefixed `ACCESS G1
 ## Status
 1. ✅ Accesses (multi-field) — migration 21, `/accesses` API, grants per access, `.env` sync of every field, "new" dot, prompts.
 2. ✅ GitHub — a repo by default at setup (user's change), opt-outs, publish / visibility, auto-push, agents never push.
-3. ⏳ Ports + setting-prefixed commands
+3. ✅ Ports + setting-prefixed commands — a stable 5-port block per project, PORT per run, `NAME=value <cmd>` hook, `GET /ports`.
 4. ⏳ Director chat freshness
 5. ⏳ CLAUDE.md rebuild endpoint
 
@@ -131,3 +131,35 @@ The studio's pushes use `gh auth git-credential` as the git credential helper fo
 **Config:** `AI_STUDIO_GH_BIN` (absolute; default the first of /opt/homebrew/bin/gh, /usr/local/bin/gh, /usr/bin/gh). Tests use
 `server/test/github/stub-gh.ts` (a real script: bare repos in a temp dir, `GIT_CONFIG_*` insteadOf for pushes) — no network, no
 real repo, ever.
+
+## 3. Ports and setting-prefixed commands
+
+**Blocks.** Each project owns 5 consecutive ports in 3100–3999 (migration 23 `port_blocks`, allocated on first use, never
+overlapping): `app` = block[0] = the port "Run the app" uses (same as F3's for existing projects), `spares` = the next 4.
+
+**Agent runs** (not the orchestrator's chat) get `PORT` = a spare no other live run of that project holds (so parallel agents
+never collide; all held → the first), `AI_STUDIO_PORTS` = the 4 spares comma-separated, `AI_STUDIO_APP_PORT` = the app's.
+The brief says: `- Ports: your PORT is 3932 (already in your environment; this project's spares are 3932, 3933, 3934, 3935 in
+AI_STUDIO_PORTS). 3931 is the project's app port — the studio's "Run the app" uses it; don't bind it. Servers read their port
+from PORT. Stop any server you start before you finish.`
+
+**Setting-prefixed commands.** `NAME=value [NAME2=value2] <allowed command …>` is approved by a PreToolUse hook passed with
+`--settings` (`src/runtime/shell-hook.ts` → `shell-prefix.ts`). Literal values only (bare, `'…'` or `"…"`); refused anywhere in
+the command: `$`, backticks, `;`, `&`, `|`, `<`, `>`, `(`, `)`, `\`, newlines; refused names: PATH, IFS, ENV, BASH_ENV, SHELL, HOME,
+PS4, PROMPT_COMMAND, NODE_OPTIONS, auth overrides, `LD_…`, `DYLD_…`, `GIT_…`, `npm_config_…`; the program must be on the shell
+allow-list; `git push` is refused. A refusal reaches the agent as the hook's reason (plain words). Plain commands keep the old rules.
+
+**Route:** `GET /ports`
+```ts
+{
+  range: { from: 3100, to: 3999 },
+  projects: {
+    projectId: string; name: string;
+    block: { app: number; spares: number[] };              // 4 spares
+    app: { status: 'stopped' | 'running' | 'exited'; port: number | null; url: string | null };
+    ports: { port: number; role: 'app' | 'spare'; listening: boolean; heldBy: { runId: string; agentId: string | null } | null }[];
+  }[];
+}
+```
+`listening` is a live 200 ms connect check on 127.0.0.1 and ::1 (something answers — the studio's app, an agent's server or
+anything else on the Mac). No events; poll it while the Ports room is open (every few seconds is cheap).

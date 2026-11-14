@@ -13,19 +13,14 @@ import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import { runEnv } from '../runtime/env.ts';
+import { hashPort, PORT_BASE, PORT_SPAN, type Ports } from './ports.ts';
 import { runCommandOf, writeRunLine } from './run-command.ts';
 
 export const LOG_LINES = 200;
-/** Project app ports: 3100–3999, stable per project id (clear of 3000 and the studio's own 4xxx ports). */
-const PORT_BASE = 3100;
-const PORT_SPAN = 900;
-
-/** Pure: a project's preferred app port — stable for its id, the next free one when another running app holds it. */
+/** F3's pure port pick, kept for its tests: a project's preferred port, the next free one when another app holds it. */
 export function portFor(projectId: string, taken: ReadonlySet<number>): number {
-  let h = 0;
-  for (const c of projectId) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   for (let i = 0; i < PORT_SPAN; i++) {
-    const port = PORT_BASE + ((h + i) % PORT_SPAN);
+    const port = PORT_BASE + ((hashPort(projectId) - PORT_BASE + i) % PORT_SPAN);
     if (!taken.has(port)) return port;
   }
   return PORT_BASE;
@@ -84,6 +79,8 @@ export function createAppRunner(deps: {
   /** Every secret value the studio knows (masked in the log). */
   secretValues: () => string[];
   parentEnv?: NodeJS.ProcessEnv;
+  /** G1: the project's port block — the app runs on its first port. Absent → F3's pick. */
+  ports?: Ports;
 }) {
   const { store, events } = deps;
   const live = new Map<string, Live>();
@@ -133,7 +130,9 @@ export function createAppRunner(deps: {
       throw conflict(
         'Nobody has recorded how to start this app yet — add a `run:` line to .project (or ask the team to)',
       );
-    const port = portFor(projectId, new Set([...live.values()].map((x) => x.port)));
+    const port = deps.ports
+      ? deps.ports.blockFor(projectId).app
+      : portFor(projectId, new Set([...live.values()].map((x) => x.port)));
     const child = spawn('/bin/sh', ['-c', run.command], {
       cwd: dir,
       detached: true, // its own process group: stop takes npm and the server it started

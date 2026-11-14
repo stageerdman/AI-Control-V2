@@ -11,6 +11,8 @@ export type ComposeInput = {
   /** Shell commands pre-approved for this run (default: git, ls, cat, pwd). */
   shell?: readonly string[];
   /** The project's granted accesses (G1): what each provides, by label + env var — never a value. */
+  /** G1: this run's PORT, the project's app port and its spares. */
+  ports?: { port: number; app: number; spares: readonly number[] } | null;
   access?: readonly {
     name: string;
     serves: string;
@@ -21,7 +23,7 @@ export type ComposeInput = {
 
 const section = (title: string, body: string) => (body.trim() ? `## ${title}\n\n${body.trim()}` : '');
 
-export function composePrompt({ agent, team, project, toolkit, shell, access }: ComposeInput): string {
+export function composePrompt({ agent, team, project, toolkit, shell, access, ports }: ComposeInput): string {
   const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
   const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
   const who = `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`;
@@ -68,7 +70,12 @@ export function composePrompt({ agent, team, project, toolkit, shell, access }: 
       'How to work here',
       [
         '- Work only inside this project folder.',
-        `- Create and change files with the Write and Edit tools. In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${approved} are pre-approved, anything else is refused.`,
+        `- Create and change files with the Write and Edit tools. In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${approved} are pre-approved, anything else is refused. You may put literal settings in front of one: \`NAME=value <command>\` (e.g. \`PORT=${ports?.port ?? 3000} node server.js\`) — literal values only (no \`$\`, backticks or \`$(…)\`).`,
+        ...(ports
+          ? [
+              `- Ports: your PORT is ${ports.port} (already in your environment; this project's spares are ${ports.spares.join(', ')} in AI_STUDIO_PORTS). ${ports.app} is the project's app port — the studio's "Run the app" uses it; don't bind it. Servers read their port from PORT. Stop any server you start before you finish.`,
+            ]
+          : []),
         '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).',
         '- If you need a decision or information only the user has, call the `ask_user` tool and wait for the answer. Never guess credentials.',
         '- Finish with a short plain-words summary of what you did.',

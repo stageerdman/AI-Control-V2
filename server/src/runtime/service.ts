@@ -7,6 +7,7 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
+import type { Ports } from '../apps/ports.ts';
 import type { Db } from '../db/connection.ts';
 import { type Ask, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
@@ -52,6 +53,8 @@ export type RuntimeDeps = {
   envFor: (projectId: string) => Record<string, string>;
   /** What each granted access provides, by label + env var (no values) — named in the agent's prompt (G1). */
   accessFor?: (projectId: string) => AgentAccess[];
+  /** G1: the project's port block — each agent run gets a spare as PORT (+ AI_STUDIO_PORTS) and a line in its brief. */
+  ports?: Ports;
   parentEnv?: NodeJS.ProcessEnv;
   /** Reporter runs get file_report (absent → nobody files). */
   reports?: ReportDesk;
@@ -251,6 +254,7 @@ export function createRuntime(deps: RuntimeDeps) {
     });
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
     const toolkit = big ? null : toolkitFor(agent);
+    const ports = big || !deps.ports ? null : deps.ports.take(projectId, runId);
     const l: Live = {
       run,
       token,
@@ -295,11 +299,24 @@ export function createRuntime(deps: RuntimeDeps) {
             toolkit,
             ...(deps.shell ? { shell: deps.shell } : {}),
             ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
+            ...(ports
+              ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } }
+              : {}),
           }),
         task: req.task,
         model: deps.model,
         caps,
-        env: runEnv(deps.parentEnv ?? process.env, granted),
+        env: runEnv(
+          deps.parentEnv ?? process.env,
+          granted,
+          ports
+            ? {
+                PORT: String(ports.port),
+                AI_STUDIO_PORTS: ports.block.spares.join(','),
+                AI_STUDIO_APP_PORT: String(ports.block.app),
+              }
+            : {},
+        ),
         secretValues: secrets,
         ...(big ? { tools: [] } : {}),
         ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
@@ -325,6 +342,8 @@ export function createRuntime(deps: RuntimeDeps) {
         ...(reporter ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
       },
     );
+    const release = () => deps.ports?.release(runId);
+    l.handle.done.then(release, release);
     l.handle.done.then(
       (o) => finish(l, o),
       (err: Error) =>

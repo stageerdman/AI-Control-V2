@@ -3,6 +3,7 @@
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { createAppRunner } from './apps/app-runner.ts';
+import { createPorts } from './apps/ports.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
@@ -39,6 +40,7 @@ import { featureRoutes } from './routes/features.ts';
 import { githubRoutes } from './routes/github.ts';
 import { healthRoutes } from './routes/health.ts';
 import { officeRoutes } from './routes/office.ts';
+import { portRoutes } from './routes/ports.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
 import { reportRoutes } from './routes/reports.ts';
@@ -145,6 +147,8 @@ export function buildApp({
     notify: (p, a, granted) => accessNote(p, a, granted ? 'granted' : 'revoked'),
   });
   const reports = createReports({ db, store, events, secretValues: secretValuesOf(secrets) });
+  /* every project owns a stable port block: its app's port + spares for agents' own servers */
+  const ports = createPorts(db);
   const runtime = createRuntime({
     db,
     store,
@@ -154,6 +158,7 @@ export function buildApp({
     sandbox: config.sandbox,
     envFor: access.envFor,
     accessFor: access.agentAccess,
+    ports,
     toolkitsRoot: join(config.home, 'toolkits'),
     worktreesRoot: join(config.home, 'worktrees'),
     defaultCaps: caps.agent,
@@ -254,6 +259,7 @@ export function buildApp({
     events,
     sandbox: config.sandbox,
     secretValues: secretValuesOf(secrets),
+    ports,
   });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
@@ -298,6 +304,7 @@ export function buildApp({
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
+  app.register(portRoutes({ store, ports, apps, db }));
   app.register(collaborationRoutes({ collaboration }));
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));
