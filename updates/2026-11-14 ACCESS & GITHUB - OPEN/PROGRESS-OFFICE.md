@@ -96,3 +96,4 @@ visual) and image (just for the app's sake)".
 - Shots: `office-portrait-office-tile`, `office-portrait-wall-tile`, `office-portrait-sheet-tile`,
   `office-portrait-sheet-picture`, `office-portrait-office-picture`, `office-portrait-wall`, `office-portrait-projects`,
   `office-portrait-office-narrow`. The sample picture was drawn in the headless browser (no personal files).
+- Shipped v3: backup `~/.ai-studio/backups/studio-before-office-portrait-20261114-231836.db` (integrity ok, v25, 5 projects); release `tauri build`; graceful quit (free in 2 s); replaced + reopened from /Applications — up in 3 s, `user_version` 26, the 5 projects with `imageUrl: null` (tiles until a picture is chosen), `GET …/image` 404 as expected, `/time` 200, health 200 after 15 s. Left running.
