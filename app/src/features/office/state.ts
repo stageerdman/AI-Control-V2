@@ -281,15 +281,6 @@ export function boardFacts(d: {
   };
 }
 
-/** "Build the checkout" → a goal; "how's it going?" → conversation. */
-export function looksLikeGoal(text: string): boolean {
-  const t = text.trim();
-  if (!t || /\?\s*$/.test(t)) return false;
-  return /^(please\s+)?(build|add|make|create|implement|fix|ship|write|set up|setup|research|compare|investigate|find out|review|refactor|design|improve|update|remove|migrate|test|document)\b/i.test(
-    t,
-  );
-}
-
 /** The health card's App row, from the server's view (url + port are the server's — never assumed).
     A CLI that ends with exit 0 "ran and finished" (its output shown); only a nonzero exit is a problem. */
 export function appView(a: ProjectApp): {

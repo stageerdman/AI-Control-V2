@@ -1014,8 +1014,15 @@ export function createDispatch(deps: {
       return g;
     },
 
-    /** Orchestrator turn → whiteboard → queued runs. Resolves once the checklist is up. */
-    async start(projectId: string, text: string, caps?: Goal['caps']): Promise<Goal> {
+    /** Orchestrator turn → whiteboard → queued runs. Resolves once the checklist is up. `fromChat`: the
+        director's chat turn asked for it — the thread writes its own lines (no `onPlanned`). */
+    async start(
+      projectId: string,
+      text: string,
+      caps?: Goal['caps'],
+      opts: { fromChat?: boolean } = {},
+    ): Promise<Goal> {
+      const planned = opts.fromChat ? undefined : deps.onPlanned;
       const p = store.projects.require(projectId);
       if (!p.folder) throw conflict(`Project '${projectId}' has no folder yet — set it up first`);
       const c = crewing(projectId);
@@ -1146,7 +1153,7 @@ export function createDispatch(deps: {
             },
           }));
         } catch (e) {
-          deps.onPlanned?.({ projectId, goalText: text, goal: null, error: (e as Error).message });
+          planned?.({ projectId, goalText: text, goal: null, error: (e as Error).message });
           throw e;
         }
         const goal = store.tx(() =>
@@ -1180,9 +1187,9 @@ export function createDispatch(deps: {
         for (const it of goal.items) announce(it);
         refreshGoal(goal.id);
         pump(projectId);
-        const planned = work.goal(goal.id) as Goal;
-        deps.onPlanned?.({ projectId, goalText: text, goal: planned });
-        return planned;
+        const made = work.goal(goal.id) as Goal;
+        planned?.({ projectId, goalText: text, goal: made });
+        return made;
       } finally {
         planning.delete(projectId);
         emit(projectId, { type: 'agent.status', payload: { agentId: orch.id, status: 'idle' } });

@@ -2,14 +2,14 @@
    Calm: header + conversation + a text composer. No mic, no office updates, no suggestions.
    One thread per agent (threads API + `thread.message` events); the director is the default; the
    office is the switcher (click a robot). "!" asks arrive as cards in the agent's thread and are
-   answered on the asks endpoint. Talking to the director: a goal ("Build…", "Research…") or the
-   "Start work" button goes on the whiteboard (POST /work); anything else is conversation. */
+   answered on the asks endpoint. One Send (OFFICE): the director decides — a clear ask becomes a goal on the
+   whiteboard (the server posts it, the board follows its events), a question or a maybe gets a reply. */
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { type Goal, getQueryData, isApiError, setQueryData, studio, useQuery } from '../../api';
+import { isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
 import { Button } from '../../ui';
 import { keys, officeApi, type Thread, type ThreadMessage } from './api';
-import { type Actor, activityOf, looksLikeGoal, mergeMessage, type PendingAsk } from './state';
+import { type Actor, activityOf, mergeMessage, type PendingAsk } from './state';
 
 export type PanelAgent = {
   id: string;
@@ -43,7 +43,7 @@ const aboutTitles = new Map<string, string>();
 export const shortOf = (a: { name: string; nick?: string | null } | undefined) =>
   a ? a.nick || a.name.replace(/^(Sir|Dr\.?|The)\s+/i, '').split(/\s+/)[0] : 'them';
 
-/* local lines (goals posted from the chat, answered asks) survive switching threads */
+/* local lines (answered asks, messages that didn't go through) survive switching threads */
 const local = new Map<string, ThreadMessage[]>();
 let seq = 0;
 const note = (from: string, text: string, kind: 'text' | 'error' = 'text'): ThreadMessage => ({
@@ -63,7 +63,6 @@ export function Panel(p: PanelProps) {
   const key = keys.thread(pid, id);
   const t = useQuery<Thread>(key, () => officeApi.thread(pid, id));
   const [text, setText] = useState('');
-  const [busyLocal, setBusyLocal] = useState(false);
   const [, bump] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const log = useRef<HTMLDivElement>(null);
@@ -73,18 +72,11 @@ export function Panel(p: PanelProps) {
     local.set(lkey, [...(local.get(lkey) ?? []), m]);
     bump((n) => n + 1);
   };
-  const dropLocal = (mid: string) => {
-    local.set(
-      lkey,
-      (local.get(lkey) ?? []).filter((x) => x.id !== mid),
-    );
-    bump((n) => n + 1);
-  };
 
   const messages = [...(t.data?.messages ?? []), ...(local.get(lkey) ?? [])].sort((a, b) =>
     a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
   );
-  const typing = busyLocal || !!t.data?.busy;
+  const typing = !!t.data?.busy;
   const asks = p.asks.filter((a) => a.agentId === id);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the newest line
@@ -99,33 +91,13 @@ export function Panel(p: PanelProps) {
   const short = shortOf(ag);
   const dirShort = shortOf(p.agents[director]);
 
-  const send = async (raw: string, asGoal: boolean) => {
+  const send = async (raw: string) => {
     const v = raw.trim();
     if (!v) {
       input.current?.focus();
       return;
     }
     setText('');
-    if (isDir && (asGoal || looksLikeGoal(v)) && !p.context) {
-      /* the server records the goal in this thread (the user's line + the plan reply, by goalId);
-         until it lands, the line shows as pending */
-      const mine = note('user', v);
-      addLocal(mine);
-      setBusyLocal(true);
-      try {
-        const g = await studio.projects.startWork(pid, v);
-        setQueryData<Goal[]>(keys.work(pid), (prev) => [g, ...(prev ?? []).filter((x) => x.id !== g.id)]);
-        await t.refetch().catch(() => undefined);
-        dropLocal(mine.id);
-        if (!threadHasGoal(getQueryData<Thread>(key)?.messages ?? [], g.id))
-          addLocal(note(director, goalLine(g, p.agents)));
-      } catch (e) {
-        addLocal(note(director, isApiError(e) ? e.message : 'That didn’t reach the whiteboard.', 'error'));
-      } finally {
-        setBusyLocal(false);
-      }
-      return;
-    }
     const ctx = p.context;
     if (ctx) aboutTitles.set(ctx.reportId, ctx.title);
     p.clearContext();
@@ -144,7 +116,7 @@ export function Panel(p: PanelProps) {
   };
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    void send(text, false);
+    void send(text);
   };
   const answer = async (a: PendingAsk, value: string) => {
     try {
@@ -260,16 +232,6 @@ export function Panel(p: PanelProps) {
             }
           }}
         />
-        {isDir && (
-          <Button
-            small
-            variant="ghost"
-            disabled={!text.trim() || busyLocal}
-            onClick={() => void send(text, true)}
-          >
-            Start work
-          </Button>
-        )}
         <Button small variant="hero" type="submit">
           Send
         </Button>
@@ -366,18 +328,4 @@ function fmt(s: string): React.ReactNode[] {
   }
   if (last < s.length) out.push(s.slice(last));
   return out;
-}
-
-/** True once the server has recorded this goal's lines in the thread. */
-export function threadHasGoal(messages: ThreadMessage[], goalId: string): boolean {
-  return messages.some((m) => m.goalId === goalId && m.from !== 'user');
-}
-
-/** The director's one line after a goal lands on the whiteboard (fallback for an older server). */
-export function goalLine(g: Goal, agents: Record<string, { name: string; nick?: string | null }>): string {
-  const who = [...new Set(g.items.map((i) => i.agentId))].map((a) => shortOf(agents[a])).filter(Boolean);
-  const names =
-    who.length > 2 ? `${who.slice(0, -1).join(', ')} and ${who[who.length - 1]}` : who.join(' and ');
-  const n = g.items.length;
-  return `On the whiteboard: ${g.summary || g.text}. ${n} task${n === 1 ? '' : 's'}${names ? ` — ${names} on it` : ''}.`;
 }

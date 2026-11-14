@@ -63,6 +63,27 @@ export function pacedBrain(pace: number): (spec: RunSpec) => FakeStep[] {
   };
 }
 
+/** "Build the checkout" → work; "maybe dark mode?" → a reply that asks; anything else → a scripted echo. */
+export function fakeDirector(said: string): { reply: string; work: { goal: string } | null } {
+  const t = said.trim();
+  const ask =
+    /\?\s*$/.test(t) ||
+    /^(maybe|perhaps|should|could|would|what|how|why|when|who|can|is|are|do|does)\b/i.test(t);
+  const work =
+    !ask &&
+    /^(please\s+)?(build|add|make|create|implement|fix|ship|write|set up|setup|research|compare|investigate|find out|review|refactor|design|improve|update|remove|migrate|test|document)\b/i.test(
+      t,
+    );
+  if (work)
+    return { reply: 'On it — it’s going on the whiteboard and I’ll brief the team.', work: { goal: t } };
+  if (ask && /\b(add|build|make|could|should|maybe)\b/i.test(t))
+    return {
+      reply: `Good idea — want me to put “${t.replace(/\?\s*$/, '').slice(0, 160)}” on the whiteboard? Say the word. (A scripted reply: AI_STUDIO_RUNNER=fake.)`,
+      work: null,
+    };
+  return { reply: `Got it — “${t.slice(0, 200)}”. (A scripted reply: AI_STUDIO_RUNNER=fake.)`, work: null };
+}
+
 export function fakeBrain(spec: RunSpec): FakeStep[] {
   const c = contractOf(spec.task);
   const t = spec.task;
@@ -245,6 +266,15 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           { tokens: { input: 600, output: 80 } },
           { result: 'Looks good.\n{"verdict": "approve", "notes": "Meets the brief (fake review)."}' },
         ];
+      /* the director's office-chat turn (one Send): work for a clear ask, a reply (that asks) otherwise */
+      if (t.startsWith('Studio summary right now: ')) {
+        const said = field<string>(t, 'The user says:') ?? '';
+        return [
+          { activity: { kind: 'thinking', label: 'Thinking' } },
+          { tokens: { input: 300, output: 40 } },
+          { result: JSON.stringify(fakeDirector(said)) },
+        ];
+      }
       /* an office-chat turn: a short, obviously-fake reply that echoes the user */
       if (/^The user says: /m.test(t)) {
         const said = field<string>(t, 'The user says:') ?? '';

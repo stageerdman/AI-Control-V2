@@ -251,6 +251,8 @@ export function buildApp({
     reports,
     secretValues: secretValuesOf(secrets),
     orchestratorCaps: caps.orchestrator,
+    /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
+    startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
   });
   threadsRef = threads;
   /* the project's own app (its dev server), on the user's Mac; stopped with the server */

@@ -4,12 +4,15 @@
 
    - an agent runs with its normal composed prompt + tools (team context from its team on this project);
    - the orchestrator runs big picture: its own brain + altitude, NO tools, no secrets, and a fresh
-     summary of the whiteboard, features and health in every message.
+     summary of the whiteboard, features and health in every message. It decides whether the message is
+     work (OFFICE: one Send): its answer is `{reply, work}` (director-reply.ts); work becomes a goal exactly
+     as `POST /work` would, linked to this thread by goalId.
 
    One turn at a time per thread; the runtime's rules still hold (one live run per agent per
    project, caps). The reply arrives later as a `thread.message` event and is stored; asks the run
    opens are answered on the existing asks endpoint. Secrets are redacted before anything is stored. */
 import { randomUUID } from 'node:crypto';
+import { planReply } from '../crew/dispatch.ts';
 import { ORCHESTRATOR_ALTITUDE } from '../crew/prompts.ts';
 import { CREW_CAPS } from '../crew/structured.ts';
 import type { Agent } from '../db/agents.ts';
@@ -18,7 +21,7 @@ import type { Project } from '../db/projects.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
-import { workRepo } from '../db/work.ts';
+import { type Goal, workRepo } from '../db/work.ts';
 import { conflict } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
@@ -26,6 +29,7 @@ import type { Health } from '../health/health.ts';
 import type { Reports } from '../reports/reports.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
+import { DIRECTOR_ANSWER, parseDirectorReply } from './director-reply.ts';
 import type { Features } from './features.ts';
 
 export type ThreadMessage = {
@@ -69,7 +73,7 @@ export function orchestratorChatPrompt(
       'The user is chatting with you in the project’s office. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.',
       'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
-      'You do not do the work yourself. When the user wants something built, suggest they post it as ONE goal on the whiteboard (when it is posted you break it into checklist items yourself — the user does not split it), and say which of the people on the project (the summary’s "people") you would brief. Details belong to the teams — the user can tap any agent to talk to them directly.',
+      'You do not do the work yourself. When the user clearly asks for work, you put it on the whiteboard as ONE goal (each message says how) and break it into checklist items right after — the user does not split it; say which of the people on the project (the summary’s "people") you will brief. When it is only an idea or a question, answer and ask first. Details belong to the teams — the user can tap any agent to talk to them directly.',
       'Research, comparisons, reviews and write-ups end in a report in the Reports tray, filed by a reporter (a role or team marked "files reports"). Route such requests to a reporter on the project; if nobody on it files reports, say so in one line and offer to add one. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
     ].join('\n'),
   ].join('\n\n');
@@ -87,11 +91,17 @@ export function createThreads(deps: {
   secretValues: () => string[];
   /** Caps for the orchestrator's chat turns (default CREW_CAPS). */
   orchestratorCaps?: Caps;
+  /** Make a goal exactly as `POST /work` would (dispatch.start), without its own thread lines. Absent → the
+      director's work answers are replies only. */
+  startWork?: (projectId: string, goal: string) => Promise<Goal>;
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
-  /** runId → the thread its reply belongs to */
-  const turns = new Map<string, { projectId: string; agentId: string }>();
+  /** runId → the thread its reply belongs to (+ the user's message, for the orchestrator's work) */
+  const turns = new Map<
+    string,
+    { projectId: string; agentId: string; orchestrator: boolean; messageId?: string }
+  >();
   const key = (projectId: string, agentId: string) => `${projectId}\u0000${agentId}`;
   const busy = new Set<string>();
   const scrub = (s: string) => redactSecrets(s, deps.secretValues()).value;
@@ -309,6 +319,7 @@ export function createThreads(deps: {
         recap ?? '',
         about,
         `The user says: ${json(text)}`,
+        DIRECTOR_ANSWER,
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -320,6 +331,39 @@ export function createThreads(deps: {
       `The user says: ${json(text)}`,
       `Reply in plain, friendly words. If they ask you to change something, do it here in the project folder, then say what you did. Big-picture questions (priorities, scope, who does what) belong to ${orch}, the orchestrator — point them there.`,
     ].join('\n\n');
+  }
+
+  /** A new goal after a finished one: the orchestrator's next chat turn starts a fresh session (with a recap). */
+  function noteNewGoal(projectId: string, agentId: string, goalId: string) {
+    const finishedBefore = work.goals(projectId).some((g) => g.id !== goalId && g.status !== 'running');
+    if (finishedBefore) setSession(projectId, agentId, { rotate: true });
+  }
+
+  /** The director said "work": the goal goes on the whiteboard (dispatch), the turn's lines carry its goalId,
+      then the plan reply — or why it couldn't be planned. */
+  function startWork(t: { projectId: string; agentId: string }, goal: string, lines: (string | undefined)[]) {
+    const name = (id: string) => store.agents.get(id)?.name ?? id;
+    (deps.startWork as NonNullable<typeof deps.startWork>)(t.projectId, goal).then(
+      (g) => {
+        const ids = lines.filter((x): x is string => !!x);
+        for (const id of ids) db.prepare('UPDATE thread_messages SET goal_id = ? WHERE id = ?').run(g.id, id);
+        noteNewGoal(t.projectId, t.agentId, g.id);
+        insert(t.projectId, t.agentId, {
+          sender: 'agent',
+          kind: 'text',
+          text: clip(planReply(g, name), 20_000),
+          runId: null,
+          goalId: g.id,
+        });
+      },
+      (e: unknown) =>
+        insert(t.projectId, t.agentId, {
+          sender: 'agent',
+          kind: 'error',
+          text: `I couldn’t plan that: ${clip(e instanceof Error ? e.message : String(e), 2000)}`,
+          runId: null,
+        }),
+    );
   }
 
   runtime.onFinished((run: Run) => {
@@ -342,6 +386,17 @@ export function createThreads(deps: {
       return;
     }
     const ok = run.status === 'succeeded' && !!run.result?.trim();
+    if (ok && t.orchestrator) {
+      const d = parseDirectorReply(run.result as string);
+      const reply = insert(t.projectId, t.agentId, {
+        sender: 'agent',
+        kind: 'text',
+        text: d.reply,
+        runId: run.id,
+      });
+      if (d.goal && deps.startWork) startWork(t, d.goal, [t.messageId, reply.id]);
+      return;
+    }
     insert(t.projectId, t.agentId, {
       sender: 'agent',
       kind: ok ? 'text' : 'error',
@@ -409,7 +464,12 @@ export function createThreads(deps: {
           : {}),
       });
       busy.add(k);
-      turns.set(run.id, { projectId, agentId: s.agent.id });
+      const turn: { projectId: string; agentId: string; orchestrator: boolean; messageId?: string } = {
+        projectId,
+        agentId: s.agent.id,
+        orchestrator: s.orchestrator,
+      };
+      turns.set(run.id, turn);
       if (fresh) setSession(projectId, s.agent.id, { startedAt: now(), rotate: false });
       const message = insert(projectId, s.agent.id, {
         sender: 'user',
@@ -418,6 +478,7 @@ export function createThreads(deps: {
         runId: run.id,
         ...(opts.reportId ? { reportId: opts.reportId } : {}),
       });
+      turn.messageId = message.id;
       return { message, runId: run.id };
     },
 
@@ -429,10 +490,8 @@ export function createThreads(deps: {
       m: { sender: 'user' | 'agent'; kind?: ThreadMessage['kind']; text: string; goalId?: string | null },
     ): ThreadMessage {
       /* a new goal after one finished: the orchestrator's next chat turn starts a fresh session (with a recap) */
-      if (m.sender === 'user' && m.goalId && agentId === store.projects.get(projectId)?.orchestratorId) {
-        const finishedBefore = work.goals(projectId).some((g) => g.id !== m.goalId && g.status !== 'running');
-        if (finishedBefore) setSession(projectId, agentId, { rotate: true });
-      }
+      if (m.sender === 'user' && m.goalId && agentId === store.projects.get(projectId)?.orchestratorId)
+        noteNewGoal(projectId, agentId, m.goalId);
       return insert(projectId, agentId, {
         sender: m.sender,
         kind: m.kind ?? 'text',

@@ -10,7 +10,6 @@ import {
   holderOf,
   initLive,
   type Live,
-  looksLikeGoal,
   mergeMessage,
   reduce,
   taskHover,
@@ -306,33 +305,6 @@ describe('the wall', () => {
     expect(f.grades).toEqual([]);
     expect(f.unreadReports).toBe(2);
     expect(f.fresh).toBe(true);
-  });
-  it('goal intent: imperative asks become work, questions stay conversation', () => {
-    expect(looksLikeGoal('Build the checkout page')).toBe(true);
-    expect(looksLikeGoal('Research payment providers')).toBe(true);
-    expect(looksLikeGoal('please add dark mode')).toBe(true);
-    expect(looksLikeGoal('Can you build the checkout?')).toBe(false);
-    expect(looksLikeGoal('how is it going')).toBe(false);
-    expect(looksLikeGoal('fix it?')).toBe(false);
-  });
-});
-
-describe('goal lines from the server thread', () => {
-  it('a goal counts as recorded once a non-user line carries its goalId', async () => {
-    const { threadHasGoal } = await import('./Panel');
-    const m = (from: string, goalId: string | null) => ({
-      id: from,
-      from,
-      kind: 'text' as const,
-      text: '',
-      runId: null,
-      reportId: null,
-      goalId,
-      at: '',
-    });
-    expect(threadHasGoal([m('user', 'g1')], 'g1')).toBe(false);
-    expect(threadHasGoal([m('user', 'g1'), m('orch', 'g1')], 'g1')).toBe(true);
-    expect(threadHasGoal([m('orch', 'g2')], 'g1')).toBe(false);
   });
 });
 
