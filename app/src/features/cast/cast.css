@@ -121,7 +121,6 @@
 .zp-err{margin:6px 0 0;font-size:13px;font-weight:800;color:var(--coral)}
 .zp-caption{display:flex;align-items:center;gap:8px;margin:6px 0 0;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--cream-72)}
 .zp-caption i{font-style:normal;opacity:.5}
-.zp-stats{margin:6px 0 0;font-size:13px;font-weight:700;color:var(--cream-60);font-variant-numeric:tabular-nums}
 .zp-sec{margin-top:22px;padding-top:20px;border-top:1px solid rgba(255,246,233,.08)}
 .zp-label{display:flex;align-items:baseline;gap:10px;margin:0 0 12px;font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-60)}
 .zp-label label{cursor:inherit}

@@ -12,6 +12,7 @@ import {
   enterChoice,
   formationSpot,
   inwardFacing,
+  KIND_ABOUT,
   leastUsedHue,
   lineupRows,
   newTeamLook,
@@ -23,7 +24,6 @@ import {
   roleText,
   roleUse,
   TEAM_MAX,
-  usedIn,
 } from './model';
 
 const look: Look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue: 'sun' };
@@ -52,9 +52,12 @@ describe('cast order + labels', () => {
     expect(roleText({ kind: 'agent', role: 'Frontend', roleId: 'r1' })).toBe('Frontend');
     expect(roleText({ kind: 'agent', role: '', roleId: null })).toBe('No role yet');
   });
-  it('"Used in N projects · each project runs its own copy — no shared memory."', () => {
-    expect(usedIn(1)).toBe('Used in 1 project · each project runs its own copy — no shared memory.');
-    expect(usedIn(3)).toMatch(/^Used in 3 projects · /);
+  it('required crew carry one short line', () => {
+    expect(KIND_ABOUT).toEqual({
+      setter: 'Sets up new projects.',
+      orchestrator: 'Runs a project — big picture.',
+      creator: 'Makes new agents and teams.',
+    });
   });
   it('role usage line', () => {
     expect([roleUse(0), roleUse(1), roleUse(4)]).toEqual(['unused', '1 agent', '4 agents']);

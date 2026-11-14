@@ -12,11 +12,11 @@ export const KIND_LABEL: Record<AgentKind, string> = {
   orchestrator: 'Orchestrator',
   creator: 'Agent Creator',
 };
+/** One short line for each required studio-crew kind (regular agents get none). */
 export const KIND_ABOUT: Record<Exclude<AgentKind, 'agent'>, string> = {
-  setter: 'Sets up every new or adopted project — scaffold, rules, GitHub — before anyone else arrives.',
-  orchestrator: 'Runs a project at big-picture altitude. You pick one per project; it picks the team.',
-  creator:
-    'When an orchestrator needs someone who doesn’t exist yet, designs the agent — or a whole team — and adds them to the Cast.',
+  setter: 'Sets up new projects.',
+  orchestrator: 'Runs a project — big picture.',
+  creator: 'Makes new agents and teams.',
 };
 
 type HasKind = { kind: AgentKind };
@@ -34,9 +34,6 @@ export const roleText = (a: Pick<Agent, 'kind' | 'role' | 'roleId'>) =>
 
 /** Friendly short name for sentences ("Give Pete a job"). */
 export const shortName = (a: Pick<Agent, 'name' | 'nick'>) => a.nick || a.name;
-
-export const usedIn = (n: number) =>
-  `Used in ${n} project${n === 1 ? '' : 's'} · each project runs its own copy — no shared memory.`;
 
 /* ---------- look editing (in-game arrows + dice) ---------- */
 

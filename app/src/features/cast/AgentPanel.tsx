@@ -6,7 +6,7 @@ import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Agent, Role, Team } from '../../api/types';
 import { Emblem } from '../../characters';
 import { go } from '../../shell/router';
-import { isCrew, KIND_ABOUT, KIND_LABEL, usedIn } from './model';
+import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
 import { RoleCombo } from './RoleCombo';
 
 export type PanelAgent = Pick<
@@ -123,9 +123,6 @@ export const AgentPanel = forwardRef<
             <span className={roleShown ? '' : 'none'}>{roleShown || 'No role yet'}</span>
           )}
         </p>
-        <p className="zp-stats">
-          {exists ? usedIn(n) : 'New recruit · each project that uses them runs its own copy.'}
-        </p>
         {crew ? (
           <p className="zp-about">{KIND_ABOUT[kind as Exclude<typeof kind, 'agent'>]}</p>
         ) : (
@@ -175,7 +172,6 @@ export const AgentPanel = forwardRef<
           </section>
         )}
         <div className="zp-danger">
-          {exists && !agent.canDelete.ok && <p className="zp-why">{agent.canDelete.why}</p>}
           {exists && kind === 'orchestrator' && (
             <button
               type="button"
