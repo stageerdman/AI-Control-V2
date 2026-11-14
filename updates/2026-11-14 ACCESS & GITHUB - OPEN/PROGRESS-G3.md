@@ -30,6 +30,11 @@ Commits prefixed `ACCESS G3:` / `ACCESS G4:`. Spec: `spec-ux-G2.md`. Contract: `
    "GitHub not connected" chip is gone (chip only when published). `github.changed` / `github.push` refetch health.
    Shots `g3-setup-github`, `g3-setup-github-setter`, `g3-setup-github-skipped`, `g3-gh-missing`, `g3-gh-publish`,
    `g3-gh-confirm`, `g3-gh-published`, `g3-gh-public-confirm`, `g3-gh-push-failed`, `g3-github-default`.
-3. ⏳ Ports (the Switchboard).
+3. ✅ Ports — `features/ports`: "· Ports" text button in the Projects count line opens **The Switchboard** (read-only
+   wide sheet: project · block · app port running/stopped · also listening, with the agent holding a spare;
+   projects with a folder only, on set first then the back lot muted; `GET /ports` on open + every 5 s while open;
+   name → office). Health App details gain `Ports 3330–3334 · app on 3330 · 3331 also listening · All ports`
+   (opens the sheet with that row highlighted + focused). **Cut:** "Free" (no stop-a-listener route) and "Outside
+   any project" (`GET /ports` doesn't scan outside the blocks). Shots `g3-ports`, `g3-ports-app-row`.
 4. ⏳ Blueprint Rebuild.
 5. ⏳ G4 ship.

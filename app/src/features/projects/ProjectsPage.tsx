@@ -5,6 +5,7 @@ import { type Agent, type Draft, type Project, studio, type Team, useQuery } fro
 import { Hero } from '../../characters/Hero';
 import { go } from '../../shell/router';
 import { Button, EmptyState, ErrorState, Loading, Pill, Progress } from '../../ui';
+import { PortsSheet } from '../ports';
 import { DraftCard } from '../setup/DraftCard';
 import { DRAFTS_KEY } from '../setup/drafts';
 import { studioReports } from './api';
@@ -31,6 +32,7 @@ export function ProjectsPage() {
   const agents = useQuery('agents', studio.agents.list);
   const teams = useQuery('teams', studio.teams.list);
   const [q, setQ] = useState(lastQuery);
+  const [portsOpen, setPortsOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   lastQuery = q;
 
@@ -104,9 +106,18 @@ export function ProjectsPage() {
             }}
           />
         </div>
-        <div className="result-count" aria-live="polite">
-          {!loading && !err ? shelfCount(s) : ''}
+        <div className="result-count">
+          <span aria-live="polite">{!loading && !err ? shelfCount(s) : ''}</span>
+          {!loading && !err && (
+            <>
+              {' · '}
+              <button type="button" className="count-link" onClick={() => setPortsOpen(true)}>
+                Ports
+              </button>
+            </>
+          )}
         </div>
+        <PortsSheet open={portsOpen} onClose={() => setPortsOpen(false)} />
       </div>
       {err ? (
         <ErrorState

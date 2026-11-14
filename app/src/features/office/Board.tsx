@@ -24,6 +24,7 @@ import {
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
 import { type Resolve, WorkDesign } from '../collab';
+import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
 import { GithubRow } from './GithubRow';
@@ -597,6 +598,7 @@ function AppRow({ pid }: { pid: string }) {
       )}
       {open && a && (
         <div className="ob-app-more">
+          <PortsLine pid={pid} />
           <label className="ob-fl" htmlFor="obRun">
             Run command{a.source ? <span className="ob-app-src"> · from {a.source}</span> : null}
           </label>
@@ -624,6 +626,24 @@ function AppRow({ pid }: { pid: string }) {
         </div>
       )}
     </li>
+  );
+}
+
+/** "Ports 3290–3294 · app on 3290 · 3291 also listening · All ports" (G3: the Switchboard's per-project line). */
+function PortsLine({ pid }: { pid: string }) {
+  const ports = usePorts();
+  const [open, setOpen] = useState(false);
+  const mine = ports.data?.projects.find((p) => p.projectId === pid);
+  if (!mine) return null;
+  return (
+    <p className="ob-ports">
+      {portsLine(mine)}
+      {' · '}
+      <button type="button" className="ob-applink ob-linkbtn" onClick={() => setOpen(true)}>
+        All ports
+      </button>
+      <PortsSheet open={open} onClose={() => setOpen(false)} focusProject={pid} />
+    </p>
   );
 }
 
