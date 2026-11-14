@@ -71,3 +71,4 @@ on hover or focus, aria-label "Agent time: 11h 5m", or "…, 2 agents working no
 no label under it. Mouse, Enter or Space open the same Agent time sheet. While agents work, its hands tick slowly
 (they stay still in reduced motion). Shots: `office-v2-office`, `office-v2-wall` (empty above the safe),
 `office-v2-clock-hover`, `office-v2-clock-sheet`, `office-v2-clock-ticking`. The hourglass shots were removed.
+- Shipped v2: backup `~/.ai-studio/backups/studio-before-office-clock-20261114-230655.db` (integrity ok, v25, 5 projects), release `tauri build`, graceful quit (4319 + lock free in 2 s), replaced and reopened from /Applications — up in 4 s, `/projects/habit-hatch/time` answers, the 5 projects listed, health 200 after 15 s. Left running.
