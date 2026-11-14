@@ -1097,7 +1097,7 @@ export function createDispatch(deps: {
               ? 'Nobody has recorded how to start the app yet: the item that touches it adds `run: <command>` to `.project`.'
               : '',
             features
-              ? 'Link the goal to the feature it builds in "feature": {"id": "<an id from Features>"} or a new one {"name": "Short name", "description": "What it is, in a sentence or two"} (it goes to Now). It moves to Shipped once every item has landed; set "ships": false when this goal is only a step and the feature isn’t finished by it. Research or report goals: leave "feature" out.'
+              ? 'Link the goal to the feature it builds in "feature": {"id": "<an id from Features>"} or a new one {"name": "Short name", "description": "What it is, in a sentence or two"} (it goes to Now). It moves to Shipped once every item has landed; set "ships": false when this goal is only a step and the feature isn’t finished by it. A Shipped feature is done: a goal that ADDS something new to it (a new view, a new ability) gets a NEW feature; link a shipped one only for a fix to it. Research or report goals: leave "feature" out.'
               : '',
             '"text" is the whiteboard line (short); "brief" tells the assignee what done looks like.',
             collab?.gates.length
