@@ -336,7 +336,7 @@ export function createDispatch(deps: {
         : '',
       it.report
         ? ''
-        : 'If your work sets up or changes how the app starts, record it in `.project` as one line `run: <command>` (e.g. `run: npm run dev`) so the studio can start it.',
+        : 'If your work sets up or changes how the app starts, record it in `.project` as one line `run: <command>` (e.g. `run: npm run dev`) so the studio can start it. A server reads its port from the PORT environment variable (default 3000) — the studio gives each project its own.',
       reviewers.length
         ? `When you are done, your work goes to ${reviewers.join(', then ')} for review — keep it focused on the brief and commit it.`
         : '',

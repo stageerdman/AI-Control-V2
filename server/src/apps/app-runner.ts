@@ -3,7 +3,9 @@
    - One process per project, in its own process group (stop = the whole group: npm + vite + …); every app is
      stopped when the server shuts down.
    - The env is the minimal run env (PATH, HOME…) — never the server's own env; the app reads its project .env itself.
-   - Output: the last lines, ANSI stripped, every known secret value masked; the first local URL it prints is the app's address. */
+   - Output: the last lines, ANSI stripped, every known secret value masked; the first local URL it prints is the app's address.
+   - PORT (F3): each project gets its own stable port in the env — two apps that both default to 3000 otherwise "both run"
+     (one on 127.0.0.1, one on ::1) and the browser shows whichever `localhost` resolves to. Apps are told to honour PORT. */
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import type { Store } from '../db/store.ts';
@@ -14,6 +16,20 @@ import { runEnv } from '../runtime/env.ts';
 import { runCommandOf, writeRunLine } from './run-command.ts';
 
 export const LOG_LINES = 200;
+/** Project app ports: 3100–3999, stable per project id (clear of 3000 and the studio's own 4xxx ports). */
+const PORT_BASE = 3100;
+const PORT_SPAN = 900;
+
+/** Pure: a project's preferred app port — stable for its id, the next free one when another running app holds it. */
+export function portFor(projectId: string, taken: ReadonlySet<number>): number {
+  let h = 0;
+  for (const c of projectId) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  for (let i = 0; i < PORT_SPAN; i++) {
+    const port = PORT_BASE + ((h + i) % PORT_SPAN);
+    if (!taken.has(port)) return port;
+  }
+  return PORT_BASE;
+}
 const STOP_GRACE_MS = 3000;
 
 export type AppStatus = 'stopped' | 'running' | 'exited';
@@ -29,9 +45,12 @@ export type AppView = {
   exitCode: number | null;
   /** The last output lines (secrets masked). */
   log: string[];
+  /** The PORT the studio gave it (null when not running). */
+  port: number | null;
 };
 type Live = {
   child: ChildProcess;
+  port: number;
   command: string;
   url: string | null;
   startedAt: string;
@@ -102,6 +121,7 @@ export function createAppRunner(deps: {
       startedAt: l?.startedAt ?? null,
       exitCode: l?.exitCode ?? null,
       log: l ? [...l.log] : [],
+      port: l?.status === 'running' ? l.port : null,
     };
   }
 
@@ -113,15 +133,21 @@ export function createAppRunner(deps: {
       throw conflict(
         'Nobody has recorded how to start this app yet — add a `run:` line to .project (or ask the team to)',
       );
+    const port = portFor(projectId, new Set([...live.values()].map((x) => x.port)));
     const child = spawn('/bin/sh', ['-c', run.command], {
       cwd: dir,
       detached: true, // its own process group: stop takes npm and the server it started
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: runEnv(deps.parentEnv ?? process.env, {}, { BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' }),
+      env: runEnv(
+        deps.parentEnv ?? process.env,
+        {},
+        { BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1', PORT: String(port) },
+      ),
     });
     let resolveExit = () => {};
     const l: Live = {
       child,
+      port,
       command: run.command,
       url: null,
       startedAt: new Date().toISOString(),

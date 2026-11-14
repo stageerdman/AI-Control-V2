@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { maskLine, urlIn } from '../../src/apps/app-runner.ts';
+import { maskLine, portFor, urlIn } from '../../src/apps/app-runner.ts';
 import { readRunLine, runCommandOf } from '../../src/apps/run-command.ts';
 import { testApp } from '../helpers.ts';
 
@@ -126,6 +126,29 @@ describe('run the app (F1c)', () => {
     expect(alive(pid)).toBe(true);
     await h.app.close();
     expect(alive(pid)).toBe(false);
+  });
+
+  it('each project app gets its own stable PORT (F3 live: two apps both on 3000 "both ran")', async () => {
+    setup({
+      '.project': 'name: Aurora\nrun: node port.js\n',
+      'port.js': "console.log('on http://localhost:' + process.env.PORT); setInterval(() => {}, 1000);",
+    });
+    await h.call('POST', '/projects/aurora/app/start');
+    await wait(async () => !!(await h.call('GET', '/projects/aurora/app')).body.url);
+    const v = (await h.call('GET', '/projects/aurora/app')).body;
+    expect(v.port).toBe(portFor('aurora', new Set()));
+    expect(v.url).toBe(`http://localhost:${v.port}`);
+    await h.call('POST', '/projects/aurora/app/stop');
+    expect((await h.call('GET', '/projects/aurora/app')).body.port).toBeNull();
+  });
+
+  it('portFor: stable per project, in 3100–3999, skips ports another running app holds', () => {
+    const a = portFor('habit-hatch', new Set());
+    expect(portFor('habit-hatch', new Set())).toBe(a);
+    expect(a).toBeGreaterThanOrEqual(3100);
+    expect(a).toBeLessThan(4000);
+    expect(portFor('habit-hatch', new Set([a]))).not.toBe(a);
+    expect(portFor('recipe-scaler', new Set())).not.toBe(a);
   });
 
   it('pure helpers', () => {
