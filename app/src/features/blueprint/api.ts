@@ -20,6 +20,8 @@ export const blueprintApi = {
   get: () => http.get<Blueprint>('/blueprint'),
   scaffold: (projectId: string) => studio.projects.scaffold(projectId) as Promise<Scaffold>,
   projects: studio.projects.list,
+  /** POST /projects/:id/claude-md/rebuild — 409 (no "## Project-specific rules", no CLAUDE.md) is said as-is. */
+  rebuild: studio.projects.rebuildClaudeMd,
 };
 
 export const keys = { blueprint: 'blueprint', scaffold: (id: string) => `blueprint:scaffold:${id}` };

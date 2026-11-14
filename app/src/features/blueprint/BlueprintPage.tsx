@@ -2,7 +2,8 @@
    scaffold), the principles it follows (the global modules, read-only here: their source is
    <AI Control home>/modules), and per-project freshness (GET /projects/:id/scaffold). */
 import { useState } from 'react';
-import { setQueryData, useQuery } from '../../api/query';
+import { isApiError } from '../../api/client';
+import { invalidate, setQueryData, useQuery } from '../../api/query';
 import { studio } from '../../api/studio';
 import type { Project } from '../../api/types';
 import { Hero } from '../../characters/Hero';
@@ -212,8 +213,9 @@ function FreshnessList({ modules }: { modules: BlueprintModule[] }) {
         <FreshRow key={p.id} project={p} modules={modules} />
       ))}
       <p className="hint" style={{ margin: '4px 0 0' }}>
-        A project is up to date when its CLAUDE.md was compiled after the last module change. Rebuild an
-        outdated one with the <code>rebuild-claude-md</code> routine.
+        A project is up to date when its CLAUDE.md was compiled after the last module change. Rebuild
+        recompiles it from the modules and keeps the project's own rules (its “Project-specific rules”
+        section) as they are.
       </p>
     </>
   );
@@ -222,6 +224,25 @@ function FreshnessList({ modules }: { modules: BlueprintModule[] }) {
 function FreshRow({ project: p, modules }: { project: Project; modules: BlueprintModule[] }) {
   const rep = useQuery(keys.scaffold(p.id), () => blueprintApi.scaffold(p.id));
   const f = rep.data && freshness(rep.data, modules);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function rebuild() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await blueprintApi.rebuild(p.id);
+      toast(
+        r.changed
+          ? `📘 ${p.name}’s CLAUDE.md rebuilt from the modules`
+          : `📘 ${p.name} was already up to date`,
+      );
+      await invalidate(keys.scaffold(p.id));
+    } catch (e) {
+      setErr(isApiError(e) ? e.message : 'The rebuild didn’t finish — try again.'); // a 409 is written for the user
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="fresh-row">
       <LogoTile tile={p.tile} small />
@@ -234,6 +255,21 @@ function FreshRow({ project: p, modules }: { project: Project; modules: Blueprin
       <div className={`st ${f?.state === 'ok' ? 'ok' : f ? 'stale' : ''}`}>
         {rep.loading ? 'Checking…' : rep.error ? `⚠ Can't check — ${rep.error.message}` : f?.label}
       </div>
+      {f?.state === 'stale' && (
+        <Button
+          small
+          onClick={() => void rebuild()}
+          disabled={busy}
+          aria-label={`Rebuild ${p.name}’s CLAUDE.md`}
+        >
+          {busy ? 'Rebuilding…' : 'Rebuild'}
+        </Button>
+      )}
+      {err && (
+        <p className="fresh-err" role="alert">
+          {err}
+        </p>
+      )}
     </div>
   );
 }

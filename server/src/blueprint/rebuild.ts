@@ -4,7 +4,7 @@
 import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { conflict } from '../errors.ts';
-import { commitOnly, isRepo } from '../setter/git.ts';
+import { commitOnly, dirtyOf, isRepo } from '../setter/git.ts';
 import { type CompileInput, compileClaudeMd } from './modules.ts';
 
 export const RULES_HEADING = '## Project-specific rules';
@@ -58,14 +58,15 @@ export async function rebuildClaudeMd(
     const stamped = /^claude_md_generated:.*$/m.test(text)
       ? text.replace(/^claude_md_generated:.*$/m, `claude_md_generated: ${date}`)
       : `${text}${text.endsWith('\n') || !text ? '' : '\n'}claude_md_generated: ${date}\n`;
-    if (stamped !== text && changed.length) {
+    if (stamped !== text) {
+      /* the compile is current even when the text came out the same (a module was touched, not changed) */
       writeFileSync(marker, stamped);
       changed.push('.project');
     }
   }
-  const commit =
-    changed.length && isRepo(dir)
-      ? await commitOnly(dir, changed, 'AI Studio: rebuild CLAUDE.md from the modules')
-      : null;
+  const toCommit = isRepo(dir) ? dirtyOf(dir, changed) : [];
+  const commit = toCommit.length
+    ? await commitOnly(dir, toCommit, 'AI Studio: rebuild CLAUDE.md from the modules')
+    : null;
   return { file: 'CLAUDE.md', changed: changed.includes('CLAUDE.md'), modules, commit };
 }

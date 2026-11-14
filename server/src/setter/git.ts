@@ -37,6 +37,9 @@ export function firstRemoteUrl(dir: string): string | null {
   const name = (tryRun(dir, ['remote']) ?? '').split('\n').filter(Boolean)[0];
   return name ? tryRun(dir, ['config', '--get', `remote.${name}.url`]) || null : null;
 }
+/** Of `paths`, the ones git sees as changed (a file written back to what HEAD has is not). */
+export const dirtyOf = (dir: string, paths: readonly string[]): string[] =>
+  paths.filter((p) => !!tryRun(dir, ['status', '--porcelain', '--', p]));
 export const commitCount = (dir: string) => Number(tryRun(dir, ['rev-list', '--count', 'HEAD']) ?? 0);
 
 export async function init(dir: string): Promise<void> {

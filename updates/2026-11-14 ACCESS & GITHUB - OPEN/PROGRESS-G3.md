@@ -36,5 +36,10 @@ Commits prefixed `ACCESS G3:` / `ACCESS G4:`. Spec: `spec-ux-G2.md`. Contract: `
    name → office). Health App details gain `Ports 3330–3334 · app on 3330 · 3331 also listening · All ports`
    (opens the sheet with that row highlighted + focused). **Cut:** "Free" (no stop-a-listener route) and "Outside
    any project" (`GET /ports` doesn't scan outside the blocks). Shots `g3-ports`, `g3-ports-app-row`.
-4. ⏳ Blueprint Rebuild.
+4. ✅ Blueprint Rebuild — there was no button yet (only a hint naming the routine); each stale project on the
+   Principles tab's freshness list now has `Rebuild` → `POST /projects/:id/claude-md/rebuild`, a 409 shown
+   word for word under the row, success = toast + the row goes ✓. Server fixes found on the way (tested): the
+   compile date moves on even when the text came out the same (a touched module left the row stale for ever),
+   and only files git sees as changed are committed (a stamp written back to HEAD's content was a 500).
+   Shot `g3-rebuild`.
 5. ⏳ G4 ship.

@@ -73,6 +73,25 @@ describe('CLAUDE.md rebuild', () => {
       changed: false,
       commit: null,
     });
+    /* a module touched, not changed (G3): the text is the same, but the compile date moves on */
+    const marker = join(dir, '.project');
+    writeFileSync(
+      marker,
+      readFileSync(marker, 'utf8').replace(/claude_md_generated: .*/, 'claude_md_generated: 2026-01-01'),
+    );
+    git(dir, '-c', 'user.name=T', '-c', 'user.email=t@x', 'commit', '-qam', 'old stamp');
+    const touched = (await app.call('POST', `/projects/${p.id}/claude-md/rebuild`)).body;
+    expect(touched).toMatchObject({ changed: false, commit: expect.any(String) });
+    expect(readFileSync(marker, 'utf8')).not.toContain('2026-01-01');
+    /* an uncommitted old stamp written back to what HEAD has: nothing to commit, no error */
+    writeFileSync(
+      marker,
+      readFileSync(marker, 'utf8').replace(/claude_md_generated: .*/, 'claude_md_generated: 2026-01-01'),
+    );
+    const back = await app.call('POST', `/projects/${p.id}/claude-md/rebuild`);
+    expect(back.status).toBe(200);
+    expect(back.body).toMatchObject({ changed: false, commit: null });
+    expect(git(dir, 'status', '--porcelain')).toBe('');
     /* no rules heading → refused, file untouched */
     writeFileSync(md, '# Hand-written\n\nMy rules.\n');
     const no = await app.call('POST', `/projects/${p.id}/claude-md/rebuild`);

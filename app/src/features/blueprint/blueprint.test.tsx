@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '../../api/client';
 import { clearQueryCache } from '../../api/query';
 import type { Scaffold } from './api';
 import { firstSentence, freshness, freshnessProjects, kitTree, localDay, principlesOf } from './model';
@@ -85,8 +86,16 @@ describe('blueprint model', () => {
   });
 });
 
+const rebuild = vi.hoisted(() => vi.fn());
+vi.mock('../../api/studio', () => ({
+  studio: {
+    settings: async () => ({ githubByDefault: true }),
+    setSettings: async () => ({ githubByDefault: false }),
+  },
+}));
 vi.mock('./api', () => ({
   blueprintApi: {
+    rebuild,
     get: async () => ({ modulesDir: '/Users/x/.ai-control/modules', modules: [CODING], tree: [...TREE] }),
     projects: async () => [
       {
@@ -120,5 +129,20 @@ describe('BlueprintPage', () => {
     const d = screen.getByRole('dialog', { name: 'Coding module' });
     expect(within(d).getByRole('heading', { name: 'Coding' })).toBeTruthy();
     expect(within(d).getByText('only what is needed').tagName).toBe('STRONG');
+  });
+  it('Rebuild: a stale project gets the button; a 409 is shown as the server wrote it', async () => {
+    const msg =
+      'CLAUDE.md has no "## Project-specific rules" section — add that heading above the project\'s own rules, then rebuild';
+    rebuild.mockRejectedValueOnce(new ApiError(409, 'conflict', msg));
+    rebuild.mockResolvedValueOnce({ file: 'CLAUDE.md', changed: true, modules: ['CODING'], commit: 'abc' });
+    render(<BlueprintPage route={{ name: 'blueprint' }} />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Principles' }));
+    const btn = await screen.findByRole('button', { name: 'Rebuild Aurora’s CLAUDE.md' });
+    await act(async () => fireEvent.click(btn));
+    expect(rebuild).toHaveBeenCalledWith('aurora');
+    expect((await screen.findByRole('alert')).textContent).toBe(msg);
+    await act(async () => fireEvent.click(btn));
+    expect(rebuild).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });
