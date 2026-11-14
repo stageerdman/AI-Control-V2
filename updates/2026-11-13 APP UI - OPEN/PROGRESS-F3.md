@@ -1,4 +1,4 @@
-# PROGRESS — F3 Real-AI end-to-end (server) — ⏳ in progress
+# PROGRESS — F3 Real-AI end-to-end (server) — ✅ done (6 live runs, 4 apps working, 9 issues fixed, 320 tests)
 
 Resume notes. Plan: `update v1.md` (Overnight final build → F3). Builds on `PROGRESS-F1b.md`, `PROGRESS-F1c.md`. API: `server/README.md`.
 Commits prefixed `ENGINE F3:`. `app/` is F2's — not touched here.
@@ -62,6 +62,28 @@ Usage: ≈ 13 runs, ≈ 160 turns (≈ $3.8 API-equivalent).
 - outcome: goal done, main +8 commits, nothing left behind, `npm test` 52/52. Browser: 7 dots per habit, Yesterday tick + today → "2 days", 2 filled dots after reload, 0 errors (`shots/f3-habit-hatch-weekly.png`).
 Usage: ≈ 13 runs, ≈ 110 turns (≈ $3.1 API-equivalent).
 
+### Run 5 — F3 Todo CLI (fresh, a command-line app) — ✅ **clean: no user answer, no hand stop**
+`~/dev/AI-Studio-Sandbox/f3-todo-cli`, Maestro, staffing left to it → specialists Captain Semicolon + Scarlett, gate quality. Parallel with run 6.
+- 2 items (setup, then the commands) → item 1 approved first time; item 2: **Scarlett sent it back once for a real bug** (a second broken
+  `todos.json` overwrote the first backup — she committed a failing check in `tools/scarlett-scenario/`) → fixed → approved → merged.
+- outcome: feature **Todo CLI basics** shipped, `npm test` 30/30, nothing left behind, `todos.json` ignored.
+- Run the app → `node todo.js` → **exited 0** with the list + help in its log (a CLI ends by itself — see For the UI). By hand: add ×2,
+  done 1, list `[x] buy milk / [ ] call mum`, remove 2, survives between runs, `done 9` → "There is no todo 9." exit 1.
+
+### Run 6 — follow-up goal on Bookmark Box (iteration, specialists) — ✅ **clean**
+"Add search (?q=, title or url, case-insensitive, with ?tag=) and GET /bookmarks/:id; tests + README."
+- dispatch made a **new feature "Bookmark search and lookup"** in Now (fix 7 live) → office 50 % (1/2) while it ran → 1 item → approved
+  first time → merged → Shipped, office 100 % (2/2).
+- Run the app: `?q=node&tag=js` → the right one, `/bookmarks/2` → it, `/bookmarks/999` → 404; **run 2's data still there**. 24/24 tests.
+
+### Apps side by side + adoption
+- Habit Hatch and Recipe Scaler both defaulted to port 3000 and both "ran" (one on 127.0.0.1, one on ::1) → the browser showed
+  whichever `localhost` resolved to (bug 9) → fixed: after it, Habit Hatch :3931, Recipe Scaler :3375, Bookmark Box :3804 run at once,
+  each answers with its own page/API (the agents had already written `PORT` support).
+- **Adoption check** (fake-runner backend on :4602 with an empty data dir, on a throwaway copy of f3-todo-cli): New → adopt the folder →
+  Setter: every scaffold step "kept / left untouched", no commit; files byte-identical (md5); finish → the project, `run: node todo.js`
+  picked up from `.project`. Copy removed afterwards.
+
 ## Issues found → fixed
 1. **(b33f888) The orchestrator's office chat didn't know who was on the project** — its per-turn summary had the whiteboard, features
    and health but no staffing, so it told a staffed project "I don't see a team yet" and offered to mint one. Summary now carries
@@ -93,7 +115,48 @@ Usage: ≈ 13 runs, ≈ 110 turns (≈ $3.1 API-equivalent).
    (`origin.kind: task-notification`): after the answer (fix 2) and, on `--resume`, BEFORE the task (the last session's killed shell; empty,
    0 turns). The runner closed stdin on it, so the rework never ran. Now a notice is never the answer (before or after it only adds
    turns/tokens; cost = the CLI's cumulative max). Fixture `live-f3-resume-notice-first.jsonl` → `live-f3.test.ts` (fails without).
+   (Runs 5–6 had no background notices, so this one is proven by the replayed real stream, not by a second live hit.)
+9. **(0e7a145) Two apps on the same port** → Run the app now sets `PORT` per project (3100–3999, stable per id, next free if another
+   running app holds it; the view has `port`), and build briefs say "a server reads its port from PORT (default 3000)". Tests:
+   `app-runner.test.ts` (real process prints its PORT; `portFor` stable/skips taken). README updated. Confirmed live (3 apps at once).
+
+## Reliability evidence (final)
+| run | app | intervention | send-backs | outcome |
+|---|---|---|---|---|
+| 1 | Habit Hatch (web) | 1 answer (bug 3) | 0 | shipped, browser-verified |
+| 2 | Bookmark Box (API + report) | 1 answer (bug 5) + 1 hand stop (bug 6) | 0 | shipped, curl-verified |
+| 3 | Recipe Scaler (web, team + report) | **none** | 0 | shipped, browser-verified |
+| 4 | Habit Hatch follow-up | none (but 1 wasted send-back, bug 8) | 2 | shipped, browser-verified |
+| 5 | Todo CLI (fresh) | **none** | 1 (a real bug caught) | shipped, CLI-verified |
+| 6 | Bookmark Box follow-up | **none** | 0 | shipped, curl-verified |
+Every run: goal done, feature Shipped, all work merged into main, no checkout / `studio/*` branch left, tree clean, the project's tests
+green (36→52, 16→24, 69, 30). Runs 3, 5, 6 went end to end with no intervention; each issue from runs 1, 2, 4 has a fix + a test.
 
 ## Plan usage (subscription: runs + turns; the CLI's $ is API-equivalent only)
+All of F3 (6 runs, 4 projects, incl. setup chats, dispatches, splits, builds, reviews, reports, 1 health check): **64 Claude Code runs,
+595 turns** (≈ $14.9 API-equivalent — nothing charged; it's plan usage). Per run: 1 ≈ 18 runs / 108 turns · 2 ≈ 9 / 95 · 3 ≈ 13 / 160 ·
+4 ≈ 13 / 110 · 5 ≈ 8 / 94 · 6 ≈ 3 / 31. Crew calls (setup chat, dispatch) are small: 12 runs, 12 turns in total.
 
 ## For the UI
+1. **Run the app view:** use `url` (now a per-project port, e.g. :3931 — never assume 3000) and show `port`. A **CLI** app ends by itself:
+   `status: exited, exitCode: 0` with its output in `log` should read "Ran and finished" + the output, not as a crash (exitCode ≠ 0 = failed).
+2. **Item notes are the agents' raw summaries** — they often open with process talk ("It's committed on my branch and not pushed", "I
+   haven't opened it in a browser"). On the whiteboard show a clipped first sentence, the rest on hover/zoom.
+3. **Follow-up goals now add a new feature** → overall % drops (100 → 50 "1 of 2 shipped") while it runs; make that read calm and expected.
+4. **Asks**: members no longer ask about teammates' parts, but an ask can still come mid-run (both live ones had good `options` — "Use your
+   assumed shapes" / "node:sqlite (recommended)"); the pager + options chips are the whole flow.
+5. **The desktop app's backend must restart** to pick up these server fixes (it runs `npm start` from `server/` at launch) — quit and reopen.
+
+## Morning notes
+- **Built here** (all in `~/dev/AI-Studio-Sandbox/`, local git only, no remotes): `f3-habit-hatch` (web, `npm start`), `f3-bookmark-box`
+  (JSON API, `npm start`, README with curl), `f3-recipe-scaler` (web, `npm start`), `f3-todo-cli` (`node todo.js …`). Each has tests
+  (`npm test`), `run:` in `.project`, CLAUDE.md project rules, and an `updates/` plan the agents kept.
+- **Use them in the real app:** Projects → New → *Adopt* → pick the folder → Rivet keeps everything (verified: nothing changed, no
+  commit) → pick an orchestrator + team → office. Their F3 goal/report history lives only in the isolated test db (scratchpad
+  `f3/home/studio.db`), not in `~/.ai-studio` — adopting starts a fresh history.
+- **Known gaps:** agents can't look at a page in a real browser (they check with `npm test` + node fetch smoke scripts; members say so in
+  their summaries) — a toolsmith toolkit with a headless browser would close it; env-prefixed commands (`PORT=… npm start`) are refused
+  by the dev shell allow-list (agents adapt); a test failed once in the baseline suite (1 of 311) and never again in ~12 full runs — not
+  pinned down; the orchestrator's chat resumes one session, so it may repeat an older idea (it said "four goals" after being told one).
+- App nits (agents' work, not the engine): Recipe Scaler says "1 1/4 cup" (no plural); Habit Hatch's streak stays 0 until today is
+  ticked (its design: counts back from today).
