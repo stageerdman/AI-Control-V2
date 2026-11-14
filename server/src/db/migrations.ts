@@ -417,6 +417,21 @@ export const MIGRATIONS: readonly string[] = [
   DROP TABLE credentials;
   ALTER TABLE projects ADD COLUMN access_seen_at TEXT;
   `,
+  /* 22 — GitHub (G1): the repo the studio created (or adopted) for a sandbox folder — keyed by folder so a draft's
+     setup and the project it becomes share it. last_push = JSON {ok, at, note?, commit?} of the latest auto-push.
+     drafts.github = this draft's choice at setup (NULL = the studio default, meta 'github_by_default').
+     The B0 seed's github_connected / github_private flags were placeholders: the project payload now reads this table. */
+  `
+  CREATE TABLE github_repos (
+    folder     TEXT PRIMARY KEY,
+    url        TEXT NOT NULL,
+    visibility TEXT CHECK (visibility IN ('public', 'private', 'internal')),
+    last_push  TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  ALTER TABLE drafts ADD COLUMN github INTEGER;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

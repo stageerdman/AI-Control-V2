@@ -31,6 +31,7 @@ brings back things you deleted.
 | `AI_STUDIO_MODEL` | `claude-opus-5-5` | model for agent runs |
 | `AI_STUDIO_AGENT_TURNS` · `AI_STUDIO_REVIEW_TURNS` · `AI_STUDIO_ORCHESTRATOR_TURNS` | 30 · 15 · 6 | turn caps per kind of run (budgets: $10 · $5 · $2 API-equivalent size caps — the subscription is used, nothing is charged); a goal's own `caps` still win |
 | `AI_STUDIO_AGENT_SHELL` | `dev` | shell commands agent runs may use, one plain command at a time: `dev` = `git ls cat pwd mkdir npm npx node` (building real apps: install, run tests); `safe` = B5's `git ls cat pwd` |
+| `AI_STUDIO_GH_BIN` | first of `/opt/homebrew/bin/gh`, `/usr/local/bin/gh`, `/usr/bin/gh` | GitHub CLI the studio runs for publishing, visibility and health (absolute path; tests and manual checks point it at a stub — never let a check create a real repo) |
 | `AI_STUDIO_RUNNER` | (CLI) | `fake` = the free scripted runner + fake crew brain (UI work, demos): the whole setup → work flow runs without Claude |
 
 **One backend per data dir** (F1c): the server takes `<AI_STUDIO_HOME>/server.lock` `{pid, port, startedAt}` before it opens the db; a
@@ -106,6 +107,10 @@ Bodies are strict — unknown keys are 422.
 | `GET /projects/:id/reports[?archived=1]` | the Reports tray: `{reports (newest first, no body), unread}` — archived ones only with `?archived=1` |
 | `GET /projects/:id/reports/:rid` · `PATCH /projects/:id/reports/:rid` `{read?, archived?}` | one report (full body) · mark read / archive (or undo) → events `report.read` / `report.archived` |
 | `GET /reports[?limit=50]` | studio-wide: the latest non-archived reports across projects (+ `projectName`), newest first, + the `unread` total |
+| `GET /projects/:id/github` | `{published, url, visibility, lastPush: {ok, at, note?, commit?} \| null, note?}` — `note` = "GitHub not connected — Publish" or "Couldn’t push to GitHub: …" (also in `GET …/health` as `github`) |
+| `POST /projects/:id/github/publish` `{name?, visibility: private\|public (default private)}` | the user's button: `gh repo create <name (default: folder)> --private\|--public`, `origin` = `https://github.com/<owner>/<name>.git`, push the current branch → 201 view + `pushed`. 409: gh missing, gh not logged in, already a remote, not a repo / no commit, GitHub refused. Event `github.changed {published, url, visibility}` |
+| `PATCH /projects/:id/github` `{visibility}` | `gh repo edit <repo> --visibility … --accept-visibility-change-consequences` → the view (409 when not published) |
+| `GET PATCH /settings` | studio-wide: `{githubByDefault}` (on): new projects get a GitHub repo at setup |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description, body = the markdown text, updatedAt = file mtime) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/setup` | the Project Setter, on the draft (user's order: Setter first, then the orchestrator picks the team): scaffold the folder (new or adopt) + local commit, steps live on the draft stream; the draft then owns the folder (hidden from `/sandbox/folders`, no second draft may claim it). Idempotent/resumable: again = only what's missing (`commit: null`). A failed *first* setup of a new project removes the folder it just made; nothing else is ever removed → `{draft, steps, commit}` |
@@ -256,6 +261,13 @@ that filed a report replies in one line (`"<Nick> filed it — <title>."`, `repo
 knowledge-not-change goals (research, compare, review, write-up…): only a reporter may take one, its brief says to answer with
 `file_report`, and it's **done only when its run filed a report** (else failed: "Finished without filing the report"); goal items expose
 `reportId`. Big-picture prompts (setup chat, dispatch, orchestrator chat) route research to reporters; the Cast catalogue marks them.
+
+**GitHub** (G1, `src/github/github.ts`): the Project Setter's last step (`setup.step` `github`) creates a **private repo named after
+the folder** and pushes (`done`), keeps an existing origin (`kept`), or is `skipped` when the draft says `github: false` (`PATCH
+/drafts/:id` or `POST /drafts/:id/setup {github: false}`), the studio setting is off, gh is missing / logged out, or GitHub refuses —
+the setup always finishes. After every `item.merged` on a published project the studio pushes (one at a time) → `github.push {ok,
+commit?, note?}`; a failure is a note on health, never the item's. Agents never push: runs with a shell get `--disallowed-tools
+Bash(git push),Bash(git push *)`. The project payload's `github` = `{connected, private, published, url, visibility}`.
 
 **Git / GitHub status** (`src/health/git-status.ts`): branch, clean + change count, last commit, commit count, first remote (URL
 with credentials stripped). GitHub visibility (`gh repo view <owner/repo> --json visibility`, read-only, 10 s) is asked only during

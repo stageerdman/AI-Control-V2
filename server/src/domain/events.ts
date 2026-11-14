@@ -177,6 +177,14 @@ export const EVENT_SCHEMAS = {
   /** F1c: every item of a goal that works on this feature landed — the feature moved to Shipped. */
   'feature.shipped': z.strictObject({ featureId: id, goalId: id, name: text(120) }),
   /** F1c: the project's app (its dev server / start command) started, printed its address, stopped or exited. */
+  /** G1: the project's GitHub repo was published or its visibility changed. */
+  'github.changed': z.strictObject({
+    published: z.boolean(),
+    url: text(300).nullable(),
+    visibility: z.enum(['public', 'private', 'internal']).nullable(),
+  }),
+  /** G1: the studio pushed main after a merge (a failure is a calm note, never the item's). */
+  'github.push': z.strictObject({ ok: z.boolean(), commit: text(64).optional(), note: text(300).optional() }),
   /** G1: an access granted to this project was granted / revoked / edited / deleted (ids only — never a value). */
   'access.changed': z.strictObject({
     accessId: id,

@@ -58,7 +58,7 @@ describe('seed', () => {
       progress: 64,
       teamIds: ['ship-it', 'polish'],
       agentIds: ['a-baron', 'a-query', 'a-merge'],
-      github: { connected: true, private: true },
+      github: { connected: false, private: true, published: false, url: null, visibility: null },
     });
     expect(h.store.projects.require('atlas').orchestratorId).toBe('a-maestro');
   });

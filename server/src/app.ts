@@ -16,6 +16,7 @@ import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
 import { type EventLog, eventLog } from './events/log.ts';
 import { worktrees } from './git/worktrees.ts';
+import { createGithub, type GhRun } from './github/github.ts';
 import type { GhProbe } from './health/git-status.ts';
 import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
@@ -35,6 +36,7 @@ import { crewRoutes } from './routes/crew.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
+import { githubRoutes } from './routes/github.ts';
 import { healthRoutes } from './routes/health.ts';
 import { officeRoutes } from './routes/office.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
@@ -79,6 +81,12 @@ export type AppDeps = {
   gh?: GhProbe | null;
   /** Shell commands agent runs may use (named in their prompt). Default: the dev shell. */
   shell?: readonly string[];
+  /** gh for publishing (G1; AI_STUDIO_GH_BIN, tests pass a stub). Default null = not installed. */
+  ghRun?: GhRun | null;
+  /** Extra env for the studio's own git pushes (tests point github.com at a local bare repo). */
+  gitEnv?: Record<string, string>;
+  /** The real gh binary (credential helper for the studio's pushes). */
+  ghBin?: string | null;
   /** Turn/budget caps per kind of run (default: loadCaps() — env overridable). */
   caps?: StudioCaps;
 };
@@ -105,6 +113,9 @@ export function buildApp({
   longPollMs,
   maxConcurrent,
   gh = null,
+  ghRun = null,
+  gitEnv,
+  ghBin = null,
   caps = loadCaps(),
   shell = AGENT_SHELL.dev,
 }: AppDeps): FastifyInstance {
@@ -214,6 +225,16 @@ export function buildApp({
   /* status (live → needs → idle) and overall progress follow the event log on their own */
   const lifecycle = createLifecycle({ db, store, events });
   lifecycle.recover();
+  /* GitHub: setup creates the repo by default, the user publishes / flips visibility, merges push (never agents) */
+  const github = createGithub({
+    db,
+    store,
+    events,
+    sandbox: config.sandbox,
+    gh: ghRun,
+    ghBin,
+    ...(gitEnv ? { gitEnv } : {}),
+  });
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
   const threads = createThreads({
     db,
@@ -242,6 +263,7 @@ export function buildApp({
   });
   app.addHook('preClose', async () => {
     lifecycle.stop();
+    github.stop();
     for (const res of open) res.end();
     await Promise.all([runtime.shutdown(), apps.stopAll()]);
   });
@@ -265,7 +287,8 @@ export function buildApp({
   for (const routes of [roleRoutes, agentRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
   app.register(blueprintRoutes({ config }));
-  app.register(setterRoutes({ store, config, events }));
+  app.register(setterRoutes({ store, config, events, github }));
+  app.register(githubRoutes({ github }));
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );
@@ -273,7 +296,7 @@ export function buildApp({
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
-  app.register(projectHealthRoutes({ health, apps }));
+  app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
   app.register(collaborationRoutes({ collaboration }));
   app.register(featureRoutes({ features }));

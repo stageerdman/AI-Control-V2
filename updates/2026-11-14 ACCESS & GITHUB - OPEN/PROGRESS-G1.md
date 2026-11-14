@@ -4,7 +4,7 @@ The UI builder's contract: exact API + event shapes. Commits prefixed `ACCESS G1
 
 ## Status
 1. ✅ Accesses (multi-field) — migration 21, `/accesses` API, grants per access, `.env` sync of every field, "new" dot, prompts.
-2. ⏳ GitHub (by default at setup + publish / visibility / auto-push)
+2. ✅ GitHub — a repo by default at setup (user's change), opt-outs, publish / visibility, auto-push, agents never push.
 3. ⏳ Ports + setting-prefixed commands
 4. ⏳ Director chat freshness
 5. ⏳ CLAUDE.md rebuild endpoint
@@ -77,3 +77,57 @@ section "Access you have": `- Stripe (payments): Secret key → \`STRIPE_SECRET_
 
 **Leak tests.** `test/secrets/accesses.test.ts` (canaries through every access route incl. error paths, logs at trace, the
 event log; non-secret values are the one thing shown) + the B3 `leak.test.ts` (still green through the compat routes).
+
+## 2. GitHub
+
+**User's change (mid-G1):** new and adopted projects get a GitHub repo **by default** at setup. Default private, named after
+the folder (the project slug); an adopted folder with an origin keeps it. Opt out per draft or studio-wide. gh missing / logged
+out never fails setup.
+
+**Setup payload change.**
+- `POST /drafts` and `PATCH /drafts/:id` accept `github: boolean | null` (null / absent = the studio default). Drafts carry `github`.
+- `POST /drafts/:id/setup` accepts an optional body `{github?: boolean}` (saved on the draft first). No body = as before.
+- The Setter's steps end with one more `setup.step` (draft stream, and in the `/setup` / `/finish` response `steps`):
+  `{step: 'github', status: 'running', detail: 'Connecting GitHub'}` then one of
+  - `done` — `Created https://github.com/<owner>/<slug> (private) and pushed` (or `… — the push failed: <why>`)
+  - `kept` — `Kept its GitHub repo <owner>/<repo>` · `Kept its remote (<url>) — not on GitHub`
+  - `skipped` — `GitHub is off for this project — publish any time from health` · `GitHub not connected — Publish — <reason>`
+    (reasons: gh isn't installed / gh isn't logged in — run `gh auth login` … / GitHub didn't create the repo: <gh's words>)
+- Studio setting: `GET /settings` → `{githubByDefault: boolean}`; `PATCH /settings {githubByDefault}` → same.
+
+**Project payload** (`GET /projects`, `/projects/:id`): `github: {connected, private, published, url, visibility}`.
+`connected` = `published`, `private` = visibility ≠ public (the old two keys, now honest — the seed's fake "connected" flags are
+gone). `PATCH /projects/:id` no longer accepts `github` (422): GitHub state only moves through setup / publish / the switch.
+
+**Routes.**
+| route | body | → |
+|---|---|---|
+| `GET /projects/:id/github` | | `GithubView` |
+| `POST /projects/:id/github/publish` | `{name?: /[A-Za-z0-9._-]{1,100}/, visibility?: 'private' \| 'public'}` (default private) | 201 `GithubView & {pushed: boolean}` |
+| `PATCH /projects/:id/github` | `{visibility: 'private' \| 'public'}` | `GithubView` — ask the user to confirm before going public (the server doesn't) |
+
+```ts
+type GithubView = {
+  published: boolean;
+  url: string | null;                          // https://github.com/owner/repo
+  visibility: 'public' | 'private' | 'internal' | null;
+  lastPush: { ok: boolean; at: string; note?: string; commit?: string } | null;
+  note?: string;  // "GitHub not connected — Publish" | "Couldn’t push to GitHub: <git's words>" — show calmly; absent = fine
+};
+```
+409 messages are written for the user (show as-is): "GitHub CLI (gh) isn’t installed — install it (brew install gh), then publish
+again" · "gh isn’t logged in — run `gh auth login` in Terminal, then publish again" · "This project already has a remote (origin →
+<url>)" · "Nothing to publish yet — the project has no commit" · "This project isn’t on GitHub yet — publish it first" (visibility) ·
+"GitHub didn’t create the repo: <gh>".
+
+`GET /projects/:id/health` gains `github: GithubView`.
+
+**Events** (project stream): `github.changed {published, url, visibility}` (publish, visibility switch) ·
+`github.push {ok, commit?, note?}` (after each merge to main on a published project; one at a time).
+
+**Agents never push:** every run with a shell gets `--disallowed-tools Bash(git push),Bash(git push *)` (deny beats allow).
+The studio's pushes use `gh auth git-credential` as the git credential helper for github.com, so a logged-in gh is enough.
+
+**Config:** `AI_STUDIO_GH_BIN` (absolute; default the first of /opt/homebrew/bin/gh, /usr/local/bin/gh, /usr/bin/gh). Tests use
+`server/test/github/stub-gh.ts` (a real script: bare repos in a temp dir, `GIT_CONFIG_*` insteadOf for pushes) — no network, no
+real repo, ever.

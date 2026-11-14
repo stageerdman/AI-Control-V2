@@ -6,7 +6,8 @@ import { pacedBrain } from './crew/fake-brain.ts';
 import { acquireDataLock } from './data-lock.ts';
 import { openDb } from './db/connection.ts';
 import { createStore } from './db/store.ts';
-import { findGh, ghProbe } from './health/git-status.ts';
+import { ghCli } from './github/github.ts';
+import { ghProbe, resolveGhBin } from './health/git-status.ts';
 import { listen } from './listen.ts';
 import { claudeCliRunner, shellAllowed } from './runtime/claude-cli.ts';
 import { loadRuntimeConfig, loadShell } from './runtime/config.ts';
@@ -48,7 +49,13 @@ const runner =
         })
       : unavailableRunner(rt.binError ?? 'Claude Code CLI not found');
 /* GitHub visibility for health checks — only if gh is installed (read-only `gh repo view`) */
-const ghBin = findGh();
+let ghBin: string | null;
+try {
+  ghBin = resolveGhBin(process.env.AI_STUDIO_GH_BIN?.trim() || undefined);
+} catch (e) {
+  console.error(`\nAI Studio backend did NOT start: ${(e as Error).message}\n`);
+  process.exit(1);
+}
 const app = buildApp({
   config,
   db,
@@ -58,10 +65,12 @@ const app = buildApp({
   model: rt.model,
   logger: true,
   gh: ghBin ? ghProbe(ghBin) : null,
+  ghRun: ghBin ? ghCli(ghBin) : null,
+  ghBin,
   shell,
 });
 app.log.info(
-  { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, error: rt.binError },
+  { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, ghBin, error: rt.binError },
   'Agent runtime',
 );
 if (seedIfNeeded(store)) app.log.info('Seeded the studio with the starter cast and projects');

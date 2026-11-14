@@ -61,8 +61,8 @@ describe('events API', () => {
           .events()
           .some(
             (e) =>
-              (e.body.payload as { step: string }).step === 'commit' &&
-              (e.body.payload as { status: string }).status === 'done',
+              (e.body.payload as { step: string }).step === 'github' &&
+              (e.body.payload as { status: string }).status !== 'running',
           ),
       5000,
     );

@@ -63,6 +63,19 @@ export function findGh(candidates = GH_CANDIDATES): string | null {
   return null;
 }
 
+/** AI_STUDIO_GH_BIN (absolute + executable; tests and checks point it at a stub) or the first known install. */
+export function resolveGhBin(configured?: string, candidates = GH_CANDIDATES): string | null {
+  if (!configured) return findGh(candidates);
+  if (!configured.startsWith('/'))
+    throw new Error(`AI_STUDIO_GH_BIN must be an absolute path, got '${configured}'`);
+  try {
+    accessSync(configured, constants.X_OK);
+  } catch {
+    throw new Error(`AI_STUDIO_GH_BIN is not an executable file: ${configured}`);
+  }
+  return configured;
+}
+
 /** The real probe: `gh repo view <repo> --json visibility` (read-only), 10 s timeout. */
 export function ghProbe(bin: string): GhProbe {
   const run = promisify(execFile);

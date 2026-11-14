@@ -70,7 +70,8 @@ describe('Project Setter API', () => {
       teamIds: ['ship-it'],
       agentIds: ['a-prof'],
     });
-    expect(r.body.steps.at(-1)).toMatchObject({ step: 'commit', status: 'done' });
+    expect(r.body.steps.at(-2)).toMatchObject({ step: 'commit', status: 'done' });
+    expect(r.body.steps.at(-1)).toMatchObject({ step: 'github', status: 'skipped' }); // no gh in tests
     expect(r.body.commit).toMatch(/^[0-9a-f]{40}$/);
     expect((await h.call('GET', `/drafts/${d.id}`)).status).toBe(404);
 
@@ -197,7 +198,8 @@ describe('Project Setter API', () => {
       expect(r.status).toBe(200);
       expect(r.body.draft).toMatchObject({ folder: 'kite-notes', setupCommit: r.body.commit });
       expect(r.body.draft.setupAt).toBeTruthy();
-      expect(r.body.steps.at(-1)).toMatchObject({ step: 'commit', status: 'done' });
+      expect(r.body.steps.at(-2)).toMatchObject({ step: 'commit', status: 'done' });
+      expect(r.body.steps.at(-1)).toMatchObject({ step: 'github', status: 'skipped' }); // no gh in tests
       const streamed = h.events.after('draft', d.id).filter((e) => e.type === 'setup.step');
       expect(streamed.length).toBeGreaterThanOrEqual(r.body.steps.length);
       const dir = join(h.config.sandbox, 'kite-notes');

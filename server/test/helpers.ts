@@ -8,6 +8,7 @@ import { openDb } from '../src/db/connection.ts';
 import { createStore } from '../src/db/store.ts';
 import { createBus } from '../src/events/bus.ts';
 import { eventLog } from '../src/events/log.ts';
+import type { GhRun } from '../src/github/github.ts';
 import type { Runner } from '../src/runtime/runner.ts';
 import type { Runtime } from '../src/runtime/service.ts';
 import { fileSecretStore } from '../src/secrets/secretStore.ts';
@@ -37,6 +38,9 @@ export function testApp(
     runner?: Runner;
     longPollMs?: number;
     maxConcurrent?: number;
+    /** G1: a stub gh (test/github/stub-gh.ts) and git env pointing github.com at local bare repos. */
+    ghRun?: GhRun | null;
+    gitEnv?: Record<string, string>;
   } = {},
 ) {
   const t = tempDir();
@@ -59,6 +63,8 @@ export function testApp(
     ...(opts.runner ? { runner: opts.runner } : {}),
     ...(opts.longPollMs === undefined ? {} : { longPollMs: opts.longPollMs }),
     ...(opts.maxConcurrent === undefined ? {} : { maxConcurrent: opts.maxConcurrent }),
+    ...(opts.ghRun === undefined ? {} : { ghRun: opts.ghRun }),
+    ...(opts.gitEnv ? { gitEnv: opts.gitEnv } : {}),
     onRuntime: (rt) => {
       runtime = rt;
     },

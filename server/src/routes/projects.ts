@@ -12,7 +12,6 @@ const fields = {
   progress: z.number().int().min(0).max(100).optional(),
   folder: z.string().max(500).nullable().optional(),
   orchestratorId: Id.optional(),
-  github: z.strictObject({ connected: z.boolean(), private: z.boolean() }).optional(),
   tile: z.strictObject({ g1: Short, g2: Short, glyph: Short }).optional(),
   teamIds: z.array(Id).optional(),
   agentIds: z.array(Id).optional(),

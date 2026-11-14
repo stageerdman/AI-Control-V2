@@ -34,7 +34,7 @@ describe('projects API', () => {
       status: 'idle',
       progress: 0,
       folder: null,
-      github: { connected: false, private: true },
+      github: { connected: false, private: true, published: false, url: null, visibility: null },
       teamIds: [],
       agentIds: [],
     });
@@ -91,7 +91,6 @@ describe('projects API', () => {
       folder: 'lumi',
       orchestratorId: 'a-maestro',
       teamIds: ['expedition'],
-      github: { connected: true, private: false },
     });
     expect(p.status).toBe(200);
     expect(p.body).toMatchObject({
@@ -100,8 +99,11 @@ describe('projects API', () => {
       orchestratorId: 'a-maestro',
       teamIds: ['expedition'],
       agentIds: ['a-prof', 'a-twinkle'],
-      github: { private: false },
     });
+    /* GitHub state is the studio's (publish / setup), never a PATCH */
+    expect(
+      (await h.call('PATCH', '/projects/lumi', { github: { connected: true, private: false } })).status,
+    ).toBe(422);
     expect((await h.call('PATCH', '/projects/lumi', { orchestratorId: 'a-setter' })).status).toBe(409);
     expect((await h.call('PATCH', '/projects/ghost', { note: 'x' })).status).toBe(404);
   });

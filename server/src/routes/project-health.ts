@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { AppRunner } from '../apps/app-runner.ts';
 import { parse } from '../errors.ts';
+import type { Github } from '../github/github.ts';
 import type { Health } from '../health/health.ts';
 import { IdParams } from './schemas.ts';
 
@@ -16,12 +17,12 @@ const CheckBody = z.strictObject({
 });
 
 export const projectHealthRoutes =
-  ({ health, apps }: { health: Health; apps?: AppRunner }): FastifyPluginAsync =>
+  ({ health, apps, github }: { health: Health; apps?: AppRunner; github?: Github }): FastifyPluginAsync =>
   async (app) => {
     /* + the app (F1c): is it running, where, and how it starts — never its log here */
     app.get('/projects/:id/health', async (req) => {
       const { id } = parse(IdParams, req.params);
-      const h = await health.get(id);
+      const h = { ...(await health.get(id)), ...(github ? { github: github.projectView(id) } : {}) };
       if (!apps) return h;
       const { status, url, command } = apps.view(id);
       return { ...h, app: { status, url, command } };

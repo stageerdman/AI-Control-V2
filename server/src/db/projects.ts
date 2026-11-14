@@ -41,7 +41,14 @@ export type Project = {
   /** Relative to the sandbox root; null until the Project Setter gives it one. */
   folder: string | null;
   orchestratorId: string;
-  github: { connected: boolean; private: boolean };
+  /** G1: from the studio's GitHub record for its folder. `connected` = `published`, `private` = not public (B0 names). */
+  github: {
+    connected: boolean;
+    private: boolean;
+    published: boolean;
+    url: string | null;
+    visibility: 'public' | 'private' | 'internal' | null;
+  };
   tile: Tile;
   teamIds: string[];
   /** Individual specialists (teams come first). */
@@ -61,7 +68,6 @@ type ProjectFields = {
   progress?: number;
   folder?: string | null;
   orchestratorId?: string;
-  github?: { connected: boolean; private: boolean };
   tile?: Tile;
   teamIds?: string[];
   agentIds?: string[];
@@ -146,6 +152,22 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     return o.id;
   };
 
+  const githubOf = (folder: string | null): Project['github'] => {
+    const g = folder
+      ? row<{ url: string; visibility: Project['github']['visibility'] }>(
+          db.prepare('SELECT url, visibility FROM github_repos WHERE folder = ?').get(folder),
+        )
+      : undefined;
+    return g
+      ? {
+          connected: true,
+          private: g.visibility !== 'public',
+          published: true,
+          url: g.url,
+          visibility: g.visibility,
+        }
+      : { connected: false, private: true, published: false, url: null, visibility: null };
+  };
   const toProject = (r: ProjectRecord): Project => ({
     id: r.id,
     name: r.name,
@@ -154,7 +176,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     progress: r.progress,
     folder: r.folder,
     orchestratorId: r.orchestrator_id,
-    github: { connected: r.github_connected === 1, private: r.github_private === 1 },
+    github: githubOf(r.folder),
     tile: JSON.parse(r.tile) as Tile,
     teamIds: links(r.id, 'teams'),
     agentIds: links(r.id, 'agents'),
@@ -194,8 +216,8 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         input.progress ?? 0,
         folder,
         orchestratorId,
-        input.github?.connected ? 1 : 0,
-        (input.github?.private ?? true) ? 1 : 0,
+        0, // github_connected / github_private: B0 placeholders, unused since G1 (github_repos)
+        1,
         JSON.stringify(input.tile ?? DEFAULT_TILE),
         input.collaboration ? JSON.stringify(input.collaboration) : null,
         input.target?.trim() || null,
@@ -216,7 +238,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = patch.folder === undefined ? r.folder : normFolder(patch.folder, id);
       db.prepare(
         `UPDATE projects SET name = ?, note = ?, status = ?, progress = ?, folder = ?, orchestrator_id = ?,
-           github_connected = ?, github_private = ?, tile = ?, collaboration = ?, target = ?, updated_at = ? WHERE id = ?`,
+           tile = ?, collaboration = ?, target = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.name ?? r.name,
         patch.note ?? r.note,
@@ -224,8 +246,6 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         patch.progress ?? r.progress,
         folder,
         patch.orchestratorId ?? r.orchestrator_id,
-        patch.github ? (patch.github.connected ? 1 : 0) : r.github_connected,
-        patch.github ? (patch.github.private ? 1 : 0) : r.github_private,
         patch.tile ? JSON.stringify(patch.tile) : r.tile,
         patch.collaboration === undefined
           ? r.collaboration

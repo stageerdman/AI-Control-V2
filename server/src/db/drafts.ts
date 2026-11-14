@@ -23,6 +23,8 @@ export type DraftRecord = {
   chat: string;
   setup_at: string | null;
   setup_commit: string | null;
+  /** G1: create the GitHub repo at setup; NULL = the studio default. */
+  github?: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +42,8 @@ export type Draft = {
   /** When the Project Setter set up `folder` (POST /drafts/:id/setup); null until then. */
   setupAt: string | null;
   setupCommit: string | null;
+  /** G1: create a GitHub repo at setup (null = the studio default, on unless turned off). */
+  github: boolean | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -50,6 +54,7 @@ export type DraftCreate = {
   about?: string;
   folder?: string | null;
   orchestratorId?: string | null;
+  github?: boolean | null;
 };
 export type DraftPatch = Partial<Omit<DraftCreate, 'mode'>> & { plan?: Plan | null; chat?: ChatMessage[] };
 
@@ -72,6 +77,7 @@ const toDraft = (r: DraftRecord): Draft => ({
   chat: JSON.parse(r.chat) as ChatMessage[],
   setupAt: r.setup_at ?? null,
   setupCommit: r.setup_commit ?? null,
+  github: r.github == null ? null : r.github === 1,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 });
@@ -136,6 +142,7 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
         chat: '[]',
         setup_at: null,
         setup_commit: null,
+        github: input.github == null ? null : input.github ? 1 : 0,
         created_at: t,
         updated_at: t,
       });
@@ -154,7 +161,7 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
         );
       if (patch.plan) assertPlan(patch.plan, cast);
       db.prepare(
-        'UPDATE drafts SET step = ?, name = ?, about = ?, folder = ?, orchestrator_id = ?, plan = ?, chat = ?, updated_at = ? WHERE id = ?',
+        'UPDATE drafts SET step = ?, name = ?, about = ?, folder = ?, orchestrator_id = ?, plan = ?, chat = ?, github = ?, updated_at = ? WHERE id = ?',
       ).run(
         patch.step ?? r.step,
         patch.name ?? r.name,
@@ -163,6 +170,7 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
         patch.orchestratorId === undefined ? r.orchestrator_id : patch.orchestratorId,
         patch.plan === undefined ? r.plan : patch.plan === null ? null : JSON.stringify(patch.plan),
         patch.chat ? JSON.stringify(patch.chat) : r.chat,
+        patch.github === undefined ? (r.github ?? null) : patch.github === null ? null : patch.github ? 1 : 0,
         now(),
         id,
       );
@@ -182,8 +190,8 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
 
     insertRecord(r: DraftRecord): void {
       db.prepare(
-        `INSERT INTO drafts (id, mode, step, name, about, folder, orchestrator_id, plan, chat, setup_at, setup_commit, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO drafts (id, mode, step, name, about, folder, orchestrator_id, plan, chat, setup_at, setup_commit, github, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.mode,
@@ -196,6 +204,7 @@ export function draftsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRepo;
         r.chat,
         r.setup_at ?? null,
         r.setup_commit ?? null,
+        r.github ?? null,
         r.created_at,
         r.updated_at,
       );

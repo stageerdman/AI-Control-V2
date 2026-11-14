@@ -11,6 +11,8 @@ const fields = {
   about: z.string().max(5000).optional(),
   folder: z.string().max(500).nullable().optional(),
   orchestratorId: Id.nullable().optional(),
+  /** G1: create the GitHub repo at setup (default: the studio setting, on). */
+  github: z.boolean().nullable().optional(),
 };
 const DraftCreate = z.strictObject({ mode: z.enum(['new', 'adopt']), ...fields });
 const DraftPatch = z.strictObject({

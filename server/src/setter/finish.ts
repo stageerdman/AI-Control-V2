@@ -12,6 +12,7 @@
    under it, delete the draft. No scaffolding here — except for a draft that was never set up
    (API back-compat), which gets its setup first. Any failure leaves no project record. */
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { basename } from 'node:path';
 import type { Module } from '../blueprint/modules.ts';
 import type { Draft } from '../db/drafts.ts';
 import type { Project, ProjectCreate } from '../db/projects.ts';
@@ -22,6 +23,7 @@ import { tileFor } from '../domain/tile.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox, SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
+import type { Github } from '../github/github.ts';
 import { type Step, scaffold } from './scaffold.ts';
 
 export type FinishDeps = {
@@ -31,6 +33,8 @@ export type FinishDeps = {
   controlHome: string;
   modules: () => Module[];
   today: () => string;
+  /** G1: the GitHub step at the end of setup (absent → no GitHub step). */
+  github?: Github;
 };
 export type FinishResult = { project: Project; steps: Step[]; commit: string | null };
 
@@ -110,8 +114,24 @@ async function runSetup(deps: FinishDeps, draft: Draft): Promise<SetupResult> {
       mode: draft.mode,
       onStep: (s) => events.append('draft', draft.id, { type: 'setup.step', payload: s }),
     });
+    const steps = [...r.steps];
+    /* G1: a GitHub repo by default (private, the folder's name); never fails the setup */
+    if (deps.github) {
+      const want = draft.github ?? deps.github.settings.githubByDefault();
+      events.append('draft', draft.id, {
+        type: 'setup.step',
+        payload: { step: 'github', status: 'running', detail: 'Connecting GitHub' },
+      });
+      const s = await deps.github.onSetup(abs, folder, {
+        want,
+        name: basename(folder),
+        ...(draft.about.trim() ? { description: draft.about.trim() } : {}),
+      });
+      events.append('draft', draft.id, { type: 'setup.step', payload: s });
+      steps.push(s);
+    }
     const saved = store.drafts.markSetUp(draft.id, folder, r.commit ?? draft.setupCommit);
-    return { draft: saved, steps: r.steps, commit: r.commit };
+    return { draft: saved, steps, commit: r.commit };
   } catch (e) {
     /* only what THIS run created from nothing goes — never a folder that was there before */
     if (draft.mode === 'new' && !there && !again) rmSync(abs, { recursive: true, force: true });
