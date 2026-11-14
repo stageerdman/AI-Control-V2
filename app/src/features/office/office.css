@@ -449,3 +449,6 @@
 .ob-proj .ob-bad{color:#a3242c;font-weight:800}
 .ob-port{font-family:var(--mono);font-size:12.5px}
 .ob-app-out{margin:8px 0 2px 36px;max-height:140px}
+
+/* G3: the safe's "new access" dot (the pager's coral) */
+.o-hot-dot{position:absolute;top:calc(6*var(--ui));right:calc(6*var(--ui));width:calc(10*var(--ui));height:calc(10*var(--ui));border-radius:50%;background:var(--coral);box-shadow:0 0 0 calc(2*var(--ui)) var(--ink);pointer-events:none}

@@ -100,7 +100,14 @@ export type Project = {
   /** Sandbox-relative; null until the Project Setter gives it one. */
   folder: string | null;
   orchestratorId: string;
-  github: { connected: boolean; private: boolean };
+  /** G1: honest now — connected = published, private = visibility ≠ public. */
+  github: {
+    connected: boolean;
+    private: boolean;
+    published?: boolean;
+    url?: string | null;
+    visibility?: GithubView['visibility'];
+  };
   tile: Tile;
   teamIds: string[];
   /** Specialists (teams come first). */
@@ -112,7 +119,9 @@ export type Project = {
   createdAt: string;
   updatedAt: string;
 };
-export type ProjectPatch = Partial<Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'collaboration'>>;
+export type ProjectPatch = Partial<
+  Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'collaboration' | 'github'>
+>;
 
 /* ---------- collaboration (F1b): who the orchestrator briefs + review gates ---------- */
 export type GateKind = 'quality' | 'user-test' | 'crash-test' | 'security' | 'review';
@@ -157,6 +166,8 @@ export type Draft = {
   /** When the Project Setter set up `folder` (POST /drafts/:id/setup); null until then. */
   setupAt?: string | null;
   setupCommit?: string | null;
+  /** G1: a GitHub repo at setup; null = the studio default (GET /settings). */
+  github?: boolean | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -167,6 +178,7 @@ export type DraftCreate = {
   about?: string;
   folder?: string | null;
   orchestratorId?: string | null;
+  github?: boolean | null;
 };
 export type DraftPatch = Partial<Omit<DraftCreate, 'mode'>> & { plan?: Plan | null; chat?: ChatMessage[] };
 export type SetupStep = { step: string; status: 'running' | 'done' | 'kept' | 'skipped'; detail: string };
@@ -185,44 +197,52 @@ export type ScaffoldReport = {
 export type Deleted = { deleted: { kind: string; id: string }; restoreToken: string };
 export type Restored = { restored: { kind: string; id: string } };
 
-/* ---------- Access (Key Cabinet) — values never come back, only hasValue + last4 ---------- */
-export type Credential = {
+/* ---------- Access (Key Cabinet, G1) — an access is a named bundle of fields. Secret values never
+   come back: only hasValue + last4 (a non-secret field — a username, a URL — carries its `value`). ---------- */
+export type AccessField = {
+  id: string;
+  label: string;
+  /** Unique across the whole cabinet (one global .env). */
+  envVar: string;
+  secret: boolean;
+  hasValue: boolean;
+  /** null when there's no value or it is shorter than 12 characters. */
+  last4: string | null;
+  /** Only when secret === false and hasValue. */
+  value?: string;
+};
+export type Access = {
   id: string;
   name: string;
-  envVar: string;
   serves: string;
   docsUrl: string | null;
   instructions: string;
-  hasValue: boolean;
-  last4: string | null;
+  /** ≥ 1, in order. */
+  fields: AccessField[];
+  /** Granted to. */
   projectIds: string[];
   createdAt: string;
   updatedAt: string;
 };
-export type CredentialCreate = {
-  name: string;
-  envVar?: string;
-  serves?: string;
-  docsUrl?: string | null;
-  instructions?: string;
-  /** Write-only. */
-  value?: string;
-};
-export type CredentialDeleted = {
-  deleted: { kind: 'credential'; id: string };
+export type AccessMeta = Pick<Access, 'name' | 'serves' | 'docsUrl' | 'instructions'>;
+export type AccessFieldCreate = { label: string; envVar?: string; secret?: boolean; value?: string };
+export type AccessCreate = Partial<Omit<AccessMeta, 'name'>> & { name: string; fields: AccessFieldCreate[] };
+export type AccessDeleted = {
+  deleted: { kind: 'access'; id: string };
   restorable: false;
   projectIds: string[];
 };
-export type AccessEntry = {
-  credentialId: string;
-  name: string;
-  envVar: string;
-  serves: string;
-  hasValue: boolean;
-  last4: string | null;
-  granted: boolean;
+export type ProjectAccessItem = Access & { granted: boolean; isNew: boolean };
+export type ProjectAccess = {
+  projectId: string;
+  granted: number;
+  total: number;
+  /** Last POST …/access/seen (the project's createdAt before the first). */
+  seenAt: string;
+  /** Accesses created after seenAt → the "new" dot. */
+  newCount: number;
+  accesses: ProjectAccessItem[];
 };
-export type ProjectAccess = { projectId: string; granted: number; total: number; entries: AccessEntry[] };
 export type AccessSync = {
   file: string;
   written: string[];
@@ -230,6 +250,37 @@ export type AccessSync = {
   missing: string[];
   gitignore: 'present' | 'added';
 };
+
+/* ---------- GitHub (G1) ---------- */
+export type GithubView = {
+  published: boolean;
+  /** https://github.com/owner/repo */
+  url: string | null;
+  visibility: 'public' | 'private' | 'internal' | null;
+  lastPush: { ok: boolean; at: string; note?: string; commit?: string } | null;
+  /** "GitHub not connected — Publish" | "Couldn’t push to GitHub: …"; absent = fine. */
+  note?: string;
+};
+export type GhStatus = { gh: 'ready' | 'missing' | 'signed-out'; login: string | null };
+export type StudioSettings = { githubByDefault: boolean };
+
+/* ---------- Ports (G1): GET /ports ---------- */
+export type PortsView = {
+  range: { from: number; to: number };
+  projects: {
+    projectId: string;
+    name: string;
+    block: { app: number; spares: number[] };
+    app: { status: AppStatus; port: number | null; url: string | null };
+    ports: {
+      port: number;
+      role: 'app' | 'spare';
+      listening: boolean;
+      heldBy: { runId: string; agentId: string | null } | null;
+    }[];
+  }[];
+};
+export type ClaudeMdRebuild = { file: string; changed: boolean; modules: string[]; commit: string | null };
 
 /* ---------- work: runs, asks, the whiteboard ---------- */
 export type Caps = { maxTurns: number; maxBudgetUsd: number };
@@ -361,6 +412,8 @@ export type ProjectHealth = {
   history: HealthReport[];
   git: GitStatus;
   app?: { status: AppStatus; url: string | null; command: string | null };
+  /** G1. */
+  github?: GithubView;
 };
 
 /* ---------- Blueprint ---------- */
@@ -436,6 +489,10 @@ export type EventPayloads = {
   };
   'feature.shipped': { featureId: string; goalId: string; name: string };
   'app.status': { status: AppStatus; url?: string; exitCode?: number };
+  /** G1: refetch GET /projects/:id/access. */
+  'access.changed': { accessId: string; change: 'granted' | 'revoked' | 'updated' | 'deleted' };
+  'github.changed': { published: boolean; url: string | null; visibility: GithubView['visibility'] };
+  'github.push': { ok: boolean; commit?: string; note?: string };
   /** An item passes between desks: to a reviewer, back to its builder (rework / merge-fix). */
   handoff: {
     itemId: string;
@@ -543,6 +600,9 @@ export const EVENT_TYPES = [
   'team.split',
   'feature.shipped',
   'app.status',
+  'access.changed',
+  'github.changed',
+  'github.push',
 ] as const satisfies readonly EventType[];
 
 /** One stored event as the stream sends it (`projectId` or `draftId` names the scope). */

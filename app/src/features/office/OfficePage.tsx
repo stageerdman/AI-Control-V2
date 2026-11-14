@@ -21,6 +21,7 @@ import { reducedMotion } from '../../design/palette';
 import type { PageProps } from '../../shell/pages';
 import { go, type OfficeSub } from '../../shell/router';
 import { ErrorState, Loading, toast } from '../../ui';
+import { refreshProjectAccess, useNewAccessCount } from '../access';
 import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey, takePendingFollowUp } from '../reports';
 import { AccessSheet } from './AccessSheet';
@@ -370,6 +371,14 @@ function Office({
         case 'health.checked':
           void invalidate(keys.health(pid));
           break;
+        case 'access.changed':
+          void refreshProjectAccess(pid);
+          break;
+        case 'github.changed':
+        case 'github.push':
+          void invalidate(keys.health(pid));
+          void invalidate('projects');
+          break;
         case 'thread.message': {
           const m = threadMessageOf(ev);
           const k = keys.thread(pid, ev.payload.agentId);
@@ -441,6 +450,7 @@ function Office({
 
   /* ---------- the few interactive objects */
   const [accessOpen, setAccessOpen] = useState(false);
+  const newAccess = useNewAccessCount(pid);
   const leave = () => {
     if (reducedMotion()) {
       go('projects');
@@ -645,6 +655,7 @@ function Office({
               const o = engine.current?.plan.objects[h.id];
               if (!o) return null;
               const label = h.id === 'reports' && unread ? `Reports · ${unread} new` : o.label;
+              const safeNew = h.id === 'safe' && newAccess > 0;
               return (
                 <button
                   key={h.id}
@@ -652,7 +663,13 @@ function Office({
                   className="o-hot"
                   data-obj={h.id}
                   tabIndex={-1}
-                  aria-label={h.id === 'reports' && unread ? `${h.label} — ${unread} new` : h.label}
+                  aria-label={
+                    h.id === 'reports' && unread
+                      ? `${h.label} — ${unread} new`
+                      : safeNew
+                        ? `Safe — ${office.name} access, ${newAccess} new`
+                        : h.label
+                  }
                   style={{ left: o.x, top: o.y, width: o.w, height: o.h }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -665,6 +682,7 @@ function Office({
                       {label}
                     </span>
                   )}
+                  {safeNew && <span className="o-hot-dot" aria-hidden="true" />}
                 </button>
               );
             }),
@@ -767,12 +785,7 @@ function Office({
           }}
         />
       </aside>
-      <AccessSheet
-        pid={pid}
-        name={office.name.split(' ')[0]}
-        open={accessOpen}
-        onClose={() => setAccessOpen(false)}
-      />
+      <AccessSheet pid={pid} name={office.name} open={accessOpen} onClose={() => setAccessOpen(false)} />
       <div className="sr-only" aria-live="polite">
         {said.polite}
       </div>

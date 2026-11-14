@@ -2,6 +2,11 @@
    add their own here when they need a new one — keep it one line per endpoint. */
 import { http } from './client';
 import type {
+  Access,
+  AccessCreate,
+  AccessDeleted,
+  AccessFieldCreate,
+  AccessMeta,
   AccessSync,
   Agent,
   AgentCreate,
@@ -10,18 +15,19 @@ import type {
   Blueprint,
   Caps,
   ChatMessage,
-  Credential,
-  CredentialCreate,
-  CredentialDeleted,
+  ClaudeMdRebuild,
   Deleted,
   Draft,
   DraftCreate,
   DraftPatch,
   FinishResult,
+  GhStatus,
+  GithubView,
   Goal,
   HealthReport,
   Minted,
   Plan,
+  PortsView,
   Project,
   ProjectAccess,
   ProjectHealth,
@@ -31,6 +37,7 @@ import type {
   Run,
   SandboxFolder,
   ScaffoldReport,
+  StudioSettings,
   Team,
   TeamCreate,
   TeamPatch,
@@ -84,9 +91,19 @@ export const studio = {
     answer: (id: string, askId: string, answer: string) =>
       http.post<Ask>(`/projects/${e(id)}/asks/${e(askId)}/answer`, { answer }),
     access: (id: string) => http.get<ProjectAccess>(`/projects/${e(id)}/access`),
-    setAccess: (id: string, grants: Record<string, boolean>) =>
-      http.put<ProjectAccess>(`/projects/${e(id)}/access`, { grants }),
+    grant: (id: string, accessId: string) =>
+      http.put<ProjectAccess>(`/projects/${e(id)}/access/${e(accessId)}`, {}),
+    revoke: (id: string, accessId: string) =>
+      http.del<ProjectAccess>(`/projects/${e(id)}/access/${e(accessId)}`),
+    accessSeen: (id: string) =>
+      http.post<{ projectId: string; seenAt: string }>(`/projects/${e(id)}/access/seen`),
     syncAccess: (id: string) => http.post<AccessSync>(`/projects/${e(id)}/access/sync`),
+    github: (id: string) => http.get<GithubView>(`/projects/${e(id)}/github`),
+    publish: (id: string, body: { name?: string; visibility: 'private' | 'public' }) =>
+      http.post<GithubView & { pushed: boolean }>(`/projects/${e(id)}/github/publish`, body),
+    setVisibility: (id: string, visibility: 'private' | 'public') =>
+      http.patch<GithubView>(`/projects/${e(id)}/github`, { visibility }),
+    rebuildClaudeMd: (id: string) => http.post<ClaudeMdRebuild>(`/projects/${e(id)}/claude-md/rebuild`),
     eventsUrl: (id: string) => `/projects/${e(id)}/events`,
   },
   drafts: {
@@ -104,14 +121,24 @@ export const studio = {
     finish: (id: string) => http.post<FinishResult>(`/drafts/${e(id)}/finish`),
     eventsUrl: (id: string) => `/drafts/${e(id)}/events`,
   },
-  credentials: {
-    list: () => http.get<Credential[]>('/credentials'),
-    create: (body: CredentialCreate) => http.post<Credential>('/credentials', body),
-    update: (id: string, body: Partial<Omit<CredentialCreate, 'value' | 'envVar'>>) =>
-      http.patch<Credential>(`/credentials/${e(id)}`, body),
-    setValue: (id: string, value: string) => http.put<Credential>(`/credentials/${e(id)}/value`, { value }),
-    remove: (id: string) => http.del<CredentialDeleted>(`/credentials/${e(id)}`),
+  accesses: {
+    list: () => http.get<Access[]>('/accesses'),
+    create: (body: AccessCreate) => http.post<Access>('/accesses', body),
+    update: (id: string, body: Partial<AccessMeta>) => http.patch<Access>(`/accesses/${e(id)}`, body),
+    remove: (id: string) => http.del<AccessDeleted>(`/accesses/${e(id)}`),
+    addField: (id: string, body: AccessFieldCreate) => http.post<Access>(`/accesses/${e(id)}/fields`, body),
+    updateField: (id: string, fieldId: string, body: { label?: string; envVar?: string; secret?: boolean }) =>
+      http.patch<Access>(`/accesses/${e(id)}/fields/${e(fieldId)}`, body),
+    removeField: (id: string, fieldId: string) => http.del<Access>(`/accesses/${e(id)}/fields/${e(fieldId)}`),
+    /** Write-only: the value goes out once and never comes back. */
+    setValue: (id: string, fieldId: string, value: string) =>
+      http.put<Access>(`/accesses/${e(id)}/fields/${e(fieldId)}/value`, { value }),
+    importFromEnv: () => http.post<{ imported: Access[]; refreshed: string[] }>('/accesses/import'),
   },
+  settings: () => http.get<StudioSettings>('/settings'),
+  setSettings: (body: Partial<StudioSettings>) => http.patch<StudioSettings>('/settings', body),
+  ghStatus: () => http.get<GhStatus>('/github/status'),
+  ports: () => http.get<PortsView>('/ports'),
   blueprint: () => http.get<Blueprint>('/blueprint'),
   sandboxFolders: () => http.get<SandboxFolder[]>('/sandbox/folders'),
   restore: (token: string) => http.post<Restored>(`/trash/${e(token)}/restore`),

@@ -1,35 +1,35 @@
-/* Access endpoints (Key Cabinet + per-project grants). Values are write-only: they go out in a
-   request body and never come back — responses carry only hasValue + last4. */
-import { http } from '../../api/client';
+/* Access endpoints (Key Cabinet + per-project grants, G1 `/accesses`). Secret values are write-only:
+   they go out in a request body and never come back — responses carry only hasValue + last4 (a
+   non-secret field carries its value). */
 import { studio } from '../../api/studio';
-import type { Credential } from '../../api/types';
 
 export type {
-  AccessEntry,
+  Access,
+  AccessField,
   AccessSync,
-  Credential,
-  CredentialCreate,
-  CredentialDeleted,
   ProjectAccess,
+  ProjectAccessItem,
 } from '../../api/types';
 
-export type CredentialMeta = { name: string; serves: string; docsUrl: string | null; instructions: string };
-export type ImportResult = { imported: Credential[]; refreshed: string[] };
-
 export const accessApi = {
-  list: studio.credentials.list,
-  create: studio.credentials.create,
-  update: (id: string, meta: Partial<CredentialMeta>) => studio.credentials.update(id, meta),
-  replaceKey: studio.credentials.setValue,
-  remove: studio.credentials.remove,
-  importFromEnv: () => http.post<ImportResult>('/credentials/import'),
+  list: studio.accesses.list,
+  create: studio.accesses.create,
+  update: studio.accesses.update,
+  remove: studio.accesses.remove,
+  addField: studio.accesses.addField,
+  updateField: studio.accesses.updateField,
+  removeField: studio.accesses.removeField,
+  setValue: studio.accesses.setValue,
+  importFromEnv: studio.accesses.importFromEnv,
   project: studio.projects.access,
-  setGrants: studio.projects.setAccess,
+  grant: studio.projects.grant,
+  revoke: studio.projects.revoke,
+  seen: studio.projects.accessSeen,
   sync: studio.projects.syncAccess,
 };
 
-/** Query keys (invalidate 'credentials' after any cabinet change; it also refreshes project grants). */
+/** Query keys (invalidate 'accesses' after any cabinet change; it also refreshes project grants). */
 export const keys = {
-  cabinet: 'credentials',
-  project: (id: string) => `credentials:project:${id}`,
+  cabinet: 'accesses',
+  project: (id: string) => `accesses:project:${id}`,
 };

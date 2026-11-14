@@ -1,7 +1,8 @@
 /* The safe behind the director = this project's Access (prototype openProjectAccess, v5):
-   U5's ProjectAccessPanel (grant switches, values masked, sync to .env — names only) in a sheet. */
+   the ProjectAccessPanel (grant switches, names only, sync to .env) in a sheet. Closing refetches the
+   project's access view so the safe's "new" dot clears (the panel marked everything seen on open). */
 import { Sheet } from '../../ui';
-import { ProjectAccessPanel } from '../access';
+import { ProjectAccessPanel, refreshProjectAccess } from '../access';
 
 export function AccessSheet({
   pid,
@@ -14,8 +15,12 @@ export function AccessSheet({
   open: boolean;
   onClose: () => void;
 }) {
+  const close = () => {
+    onClose();
+    void refreshProjectAccess(pid);
+  };
   return (
-    <Sheet open={open} onClose={onClose} label={`${name} access`}>
+    <Sheet open={open} onClose={close} label={`${name} access`} wide>
       {open && <ProjectAccessPanel projectId={pid} projectName={name} />}
     </Sheet>
   );

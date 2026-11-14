@@ -61,3 +61,31 @@ export function envVarFor(name: string): string {
   if (!v) return 'KEY';
   return /^[0-9]/.test(v) ? `_${v}` : v;
 }
+
+/** How one field's value shows: `••••last4` (secret), the plain value clipped to 24 (not secret), or none. */
+export function fieldShown(f: { secret: boolean; hasValue: boolean; last4: string | null; value?: string }): {
+  text: string;
+  full?: string;
+  kind: 'masked' | 'plain' | 'none';
+} {
+  if (!f.hasValue) return { text: 'no value yet', kind: 'none' };
+  if (f.secret || f.value === undefined) return { text: masked(f) ?? '••••', kind: 'masked' };
+  const v = f.value;
+  return v.length > 24 ? { text: `${v.slice(0, 23)}…`, full: v, kind: 'plain' } : { text: v, kind: 'plain' };
+}
+
+/** The cabinet row's meta: "3 fields · 1 without a value · Used by 2 projects" (one field: usage only). */
+export function accessMeta(a: { fields: { hasValue: boolean }[]; projectIds: string[] }): {
+  fields: string | null;
+  missing: string | null;
+  used: string;
+} {
+  const n = a.fields.length;
+  const k = a.fields.filter((f) => !f.hasValue).length;
+  const p = a.projectIds.length;
+  return {
+    fields: n > 1 ? plural(n, 'field') : null,
+    missing: n > 1 && k > 0 ? `${k} without a value` : null,
+    used: p ? `Used by ${plural(p, 'project')}` : 'Used by no projects',
+  };
+}
