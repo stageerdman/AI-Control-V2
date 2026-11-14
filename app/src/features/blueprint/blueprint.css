@@ -220,7 +220,7 @@
   margin-top: 2px;
 }
 
-/* G3: the studio-wide GitHub default, under the kit */
+/* G3: the studio-wide switches (GitHub default, AGENTS auto-approve), under the kit */
 .bp-gh {
   display: flex;
   align-items: center;
@@ -229,6 +229,9 @@
   padding: 14px 16px;
   border-radius: 14px;
   background: rgba(36, 26, 68, 0.04);
+}
+.bp-gh + .bp-gh {
+  margin-top: 8px;
 }
 .bp-gh > div {
   flex: 1;

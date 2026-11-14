@@ -264,7 +264,8 @@ export type GithubView = {
   note?: string;
 };
 export type GhStatus = { gh: 'ready' | 'missing' | 'signed-out'; login: string | null };
-export type StudioSettings = { githubByDefault: boolean };
+/** Studio-wide switches (GET/PATCH /settings), both default on. autoApprove (AGENTS): the studio says yes to agents’ yes/no permission checks. */
+export type StudioSettings = { githubByDefault: boolean; autoApprove: boolean };
 
 /* ---------- Ports (G1): GET /ports ---------- */
 export type PortsView = {

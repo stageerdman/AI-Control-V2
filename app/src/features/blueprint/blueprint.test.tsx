@@ -87,10 +87,13 @@ describe('blueprint model', () => {
 });
 
 const rebuild = vi.hoisted(() => vi.fn());
+const setSettings = vi.hoisted(() =>
+  vi.fn(async (b: Record<string, boolean>) => ({ githubByDefault: true, autoApprove: true, ...b })),
+);
 vi.mock('../../api/studio', () => ({
   studio: {
-    settings: async () => ({ githubByDefault: true }),
-    setSettings: async () => ({ githubByDefault: false }),
+    settings: async () => ({ githubByDefault: true, autoApprove: true }),
+    setSettings,
   },
 }));
 vi.mock('./api', () => ({
@@ -144,5 +147,20 @@ describe('BlueprintPage', () => {
     await act(async () => fireEvent.click(btn));
     expect(rebuild).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it('starter kit: the auto-approve switch sits next to the GitHub default and flips only autoApprove', async () => {
+    render(<BlueprintPage route={{ name: 'blueprint' }} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Starter Kit' })); // the page remembers the last tab
+    const gh = await screen.findByRole('switch', { name: 'New projects get a private GitHub repo' });
+    const auto = screen.getByRole('switch', { name: 'Auto-approve agents’ yes/no checks' });
+    await vi.waitFor(() => expect(auto.hasAttribute('disabled')).toBe(false));
+    expect(auto.getAttribute('aria-checked')).toBe('true');
+    expect(gh.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/Agents never stop to ask permission/)).toBeTruthy();
+    await act(async () => fireEvent.click(auto));
+    expect(setSettings).toHaveBeenCalledWith({ autoApprove: false });
+    expect(auto.getAttribute('aria-checked')).toBe('false');
+    expect(gh.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/Off — agents may stop to ask/)).toBeTruthy();
   });
 });

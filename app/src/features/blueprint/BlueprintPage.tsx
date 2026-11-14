@@ -96,7 +96,8 @@ export function BlueprintPage(_: PageProps<'blueprint'>) {
             <ul className="tree" aria-label="Starter kit">
               <TreeNodes nodes={kitTree(bp.data.tree, localDay(new Date().toISOString()))} />
             </ul>
-            <GithubDefault />
+            <SettingSwitch field="githubByDefault" />
+            <SettingSwitch field="autoApprove" />
           </Panel>
         )}
         {bp.data && tab === 'pri' && <Principles modules={bp.data.modules} modulesDir={bp.data.modulesDir} />}
@@ -274,19 +275,51 @@ function FreshRow({ project: p, modules }: { project: Project; modules: Blueprin
   );
 }
 
-/** The studio-wide default (G1 `GET/PATCH /settings`): new projects get a private GitHub repo at setup.
-   Each project can still switch it on its Name step. */
-function GithubDefault() {
+type SettingKey = 'githubByDefault' | 'autoApprove';
+type SettingCopy = {
+  glyph: string;
+  title: string;
+  label: string;
+  hint: [on: string, off: string];
+  toast: [on: string, off: string];
+};
+/** The studio-wide switches (`GET/PATCH /settings`), under the kit. Both default on. */
+const SETTINGS: Record<SettingKey, SettingCopy> = {
+  /* G1: new projects get a private GitHub repo at setup; each project can still switch it on its Name step */
+  githubByDefault: {
+    glyph: '⎇',
+    title: 'A private GitHub repo',
+    label: 'New projects get a private GitHub repo',
+    hint: [
+      'The Project Setter creates one and pushes main. Each project can still skip it on its Name step.',
+      'Off — new projects stay local. Each project can still turn it on, or publish later from Health.',
+    ],
+    toast: ['⎇ New projects get a private GitHub repo', '⎇ New projects stay local — publish any time'],
+  },
+  /* AGENTS: the studio says yes to agents' yes/no permission checks itself */
+  autoApprove: {
+    glyph: '✓',
+    title: 'Auto-approve agents’ yes/no checks',
+    label: 'Auto-approve agents’ yes/no checks',
+    hint: [
+      'Agents never stop to ask permission. Questions that need you still come through.',
+      'Off — agents may stop to ask before a risky step. Each question waits for you.',
+    ],
+    toast: ['✓ Agents go ahead without asking permission', '✓ Agents ask before risky steps'],
+  },
+};
+
+function SettingSwitch({ field }: { field: SettingKey }) {
   const settings = useQuery('settings', studio.settings);
   const [busy, setBusy] = useState(false);
-  const on = settings.data?.githubByDefault ?? true;
+  const copy = SETTINGS[field];
+  const on = settings.data?.[field] ?? true;
+  const hintId = `bpSetting-${field}`;
   async function set(next: boolean) {
     setBusy(true);
     try {
-      setQueryData('settings', await studio.setSettings({ githubByDefault: next }));
-      toast(
-        next ? '⎇ New projects get a private GitHub repo' : '⎇ New projects stay local — publish any time',
-      );
+      setQueryData('settings', await studio.setSettings({ [field]: next }));
+      toast(copy.toast[next ? 0 : 1]);
     } catch (e) {
       toast(`⚠ Couldn’t change it — ${(e as Error).message}`);
     } finally {
@@ -296,20 +329,18 @@ function GithubDefault() {
   return (
     <div className="bp-gh">
       <span className="glyph" aria-hidden="true">
-        ⎇
+        {copy.glyph}
       </span>
       <div>
-        <b>A private GitHub repo</b>
-        <p className="hint" id="bpGhHint">
-          {on
-            ? 'The Project Setter creates one and pushes main. Each project can still skip it on its Name step.'
-            : 'Off — new projects stay local. Each project can still turn it on, or publish later from Health.'}
+        <b>{copy.title}</b>
+        <p className="hint" id={hintId}>
+          {copy.hint[on ? 0 : 1]}
         </p>
       </div>
       <Switch
         checked={on}
-        label="New projects get a private GitHub repo"
-        describedBy="bpGhHint"
+        label={copy.label}
+        describedBy={hintId}
         disabled={busy || !settings.data}
         onChange={(next) => void set(next)}
       />
