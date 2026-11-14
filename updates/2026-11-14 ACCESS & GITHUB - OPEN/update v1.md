@@ -38,7 +38,8 @@ access holds several keys or other private info, and a director chat that doesn'
   the Ports room. Calm and minimal, in the prototype's language.
 - **G3 — App UI:** build G2 on G1's API, tests, screenshots.
 - **G4 — Verify + ship:** a real run where an agent uses `PORT=… npm start` and an access with 2 fields reaches an
-  agent's env; release `.app`; guide updated.
+  agent's env; release `.app` **installed to `/Applications/AI Studio.app`** (user: "I want to see AI Studio.app in my Applications … so that everything is functional"). Open it from there, confirm the backend starts or is reused, the UI loads and a project flow works; guide updated.
 
 ## Status
-- ⏳ G1, G2 starting.
+- ✅ G2 UX spec (`spec-ux-G2.md`).
+- ⏳ G1 server running.
