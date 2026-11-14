@@ -51,3 +51,7 @@ access holds several keys or other private info, and a director chat that doesn'
   at `/Applications/AI Studio.app`; opened from there, backend on 4319 with the new code, migrations 21–24, the
   user's 13 projects, `/settings`, `/ports`; stays up; quit frees 4319 and the lock; reopened and left running.
   `HOW-TO-USE.md` updated.
+- ✅ OFFICE (`PROGRESS-OFFICE.md`, user follow-up): one Send — the director decides whether a message is work (a
+  clear ask becomes the goal, a question or a maybe gets a reply that asks); the second progress bar above the safe
+  is now a work clock (agent time; sheet by kind of work and by agent, runs and turns, no money; `GET
+  /projects/:id/time`, migration 25). App 233 · server 384 · cargo 13. Release reinstalled in /Applications and left running.
