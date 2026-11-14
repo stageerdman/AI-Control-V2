@@ -27,6 +27,20 @@ Commits prefixed `ENGINE F3:`. `app/` is F2's — not touched here.
 | health | A / B / A — "needs a README and the removal of one leftover sample file"; git clean, local only; app running |
 Usage: 18 runs, 108 turns (≈ $3.44 API-equivalent).
 
+### Run 2 — F3 Bookmark Box (JSON HTTP API + a research report) — ✅ shipped, API works (1 user answer + 1 hang → both fixed)
+`~/dev/AI-Studio-Sandbox/f3-bookmark-box`, orchestrator **Maestro**, staffing left to it (only the "about" text, no chat line).
+| step | what happened |
+|---|---|
+| setup | Rivet (`298910c`) → Maestro chose **specialists only** (Captain Semicolon builds, Scarlett tests, Professor Prompt — the reporter — writes the comparison) + gate quality after Semicolon → Scarlett. 12 s |
+| chat | a clear 3-step plan — but **"nobody on the project is set up to file reports"** (bug 4: the people summary marked reporter teams, not reporter roles) → fixed, confirmed live |
+| goal | 1 dispatch: report item for the Professor first, then 2 build items for the captain; feature **Bookmark API** (Now) |
+| report | the Professor: web research → `file_report` "JSON file vs node:sqlite for Bookmark Box storage" (recommends node:sqlite, 2 sources) → item done |
+| item 2 | **the captain couldn't see the report** (it lives in the Reports tray, not the folder) → `ask_user` "which storage should I build on?" (bug 5) — answered as the user ("node:sqlite, as the report says") → built (node:sqlite, tests) → smoke-tested with a background `npm start` with no timeout → **its CLI never exited; the item sat "running" 7+ min** (bug 6) → stopped the process group by hand (what the fix now does) → Scarlett approved → merged |
+| item 3 | API (save / list by tag / delete), README with curl examples, 16 tests → Scarlett added a restart smoke check (hard kill) → approved → merged |
+| outcome | goal done, feature **Shipped**, office idle 100 %; main = 4 commits, no worktree / `studio/*` branch left, tree clean, `data/` ignored; `npm test` 16/16 |
+| app | Run the app → `npm start` → `http://localhost:3000`; curl: 2× POST 201, POST without url → 400, `?tag=js` → 1, **stop + start through the studio → both still there**, DELETE → 204 → gone |
+Usage: 9 runs, ≈ 95 turns (≈ $1.94 API-equivalent).
+
 ## Issues found → fixed
 1. **(b33f888) The orchestrator's office chat didn't know who was on the project** — its per-turn summary had the whiteboard, features
    and health but no staffing, so it told a staffed project "I don't see a team yet" and offered to mint one. Summary now carries
@@ -42,6 +56,16 @@ Usage: 18 runs, 108 turns (≈ $3.44 API-equivalent).
    from the captain's sub-task" pointed at nothing and Pete stopped to ask the user. Members now get each teammate's brief (≤ 1.5k), are
    told their work isn't in this checkout yet, to code against the briefs and not ask the user about a teammate's part (simplest choice,
    say it in the summary); the split prompt asks for the exact interface in BOTH briefs. Test: `team-flow.test.ts`.
+4. **(f2759c8) Reporters by role weren't marked** in the orchestrator's people summary (only reporter teams) → each person carries
+   `reporter: true` when their role files reports. Test: `threads.test.ts`. Confirmed live.
+5. **(798642d) Later items never saw what earlier items finished** — "build on what the report recommends" while the build run had no
+   way to see the report. Every item's task (and a captain's split, and members' parts) now has "Done before you on this goal (build on
+   it)": each earlier done item with who + its summary; a report item with the report's title, summary and a 4k body excerpt. Test:
+   `reports.test.ts` (mixed goal; fails without the fix).
+6. **(6d80871) A CLI that lingers after its answer hung the item** — an agent's background `npm start` without a timeout keeps the
+   CLI alive after the result (stdin closed); nothing ended the run. Now: 10 s after the answer the run's whole process group is stopped
+   (the leftover server too) and the answer stands. Test: `claude-cli.test.ts` (fake CLI that answers then waits on a child; fails
+   without the fix).
 
 ## Plan usage (subscription: runs + turns; the CLI's $ is API-equivalent only)
 

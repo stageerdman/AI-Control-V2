@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { DispatchSchema } from '../../src/crew/dispatch.ts';
+import { extractJson } from '../../src/crew/structured.ts';
 import { parseRework } from '../../src/crew/team.ts';
 import { createStreamParser } from '../../src/runtime/stream.ts';
 
@@ -36,5 +38,24 @@ describe('F3 live streams', () => {
     p.feed(JSON.stringify({ type: 'result', subtype: 'error_max_turns', is_error: true, num_turns: 3 }));
     p.feed(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', num_turns: 1 }));
     expect(p.outcome()).toMatchObject({ status: 'succeeded', result: 'ok' });
+  });
+
+  it('a mixed goal plans the report first (for the reporter), then the builds; a feature is linked', () => {
+    const o = replay('dispatch-report-first');
+    const plan = DispatchSchema.parse(extractJson(o.result ?? ''));
+    expect(plan.items.map((i) => [i.assignee, i.report ?? false])).toEqual([
+      ['a-prof', true],
+      ['a-semic', false],
+      ['a-semic', false],
+    ]);
+    expect(plan.feature?.name).toBeTruthy();
+  });
+
+  it('the build that lingered on its background `npm start`: one clean result — the runner must end it (claude-cli.test)', () => {
+    const o = replay('build-lingers');
+    expect(o.status).toBe('succeeded');
+    expect(o.result).toMatch(/node:sqlite/);
+    const bg = lines('build-lingers').filter((l) => l.includes('"run_in_background":true'));
+    expect(bg.length).toBeGreaterThan(0); // the background server that kept the CLI alive
   });
 });
