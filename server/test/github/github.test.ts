@@ -263,4 +263,15 @@ describe('GitHub', () => {
     );
     expect(crew).not.toContain('--disallowed-tools');
   });
+
+  it('GET /github/status: ready with the login, signed out, missing (G3: the publish form + hints)', async () => {
+    boot();
+    expect((await h.call('GET', '/github/status')).body).toEqual({ gh: 'ready', login: 'stub-owner' });
+    gh.logOut();
+    expect((await h.call('GET', '/github/status')).body).toEqual({ gh: 'signed-out', login: null });
+    await h.close();
+    t.cleanup();
+    boot({ gh: false });
+    expect((await h.call('GET', '/github/status')).body).toEqual({ gh: 'missing', login: null });
+  });
 });

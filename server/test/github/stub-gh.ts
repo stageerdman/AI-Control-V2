@@ -3,7 +3,8 @@
    - `repo create NAME --private|--public` makes a bare repo `<dir>/remotes/NAME.git` and prints
      https://github.com/stub-owner/NAME (git pushes reach it through `gitEnv`'s insteadOf);
    - `repo view R --json visibility` prints the visibility recorded for R (PRIVATE by default);
-   - `repo edit R --visibility V …` records it.
+   - `repo edit R --visibility V …` records it;
+   - `api user …` prints stub-owner.
    Every call is appended to `<dir>/calls.log`. It never touches the network. */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,6 +25,7 @@ case "$1 $2" in
     case "$*" in *--public*) echo PUBLIC > "$D/remotes/$3.vis" ;; *) echo PRIVATE > "$D/remotes/$3.vis" ;; esac
     echo "https://github.com/stub-owner/$3"; exit 0 ;;
   "repo view") N=\${3#*/}; V=$(cat "$D/remotes/$N.vis" 2>/dev/null || echo PRIVATE); echo "{\\"visibility\\":\\"$V\\"}"; exit 0 ;;
+  "api user") echo stub-owner; exit 0 ;;
   "repo edit") N=\${3#*/}; echo "$5" | tr a-z A-Z > "$D/remotes/$N.vis"; exit 0 ;;
 esac
 echo "stub gh: unknown command $*" >&2; exit 2

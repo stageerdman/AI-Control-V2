@@ -176,6 +176,11 @@ describe('Project Setter API', () => {
     mkdirSync(join(sb, 'alpha'));
     execFileSync('git', ['init', '-q'], { cwd: join(sb, 'alpha') });
     writeFileSync(join(sb, 'alpha', '.project'), 'name: alpha\n');
+    mkdirSync(join(sb, 'beta'));
+    execFileSync('git', ['init', '-q'], { cwd: join(sb, 'beta') });
+    execFileSync('git', ['remote', 'add', 'origin', 'https://tok:SECRET@github.com/stage/beta.git'], {
+      cwd: join(sb, 'beta'),
+    });
     mkdirSync(join(sb, '.hidden'));
     writeFileSync(join(sb, 'loose-file.txt'), '');
     symlinkSync(h.config.home, join(sb, 'link-out'));
@@ -183,8 +188,14 @@ describe('Project Setter API', () => {
     await h.call('POST', `/drafts/${d.id}/finish`);
     const { body } = await h.call('GET', '/sandbox/folders');
     expect(body).toEqual([
-      { folder: 'alpha', git: true, marked: true },
-      { folder: 'zeta', git: false, marked: false },
+      { folder: 'alpha', git: true, marked: true, remote: null },
+      {
+        folder: 'beta',
+        git: true,
+        marked: false,
+        remote: { url: 'https://github.com/stage/beta.git', github: 'stage/beta' },
+      },
+      { folder: 'zeta', git: false, marked: false, remote: null },
     ]);
   });
 

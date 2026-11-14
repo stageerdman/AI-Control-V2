@@ -33,6 +33,7 @@ export const githubRoutes =
       const { id } = parse(IdParams, req.params);
       return github.setVisibility(id, parse(VisibilityBody, req.body).visibility);
     });
+    app.get('/github/status', async () => github.status());
     /* studio-wide settings (G1: one so far) */
     app.get('/settings', async () => ({ githubByDefault: github.settings.githubByDefault() }));
     app.patch('/settings', async (req) => {

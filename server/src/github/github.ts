@@ -275,8 +275,26 @@ export function createGithub(deps: {
     },
   };
 
+  /* GET /github/status: can the studio use gh, and as whom (the publish form's owner prefix). */
+  let login: string | null = null;
+  async function status(): Promise<{ gh: 'ready' | 'missing' | 'signed-out'; login: string | null }> {
+    if (!deps.gh) return { gh: 'missing', login: null };
+    if (!(await ready()).ok) {
+      login = null;
+      return { gh: 'signed-out', login: null };
+    }
+    if (!login)
+      try {
+        login = (await deps.gh(['api', 'user', '--jq', '.login'])).trim().split('\n')[0] || null;
+      } catch {
+        /* the owner is a nicety; ready is what counts */
+      }
+    return { gh: 'ready', login };
+  }
+
   return {
     ready,
+    status,
     view,
     settings,
     pushAfterMerge,

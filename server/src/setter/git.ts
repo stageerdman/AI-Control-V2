@@ -31,6 +31,12 @@ const tryRun = (cwd: string, args: string[]) => {
 export const isRepo = (dir: string) => existsSync(join(dir, '.git'));
 export const head = (dir: string) =>
   isRepo(dir) ? tryRun(dir, ['rev-parse', '--verify', '-q', 'HEAD']) : null;
+/** The first remote's URL as written (null = no remote) — the Adopt picker's "keeps origin". */
+export function firstRemoteUrl(dir: string): string | null {
+  if (!isRepo(dir)) return null;
+  const name = (tryRun(dir, ['remote']) ?? '').split('\n').filter(Boolean)[0];
+  return name ? tryRun(dir, ['config', '--get', `remote.${name}.url`]) || null : null;
+}
 export const commitCount = (dir: string) => Number(tryRun(dir, ['rev-list', '--count', 'HEAD']) ?? 0);
 
 export async function init(dir: string): Promise<void> {

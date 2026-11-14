@@ -10,8 +10,9 @@ import { conflict, parse } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Github } from '../github/github.ts';
+import { githubRepo, safeRemoteUrl } from '../health/git-status.ts';
 import { finishDraft, localDate, setupDraft } from '../setter/finish.ts';
-import { isRepo } from '../setter/git.ts';
+import { firstRemoteUrl, isRepo } from '../setter/git.ts';
 import { inspect } from '../setter/scaffold.ts';
 import { IdParams } from './schemas.ts';
 
@@ -88,7 +89,14 @@ export const setterRoutes =
         .filter((d) => d.isDirectory() && !d.name.startsWith('.') && !taken.has(d.name))
         .map((d) => {
           const abs = join(config.sandbox, d.name);
-          return { folder: d.name, git: isRepo(abs), marked: existsSync(join(abs, '.project')) };
+          const url = firstRemoteUrl(abs);
+          return {
+            folder: d.name,
+            git: isRepo(abs),
+            marked: existsSync(join(abs, '.project')),
+            /* G3: an adopted folder with a remote keeps it (setup's GitHub step says "kept") */
+            remote: url ? { url: safeRemoteUrl(url), github: githubRepo(url) } : null,
+          };
         })
         .sort((a, b) => a.folder.localeCompare(b.folder));
     });
