@@ -4,6 +4,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- [ ] Fresh data dirs still seed the 9 prototype demo projects (Aurora Storefront…). Removed from the user's real data 2026-11-14; seed.ts should stop creating them (tests depend on them — move to a test fixture).
 - [ ] Agents can't see a page in a real browser — they verify with tests + scripted requests. (F3)
 - [ ] Agent shell refuses env-prefixed commands (`PORT=… npm start`); agents work around it. (F3)
 - [ ] One server test failed once at the start of F3 and never again in ~12 full runs — not pinned down. (F3)
