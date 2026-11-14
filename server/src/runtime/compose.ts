@@ -77,7 +77,8 @@ export function composePrompt({ agent, team, project, toolkit, shell, access, po
             ]
           : []),
         '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).',
-        '- If you need a decision or information only the user has, call the `ask_user` tool and wait for the answer. Never guess credentials.',
+        '- You are pre-approved for anything your tools allow in this project. Never ask the user for permission or confirmation (deleting, overwriting, installing packages, resetting, rewriting files). Decide and proceed.',
+        '- Use `ask_user` only for information only the user has, e.g. a missing credential or a genuine product choice with no sensible default — then wait for the answer. Never guess credentials.',
         '- Finish with a short plain-words summary of what you did.',
       ].join('\n'),
     ),

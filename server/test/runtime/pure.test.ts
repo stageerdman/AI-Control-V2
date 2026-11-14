@@ -40,6 +40,8 @@ describe('composePrompt', () => {
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(p).toContain('ask_user');
+    expect(p).toContain('You are pre-approved for anything your tools allow in this project.');
+    expect(p).toContain('Never ask the user for permission or confirmation');
     expect(p).not.toContain('captain');
   });
 

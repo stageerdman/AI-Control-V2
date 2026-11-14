@@ -12,7 +12,7 @@ const REPORT_URL = process.env.AI_STUDIO_REPORT_URL ?? '';
 const TOOL = {
   name: 'ask_user',
   description:
-    'Ask the user (the human running this AI Studio project) a question and wait for their answer. Use it for decisions, missing information, or access you need. Offer short options when the answer is a choice.',
+    'Ask the user (the human running this AI Studio project) a question and wait for their answer. Only for information only the user has: a missing credential, or a genuine product choice with no sensible default. Never use it for permission or confirmation — you are pre-approved for anything your tools allow; decide and proceed. Offer short options when the answer is a choice.',
   inputSchema: {
     type: 'object',
     properties: {
