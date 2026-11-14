@@ -55,7 +55,6 @@ const api = vi.hoisted(() => ({
   updateField: vi.fn(),
   removeField: vi.fn(),
   setValue: vi.fn(),
-  importFromEnv: vi.fn(),
   project: vi.fn(),
   grant: vi.fn(),
   revoke: vi.fn(),
@@ -73,7 +72,7 @@ vi.mock('../../api/studio', () => ({
   },
 }));
 
-const { AccessPage, importSummary } = await import('./AccessPage');
+const { AccessPage } = await import('./AccessPage');
 const { fieldError } = await import('./AccessEditor');
 const { ProjectAccessPanel, syncSummary, withGrant, sortForSafe, fieldLine } = await import(
   './ProjectAccessPanel'
@@ -149,10 +148,6 @@ describe('marks, masks and lines', () => {
     expect(suggestEnvVar('', '')).toBe('ACCESS_KEY');
   });
   it('summaries name accesses and env vars, never values', () => {
-    expect(importSummary({ imported: [1, 2], refreshed: [1] })).toBe(
-      '🔑 2 new accesses imported · 1 refreshed — masked',
-    );
-    expect(importSummary({ imported: [], refreshed: [] })).toMatch(/already matches/);
     expect(
       syncSummary({
         file: '/x/.env',

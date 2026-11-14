@@ -20,7 +20,6 @@ export const accessApi = {
   updateField: studio.accesses.updateField,
   removeField: studio.accesses.removeField,
   setValue: studio.accesses.setValue,
-  importFromEnv: studio.accesses.importFromEnv,
   project: studio.projects.access,
   grant: studio.projects.grant,
   revoke: studio.projects.revoke,

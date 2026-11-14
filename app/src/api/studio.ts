@@ -137,7 +137,6 @@ export const studio = {
     /** Write-only: the value goes out once and never comes back. */
     setValue: (id: string, fieldId: string, value: string) =>
       http.put<Access>(`/accesses/${e(id)}/fields/${e(fieldId)}/value`, { value }),
-    importFromEnv: () => http.post<{ imported: Access[]; refreshed: string[] }>('/accesses/import'),
   },
   settings: () => http.get<StudioSettings>('/settings'),
   setSettings: (body: Partial<StudioSettings>) => http.patch<StudioSettings>('/settings', body),

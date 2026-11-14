@@ -6,20 +6,11 @@ import { invalidate, useQuery } from '../../api/query';
 import { studio } from '../../api/studio';
 import type { Project } from '../../api/types';
 import type { PageProps } from '../../shell/pages';
-import { Button, EmptyState, ErrorState, Loading, SceneHead, toast } from '../../ui';
-import { AccessEditor, type EditorMode, formError } from './AccessEditor';
+import { Button, EmptyState, ErrorState, Loading, SceneHead } from '../../ui';
+import { AccessEditor, type EditorMode } from './AccessEditor';
 import { type Access, accessApi, keys } from './api';
-import { accessMeta, credLook, fieldShown, plural } from './mark';
+import { accessMeta, credLook, fieldShown } from './mark';
 import './access.css';
-
-export function importSummary(r: { imported: unknown[]; refreshed: unknown[] }): string {
-  if (!r.imported.length && !r.refreshed.length) return '🔑 The cabinet already matches the global .env';
-  const parts = [
-    r.imported.length && `${plural(r.imported.length, 'new access', 'new accesses')} imported`,
-    r.refreshed.length && `${r.refreshed.length} refreshed`,
-  ].filter(Boolean);
-  return `🔑 ${parts.join(' · ')} — masked`;
-}
 
 const byName = (a: Access, b: Access) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
 
@@ -28,20 +19,7 @@ export function AccessPage(_: PageProps<'access'>) {
   const projects = useQuery('projects', studio.projects.list);
   const [editor, setEditor] = useState<EditorMode | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
   const add = () => setEditor({ kind: 'add' });
-
-  async function runImport() {
-    setImporting(true);
-    try {
-      toast(importSummary(await accessApi.importFromEnv()));
-      await invalidate(keys.cabinet);
-    } catch (e) {
-      toast(`⚠ Import failed — ${formError(e)}`);
-    } finally {
-      setImporting(false);
-    }
-  }
 
   const list = [...(cabinet.data ?? [])].sort(byName);
   return (
@@ -50,14 +28,9 @@ export function AccessPage(_: PageProps<'access'>) {
         kicker="The Key Cabinet"
         title="Saved once — granted per project"
         actions={
-          <div className="row" style={{ gap: 10 }}>
-            <Button onDark onClick={runImport} disabled={importing}>
-              {importing ? 'Importing…' : 'Import from .env'}
-            </Button>
-            <Button variant="hero" onClick={add}>
-              ＋ Add new access
-            </Button>
-          </div>
+          <Button variant="hero" onClick={add}>
+            ＋ Add new access
+          </Button>
         }
       >
         An access is everything one service needs — keys, a username, a URL. Agents hold nothing by default; a
@@ -76,9 +49,7 @@ export function AccessPage(_: PageProps<'access'>) {
                 ＋ Add new access
               </Button>
             }
-          >
-            Add an access, or import the keys already in your global .env.
-          </EmptyState>
+          />
         )}
         {list.map((a) => (
           <AccessRow
