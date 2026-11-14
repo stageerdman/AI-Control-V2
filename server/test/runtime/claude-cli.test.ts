@@ -24,6 +24,12 @@ function go() {
     const kid = spawn('/bin/sleep', ['1000'], { stdio: 'ignore' });
     fs.writeFileSync(out + '.pids', JSON.stringify([process.pid, kid.pid]));
     setInterval(() => {}, 1000);
+  } else if (mode === 'linger') {
+    // answers, then keeps waiting on a background command it started (the CLI's real behaviour)
+    process.stdout.write(fs.readFileSync(process.env.FAKE_FIXTURE, 'utf8'));
+    const kid = spawn('/bin/sleep', ['1000'], { stdio: 'ignore' });
+    fs.writeFileSync(out + '.pids', JSON.stringify([process.pid, kid.pid]));
+    setInterval(() => {}, 1000);
   } else if (mode === 'chatty') {
     let i = 0;
     setInterval(() => process.stdout.write(JSON.stringify({ type: 'assistant', message: { id: 'm' + (i++), content: [{ type: 'text', text: 'hi' }] } }) + '\\n'), 5);
@@ -82,6 +88,7 @@ describe('ClaudeCliRunner', () => {
     const events: RunEvent[] = [];
     const h = claudeCliRunner({
       bin,
+      afterResultMs: 200,
       askServer: '/srv/ask-server.ts',
       node: '/usr/local/bin/node',
       ...(logDir ? { logDir } : {}),
@@ -163,6 +170,16 @@ describe('ClaudeCliRunner', () => {
       costUsd: 0.1389382,
       usage: { input: 6, output: 296, cacheRead: 35586, cacheWrite: 656 },
     });
+  });
+
+  it('a CLI that lingers after its answer (a background command left running) is stopped; the answer stands', async () => {
+    const { h } = run(spec('linger'));
+    const o = await h.done;
+    expect(o.status).toBe('succeeded');
+    expect(o.result).toBeTruthy();
+    const pids = JSON.parse(readFileSync(`${out}.pids`, 'utf8')) as number[];
+    await new Promise((r) => setTimeout(r, 100));
+    for (const pid of pids) expect(alive(pid)).toBe(false);
   });
 
   it('resumes a session with --resume instead of a new --session-id', async () => {

@@ -29,6 +29,10 @@ export const DEFAULT_ALLOWED = [
 /** Reporter runs research the web (read-only). */
 export const WEB_TOOLS = ['WebSearch', 'WebFetch'];
 const KILL_GRACE_MS = 3000;
+/** After the answer (result line + stdin closed) the CLI normally exits at once; one that lingers is waiting on a
+    command its agent left running in the background (`npm start` with run_in_background, no timeout) — F3 live: the
+    item sat "running" forever. Past this grace the whole group is stopped; the answer stands. */
+const AFTER_RESULT_MS = 10_000;
 
 export type CliOptions = {
   bin: string;
@@ -38,6 +42,8 @@ export type CliOptions = {
   /** Raw (redacted) stream log per run, for debugging and fixtures. */
   logDir?: string;
   allowedTools?: string[];
+  /** How long the CLI may linger after its answer before its process group is stopped (tests shorten it). */
+  afterResultMs?: number;
 };
 
 export function cliArgs(
@@ -147,7 +153,13 @@ export function claudeCliRunner(opts: CliOptions): Runner {
       lines.on('line', (line) => {
         if (logFile) appendFileSync(logFile, `${redactSecrets(line, spec.secretValues).value}\n`);
         for (const e of parser.feed(line)) io.emit(e);
-        if (parser.finished() && !child.stdin.writableEnded) child.stdin.end(); // one task per run: let it exit
+        if (parser.finished() && !child.stdin.writableEnded) {
+          child.stdin.end(); // one task per run: let it exit
+          setTimeout(() => {
+            killGroup(child, 'SIGTERM'); // still here: it waits on a leftover background command
+            setTimeout(() => killGroup(child, 'SIGKILL'), KILL_GRACE_MS).unref();
+          }, opts.afterResultMs ?? AFTER_RESULT_MS).unref();
+        }
         if (parser.turns() > spec.caps.maxTurns)
           stop({ status: 'failed', error: `Stopped: reached the turn cap (${spec.caps.maxTurns})` });
       });
