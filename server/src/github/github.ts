@@ -14,6 +14,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 import type { Db } from '../db/connection.ts';
+import { metaFlag } from '../db/settings.ts';
 import type { Store } from '../db/store.ts';
 import { now, row } from '../db/util.ts';
 import { AppError, conflict } from '../errors.ts';
@@ -264,16 +265,8 @@ export function createGithub(deps: {
     if (e.scope === 'project' && e.type === 'item.merged') void pushAfterMerge(e.scopeId);
   });
 
-  const SETTING = 'github_by_default';
-  const settings = {
-    githubByDefault: (): boolean =>
-      row<{ value: string }>(db.prepare('SELECT value FROM meta WHERE key = ?').get(SETTING))?.value !== '0',
-    setGithubByDefault(on: boolean): void {
-      db.prepare(
-        'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-      ).run(SETTING, on ? '1' : '0');
-    },
-  };
+  const byDefault = metaFlag(db, 'github_by_default');
+  const settings = { githubByDefault: byDefault.get, setGithubByDefault: byDefault.set };
 
   /* GET /github/status: can the studio use gh, and as whom (the publish form's owner prefix). */
   let login: string | null = null;

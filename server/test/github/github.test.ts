@@ -79,9 +79,10 @@ describe('GitHub', () => {
     expect(a.step.detail).toContain('off for this project');
     const b = await make('Draft Off', { github: false });
     expect(b.step.status).toBe('skipped');
-    expect((await h.call('GET', '/settings')).body).toEqual({ githubByDefault: true });
+    expect((await h.call('GET', '/settings')).body).toEqual({ githubByDefault: true, autoApprove: true });
     expect((await h.call('PATCH', '/settings', { githubByDefault: false })).body).toEqual({
       githubByDefault: false,
+      autoApprove: true,
     });
     const c = await make('Studio Off');
     expect(c.step.status).toBe('skipped');

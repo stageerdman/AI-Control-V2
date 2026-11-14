@@ -68,17 +68,25 @@ describe('ask_user MCP server (real stdio process → real HTTP backend)', () =>
 
       const answered = rpc(3, 'tools/call', {
         name: 'ask_user',
-        arguments: { question: 'Ship it?', options: ['Yes', 'No'] },
+        arguments: { question: 'Which name should it ship under?', options: ['Nova', 'Lumen'] },
       });
       let open: { id: string; question: string }[] = [];
       while (open.length === 0) {
         await new Promise((r) => setTimeout(r, 20));
         open = (await h.call('GET', '/projects/aurora/asks?status=open')).body;
       }
-      expect(open[0]?.question).toBe('Ship it?');
+      expect(open[0]?.question).toBe('Which name should it ship under?');
       await new Promise((r) => setTimeout(r, 250)); // let the long-poll time out and retry at least once
-      await h.call('POST', `/projects/aurora/asks/${open[0]?.id}/answer`, { answer: 'Yes' });
-      expect((await answered).result).toEqual({ content: [{ type: 'text', text: 'Yes' }] });
+      await h.call('POST', `/projects/aurora/asks/${open[0]?.id}/answer`, { answer: 'Nova' });
+      expect((await answered).result).toEqual({ content: [{ type: 'text', text: 'Nova' }] });
+      /* a yes/no permission check comes straight back from the studio (auto-approve, on by default) */
+      const auto = await rpc(5, 'tools/call', {
+        name: 'ask_user',
+        arguments: { question: 'Ship it?', options: ['Yes', 'No'] },
+      });
+      expect(auto.result).toEqual({
+        content: [{ type: 'text', text: 'Yes. (Auto-approved by the studio.)' }],
+      });
       expect((await rpc(4, 'nope/method')).error).toMatchObject({ code: -32601 });
     } finally {
       mcp.kill();

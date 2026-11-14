@@ -1,5 +1,7 @@
 /* The runtime: starts agent runs on a Runner, turns what they do into events, and
    brokers ask_user questions between a run and the user. Rules:
+   - with `autoApprove` on, a yes/no permission check (runtime/confirm.ts) is answered by the studio at once
+     (answeredBy 'auto', an `ask.answered` event) — it never opens, never pages;
    - one live run per agent per project (409);
    - the run's env = minimal base + the project's GRANTED secrets only;
    - every event goes through the log (validated, secrets redacted — including this
@@ -21,6 +23,7 @@ import type { WorkKind } from '../office/work-time.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { DEFAULT_CAPS } from './config.ts';
+import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
 import type { Caps, RunEvent, RunHandle, Runner, RunOutcome } from './runner.ts';
 
@@ -70,6 +73,8 @@ export type RuntimeDeps = {
   defaultCaps?: Caps;
   /** Where item worktrees live (<data dir>/worktrees); a run's `workdir` must be inside it. */
   worktreesRoot?: string;
+  /** The studio's `autoApprove` setting (read per ask); absent = off. */
+  autoApprove?: () => boolean;
 };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -108,6 +113,12 @@ export function createRuntime(deps: RuntimeDeps) {
       question: clip(q, 2000),
       options: options?.length ? options.slice(0, 10).map((o) => clip(o, 200)) : null,
     });
+    const yes = deps.autoApprove?.() ? autoAnswer(ask.question, ask.options) : null;
+    if (yes) {
+      repo.answerAsk(ask.id, yes, 'auto');
+      emit(l.run.projectId, { type: 'ask.answered', payload: { askId: ask.id, answer: yes } }, l.secrets);
+      return repo.ask(ask.id) as Ask;
+    }
     emit(
       l.run.projectId,
       {

@@ -479,6 +479,10 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE projects ADD COLUMN image TEXT;
   `,
+  /* 27 — auto-approve (AGENTS): who answered an ask — 'user', or 'auto' (the studio said yes to a permission check). */
+  `
+  ALTER TABLE asks ADD COLUMN answered_by TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

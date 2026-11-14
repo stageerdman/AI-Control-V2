@@ -12,6 +12,7 @@ import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import type { Db } from './db/connection.ts';
+import { metaFlag } from './db/settings.ts';
 import { createStore, type Store } from './db/store.ts';
 import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
@@ -50,6 +51,7 @@ import { reportRoutes } from './routes/reports.ts';
 import { roleRoutes } from './routes/roles.ts';
 import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
+import { settingsRoutes } from './routes/settings.ts';
 import { teamRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
@@ -153,6 +155,8 @@ export function buildApp({
   const reports = createReports({ db, store, events, secretValues: secretValuesOf(secrets) });
   /* every project owns a stable port block: its app's port + spares for agents' own servers */
   const ports = createPorts(db);
+  /* AGENTS: on = the studio says yes to agents' yes/no permission checks itself (never pages the user) */
+  const autoApprove = metaFlag(db, 'auto_approve');
   const runtime = createRuntime({
     db,
     store,
@@ -167,6 +171,7 @@ export function buildApp({
     worktreesRoot: join(config.home, 'worktrees'),
     defaultCaps: caps.agent,
     shell,
+    autoApprove: autoApprove.get,
     /* reporter runs get file_report; its input is checked here (422 lists what's wrong) */
     reports: {
       canFile: reports.canFile,
@@ -307,6 +312,7 @@ export function buildApp({
   app.register(timeRoutes({ store, clock }));
   app.register(portraitRoutes({ portraits: createPortraits({ db, store, events, home: config.home }) }));
   app.register(githubRoutes({ github }));
+  app.register(settingsRoutes({ github, autoApprove }));
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );

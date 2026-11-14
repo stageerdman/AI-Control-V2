@@ -1,5 +1,5 @@
 /* GitHub (G1): publish a project (the user's button), the public/private switch, and the studio-wide
-   "new projects get a GitHub repo" setting. The studio runs gh; agents never push. */
+   status. The studio runs gh; agents never push. (GET/PATCH /settings: routes/settings.ts.) */
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { parse } from '../errors.ts';
@@ -16,7 +16,6 @@ const PublishBody = z.strictObject({
   visibility: Visibility.default('private'),
 });
 const VisibilityBody = z.strictObject({ visibility: Visibility });
-const SettingsPatch = z.strictObject({ githubByDefault: z.boolean().optional() });
 
 export const githubRoutes =
   ({ github }: { github: Github }): FastifyPluginAsync =>
@@ -35,11 +34,4 @@ export const githubRoutes =
       return github.setVisibility(id, parse(VisibilityBody, req.body).visibility);
     });
     app.get('/github/status', async () => github.status());
-    /* studio-wide settings (G1: one so far) */
-    app.get('/settings', async () => ({ githubByDefault: github.settings.githubByDefault() }));
-    app.patch('/settings', async (req) => {
-      const body = parse(SettingsPatch, req.body);
-      if (body.githubByDefault !== undefined) github.settings.setGithubByDefault(body.githubByDefault);
-      return { githubByDefault: github.settings.githubByDefault() };
-    });
   };

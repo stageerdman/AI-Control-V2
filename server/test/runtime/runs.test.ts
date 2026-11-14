@@ -125,7 +125,7 @@ describe('agent runs (FakeRunner end-to-end)', () => {
     expect(open[0]).toMatchObject({ question: 'Blue or green?', options: ['Blue', 'Green'] });
     expect((await h.call('GET', `/projects/aurora/runs/${r.body.id}`)).body.status).toBe('running');
     const ans = await h.call('POST', `/projects/aurora/asks/${open[0]?.id}/answer`, { answer: 'Green' });
-    expect(ans.body).toMatchObject({ status: 'answered', answer: 'Green' });
+    expect(ans.body).toMatchObject({ status: 'answered', answer: 'Green', answeredBy: 'user' });
     expect(
       (await h.call('POST', `/projects/aurora/asks/${open[0]?.id}/answer`, { answer: 'Blue' })).status,
     ).toBe(409);
@@ -135,8 +135,67 @@ describe('agent runs (FakeRunner end-to-end)', () => {
     expect(t.at(-2)).toBe('run.finished');
   });
 
+  it('auto-approve (on by default): a yes/no permission check is answered by the studio, never pages', async () => {
+    h = studio(() => [
+      { ask: 'This will delete build/. Should I go ahead?', options: ['Yes, delete it', 'No'] },
+      { ask: 'OK to run npm install?' },
+      { result: 'Cleaned up.' },
+    ]);
+    const r = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'Clean up' });
+    expect((await h.runtime.settled(r.body.id)).status).toBe('succeeded');
+    const asks = (await h.call('GET', '/projects/aurora/asks')).body;
+    expect(asks).toMatchObject([
+      { status: 'answered', answeredBy: 'auto', answer: 'Yes, delete it. (Auto-approved by the studio.)' },
+      { status: 'answered', answeredBy: 'auto', answer: 'Yes, go ahead. (Auto-approved by the studio.)' },
+    ]);
+    expect((await h.call('GET', '/projects/aurora/asks?status=open')).body).toEqual([]);
+    expect((await h.call('GET', '/asks')).body).toEqual([]); // the pager
+    expect((await h.call('GET', '/asks?status=answered')).body).toHaveLength(2); // still in history
+    const t = types(h);
+    expect(t).not.toContain('ask.opened');
+    expect(t.filter((x) => x === 'ask.answered')).toHaveLength(2);
+  });
+
+  it('auto-approve: questions that need the user still page; with the setting off, permission checks do too', async () => {
+    h = studio(() => [
+      { ask: 'Which database should I use?', options: ['Postgres', 'SQLite'] },
+      { result: 'ok' },
+    ]);
+    let r = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'x' });
+    const waitOpen = async () => {
+      for (let i = 0; i < 100; i++) {
+        const open = (await h.call('GET', '/asks')).body;
+        if (open.length) return open;
+        await new Promise((x) => setTimeout(x, 10));
+      }
+      return [];
+    };
+    let open = await waitOpen();
+    expect(open).toMatchObject([{ question: 'Which database should I use?' }]);
+    await h.call('POST', `/projects/aurora/asks/${open[0].id}/answer`, { answer: 'SQLite' });
+    await h.runtime.settled(r.body.id);
+
+    expect((await h.call('GET', '/settings')).body).toMatchObject({ autoApprove: true });
+    expect((await h.call('PATCH', '/settings', { autoApprove: false })).body).toEqual({
+      githubByDefault: true,
+      autoApprove: false,
+    });
+    h.close();
+    h = studio(() => [
+      { ask: 'Should I delete the old build folder?', options: ['Yes', 'No'] },
+      { result: 'ok' },
+    ]);
+    await h.call('PATCH', '/settings', { autoApprove: false });
+    r = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'x' });
+    open = await waitOpen();
+    expect(open).toMatchObject([{ question: 'Should I delete the old build folder?' }]);
+    const ans = await h.call('POST', `/projects/aurora/asks/${open[0].id}/answer`, { answer: 'No' });
+    expect(ans.body).toMatchObject({ answeredBy: 'user', answer: 'No' });
+    await h.runtime.settled(r.body.id);
+  });
+
   it('cancel stops a run mid-question; its open ask is withdrawn', async () => {
-    h = studio(() => [{ ask: 'Proceed?' }, { result: 'never' }]);
+    h = studio(() => [{ ask: 'Which colour should the logo be?' }, { result: 'never' }]);
     const r = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'x' });
     while ((await h.call('GET', '/projects/aurora/asks?status=open')).body.length === 0)
       await new Promise((x) => setTimeout(x, 10));

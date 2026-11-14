@@ -35,6 +35,8 @@ export type Ask = {
   answer: string | null;
   createdAt: string;
   answeredAt: string | null;
+  /** Who answered: the user, or 'auto' (the studio approved a yes/no permission check itself); null = not answered / older rows. */
+  answeredBy: 'user' | 'auto' | null;
   /** When the user visited the project's office while this ask was open (the pager drops it). */
   seenAt: string | null;
 };
@@ -90,6 +92,7 @@ const toAsk = (r: RunRow): Ask => ({
   answer: (r.answer as string) ?? null,
   createdAt: r.created_at as string,
   answeredAt: (r.answered_at as string) ?? null,
+  answeredBy: (r.answered_by as Ask['answeredBy']) ?? null,
   seenAt: (r.seen_at as string) ?? null,
 });
 
@@ -237,12 +240,12 @@ export function runsRepo(db: Db) {
       db
         .prepare("UPDATE asks SET seen_at = ? WHERE project_id = ? AND status = 'open' AND seen_at IS NULL")
         .run(now(), projectId).changes as number,
-    answerAsk: (id: string, answer: string) =>
+    answerAsk: (id: string, answer: string, by: 'user' | 'auto' = 'user') =>
       db
         .prepare(
-          "UPDATE asks SET status = 'answered', answer = ?, answered_at = ? WHERE id = ? AND status = 'open'",
+          "UPDATE asks SET status = 'answered', answer = ?, answered_at = ?, answered_by = ? WHERE id = ? AND status = 'open'",
         )
-        .run(answer, now(), id).changes,
+        .run(answer, now(), by, id).changes,
     cancelAsks: (runId: string) =>
       (
         db
