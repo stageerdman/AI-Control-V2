@@ -72,3 +72,27 @@ no label under it. Mouse, Enter or Space open the same Agent time sheet. While a
 (they stay still in reduced motion). Shots: `office-v2-office`, `office-v2-wall` (empty above the safe),
 `office-v2-clock-hover`, `office-v2-clock-sheet`, `office-v2-clock-ticking`. The hourglass shots were removed.
 - Shipped v2: backup `~/.ai-studio/backups/studio-before-office-clock-20261114-230655.db` (integrity ok, v25, 5 projects), release `tauri build`, graceful quit (4319 + lock free in 2 s), replaced and reopened from /Applications — up in 4 s, `/projects/habit-hatch/time` answers, the 5 projects listed, health 200 after 15 s. Left running.
+
+## v3 — the project's portrait ✅ (user request)
+"next to features add … an image of the project framed and its name; when I click it I can change the name (just
+visual) and image (just for the app's sake)".
+- **Office:** a wooden frame on a string, left of the features folder (layout `portrait`, with air to the folder and
+  door, above the push box and console; the layout tests check every room size). Inside is the project's picture,
+  or its tile (gradient + glyph) by default. A brass name plaque sits underneath (clipped and squeezed to the plate),
+  and the plinth title follows the name. It's a hotspot button ("Habit Hatch — change its picture and name"; Enter,
+  Space, focus ring).
+- **Sheet** (`PortraitSheet.tsx`): the picture with "Choose picture…" and "Reset to the tile"; Name + Save
+  (`PATCH /projects/:id {name}`, display name only). One quiet line: "Only changes how it’s shown in AI Studio — the
+  folder and repo keep their names." Picks are png/jpeg/webp/gif up to 10 MB, cropped to a centred square and
+  shrunk to a 512 px PNG in the app before upload.
+- **Server:** `PUT/GET/DELETE /projects/:id/image` stores the picture at `<AI_STUDIO_HOME>/images/<id>.<ext>` (0600),
+  never in the project folder. The bytes decide the type and a disagreeing header is refused; the cap is 2 MB.
+  `imageUrl` (versioned) is on the project, with event `project.changed`. Migration 26.
+- **Everywhere:** Projects cards (on set + back lot) use the picture as their icon.
+- Tests: server `test/office/portrait.test.ts` (store and serve, no project-folder writes, type / lying-header /
+  empty / size refusals, delete, rename = name only, sniffing); app `portrait.test.tsx` (pick rules, crop, name,
+  plaque, frame inner, sync, card icon) + layout invariants. App 238 · server 389 · cargo 13 (one pre-existing flaky
+  lock test, logged in issues.txt).
+- Shots: `office-portrait-office-tile`, `office-portrait-wall-tile`, `office-portrait-sheet-tile`,
+  `office-portrait-sheet-picture`, `office-portrait-office-picture`, `office-portrait-wall`, `office-portrait-projects`,
+  `office-portrait-office-narrow`. The sample picture was drawn in the headless browser (no personal files).

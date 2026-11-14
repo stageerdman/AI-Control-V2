@@ -109,6 +109,8 @@ export type Project = {
     visibility?: GithubView['visibility'];
   };
   tile: Tile;
+  /** OFFICE: the project's picture (a server path, versioned); null/absent = show the tile. */
+  imageUrl?: string | null;
   teamIds: string[];
   /** Specialists (teams come first). */
   agentIds: string[];
@@ -491,6 +493,7 @@ export type EventPayloads = {
   'app.status': { status: AppStatus; url?: string; exitCode?: number };
   /** G1: refetch GET /projects/:id/access. */
   'access.changed': { accessId: string; change: 'granted' | 'revoked' | 'updated' | 'deleted' };
+  'project.changed': { imageUrl?: string | null; name?: string };
   'github.changed': { published: boolean; url: string | null; visibility: GithubView['visibility'] };
   'github.push': { ok: boolean; commit?: string; note?: string };
   /** An item passes between desks: to a reviewer, back to its builder (rework / merge-fix). */
@@ -601,6 +604,7 @@ export const EVENT_TYPES = [
   'feature.shipped',
   'app.status',
   'access.changed',
+  'project.changed',
   'github.changed',
   'github.push',
 ] as const satisfies readonly EventType[];

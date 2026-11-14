@@ -1,7 +1,14 @@
 /* The office's live state, pure (tested): the backend's statuses + open asks → what each robot is
    doing in the scene (the prototype's ACTIVITY kinds), thread merging, the wall's facts.
    The scene (engine.ts) only renders what deriveActor() says; nothing here touches the DOM. */
-import type { ChecklistItem, Goal, ProjectApp, ProjectHealth, StudioEvent } from '../../api';
+import {
+  apiUrl,
+  type ChecklistItem,
+  type Goal,
+  type ProjectApp,
+  type ProjectHealth,
+  type StudioEvent,
+} from '../../api';
 import type { Pose } from '../../characters';
 import type { AgentStatus, Feature, OfficeProgress, OfficeView, ThreadMessage, WorkTime } from './api';
 import type { BoardFacts } from './theme';
@@ -270,6 +277,12 @@ export function boardFacts(d: {
   unreadReports?: number;
   progress?: OfficeProgress | null;
   time?: WorkTime | null;
+  /** The project as the portrait shows it (name, picture, tile). */
+  project?: {
+    name: string;
+    imageUrl?: string | null;
+    tile: { g1: string; g2: string; glyph: string };
+  } | null;
 }): BoardFacts {
   const latest = d.health?.latest;
   return {
@@ -280,6 +293,9 @@ export function boardFacts(d: {
     grades: latest ? ASPECTS.map(([key, name]) => ({ key, name, grade: latest[key].grade })) : [],
     unreadReports: d.unreadReports ?? 0,
     live: d.time?.live ?? 0,
+    portrait: d.project
+      ? { name: d.project.name, image: apiUrl(d.project.imageUrl), tile: d.project.tile }
+      : null,
   };
 }
 

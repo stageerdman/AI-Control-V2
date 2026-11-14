@@ -163,5 +163,6 @@ export const keys = {
   progress: (pid: string) => `office:${pid}:progress`,
   app: (pid: string) => `office:${pid}:app`,
   time: (pid: string) => `office:${pid}:time`,
+  project: (pid: string) => `office:${pid}:project`,
   pager: 'pager:asks',
 };

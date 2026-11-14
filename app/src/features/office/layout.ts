@@ -32,7 +32,8 @@ export type ObjectId =
   | 'whiteboard'
   | 'health'
   | 'reports'
-  | 'safe';
+  | 'safe'
+  | 'portrait';
 export type Plan = {
   W: number;
   rows: number[];
@@ -176,6 +177,8 @@ export function officeLayout(cfg: LayoutConfig): Plan {
     clock: { x: 64, y: 40, w: 60, h: 60 },
     outbox: { x: 196, y: 262, w: 62, h: 86, stand: { x: 227, y: 424 } },
     console: { x: 282, y: 318, w: 72, h: 96, stand: { x: 318, y: 430 } },
+    /* the project's portrait (OFFICE): its picture framed, name plaque under — left of the features folder */
+    portrait: { x: gx - 104, y: 74, w: 80, h: 118 },
     dossier: { x: gx, y: 96, w: 80, h: 112, label: 'Features' },
     whiteboard: {
       x: gx + 104,

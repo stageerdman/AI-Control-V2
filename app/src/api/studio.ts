@@ -75,6 +75,9 @@ export const studio = {
     list: () => http.get<Project[]>('/projects'),
     get: (id: string) => http.get<Project>(`/projects/${e(id)}`),
     update: (id: string, body: ProjectPatch) => http.patch<Project>(`/projects/${e(id)}`, body),
+    /** The project's picture (raw bytes; the app's only — never the project folder) / back to the tile. */
+    setImage: (id: string, image: Blob) => http.put<Project>(`/projects/${e(id)}/image`, image),
+    clearImage: (id: string) => http.del<Project>(`/projects/${e(id)}/image`),
     remove: (id: string) => http.del<void>(`/projects/${e(id)}`),
     scaffold: (id: string) => http.get<ScaffoldReport>(`/projects/${e(id)}/scaffold`),
     work: (id: string) => http.get<Goal[]>(`/projects/${e(id)}/work`),

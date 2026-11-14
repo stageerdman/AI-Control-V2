@@ -223,7 +223,7 @@ function ActiveCard({ p, agents, teams }: { p: Project; agents: Agent[]; teams: 
       onClick={() => openOffice(p)}
     >
       <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
-        <LogoTile tile={p.tile} />
+        <LogoTile tile={p.tile} imageUrl={p.imageUrl} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
             <h3>{p.name}</h3>
@@ -273,7 +273,7 @@ function BackLotCard({ p }: { p: Project }) {
   const tag = backLotTag(p);
   return (
     <button type="button" className="pcard-db" onClick={() => openOffice(p)}>
-      <LogoTile tile={p.tile} small />
+      <LogoTile tile={p.tile} imageUrl={p.imageUrl} small />
       <div style={{ flex: 1, minWidth: 0 }}>
         <h3>{p.name}</h3>
         <div className="sub">

@@ -511,3 +511,15 @@
 .ts-who li{display:flex;align-items:center;gap:12px}
 .ts-name{flex:1;min-width:0;display:flex;flex-direction:column}
 .ts-name b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* the project's portrait (OFFICE): picture + display name sheet */
+.pt h2{margin:0 0 4px}
+.pt-pic{display:flex;align-items:center;gap:16px;margin:16px 0 18px}
+.pt-pic .logo-tile.pt-big{width:96px;height:96px;border-radius:20px;flex:none}
+.pt-pic-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.pt-row{display:flex;gap:8px;align-items:center}
+.pt-row input{flex:1;min-width:0}
+.pt-why{margin:6px 0 0;font-size:12px;font-weight:700;color:var(--coral)}
+.pt-note{min-height:18px;margin:10px 0 0;font-size:12px;font-weight:700;color:var(--ink-soft)}
+.pt-note.bad{color:var(--coral)}
+.o-hot[data-obj="portrait"]{border-radius:10px}

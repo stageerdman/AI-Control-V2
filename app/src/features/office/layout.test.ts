@@ -63,6 +63,11 @@ function invariants(plan: Plan, people: string[]) {
   expect(o.whiteboard.x).toBeGreaterThan(o.console.x + o.console.w);
   for (const w of plan.windows) expect(w.x).toBeGreaterThan(o.reports.x + o.reports.w);
   expect(o.reports.stand).toBeTruthy();
+  /* OFFICE: the portrait hangs left of the folder with air on both sides, above the push box and the console */
+  expect(o.portrait.x + o.portrait.w).toBeLessThanOrEqual(o.dossier.x - 20);
+  expect(o.portrait.x).toBeGreaterThanOrEqual(o.door.x + o.door.w + 20);
+  expect(o.portrait.y + o.portrait.h).toBeLessThan(o.outbox.y);
+  expect(o.portrait.y + o.portrait.h).toBeLessThan(o.console.y);
 }
 
 describe('officeLayout — the room from staffing', () => {

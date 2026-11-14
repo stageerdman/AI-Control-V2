@@ -1,5 +1,5 @@
 /* The app's one door to the server: typed endpoints, errors, cache hooks, live events. */
-export { ApiError, apiBase, http, isApiError, request, setApiBase } from './client';
+export { ApiError, apiBase, apiUrl, http, isApiError, request, setApiBase } from './client';
 export { checkServer, type Health, parseHealth, type Status, startBackend } from './health';
 export {
   clearQueryCache,

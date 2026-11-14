@@ -12,6 +12,7 @@ import {
   type Ask,
   getQueryData,
   invalidate,
+  type Project,
   type StudioEvent,
   setQueryData,
   studio,
@@ -31,6 +32,7 @@ import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } f
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
+import { PortraitSheet } from './PortraitSheet';
 import {
   activityOf,
   boardFacts,
@@ -106,6 +108,7 @@ const HOTS: { id: ObjectId; label: string }[] = [
   { id: 'reports', label: 'Reports — what the crew found out' },
   { id: 'safe', label: 'Safe — what this project can reach (Access)' },
   { id: 'clock', label: 'Agent time' },
+  { id: 'portrait', label: 'Project picture and name' },
 ];
 /* events that start or end agent time: the work clock reads again */
 const CLOCK_EVENTS = new Set([
@@ -176,6 +179,9 @@ function Office({
   const features = useFeatures(pid);
   const health = useHealth(pid);
   const time = useWorkTime(pid, 60_000);
+  /* the project as the portrait shows it (display name + picture); `project.changed` reads it again */
+  const project = useQuery<Project>(keys.project(pid), () => studio.projects.get(pid));
+  const name = project.data?.name ?? office.name;
   const reports = useQuery<ReportList>(reportsKey(pid), () => reportsApi.list(pid));
   const [inFlight, setInFlight] = useState(0); /* reports being carried to the tray */
   const unread = Math.max(0, (reports.data?.unread ?? 0) - inFlight);
@@ -188,8 +194,9 @@ function Office({
         unreadReports: unread,
         progress: progress.data,
         time: time.data,
+        project: project.data,
       }),
-    [work.data, features.data, health.data, unread, progress.data, time.data],
+    [work.data, features.data, health.data, unread, progress.data, time.data, project.data],
   );
 
   /* ---------- the scene */
@@ -330,6 +337,7 @@ function Office({
       dispatch(ev);
       const e = engine.current;
       if (CLOCK_EVENTS.has(ev.type)) void invalidate(keys.time(pid));
+      if (ev.type === 'project.changed') void invalidate(keys.project(pid));
       switch (ev.type) {
         case 'goal.changed':
         case 'checklist.item':
@@ -466,6 +474,7 @@ function Office({
   /* ---------- the few interactive objects */
   const [accessOpen, setAccessOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
+  const [portraitOpen, setPortraitOpen] = useState(false);
   const newAccess = useNewAccessCount(pid);
   const leave = () => {
     if (reducedMotion()) {
@@ -483,6 +492,7 @@ function Office({
       return;
     }
     if (o === 'clock') return setTimeOpen(true);
+    if (o === 'portrait') return setPortraitOpen(true);
     const s = SUB_OF[o];
     if (s) goSub(s);
   };
@@ -664,7 +674,7 @@ function Office({
           roving();
         }}
       >
-        <h1 className="sr-only">{office.name} — the office</h1>
+        <h1 className="sr-only">{name} — the office</h1>
         <div className="o-box" ref={boxRef} />
         {world &&
           createPortal(
@@ -684,10 +694,12 @@ function Office({
                     h.id === 'reports' && unread
                       ? `${h.label} — ${unread} new`
                       : safeNew
-                        ? `Safe — ${office.name} access, ${newAccess} new`
+                        ? `Safe — ${name} access, ${newAccess} new`
                         : h.id === 'clock'
                           ? clockLabel(time.data)
-                          : h.label
+                          : h.id === 'portrait'
+                            ? `${name} — change its picture and name`
+                            : h.label
                   }
                   style={{ left: o.x, top: o.y, width: o.w, height: o.h }}
                   onClick={(e) => {
@@ -804,10 +816,21 @@ function Office({
           }}
         />
       </aside>
-      <AccessSheet pid={pid} name={office.name} open={accessOpen} onClose={() => setAccessOpen(false)} />
+      <AccessSheet pid={pid} name={name} open={accessOpen} onClose={() => setAccessOpen(false)} />
+      {project.data && (
+        <PortraitSheet
+          project={project.data}
+          open={portraitOpen}
+          onClose={() => setPortraitOpen(false)}
+          onSaved={(p) => {
+            setQueryData(keys.project(pid), p);
+            void invalidate('projects');
+          }}
+        />
+      )}
       <TimeSheet
         pid={pid}
-        name={office.name}
+        name={name}
         open={timeOpen}
         onClose={() => setTimeOpen(false)}
         agents={agentsById}

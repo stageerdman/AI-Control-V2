@@ -40,6 +40,8 @@ const DEFAULT_BASE = 'http://127.0.0.1:4319';
 let base: string = (import.meta.env?.VITE_API_URL as string | undefined) || DEFAULT_BASE;
 export const apiBase = (): string => base;
 /** Point the client elsewhere (tests, a second dev server). */
+/** A server path (e.g. a project's `imageUrl`) as a full URL; null stays null. */
+export const apiUrl = (path: string | null | undefined): string | null => (path ? `${base}${path}` : null);
 export const setApiBase = (url: string): void => {
   base = url.replace(/\/+$/, '');
 };
@@ -55,14 +57,16 @@ export async function request<T>(
 ): Promise<T> {
   const doFetch = opts.fetch ?? fetch;
   let res: Response;
+  /* a Blob goes as raw bytes with its own type (the project's picture); everything else is JSON */
+  const raw = typeof Blob !== 'undefined' && body instanceof Blob;
   try {
     res = await doFetch(`${base}${path}`, {
       method,
       headers:
         body === undefined
           ? { accept: 'application/json' }
-          : { 'content-type': 'application/json', accept: 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+          : { 'content-type': raw ? body.type : 'application/json', accept: 'application/json' },
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
       signal: opts.signal,
     });
   } catch (e) {

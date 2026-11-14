@@ -9,8 +9,11 @@
                                sheets in the reports tray
      desk / chair / couchFront / glyph / deskSync / setDoor */
 /* biome-ignore-all lint/style/useTemplate: ported art, kept close to the prototype */
+
 import { escapeHtml, hueHex, PALETTE, shade } from '../../design/palette';
+import { tileGlyph } from '../projects/tile';
 import type { Plan, Pod } from './layout';
+import { plaqueName } from './portrait';
 
 export type ArtTeam = { name: string; color: string };
 export type DeskKind = 'pod' | 'hot' | 'boss';
@@ -34,6 +37,8 @@ export type BoardFacts = {
   unreadReports: number;
   /** The wall clock by the door is the work clock: its hands tick slowly while agents work (live runs). */
   live: number;
+  /** The project's portrait: display name, picture (full URL; null = its tile). */
+  portrait: { name: string; image: string | null; tile: { g1: string; g2: string; glyph: string } } | null;
 };
 
 export const OT_INK = '#241a44';
@@ -203,6 +208,33 @@ function _otWhiteboard(plan: Plan) {
     <rect x="330" y="284" width="34" height="9" rx="4" fill="${PALETTE.coral}" ${_o(1.8)}/><rect x="372" y="284" width="34" height="9" rx="4" fill="${PALETTE.sky}" ${_o(1.8)}/>
   </g>`;
 }
+/* the project's portrait (OFFICE): a wooden frame on a string, the picture (or the project's tile) inside, a brass
+   name plaque under it. The inside + the name are filled by syncArt. Frame coords 0…80 × -16…118. */
+function _otPortrait(plan: Plan) {
+  const o = plan.objects.portrait;
+  return `<g id="otPortrait" transform="translate(${o.x} ${o.y})">
+    <path d="M12 2 L40 -14 L68 2" stroke="${OT_INK}" stroke-width="2" fill="none" stroke-linejoin="round"/>
+    <circle cx="40" cy="-14" r="3.5" fill="${PALETTE.sun}" ${_o(1.6)}/>
+    <rect x="0" y="0" width="80" height="80" rx="6" fill="${OT.wood}" ${_o()}/>
+    <rect x="5" y="5" width="70" height="70" rx="3" fill="${OT.woodLo}"/>
+    <clipPath id="otPortraitClip"><rect x="9" y="9" width="62" height="62" rx="2"/></clipPath>
+    <g id="otPortraitPic" clip-path="url(#otPortraitClip)"></g>
+    <rect x="9" y="9" width="62" height="62" rx="2" fill="none" ${_o(2)}/>
+    <rect x="2" y="92" width="76" height="22" rx="5" fill="#e7b75a" ${_o(2)}/>
+    <text id="otPortraitName" x="40" y="106.5" text-anchor="middle" font-size="9.5" font-weight="900" fill="#4a2c10"></text>
+  </g>`;
+}
+/* the portrait's inside: the picture, or the project's tile (gradient + glyph) */
+export function portraitInner(p: BoardFacts['portrait']): string {
+  if (!p) return '';
+  if (p.image)
+    return `<image href="${escapeHtml(p.image)}" x="9" y="9" width="62" height="62" preserveAspectRatio="xMidYMid slice"/>`;
+  const c = (v: string) => (/^#[0-9a-f]{3,8}$/i.test(v) ? v : '#9b6cff');
+  return `<defs><linearGradient id="otPortraitTile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c(p.tile.g1)}"/><stop offset="1" stop-color="${c(p.tile.g2)}"/></linearGradient></defs>
+    <rect x="9" y="9" width="62" height="62" fill="url(#otPortraitTile)"/>
+    <g transform="translate(19 19) scale(1.75)">${tileGlyph(p.tile.glyph)}</g>`;
+}
+
 function _otDossier(plan: Plan) {
   const o = plan.objects.dossier;
   return `<g id="otDossier" transform="translate(${o.x} ${o.y})">
@@ -368,7 +400,7 @@ function _otPlinth(plan: Plan, title: string) {
     <path d="M-30 934 H${W + 30} L${W} 992 H0Z" fill="#6b4630" stroke="${OT_INK}" stroke-width="3" stroke-linejoin="round"/>
     <path d="M-30 934 H${W + 30} L${W + 26} 944 H-26Z" fill="#8a5a3c"/>
     <g transform="translate(${W / 2} 963)"><rect x="-200" y="-16" width="400" height="32" rx="6" fill="#e7b75a" stroke="${OT_INK}" stroke-width="2.5"/>
-      <text y="6" text-anchor="middle" font-size="15" font-weight="900" fill="#4a2c10" letter-spacing=".16em">${escapeHtml(title.toUpperCase())}</text></g>
+      <text id="otPlinthName" y="6" text-anchor="middle" font-size="15" font-weight="900" fill="#4a2c10" letter-spacing=".16em">${escapeHtml(title.toUpperCase())}</text></g>
   </g>`;
 }
 
@@ -394,6 +426,7 @@ export function officeArt(plan: Plan, ctx: { title: string; teams: Record<string
     ${_otBossOffice(plan)}
     ${_otDoor()}
     ${_otShip(plan)}
+    ${_otPortrait(plan)}
     ${_otDossier(plan)}
     ${_otWhiteboard(plan)}
     ${_otHealth(plan)}
@@ -427,6 +460,21 @@ export function syncArt(root: Element | null, ws: BoardFacts): void {
   html('wbPct', `${pct}%`);
   set('wbRing', 'stroke-dasharray', `${((315 * pct) / 100).toFixed(1)} 315`);
   set('otClock', 'class', ws.live > 0 ? 'ticking' : '');
+  if (ws.portrait) {
+    html('otPortraitPic', portraitInner(ws.portrait));
+    const plaque = plaqueName(ws.portrait.name);
+    html('otPortraitName', escapeHtml(plaque));
+    /* a long or wide name is squeezed to the plate, never past it */
+    const tn = $('otPortraitName');
+    if (plaque.length > 8) {
+      tn?.setAttribute('textLength', '66');
+      tn?.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+    } else {
+      tn?.removeAttribute('textLength');
+      tn?.removeAttribute('lengthAdjust');
+    }
+    html('otPlinthName', escapeHtml(ws.portrait.name.toUpperCase()));
+  }
   html(
     'wbBars',
     ws.now
