@@ -124,6 +124,14 @@ describe('project conversations (threads)', () => {
     await h.runtime.settled(r2.body.runId);
     expect(seen[1]?.env.STRIPE_KEY).toBe('sk_test_orch_never_77');
     expect(seen[1]?.askBridge?.url).toMatch(/\/internal\/runs\/.+\/asks$/);
+    // a specialist whose role files reports is marked (F3 live: Maestro said nobody on the project could file one)
+    h.store.projects.update('aurora', { agentIds: ['a-prof'] });
+    const r3 = await h.call('POST', url('a-pixel'), { text: 'Who can write reports?' });
+    await h.runtime.settled(r3.body.runId);
+    const s3 = JSON.parse(
+      ((seen.at(-1) as RunSpec).task.split('\n')[0] as string).replace('Studio summary right now: ', ''),
+    );
+    expect(s3.people.specialists).toEqual([{ name: 'Professor Prompt', role: 'Research', reporter: true }]);
   });
 
   it('one turn at a time per thread; a busy agent (running work) refuses and nothing is stored', async () => {

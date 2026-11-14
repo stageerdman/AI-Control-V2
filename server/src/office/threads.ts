@@ -175,7 +175,12 @@ export function createThreads(deps: {
     const name = (id: string) => store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id;
     const goals = work.goals(p.id).slice(0, 3);
     const health = deps.health.latest(p.id);
-    const roleOf = (id: string) => store.agents.get(id)?.role ?? '';
+    /* name + role, and `reporter` when the role files reports (only reporters may take research) */
+    const person = (id: string) => {
+      const a = store.agents.get(id);
+      const reporter = !!a?.roleId && !!store.roles.get(a.roleId)?.reporter;
+      return { name: name(id), role: a?.role ?? '', ...(reporter ? { reporter: true } : {}) };
+    };
     return {
       project: { name: p.name, about: p.note, progress: p.progress },
       /* who is on the project — without it the orchestrator told a staffed project "I don't see a team yet" (F3) */
@@ -187,12 +192,12 @@ export function createThreads(deps: {
             {
               name: t.name,
               captain: t.captainId ? name(t.captainId) : null,
-              members: t.members.map((m) => ({ name: name(m.agentId), role: roleOf(m.agentId) })),
+              members: t.members.map((m) => person(m.agentId)),
               ...(t.reporter ? { reporter: true } : {}),
             },
           ];
         }),
-        specialists: p.agentIds.map((id) => ({ name: name(id), role: roleOf(id) })),
+        specialists: p.agentIds.map(person),
         howWeWork: p.collaboration?.summary ?? 'You brief the team captains; no review gates.',
       },
       whiteboard: goals.map((g) => ({
