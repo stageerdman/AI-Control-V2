@@ -73,3 +73,14 @@ Resume notes. Plan: `update v1.md` (Overnight final build → F2). Commits prefi
   second start = 409 "The app is already running", Stop. Shots `f2-board-team`, `f2-delegate`, `f2-features-shipped`,
   `f2-app-running`, `f2-office-openapp`, `f2-studio-reports`.
 - Tests: app 198 (vitest), typecheck + biome clean, cargo 13. Release `tauri build` ✓ (opened from Finder via `open`).
+
+## F4 — F3 UI items + final build (✅)
+- Run the app: url + port from the server (per-project 3100–3999, shown as "port 3931"; never assumed); a CLI that exits 0
+  reads "ran and finished" with its output and a "Run again" button; only a nonzero exit reads "failed (exit n)".
+- Whiteboard: failed items show their note clipped to the first sentence (2-line clamp, full text on hover); team plan
+  line clamped too.
+- A follow-up goal on a new feature: under the ring "New work added · 1 of 2 features shipped" (no alarm).
+- Tests: app 201 (vitest), typecheck + biome clean, cargo 13. Fake server :4501 + Vite :1501 stopped.
+- Final `tauri build` → `~/.cargo-shared-target/release/bundle/macos/AI Studio.app` (10 MB). Opened with `open`: no
+  lock holder → started its backend on 4319 (lock written), UI requests reached it; headless shot of the built UI
+  against that backend `shots/f2-final-projects.png`; quit → 4319 free, lock released.
