@@ -19,7 +19,10 @@ access holds several keys or other private info, and a director chat that doesn'
   access per project (all its fields). Values stay in `~/.ai-control/.env` via the credentials API only; metadata is in sqlite.
   Existing single-key credentials migrate to one-field accesses with no loss. A project's cabinet shows a "new" dot on
   accesses added since the project last looked.
-- **GitHub publishing is opt-in per project, by the user's press only.** "Publish to GitHub" creates the repo with `gh`
+- **GitHub by default (user, 2026-11-14: "repo github must be also established by default"):** setup (Rivet) creates a
+  private repo and pushes `main`. There is a per-project skip toggle and a studio-wide default, and adopted projects keep an existing remote. If `gh`
+  is missing, setup still finishes and health offers Publish. The manual publish below is the fallback.
+- **GitHub publishing (manual fallback):** "Publish to GitHub" creates the repo with `gh`
   (private by default, visibility chosen at publish time), sets `origin` and pushes `main`. After that, merges to main
   push automatically when the project is published. The public/private switch wraps `gh repo edit --visibility`, and
   going public asks for confirmation. Agents still never push; the studio does. Tests use a stub `gh`. No real repo
