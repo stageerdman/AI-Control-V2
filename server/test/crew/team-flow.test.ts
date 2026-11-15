@@ -171,6 +171,7 @@ describe('captains delegate (F1c)', () => {
       expect.arrayContaining(['deliver', 'a-semic']),
       expect.arrayContaining(['deliver', 'a-semic']),
       ['review', 'a-semic', 'a-lint'],
+      ['deliver', 'a-semic', 'a-pixel'], // the captain reports in to the director (report-in)
     ]);
     expect(types(h, 'handoff')[0]).toMatchObject({ parentId: it0.id });
     expect(types(h, 'checklist.item').some((p) => p.teamPhase === 'integrate')).toBe(true);
@@ -212,7 +213,7 @@ describe('captains delegate (F1c)', () => {
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });
     const g = await settled(h, r.body.id);
     expect(g.items[0]).toMatchObject({ status: 'done', subtasks: [], teamPlan: null });
-    expect(crew.crewCalls()).toHaveLength(1);
+    expect(crew.crewCalls().filter((c) => !c.task.includes('contract: report-in'))).toHaveLength(1);
   });
 
   it('members touching the same file: the second one fixes the merge in its checkout, then it lands', async () => {

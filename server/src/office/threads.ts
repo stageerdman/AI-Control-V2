@@ -6,7 +6,8 @@
    - the orchestrator runs big picture: its own brain + altitude, NO tools, no secrets, and a fresh
      summary of the whiteboard, features and health in every message. It decides whether the message is
      work (OFFICE: one Send): its answer is `{reply, work}` (director-reply.ts); work becomes a goal exactly
-     as `POST /work` would, linked to this thread by goalId.
+     as `POST /work` would, linked to this thread by goalId. It can also ask someone on the project a question
+     (`ask`): the studio calls them (room.call — the office shows it) and relays their answer here.
 
    One turn at a time per thread; the runtime's rules still hold (one live run per agent per
    project, caps). The reply arrives later as a `thread.message` event and is stored; asks the run
@@ -59,6 +60,17 @@ const REPORT_EXCERPT = 4000;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const json = (v: unknown) => JSON.stringify(v);
 
+/** The step a todo item waits on (checklist order, as dispatch's orderGate): the first unfinished item before
+    its parallel group. */
+export function waitsFor<T extends { status: string; parallel: boolean }>(
+  items: T[],
+  index: number,
+): T | null {
+  let start = index;
+  while (start > 0 && items[start]?.parallel) start--;
+  return items.slice(0, start).find((b) => b.status !== 'done') ?? null;
+}
+
 /** The orchestrator's office-chat prompt: its brain, big-picture altitude, plain-words replies. */
 export function orchestratorChatPrompt(
   orch: Pick<Agent, 'name' | 'role' | 'prompt'>,
@@ -71,7 +83,10 @@ export function orchestratorChatPrompt(
     [
       '## How you talk here',
       '',
-      'The user is chatting with you in the project’s office. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.',
+      'The user is chatting with you in the project’s office, mostly by voice. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.',
+      'What you can do from here (each message says how): put work on the whiteboard, bring Cast people and teams onto the project, and ask anyone on the project a question — the studio relays their answer into this chat. When the user wants one of these, do it in this answer instead of saying you can’t or offering to. Only for something truly outside these, say so in one line and offer to put it on the whiteboard as a feature.',
+      'How the whiteboard runs: items run in checklist order. An item is "running" once its owner has been briefed and is working; a "todo" item is waiting its turn — `waitsFor` names the step it waits on, and its owner is briefed automatically the moment that step is done. A captain splits a team item into `team` sub-tasks for members. Explain waiting and progress from this, plainly ("Jony starts when Blair’s design lands").',
+      'Names come from voice and can be misheard ("Ivy" for "Ally", "Johnny" for "Jony"). Match an unknown name to the closest person on the project, say who you took it as, and carry on — ask only when two people fit.',
       'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
       'You do not do the work yourself. When the user clearly asks for work, you put it on the whiteboard as ONE goal (each message says how) and break it into checklist items right after — the user does not split it; say which of the people on the project (the summary’s "people") you will brief. When it is only an idea or a question, answer and ask first. Details belong to the teams — the user can tap any agent to talk to them directly.',
@@ -97,6 +112,8 @@ export function createThreads(deps: {
   startWork?: (projectId: string, goal: string) => Promise<Goal>;
   /** The director staffs the project from chat (office/staffing.ts). */
   staffing?: Staffing;
+  /** The director asks someone a question (room.call from the director) → their answer. */
+  ask?: (projectId: string, directorId: string, to: string, request: string) => Promise<string>;
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
@@ -270,7 +287,24 @@ export function createThreads(deps: {
         goal: clip(g.text, 300),
         status: g.status,
         pct: g.pct,
-        items: g.items.map((i) => ({ text: i.text, owner: name(i.agentId), status: i.status })),
+        items: g.items.map((i, n) => {
+          const waits = i.status === 'todo' ? waitsFor(g.items, n) : null;
+          return {
+            text: i.text,
+            owner: name(i.agentId),
+            status: i.status,
+            ...(waits ? { waitsFor: `${clip(waits.text, 120)} (${name(waits.agentId)})` } : {}),
+            ...(i.subtasks.length
+              ? {
+                  team: i.subtasks.map((t) => ({
+                    text: clip(t.text, 120),
+                    owner: name(t.agentId),
+                    status: t.status,
+                  })),
+                }
+              : {}),
+          };
+        }),
       })),
       activeGoals: active.length,
       finishedGoals: finished.map((g) => ({ goal: clip(g.text, 200), status: g.status })),
@@ -372,6 +406,48 @@ export function createThreads(deps: {
     );
   }
 
+  /** The director asks someone on the project: their answer (or why not) lands in the director's thread. */
+  function askFor(t: { projectId: string; agentId: string }, a: { to: string; question: string }) {
+    const p = store.projects.require(t.projectId);
+    const fail = (why: string) =>
+      insert(t.projectId, t.agentId, { sender: 'agent', kind: 'error', text: clip(why, 2000), runId: null });
+    const k = a.to.trim().toLowerCase();
+    const who = store.agents
+      .list()
+      .find((x) => x.name.toLowerCase() === k || x.nick?.toLowerCase() === k || x.id === a.to.trim());
+    let callee: Agent;
+    try {
+      if (!who || who.id === p.orchestratorId) throw new Error();
+      callee = seat(p, who.id).agent;
+    } catch {
+      fail(`I couldn’t ask ${a.to}: nobody by that name is on ${p.name}.`);
+      return;
+    }
+    const director = store.agents.get(t.agentId)?.name ?? 'The director';
+    const theirs = work
+      .goals(p.id)
+      .filter((g) => g.status === 'running')
+      .flatMap((g) => g.items.flatMap((i) => [i, ...i.subtasks]))
+      .filter((i) => i.agentId === callee.id)
+      .map((i) => ({ step: clip(i.text, 160), status: i.status }));
+    const request = [
+      `${director}, your orchestrator, asks you this for the user: ${json(a.question)}`,
+      `Your steps on the whiteboard now: ${json(theirs)}`,
+      'Answer in two to four short, plain sentences — the user reads it in the office chat.',
+    ].join('\n');
+    const nick = callee.nick || callee.name.split(' ')[0];
+    (deps.ask as NonNullable<typeof deps.ask>)(p.id, t.agentId, callee.name, request).then(
+      (answer) =>
+        insert(t.projectId, t.agentId, {
+          sender: 'agent',
+          kind: 'text',
+          text: `${nick}: “${clip(answer.trim(), 600)}”`,
+          runId: null,
+        }),
+      () => fail(`Couldn’t reach ${nick} just now — want me to try again?`),
+    );
+  }
+
   runtime.onFinished((run: Run) => {
     const t = turns.get(run.id);
     if (!t) return;
@@ -414,6 +490,7 @@ export function createThreads(deps: {
         }
       }
       if (d.goal && deps.startWork) startWork(t, d.goal, [t.messageId, reply.id]);
+      if (d.ask && deps.ask) askFor(t, d.ask);
       return;
     }
     insert(t.projectId, t.agentId, {
