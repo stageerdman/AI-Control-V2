@@ -35,6 +35,8 @@ export type OfficeView = {
   director: string;
   teams: OfficeTeam[];
   solo: string[];
+  /** STUDIO LIFE: who the user brought in (they're also in `solo`). */
+  guests?: { agentId: string; brief: string; orchestratorMay: boolean }[];
   agents: Record<string, AgentStatus>;
   lastEventId: number;
   /** F1b lifecycle: moves on its own (live / needs / idle). */

@@ -16,7 +16,11 @@ import type {
   Caps,
   ChatMessage,
   ClaudeMdRebuild,
+  Comm,
+  CreatorDraft,
+  CreatorSession,
   Deleted,
+  DeskNote,
   Draft,
   DraftCreate,
   DraftPatch,
@@ -24,10 +28,15 @@ import type {
   GhStatus,
   GithubView,
   Goal,
+  Guest,
   HealthReport,
+  Mail,
+  MailBox,
+  MailKind,
   Minted,
   Plan,
   PortsView,
+  PrinciplesTeam,
   Project,
   ProjectAccess,
   ProjectHealth,
@@ -145,4 +154,54 @@ export const studio = {
   blueprint: () => http.get<Blueprint>('/blueprint'),
   sandboxFolders: () => http.get<SandboxFolder[]>('/sandbox/folders'),
   restore: (token: string) => http.post<Restored>(`/trash/${e(token)}/restore`),
+
+  /* ---------- STUDIO LIFE ---------- */
+  deskNotes: (projectId: string, agentId?: string) =>
+    http.get<{ notes: DeskNote[] }>(
+      `/projects/${e(projectId)}/desk-notes${agentId ? `?agentId=${e(agentId)}` : ''}`,
+    ),
+  principles: {
+    list: (projectId: string) =>
+      http.get<{ teams: PrinciplesTeam[] }>(`/projects/${e(projectId)}/principles`),
+    read: (projectId: string, teamId: string, file: string) =>
+      http.get<{ teamId: string; file: string; body: string }>(
+        `/projects/${e(projectId)}/principles/${e(teamId)}/${e(file)}`,
+      ),
+  },
+  guests: {
+    list: (projectId: string) => http.get<{ guests: Guest[] }>(`/projects/${e(projectId)}/guests`),
+    add: (projectId: string, body: { agentId: string; brief: string; orchestratorMay?: boolean }) =>
+      http.post<{ guest: Guest; runId: string | null }>(`/projects/${e(projectId)}/guests`, body),
+    update: (projectId: string, agentId: string, body: { brief?: string; orchestratorMay?: boolean }) =>
+      http.patch<Guest>(`/projects/${e(projectId)}/guests/${e(agentId)}`, body),
+    remove: (projectId: string, agentId: string) =>
+      http.del<void>(`/projects/${e(projectId)}/guests/${e(agentId)}`),
+  },
+  mail: {
+    box: (projectId: string, box: 'in' | 'sent' = 'in') =>
+      http.get<MailBox>(`/projects/${e(projectId)}/mail?box=${box}`),
+    get: (projectId: string, mailId: string) => http.get<Mail>(`/projects/${e(projectId)}/mail/${e(mailId)}`),
+    setStatus: (projectId: string, mailId: string, status: 'filed' | 'new') =>
+      http.patch<Mail>(`/projects/${e(projectId)}/mail/${e(mailId)}`, { status }),
+    send: (projectId: string, body: { to: string; subject: string; body: string; kind?: MailKind }) =>
+      http.post<Mail>(`/projects/${e(projectId)}/mail`, body),
+    /** The office opened: the director reads new mail on its own. */
+    open: (projectId: string) =>
+      http.post<{ unread: number; triaging: boolean }>(`/projects/${e(projectId)}/mail/open`),
+  },
+  creatorChat: {
+    list: () => http.get<{ sessions: CreatorSession[] }>('/creator/sessions'),
+    create: (text?: string) => http.post<CreatorSession>('/creator/sessions', text ? { text } : {}),
+    get: (id: string) => http.get<CreatorSession>(`/creator/sessions/${e(id)}`),
+    say: (id: string, text: string) =>
+      http.post<{ reply: string; draft: CreatorDraft | null; chat: CreatorSession['chat'] }>(
+        `/creator/sessions/${e(id)}/chat`,
+        { text },
+      ),
+    edit: (id: string, draft: CreatorDraft) =>
+      http.patch<CreatorSession>(`/creator/sessions/${e(id)}`, { draft }),
+    accept: (id: string) => http.post<{ agent: Agent }>(`/creator/sessions/${e(id)}/accept`),
+    drop: (id: string) => http.del<void>(`/creator/sessions/${e(id)}`),
+  },
+  comms: (projectId: string) => http.get<{ comms: Comm[] }>(`/projects/${e(projectId)}/comms`),
 };

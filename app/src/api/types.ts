@@ -38,6 +38,8 @@ export type Agent = {
   role: string;
   look: Look;
   prompt: string;
+  /** STUDIO LIFE: may send mail to other projects and HQ (default on). */
+  canMail?: boolean;
   teamIds: string[];
   projectIds: string[];
   canDelete: DeleteVerdict;
@@ -52,7 +54,7 @@ export type AgentCreate = {
   look?: Look;
   prompt?: string;
 };
-export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>>;
+export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>> & { canMail?: boolean };
 
 export type Member = { agentId: string; instr: string };
 export type Team = {
@@ -271,7 +273,90 @@ export type GithubView = {
 };
 export type GhStatus = { gh: 'ready' | 'missing' | 'signed-out'; login: string | null };
 /** Studio-wide switches (GET/PATCH /settings), both default on. autoApprove (AGENTS): the studio says yes to agents’ yes/no permission checks. */
-export type StudioSettings = { githubByDefault: boolean; autoApprove: boolean };
+export type StudioSettings = {
+  githubByDefault: boolean;
+  autoApprove: boolean;
+  /** STUDIO LIFE: the project that is HQ (the studio's own repo); null = none yet. */
+  hqProjectId: string | null;
+};
+
+/* ---------- STUDIO LIFE ---------- */
+/** An agent's note to its future self before it forgot (GET /projects/:id/desk-notes). */
+export type DeskNote = {
+  id: string;
+  projectId: string;
+  agentId: string;
+  runId: string | null;
+  where: string;
+  doing: string;
+  next: string;
+  notes?: string;
+  at: string;
+};
+/** GET /projects/:id/principles — each team's principles folder (kept by its captain). */
+export type PrinciplesTeam = {
+  teamId: string;
+  name: string;
+  captainId: string | null;
+  dir: string;
+  files: { file: string; title: string; updatedAt: string }[];
+};
+/** A Cast agent the user brought into a project. */
+export type Guest = {
+  projectId: string;
+  agentId: string;
+  brief: string;
+  orchestratorMay: boolean;
+  addedAt: string;
+};
+export type MailKind = 'mail' | 'ticket' | 'idea';
+export type MailStatus = 'new' | 'board' | 'discussed' | 'filed';
+export type Mail = {
+  id: string;
+  fromProjectId: string | null;
+  fromAgentId: string | null;
+  /** A project id, or 'hq'. */
+  to: string;
+  kind: MailKind;
+  subject: string;
+  body: string;
+  status: MailStatus;
+  goalId: string | null;
+  /** The director's line when it dealt with it. */
+  note: string | null;
+  at: string;
+};
+export type MailBox = { mail: Mail[]; unread: number; sent: number; triaging: boolean };
+/** The draft on Tinker's table (all fields arrive once Tinker has a first sketch). */
+export type CreatorDraft = Partial<{
+  name: string;
+  nick: string;
+  role: string;
+  summary: string;
+  prompt: string;
+  look: Partial<Look>;
+}>;
+export type CreatorSession = {
+  id: string;
+  chat: { from: 'user' | 'creator'; text: string }[];
+  draft: CreatorDraft | null;
+  /** What Tinker is doing during a turn (poll GET while waiting): thinking, or "Looking up “…”". */
+  activity: { kind: string; label: string } | null;
+  createdAt: string;
+  updatedAt: string;
+};
+/** One message between agents (GET /comms, /projects/:id/comms). */
+export type Comm = {
+  id: number;
+  scope: 'project' | 'draft' | 'studio';
+  scopeId: string;
+  kind: string;
+  from: string | null;
+  to: string | null;
+  text: string;
+  refs: Record<string, unknown>;
+  at: string;
+};
 
 /* ---------- Ports (G1): GET /ports ---------- */
 export type PortsView = {
@@ -459,6 +544,14 @@ export type EventPayloads = {
     to?: string;
     text: string;
   };
+  /** STUDIO LIFE */
+  'desk.note': { agentId: string; noteId: string; runId?: string };
+  'guest.changed': { agentId: string; change: 'joined' | 'updated' | 'left' };
+  'mail.changed': {
+    mailId: string;
+    change: 'arrived' | 'triaged' | 'filed' | 'reopened';
+    status: 'new' | 'board' | 'discussed' | 'filed';
+  };
   /** AGENT MCP: someone joined the room (`by` brought them in). */
   'room.joined': { agentId: string; by?: string; why?: string };
   /** AGENT MCP: one agent calling another. */
@@ -604,6 +697,9 @@ export const EVENT_TYPES = [
   'chat.message',
   'room.joined',
   'room.call',
+  'desk.note',
+  'guest.changed',
+  'mail.changed',
   'plan.changed',
   'cast.created',
   'health.checked',
