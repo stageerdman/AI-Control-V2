@@ -291,7 +291,225 @@
   color: var(--ink-soft);
 }
 
+/* ================= history in the chat panel (spec-ux-chat-history) ================= */
+
+/* ---- header pills: History on top, ← director under it. 44px hit area, ~28px visible pill */
+.op-tools {
+  flex: none;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin: -10px -8px 0 0;
+}
+.op-pill {
+  appearance: none;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.op-pill + .op-pill {
+  margin-top: -10px; /* 6px between the visible pills; hit areas stay apart */
+}
+.op-pill-v {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cream);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.op-pill:hover .op-pill-v {
+  background: rgba(255, 255, 255, 0.18);
+}
+.op-pill:focus-visible {
+  outline: 0;
+}
+.op-pill:focus-visible .op-pill-v {
+  outline: 3px solid var(--sun);
+  outline-offset: 2px;
+}
+
+/* ---- the two history views: nav bar + body */
+.op-hist {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.op-nav {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 12px 0 6px;
+  background: var(--cream);
+  border-bottom: 1px solid var(--line);
+}
+.op-nav .op-nav-back {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.op-nav-l {
+  margin: 0;
+}
+.op-nav .op-nav-home {
+  min-height: 44px;
+  position: relative;
+}
+.op-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 2px #fff;
+}
+.op-hist-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 12px;
+  animation: op-in 0.16s var(--ease-out, ease-out);
+}
+@keyframes op-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+.ch-panel .btn {
+  min-height: 44px;
+}
+
+/* ---- the list in the panel */
+.ch-panel .ch-row-t {
+  -webkit-line-clamp: 1;
+}
+.ch-prev {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ch-day {
+  margin: 10px 2px 0;
+  font-size: 11.5px;
+}
+.ch-row.ch-current {
+  background: rgba(255, 196, 0, 0.14);
+  box-shadow: 0 0 0 2px var(--sun-deep);
+}
+.ch-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ch-tag {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ch-tag-now {
+  background: var(--sun);
+  color: #4a2600;
+}
+.ch-tag-ask {
+  background: rgba(255, 111, 115, 0.16);
+  color: #9b2c33;
+}
+
+/* ---- empty history */
+.ch-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 28px 16px 8px;
+}
+.ch-empty-i {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--cream);
+  font-size: 22px;
+}
+.ch-empty-t {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.ch-empty-b {
+  margin: 0 0 10px;
+  max-width: 26ch;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* ---- a past chat: a label so it's never mistaken for the live one */
+.ch-panel .ch-log {
+  padding-top: 4px;
+}
+.ch-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.ch-divider::before,
+.ch-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ---- narrow screens: with the drawer down the nav bar stays (it takes the composer's line) */
+@media (max-width: 899px) {
+  #office:not(.drawer-up) .o-panel .op-hist-body {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .op-hist-body {
+    animation: none;
+  }
   .ch-dots i {
     animation: none;
   }

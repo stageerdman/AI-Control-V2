@@ -2,7 +2,15 @@
    Opens on the chat it's given (Open chat in the recap); a quiet All chats link shows the others.
    One action: the composer pinned at the bottom (Enter sends, Shift+Enter = new line). A running
    chat has no composer — you can't write into a live run. */
-import { type FormEvent, type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  Fragment,
+  type KeyboardEvent,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { invalidate, isApiError, setQueryData, useQuery } from '../../api';
 import { Button, Sheet } from '../../ui';
 import { Markdown, relWhen } from '../reports';
@@ -23,7 +31,52 @@ export const CHAT_COPY = {
   sendFailed: 'They couldn’t answer just now.',
   running: 'They’re still working in this chat.',
   offline: 'Couldn’t send. Check the studio is running.',
+  /* history in the chat panel (spec-ux-chat-history §2) */
+  historyTitle: 'History',
+  backToChat: 'Back to chat',
+  current: 'Current chat',
+  now: 'Now',
+  needsYou: '❗ Needs you',
+  emptyTitle: (short: string) => `No past chats with ${short} yet`,
+  emptyBody: 'When they finish a task, it’ll show up here.',
+  continuePh: 'Continue this chat…',
+  pastDivider: 'past chat',
 };
+
+/** Plain text from a little markdown: no marks, no link targets, one line. */
+export const plain = (s: string) =>
+  s
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, '')
+    .replace(/[*_`~]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const DAY = 86_400_000;
+const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+const daysAgo = (d: Date, now: Date) => Math.round((dayStart(now) - dayStart(d)) / DAY);
+
+/** Day group label: Today · Yesterday · Tuesday (this week) · Nov 3 · Nov 3, 2025. */
+export function dayLabel(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  const n = daysAgo(d, now);
+  if (n <= 0) return 'Today';
+  if (n === 1) return 'Yesterday';
+  if (n < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
+}
+
+/** Row time: 2:14 pm today or yesterday, else the usual relative day. */
+export function rowWhen(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (daysAgo(d, now) > 1) return relWhen(iso, now);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+}
 
 const STATUS_TAG: Record<ChatSummary['status'], string | null> = {
   running: CHAT_COPY.working,
@@ -65,14 +118,19 @@ export function ChatHistoryBody({ agentId, name, chat }: Props & { agentId: stri
 
 /* ---------- All chats: task, when, status */
 
-function ChatList({
+export type CurrentRow = { preview: string | null; needsYou: boolean; onSelect: () => void };
+
+export function ChatList({
   agentId,
   name,
   onOpen,
+  current,
 }: {
   agentId: string;
   name: string;
   onOpen: (c: ChatSummary) => void;
+  /** In the chat panel: the live chat pinned on top; the list groups by day with previews. */
+  current?: CurrentRow;
 }) {
   const q = useQuery(keys.chats(agentId), () => officeApi.listAgentChats(agentId));
   const { refetch } = q;
@@ -81,6 +139,7 @@ function ChatList({
     void refetch().catch(() => undefined);
   }, []);
   const now = new Date();
+  if (current) return <PanelList q={q} name={name} onOpen={onOpen} current={current} now={now} />;
   return (
     <div className="ch-body">
       <h2>{name}</h2>
@@ -115,6 +174,99 @@ function ChatList({
   );
 }
 
+/* ---------- History in the chat panel: Current chat pinned, then day groups, newest first */
+
+function PanelList({
+  q,
+  name,
+  onOpen,
+  current,
+  now,
+}: {
+  q: { data?: ChatSummary[]; fetching: boolean; refetch: () => Promise<void> };
+  name: string;
+  onOpen: (c: ChatSummary) => void;
+  current: CurrentRow;
+  now: Date;
+}) {
+  const runs = [...(q.data ?? [])].sort((a, b) =>
+    (b.endedAt ?? b.startedAt).localeCompare(a.endedAt ?? a.startedAt),
+  );
+  const groups: { label: string; runs: ChatSummary[] }[] = [];
+  for (const c of runs) {
+    const label = dayLabel(c.endedAt ?? c.startedAt, now);
+    const g = groups[groups.length - 1];
+    if (g?.label === label) g.runs.push(c);
+    else groups.push({ label, runs: [c] });
+  }
+  const preview = current.preview ? plain(current.preview) : '';
+  return (
+    <div className="ch-body ch-panel">
+      <div className="ch-scroll" aria-busy={!q.data && q.fetching}>
+        <ul className="ch-list">
+          <li>
+            <button
+              type="button"
+              className="ch-row ch-current"
+              data-testid="history-current"
+              onClick={current.onSelect}
+            >
+              <span className="ch-row-top">
+                <span className={current.needsYou ? 'ch-tag ch-tag-ask' : 'ch-tag ch-tag-now'}>
+                  {current.needsYou ? CHAT_COPY.needsYou : CHAT_COPY.now}
+                </span>
+                <span className="ch-row-t">{CHAT_COPY.current}</span>
+              </span>
+              {preview && <span className="ch-prev">{preview}</span>}
+            </button>
+          </li>
+          {groups.map((g) => (
+            <Fragment key={g.label}>
+              <li role="presentation">
+                <h3 className="ch-sub ch-day">{g.label}</h3>
+              </li>
+              {g.runs.map((c) => {
+                const tag = STATUS_TAG[c.status];
+                const text = c.lastText ? plain(c.lastText) : '';
+                return (
+                  <li key={c.runId}>
+                    <button type="button" className="ch-row" data-run={c.runId} onClick={() => onOpen(c)}>
+                      <span className="ch-row-t">{c.task}</span>
+                      {text && <span className="ch-prev">{text}</span>}
+                      <span className="ch-meta">
+                        {rowWhen(c.endedAt ?? c.startedAt, now)}
+                        {tag && <span className="rc-tag">{tag}</span>}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </Fragment>
+          ))}
+        </ul>
+        {!q.data && q.fetching ? (
+          <Placeholder label={CHAT_COPY.listLoading} />
+        ) : !q.data ? (
+          <ErrorRow text={CHAT_COPY.listError} onRetry={() => void q.refetch()} />
+        ) : (
+          runs.length === 0 && (
+            <div className="ch-empty" data-testid="history-empty">
+              <span className="ch-empty-i" aria-hidden="true">
+                🕘
+              </span>
+              <p className="ch-empty-t">{CHAT_COPY.emptyTitle(name)}</p>
+              <p className="ch-empty-b">{CHAT_COPY.emptyBody}</p>
+              <Button variant="hero" onClick={current.onSelect}>
+                {CHAT_COPY.backToChat}
+              </Button>
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- One chat: read it, keep writing */
 
 type Line = { kind: 'msg'; m: ChatMessage } | { kind: 'tools'; key: string; lines: ChatMessage[] };
@@ -140,16 +292,19 @@ const sendError = (e: unknown) => {
   return CHAT_COPY.sendFailed;
 };
 
-function ChatView({
+export function ChatView({
   agentId,
   name,
   chat,
   onBack,
+  inPanel,
 }: {
   agentId: string;
   name: string;
   chat: ChatSummary;
   onBack: () => void;
+  /** In the chat panel: its nav bar is the way back and its header says who. */
+  inPanel?: boolean;
 }) {
   const q = useQuery(keys.chat(chat.runId), () => officeApi.getChatMessages(chat.runId));
   const { refetch } = q;
@@ -211,13 +366,17 @@ function ChatView({
   const lines = q.data ? foldLines(q.data) : [];
 
   return (
-    <div className="ch-body ch-chat">
+    <div className={`ch-body ch-chat${inPanel ? ' ch-panel' : ''}`}>
       <div className="ch-head">
-        <button type="button" className="ch-back" onClick={onBack}>
-          <span aria-hidden="true">‹ </span>
-          {CHAT_COPY.allChats}
-        </button>
-        <h2>{name}</h2>
+        {!inPanel && (
+          <>
+            <button type="button" className="ch-back" onClick={onBack}>
+              <span aria-hidden="true">‹ </span>
+              {CHAT_COPY.allChats}
+            </button>
+            <h2>{name}</h2>
+          </>
+        )}
         <p className="rc-task">
           <span className="rc-task-t">{chat.task}</span>
           <span className="rc-meta">
@@ -237,6 +396,11 @@ function ChatView({
         </div>
       ) : (
         <div className="ch-log" role="log" aria-live="polite" aria-label={`Chat with ${name}`} ref={log}>
+          {inPanel && (
+            <p className="ch-divider">
+              <span>{CHAT_COPY.pastDivider}</span>
+            </p>
+          )}
           {lines.length === 0 && !mine && <p className="rp-empty">{CHAT_COPY.empty}</p>}
           {lines.map((l) =>
             l.kind === 'tools' ? (
@@ -303,8 +467,8 @@ function ChatView({
             <textarea
               ref={box}
               rows={1}
-              aria-label={`Message ${name}`}
-              placeholder={`Message ${name}…`}
+              aria-label={inPanel ? `Continue this chat with ${name}` : `Message ${name}`}
+              placeholder={inPanel ? CHAT_COPY.continuePh : `Message ${name}…`}
               value={text}
               maxLength={8000}
               onChange={(e) => setText(e.target.value)}
