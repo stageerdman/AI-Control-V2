@@ -358,7 +358,7 @@ export class OfficeEngine {
   /* ---------------------------------------------------------- STUDIO LIFE */
   /** The paper on someone's desk: one sheet while they have notes here ('new' glows). */
   setTray(id: string, tray: Tray | null): void {
-    const seat = id === this.cfg.director ? 'director' : this.plan.home[id];
+    const seat = this.plan.home[id]; /* the director's desk keeps no paper */
     const d = seat ? this.desks[seat] : undefined;
     if (!d || d.tray === tray) return;
     d.tray = tray;

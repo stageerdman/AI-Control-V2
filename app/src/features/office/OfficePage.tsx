@@ -4,7 +4,10 @@
    (layout.ts) and follows the live state (state.ts); the chat panel, the wall's zoom cards, the
    safe's Access sheet and the list mirror are React.
    v5: no top bar — the door leaves, the safe is Access, the whiteboard carries the %, the wall clock
-   above the door opens the crew's time (TimeSheet). */
+   above the door opens the crew's time (TimeSheet).
+   STUDIO LIFE: notes to self on desks, the captain's principles binder, the letterbox (+ HQ plaque) and the bell
+   by the door (bring someone in) — each a thing in the room that opens a sheet. A guest coming or going
+   re-reads the office view and re-lays the room out (the chat and sheets stay as they are). */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -29,10 +32,15 @@ import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../r
 import { AccessSheet } from './AccessSheet';
 import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
+import { BringInSheet } from './BringInSheet';
+import { DeskNoteSheet } from './DeskNoteSheet';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
+import { noteCounts, noteLabel, principlesLabel, readSeen, type Seen, trays, writeSeen } from './life';
+import { MailSheet, refreshMail } from './MailSheet';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
+import { PrinciplesSheet } from './PrinciplesSheet';
 import {
   activityOf,
   boardFacts,
@@ -48,7 +56,9 @@ import {
 import { clockLabel, TimeSheet, useWorkTime } from './TimeSheet';
 import './office.css';
 
-type Boot = { office: OfficeView; asks: Ask[] };
+type Boot = { office: OfficeView; asks: Ask[]; hqId: string | null };
+/** A re-read office view (a guest came or went): the new crew list, statuses kept from the stream's state. */
+type Reload = { type: 'office.reload'; live: Live };
 
 export function OfficePage({ route }: PageProps<'office'>) {
   const pid = route.projectId;
@@ -62,8 +72,12 @@ export function OfficePage({ route }: PageProps<'office'>) {
     let off = false;
     setBoot(null);
     setError(null);
-    Promise.all([officeApi.office(pid), studio.projects.asks(pid, true)]).then(
-      ([office, asks]) => !off && setBoot({ office, asks }),
+    Promise.all([
+      officeApi.office(pid),
+      studio.projects.asks(pid, true),
+      studio.settings().catch(() => null),
+    ]).then(
+      ([office, asks, settings]) => !off && setBoot({ office, asks, hqId: settings?.hqProjectId ?? null }),
       (e) => !off && setError(e),
     );
     return () => {
@@ -109,6 +123,8 @@ const HOTS: { id: ObjectId; label: string }[] = [
   { id: 'safe', label: 'Safe — what this project can reach (Access)' },
   { id: 'clock', label: 'Agent time' },
   { id: 'portrait', label: 'Project picture and name' },
+  { id: 'mailbox', label: 'Mail — letters from other projects' },
+  { id: 'bell', label: 'Bring someone in' },
 ];
 /* events that start or end agent time: the work clock reads again */
 const CLOCK_EVENTS = new Set([
@@ -146,11 +162,13 @@ function Office({
   boot: Boot;
   roster: Agent[];
 }) {
-  const { office } = boot;
+  const [office, setOffice] = useState(boot.office);
+  const hq = boot.hqId === pid;
   /* agents still in the Cast (one deleted since staffing is simply not drawn) */
   const agentsById = useMemo(() => Object.fromEntries(roster.map((a) => [a.id, a])), [roster]);
   const [live, dispatch] = useReducer(
-    (s: Live, ev: StudioEvent) => reduce(s, ev),
+    (s: Live, ev: StudioEvent | Reload) =>
+      ev.type === 'office.reload' ? (ev as Reload).live : reduce(s, ev as StudioEvent),
     undefined,
     () => {
       const l = initLive(office, boot.asks.filter((a) => a.status === 'open').map(asPending));
@@ -183,6 +201,29 @@ function Office({
   const project = useQuery<Project>(keys.project(pid), () => studio.projects.get(pid));
   const name = project.data?.name ?? office.name;
   const reports = useQuery<ReportList>(reportsKey(pid), () => reportsApi.list(pid));
+  /* STUDIO LIFE: notes on desks (seen per viewer, this browser), the binders, the letterbox */
+  const deskNotes = useQuery(keys.deskNotes(pid), () => studio.deskNotes(pid));
+  const [seen, setSeen] = useState<Seen>(() => readSeen(pid));
+  const notes = deskNotes.data?.notes;
+  const noteN = useMemo(() => noteCounts(notes ?? [], seen), [notes, seen]);
+  const noteTrays = useMemo(() => trays(notes ?? [], seen), [notes, seen]);
+  const markSeen = useCallback(
+    (agentId: string, at: string) =>
+      setSeen((s) => {
+        if (s[agentId] && s[agentId] >= at) return s;
+        const next = { ...s, [agentId]: at };
+        writeSeen(pid, next);
+        return next;
+      }),
+    [pid],
+  );
+  const principles = useQuery(keys.principles(pid), () => studio.principles.list(pid));
+  const mailbox = useQuery(keys.mail(pid, 'in'), () => studio.mail.box(pid, 'in'));
+  const newMail = mailbox.data?.unread ?? 0;
+  /* the office opened: the director reads any new mail on his own (once per visit) */
+  useEffect(() => {
+    void studio.mail.open(pid).catch(() => undefined);
+  }, [pid]);
   const [inFlight, setInFlight] = useState(0); /* reports being carried to the tray */
   const unread = Math.max(0, (reports.data?.unread ?? 0) - inFlight);
   const facts = useMemo(
@@ -192,11 +233,12 @@ function Office({
         features: features.data,
         health: health.data,
         unreadReports: unread,
+        newMail,
         progress: progress.data,
         time: time.data,
         project: project.data,
       }),
-    [work.data, features.data, health.data, unread, progress.data, time.data, project.data],
+    [work.data, features.data, health.data, unread, newMail, progress.data, time.data, project.data],
   );
 
   /* ---------- the scene */
@@ -206,17 +248,28 @@ function Office({
   const engine = useRef<OfficeEngine | null>(null);
   const [world, setWorld] = useState<HTMLElement | null>(null);
   const liveRef = useRef(live);
+  /* the state as of this render (the scene is rebuilt from it when a guest comes or goes) */
+  const liveNow = useRef(live);
+  liveNow.current = live;
   const factsRef = useRef(facts);
   factsRef.current = facts;
+  const traysRef = useRef(noteTrays);
+  traysRef.current = noteTrays;
+  /** A guest who just joined: they walk in from the door once the room is rebuilt. */
+  const arriving = useRef<string | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the scene is built once per office visit
+  // biome-ignore lint/correctness/useExhaustiveDependencies: built once per office visit, again when the crew changes
   useLayoutEffect(() => {
     const box = boxRef.current;
     if (!box) return;
-    const ids = liveRef.current.ids;
+    const now = liveNow.current;
+    const ids = now.ids;
+    const guests = office.guests ?? [];
+    const isGuest = new Set(guests.map((g) => g.agentId));
     const plan = officeLayout({
       teams: office.teams.map((t) => ({ id: t.id, members: t.members.filter((a) => agentsById[a]) })),
-      solo: office.solo.filter((a) => agentsById[a]),
+      solo: office.solo.filter((a) => agentsById[a] && !isGuest.has(a)),
+      guests: guests.map((g) => g.agentId).filter((a) => agentsById[a]),
     });
     const agents: Record<string, SceneAgent> = {};
     for (const a of ids) agents[a] = agentsById[a] as unknown as SceneAgent;
@@ -228,15 +281,22 @@ function Office({
       agents,
       teams,
       teamOf,
+      guests: Object.fromEntries(guests.map((g) => [g.agentId, g.brief])),
+      hq,
       stage: () => stageRef.current,
       drawer: () => (matchMedia('(max-width:899px)').matches ? (panelRef.current?.offsetHeight ?? 0) : 0),
     });
     e.mount(
-      ids.map((a) => deriveActor(liveRef.current, a)),
+      ids.map((a) => deriveActor(now, a)),
       factsRef.current,
     );
-    for (const p of liveRef.current.pending) e.apply(deriveActor(liveRef.current, p.agentId), p.question);
+    for (const p of now.pending) e.apply(deriveActor(now, p.agentId), p.question);
+    for (const [a, t] of Object.entries(traysRef.current)) e.setTray(a, t);
     engine.current = e;
+    if (arriving.current) {
+      void e.arrive(arriving.current);
+      arriving.current = null;
+    }
     setWorld(box.querySelector<HTMLElement>('.o-world'));
     const onResize = () => e.fit();
     window.addEventListener('resize', onResize);
@@ -245,7 +305,7 @@ function Office({
       e.unmount();
       engine.current = null;
     };
-  }, []);
+  }, [office]);
 
   /* live state → robots (only the ones whose look changed) */
   useEffect(() => {
@@ -257,6 +317,12 @@ function Office({
       void e.apply(deriveActor(live, a), live.pending.find((p) => p.agentId === a)?.question);
   }, [live]);
   useEffect(() => engine.current?.syncFacts(facts), [facts]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: also once the scene exists (world)
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    for (const a of live.ids) e.setTray(a, noteTrays[a] ?? null);
+  }, [noteTrays, world]);
 
   /* ---------- announcements (polite / assertive) */
   const [said, setSaid] = useState({ polite: '', loud: '' });
@@ -265,6 +331,10 @@ function Office({
     [],
   );
   const nameOf = useCallback((a: string) => agentsById[a]?.name ?? 'Someone', [agentsById]);
+  const nickOf = useCallback(
+    (a: string) => (agentsById[a] ? shortOf(agentsById[a]) : 'Someone'),
+    [agentsById],
+  );
   const resolve = useMemo<Resolve>(
     () => ({
       agent: (a) => (agentsById[a] ? { name: shortOf(agentsById[a]), look: agentsById[a].look } : null),
@@ -319,6 +389,24 @@ function Office({
     [director, showPanel, announce, nameOf],
   );
   useEffect(() => () => clearTimeout(holdT.current), []);
+
+  /* ---------- a guest came or went: re-read the office view, re-lay the room out */
+  const reload = useCallback(
+    async (agentId: string, change: 'joined' | 'updated' | 'left') => {
+      if (change === 'left') await engine.current?.depart(agentId);
+      const fresh = await officeApi.office(pid).catch(() => null);
+      if (!fresh) return;
+      const cur = liveRef.current;
+      const l = initLive(fresh, cur.pending);
+      const ids = l.ids.filter((x) => agentsById[x]);
+      /* keep what the stream already told us; the view fills in anyone new */
+      const status = Object.fromEntries(ids.map((x) => [x, x in cur.status ? cur.status[x] : l.status[x]]));
+      arriving.current = change === 'joined' && ids.includes(agentId) ? agentId : null;
+      dispatch({ type: 'office.reload', live: { ...l, ids, status } });
+      setOffice(fresh);
+    },
+    [pid, agentsById],
+  );
 
   /* ---------- the stream */
   const onEvent = useCallback(
@@ -430,9 +518,28 @@ function Office({
         case 'report.archived':
           void invalidateReports(pid);
           break;
+        case 'desk.note': {
+          const a = ev.payload.agentId;
+          void invalidate(keys.deskNotes(pid));
+          if (liveRef.current.ids.includes(a)) {
+            void e?.forgot(a);
+            announce(`${nickOf(a)} left a note to self and started fresh.`);
+          }
+          break;
+        }
+        case 'guest.changed': {
+          const { agentId, change } = ev.payload;
+          void reload(agentId, change);
+          if (change === 'joined') announce(`${nickOf(agentId)} came in to help.`);
+          if (change === 'left') announce(`${nickOf(agentId)} went home.`);
+          break;
+        }
+        case 'mail.changed':
+          void refreshMail(pid);
+          break;
       }
     },
-    [pid, director, announce, nameOf],
+    [pid, director, announce, nameOf, nickOf, reload],
   );
   const { status: stream } = useEventStream(studio.projects.eventsUrl(pid), onEvent, {
     after: office.lastEventId,
@@ -464,6 +571,10 @@ function Office({
   const [accessOpen, setAccessOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [portraitOpen, setPortraitOpen] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [noteFor, setNoteFor] = useState<string | null>(null);
+  const [binderFor, setBinderFor] = useState<string | null>(null);
   const newAccess = useNewAccessCount(pid);
   const leave = () => {
     if (reducedMotion()) {
@@ -482,6 +593,11 @@ function Office({
     }
     if (o === 'clock') return setTimeOpen(true);
     if (o === 'portrait') return setPortraitOpen(true);
+    if (o === 'mailbox') return setMailOpen(true);
+    if (o === 'bell') {
+      engine.current?.ringBell();
+      return setBellOpen(true);
+    }
     const s = SUB_OF[o];
     if (s) goSub(s);
   };
@@ -502,7 +618,9 @@ function Office({
   const focusKey = useRef(director);
   const elOf = (k: string) =>
     stageRef.current?.querySelector<HTMLElement>(
-      k.startsWith('obj:') ? `.o-hot[data-obj="${k.slice(4)}"]` : `.o-body[data-id="${CSS.escape(k)}"]`,
+      k.startsWith('obj:')
+        ? `.o-hot[data-obj="${CSS.escape(k.slice(4))}"]`
+        : `.o-body[data-id="${CSS.escape(k)}"]`,
     ) ?? null;
   const roving = useCallback(() => {
     const st = stageRef.current;
@@ -511,7 +629,7 @@ function Office({
     const el =
       st.querySelector<HTMLElement>(
         focusKey.current.startsWith('obj:')
-          ? `.o-hot[data-obj="${focusKey.current.slice(4)}"]`
+          ? `.o-hot[data-obj="${CSS.escape(focusKey.current.slice(4))}"]`
           : `.o-body[data-id="${CSS.escape(focusKey.current)}"]`,
       ) ?? st.querySelector<HTMLElement>('.o-body');
     if (el) el.tabIndex = 0;
@@ -532,7 +650,17 @@ function Office({
       const p = e?.pos(k);
       return p ? Math.round(p.y / 120) * 100000 + p.x : 1e9;
     };
-    return [...[...liveRef.current.ids].sort((a, b) => rank(a) - rank(b)), ...HOTS.map((h) => `obj:${h.id}`)];
+    /* a desk's note right after its robot; a team's binder right after whoever sits at that desk */
+    const people = [...liveRef.current.ids]
+      .sort((a, b) => rank(a) - rank(b))
+      .flatMap((a) => [
+        a,
+        ...(traysRef.current[a] ? [`obj:note:${a}`] : []),
+        ...office.teams
+          .filter((t) => e?.binders[t.id] && e.binders[t.id] === e.plan.home[a])
+          .map((t) => `obj:binder:${t.id}`),
+      ]);
+    return [...people, ...HOTS.map((h) => `obj:${h.id}`)];
   };
 
   const [listOpen, setListOpen] = useState(false);
@@ -637,6 +765,29 @@ function Office({
   const people = live.ids.length;
   const stageLabel = `Office — ${people} ${people === 1 ? 'person' : 'people'}${n ? `, ${n} need${n === 1 ? 's' : ''} you` : ''}. Arrow keys move between people; ! jumps to whoever needs you.`;
   const panelAgents = agentsById as unknown as Record<string, import('./Panel').PanelAgent>;
+  const binderOf = (t: string) => principles.data?.teams.find((x) => x.teamId === t);
+  const deskHots: { key: string; label: string; hover: string; open: () => void }[] = [
+    ...live.ids
+      .filter((a) => noteN[a])
+      .map((a) => ({
+        key: `note:${a}`,
+        label: noteLabel(nickOf(a), noteN[a]),
+        hover: 'Note to self',
+        open: () => setNoteFor(a),
+      })),
+    ...office.teams.map((t) => {
+      const keeper = t.captain && agentsById[t.captain] ? nickOf(t.captain) : null;
+      return {
+        key: `binder:${t.id}`,
+        label: principlesLabel(t.name.replace(/^The /, ''), binderOf(t.id)?.files.length ?? 0, keeper),
+        hover: 'Principles',
+        open: () => setBinderFor(t.id),
+      };
+    }),
+  ];
+  const binderTeam = binderFor ? office.teams.find((t) => t.id === binderFor) : undefined;
+  const binderCaptain = binderTeam?.captain && agentsById[binderTeam.captain] ? binderTeam.captain : null;
+  const goalName = (gid: string) => work.data?.find((g) => g.id === gid)?.text ?? null;
   const teamName = (a: string) => (teamOf[a] ? (teams[teamOf[a] as string]?.name ?? null) : null);
 
   return (
@@ -670,7 +821,12 @@ function Office({
             HOTS.map((h) => {
               const o = engine.current?.plan.objects[h.id];
               if (!o) return null;
-              const label = h.id === 'reports' && unread ? `Reports · ${unread} new` : o.label;
+              const label =
+                h.id === 'reports' && unread
+                  ? `Reports · ${unread} new`
+                  : h.id === 'mailbox' && newMail
+                    ? `Mail · ${newMail} new`
+                    : o.label;
               const safeNew = h.id === 'safe' && newAccess > 0;
               return (
                 <button
@@ -680,8 +836,8 @@ function Office({
                   data-obj={h.id}
                   tabIndex={-1}
                   aria-label={
-                    h.id === 'reports' && unread
-                      ? `${h.label} — ${unread} new`
+                    (h.id === 'reports' && unread) || (h.id === 'mailbox' && newMail)
+                      ? `${h.label} — ${h.id === 'reports' ? unread : newMail} new`
                       : safeNew
                         ? `Safe — ${name} access, ${newAccess} new`
                         : h.id === 'clock'
@@ -703,6 +859,34 @@ function Office({
                     </span>
                   )}
                   {safeNew && <span className="o-hot-dot" aria-hidden="true" />}
+                </button>
+              );
+            }),
+            world,
+          )}
+        {world &&
+          createPortal(
+            deskHots.map((h) => {
+              const b = engine.current?.deskSpot(h.key);
+              if (!b) return null;
+              return (
+                <button
+                  key={h.key}
+                  type="button"
+                  className="o-hot o-deskhot"
+                  data-obj={h.key}
+                  tabIndex={-1}
+                  aria-label={h.label}
+                  style={{ left: b.x, top: b.y, width: b.w, height: b.h, zIndex: b.z }}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    opener.current = ev.currentTarget;
+                    h.open();
+                  }}
+                >
+                  <span className="o-hot-l" aria-hidden="true">
+                    {h.hover}
+                  </span>
                 </button>
               );
             }),
@@ -823,6 +1007,56 @@ function Office({
         open={timeOpen}
         onClose={() => setTimeOpen(false)}
         agents={agentsById}
+      />
+      <DeskNoteSheet
+        pid={pid}
+        agentId={noteFor}
+        nick={noteFor ? nickOf(noteFor) : ''}
+        open={!!noteFor}
+        onClose={() => setNoteFor(null)}
+        onSeen={markSeen}
+      />
+      <PrinciplesSheet
+        pid={pid}
+        team={binderTeam ?? null}
+        captain={binderCaptain ? nickOf(binderCaptain) : null}
+        open={!!binderTeam}
+        onClose={() => setBinderFor(null)}
+        onTalk={() => {
+          if (!binderTeam || !binderCaptain) return;
+          setBinderFor(null);
+          setContext({ title: `${binderTeam.name.replace(/^The /, '')} principles` });
+          openThread(binderCaptain, 'chat');
+        }}
+      />
+      <MailSheet
+        pid={pid}
+        hq={hq}
+        hqId={boot.hqId}
+        name={name}
+        director={nickOf(director)}
+        open={mailOpen}
+        onClose={() => setMailOpen(false)}
+        onTalk={(m) => {
+          setMailOpen(false);
+          setContext({ title: m.subject });
+          openThread(director, 'chat');
+        }}
+        goalName={goalName}
+        onGoal={() => {
+          setMailOpen(false);
+          goSub('board');
+        }}
+      />
+      <BringInSheet
+        pid={pid}
+        roster={roster}
+        here={new Set(live.ids)}
+        guests={(office.guests ?? []).filter((g) => agentsById[g.agentId])}
+        director={nickOf(director)}
+        open={bellOpen}
+        onClose={() => setBellOpen(false)}
+        onBrought={() => setBellOpen(false)}
       />
       <div className="sr-only" aria-live="polite">
         {said.polite}
