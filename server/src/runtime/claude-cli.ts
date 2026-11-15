@@ -46,13 +46,15 @@ export type CliOptions = {
   allowedTools?: string[];
   /** G1: the PreToolUse hook command that approves setting-prefixed commands (`PORT=… node …`); see shell-hook.ts. */
   shellHook?: string;
+  /** STUDIO LIFE: the PostToolUse hook command that nudges a full run to forget (nudge-hook.ts). */
+  nudgeHook?: string;
   /** How long the CLI may linger after its answer before its process group is stopped (tests shorten it). */
   afterResultMs?: number;
 };
 
 export function cliArgs(
   spec: RunSpec,
-  opts: Pick<CliOptions, 'askServer' | 'node' | 'allowedTools' | 'shellHook'>,
+  opts: Pick<CliOptions, 'askServer' | 'node' | 'allowedTools' | 'shellHook' | 'nudgeHook'>,
 ): string[] {
   const remote = spec.studioTools?.remote;
   const mcp =
@@ -109,9 +111,11 @@ export function cliArgs(
     tools.join(','), // '' disables every built-in tool
     ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
     ...(tools.includes('Bash') ? ['--disallowed-tools', DENIED.join(',')] : []),
-    ...(tools.includes('Bash') && opts.shellHook && !spec.tools
-      ? ['--settings', JSON.stringify(shellHookSettings(opts.shellHook))]
-      : []),
+    ...(() => {
+      const shell = tools.includes('Bash') && opts.shellHook && !spec.tools ? opts.shellHook : null;
+      const nudge = opts.nudgeHook && spec.env.AI_STUDIO_NUDGE_URL ? opts.nudgeHook : null;
+      return shell || nudge ? ['--settings', JSON.stringify(hookSettings(shell, nudge))] : [];
+    })(),
     '--permission-mode',
     'dontAsk',
     '--permission-prompts',
@@ -124,13 +128,24 @@ export function cliArgs(
     '--no-chrome',
     '--max-budget-usd',
     String(spec.caps.maxBudgetUsd),
-    ...(spec.resumeSessionId ? ['--resume', spec.resumeSessionId] : ['--session-id', spec.runId]),
+    ...(spec.resumeSessionId
+      ? ['--resume', spec.resumeSessionId]
+      : ['--session-id', spec.sessionId ?? spec.runId]),
   ];
 }
 
 /** `--settings` for the setting-prefix hook (restricted mode still applies --settings). */
-export const shellHookSettings = (command: string) => ({
-  hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command, timeout: 10 }] }] },
+export const shellHookSettings = (command: string) => hookSettings(command, null);
+/** The run's hooks: the shell's PreToolUse (setting prefixes) and the forget nudge's PostToolUse. */
+export const hookSettings = (shell: string | null, nudge: string | null) => ({
+  hooks: {
+    ...(shell
+      ? { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: shell, timeout: 10 }] }] }
+      : {}),
+    ...(nudge
+      ? { PostToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: nudge, timeout: 5 }] }] }
+      : {}),
+  },
 });
 /** The hook's command line: this node + shell-hook.ts + the allowed commands. */
 export const shellHookCommand = (hookScript: string, allowed: readonly string[], node = process.execPath) =>

@@ -19,15 +19,16 @@ import { slugify } from '../domain/ids.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
+import { type Desk, type DeskNoteBody, DeskNoteSchema, deskBrief } from '../office/desk.ts';
 import type { WorkKind } from '../office/work-time.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
-import { WORKING_WITH_OTHERS } from '../room/context.ts';
+import { FORGET_NUDGE, WORKING_WITH_OTHERS, YOUR_MEMORY } from '../room/context.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
-import type { Caps, RunEvent, RunHandle, Runner, RunOutcome } from './runner.ts';
+import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 
 export type StartRun = {
   agentId: string;
@@ -43,7 +44,26 @@ export type StartRun = {
   /** What kind of work this is, for the office's work clock (office/work-time.ts). Absent → read from the row. */
   kind?: WorkKind;
 };
-type Live = { run: Run; handle: RunHandle; token: string; secrets: string[]; reporter: boolean };
+type Live = {
+  run: Run;
+  handle: RunHandle;
+  token: string;
+  secrets: string[];
+  reporter: boolean;
+  /** STUDIO LIFE: set by `forget` — when this handle ends, the run starts again from the note. */
+  forgetting?: DeskNoteBody;
+  forgets: number;
+  cancelled?: boolean;
+  /** Turns + usage of earlier handles of this run (before a forget). */
+  before: { turns: number; usage: RunOutcome['usage'] };
+  /** The latest turn's context size (input + cache), for the forget nudge. */
+  context: number;
+  nudged: boolean;
+};
+/** A run may forget this many times (a loop guard). */
+export const MAX_FORGETS = 5;
+/** Context (tokens) past which the studio nudges an agent to forget. AI_STUDIO_FORGET_AT overrides. */
+export const FORGET_AT = 120_000;
 /** The reports seam (src/reports): who may file, and filing itself. */
 export type ReportDesk = {
   canFile(agent: { kind: string; roleId: string | null }, teamId?: string | null): boolean;
@@ -79,6 +99,10 @@ export type RuntimeDeps = {
   autoApprove?: () => boolean;
   /** AGENT MCP: where runs' studio tools are served. */
   bridges?: Bridges;
+  /** STUDIO LIFE: desk notes — runs get `forget` when set. */
+  desk?: Desk;
+  /** Context size that triggers the forget nudge (default FORGET_AT). */
+  forgetAt?: number;
 };
 /** AGENT MCP: the studio tools an agent run gets (room, call_agent), wired once the room exists. */
 export type StudioToolsFor = (run: { projectId: string; agentId: string; runId: string }) => BridgeTool[];
@@ -211,11 +235,13 @@ export function createRuntime(deps: RuntimeDeps) {
         },
         l.secrets,
       );
-    else if (e.kind === 'tokens')
+    else if (e.kind === 'tokens') {
+      l.context = e.input;
       emit(run.projectId, {
         type: 'tokens',
         payload: { agentId: run.agentId, runId: run.id, input: e.input, output: e.output },
       });
+    }
   }
 
   function start(projectId: string, req: StartRun): Run {
@@ -278,7 +304,32 @@ export function createRuntime(deps: RuntimeDeps) {
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
     const toolkit = big ? null : toolkitFor(agent);
     const ports = big || !deps.ports ? null : deps.ports.take(projectId, runId);
-    const studioTools = !big && studioToolsFor ? studioToolsFor({ projectId, agentId: agent.id, runId }) : [];
+    const forgetTool: BridgeTool | null =
+      !big && deps.desk
+        ? {
+            name: 'forget',
+            description:
+              'Forget on purpose: leave a note on your desk (where you are, what you are doing, the next step) and continue this same task with a fresh memory, starting from the note. Commit finished work first.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                where: { type: 'string', description: 'Where you are: what is done, which files.' },
+                doing: { type: 'string', description: 'What you are doing right now and why.' },
+                next: { type: 'string', description: 'The very next step to take.' },
+                notes: {
+                  type: 'string',
+                  description: 'Anything else you must not lose (decisions, gotchas).',
+                },
+              },
+              required: ['where', 'doing', 'next'],
+            },
+            run: async (a) => forget(runId, a),
+          }
+        : null;
+    const studioTools = [
+      ...(!big && studioToolsFor ? studioToolsFor({ projectId, agentId: agent.id, runId }) : []),
+      ...(forgetTool ? [forgetTool] : []),
+    ];
     const bridge = studioTools.length && deps.bridges ? deps.bridges.open(studioTools) : null;
     const l: Live = {
       run,
@@ -286,6 +337,10 @@ export function createRuntime(deps: RuntimeDeps) {
       secrets,
       reporter,
       handle: { done: Promise.resolve({} as RunOutcome), cancel: () => {} },
+      forgets: 0,
+      before: { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+      context: 0,
+      nudged: false,
     };
     live.set(runId, l);
     emit(
@@ -311,83 +366,155 @@ export function createRuntime(deps: RuntimeDeps) {
       },
     });
 
-    l.handle = runner.start(
-      {
-        runId,
-        cwd,
-        systemPrompt:
-          big?.systemPrompt ??
-          composePrompt({
-            agent,
-            team,
-            project: { name: project.name },
-            toolkit,
-            ...(deps.shell ? { shell: deps.shell } : {}),
-            ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
-            ...(ports
-              ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } }
-              : {}),
-            room: bridge ? WORKING_WITH_OTHERS : null,
-          }),
-        task: req.task,
-        model: deps.model,
-        caps,
-        env: runEnv(
-          deps.parentEnv ?? process.env,
-          granted,
-          ports
-            ? {
-                PORT: String(ports.port),
-                AI_STUDIO_PORTS: ports.block.spares.join(','),
-                AI_STUDIO_APP_PORT: String(ports.block.app),
-              }
-            : {},
-        ),
-        secretValues: secrets,
-        ...(big ? { tools: [] } : {}),
-        ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
-        ...(reporter ? { web: true } : {}),
-        ...(resumeSessionId ? { resumeSessionId } : {}),
-        ...(bridge
-          ? { studioTools: { names: bridge.names, ...(bridge.remote ? { remote: bridge.remote } : {}) } }
-          : {}),
-        ...(baseUrl && !big
+    const spec: RunSpec = {
+      runId,
+      cwd,
+      systemPrompt:
+        big?.systemPrompt ??
+        composePrompt({
+          agent,
+          team,
+          project: { name: project.name },
+          toolkit,
+          ...(deps.shell ? { shell: deps.shell } : {}),
+          ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
+          ...(ports ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } } : {}),
+          room: bridge && studioToolsFor ? WORKING_WITH_OTHERS : null,
+          memory: forgetTool ? YOUR_MEMORY : null,
+        }),
+      task: req.task,
+      model: deps.model,
+      caps,
+      env: runEnv(deps.parentEnv ?? process.env, granted, {
+        ...(ports
           ? {
-              askBridge: {
-                url: `${baseUrl}/internal/runs/${runId}/asks`,
-                token,
-                ...(reporter ? { reportUrl: `${baseUrl}/internal/runs/${runId}/reports` } : {}),
-              },
+              PORT: String(ports.port),
+              AI_STUDIO_PORTS: ports.block.spares.join(','),
+              AI_STUDIO_APP_PORT: String(ports.block.app),
             }
           : {}),
+        /* STUDIO LIFE: the forget nudge hook asks here after each tool */
+        ...(forgetTool && baseUrl
+          ? { AI_STUDIO_NUDGE_URL: `${baseUrl}/internal/runs/${runId}/nudge`, AI_STUDIO_RUN_TOKEN: token }
+          : {}),
+      }),
+      secretValues: secrets,
+      ...(big ? { tools: [] } : {}),
+      ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
+      ...(reporter ? { web: true } : {}),
+      ...(resumeSessionId ? { resumeSessionId } : {}),
+      ...(bridge
+        ? { studioTools: { names: bridge.names, ...(bridge.remote ? { remote: bridge.remote } : {}) } }
+        : {}),
+      ...(baseUrl && !big
+        ? {
+            askBridge: {
+              url: `${baseUrl}/internal/runs/${runId}/asks`,
+              token,
+              ...(reporter ? { reportUrl: `${baseUrl}/internal/runs/${runId}/reports` } : {}),
+            },
+          }
+        : {}),
+    };
+    const io: RunIO = {
+      emit: (e) => onRunEvent(l, e),
+      ask: async (question, options) => {
+        const a = await waitUntilAnswered(openAsk(runId, question, options).id);
+        if (a.status !== 'answered') throw new Error('cancelled');
+        return a.answer as string;
       },
-      {
-        emit: (e) => onRunEvent(l, e),
-        ask: async (question, options) => {
-          const a = await waitUntilAnswered(openAsk(runId, question, options).id);
-          if (a.status !== 'answered') throw new Error('cancelled');
-          return a.answer as string;
-        },
-        ...(reporter ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
-        ...(bridge ? { tool: bridge.call } : {}),
-      },
-    );
+      ...(reporter ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
+      ...(bridge ? { tool: bridge.call } : {}),
+    };
     const release = () => {
       deps.ports?.release(runId);
       bridge?.close();
     };
-    l.handle.done.then(release, release);
-    l.handle.done.then(
-      (o) => finish(l, o),
-      (err: Error) =>
-        finish(l, {
-          status: 'failed',
-          error: err.message,
-          turns: 0,
-          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-        }),
-    );
+    /* one handle at a time; after a forget the same run starts again — fresh session, the note as its brief */
+    const watch = (h: RunHandle) => {
+      l.handle = h;
+      h.done
+        .catch(
+          (err: Error): RunOutcome => ({
+            status: 'failed',
+            error: err.message,
+            turns: 0,
+            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          }),
+        )
+        .then((o) => {
+          const note = l.forgetting;
+          l.forgetting = undefined;
+          if (note && !l.cancelled) {
+            l.before = {
+              turns: l.before.turns + o.turns,
+              usage: {
+                input: l.before.usage.input + o.usage.input,
+                output: l.before.usage.output + o.usage.output,
+                cacheRead: l.before.usage.cacheRead + o.usage.cacheRead,
+                cacheWrite: l.before.usage.cacheWrite + o.usage.cacheWrite,
+              },
+            };
+            l.context = 0;
+            l.nudged = false;
+            emit(projectId, {
+              type: 'agent.status',
+              payload: {
+                agentId: agent.id,
+                runId,
+                status: 'working',
+                activity: { kind: 'starting', label: 'Fresh start from my note' },
+              },
+            });
+            try {
+              const { resumeSessionId: _old, ...fresh } = spec;
+              watch(runner.start({ ...fresh, task: deskBrief(note, req.task), sessionId: randomUUID() }, io));
+              return;
+            } catch (e) {
+              o = { ...o, status: 'failed', error: (e as Error).message };
+            }
+          }
+          release();
+          finish(l, {
+            ...o,
+            turns: l.before.turns + o.turns,
+            usage: {
+              input: l.before.usage.input + o.usage.input,
+              output: l.before.usage.output + o.usage.output,
+              cacheRead: l.before.usage.cacheRead + o.usage.cacheRead,
+              cacheWrite: l.before.usage.cacheWrite + o.usage.cacheWrite,
+            },
+          });
+        });
+    };
+    watch(runner.start(spec, io));
     return run;
+  }
+  /** `forget` from a live run: save the desk note, then stop this process — the run starts again from the note. */
+  function forget(runId: string, input: unknown): Promise<string> {
+    const l = live.get(runId);
+    if (!l || !deps.desk) throw conflict('That run is not running');
+    const parsed = DeskNoteSchema.safeParse(input);
+    if (!parsed.success)
+      throw new Error(
+        `The note needs where, doing and next: ${parsed.error.issues.map((i) => i.path.join('.')).join(', ')}`,
+      );
+    if (l.forgets >= MAX_FORGETS)
+      throw new Error(`You already forgot ${MAX_FORGETS} times on this task — carry on and finish it.`);
+    deps.desk.save(l.run.projectId, l.run.agentId, runId, parsed.data, l.secrets);
+    l.forgets++;
+    l.forgetting = parsed.data;
+    const h = l.handle;
+    setTimeout(() => h.cancel(), 50).unref?.(); // let the tool answer first
+    return Promise.resolve('Your note is on your desk. Your memory clears now — you continue from the note.');
+  }
+  /** The nudge hook asks after each tool: past the threshold, once per memory, say "write your note and forget". */
+  function nudge(runId: string): string | null {
+    const l = live.get(runId);
+    if (!l || !deps.desk || l.nudged || l.forgetting) return null;
+    if (l.context < (deps.forgetAt ?? FORGET_AT)) return null;
+    l.nudged = true;
+    return FORGET_NUDGE;
   }
   /** A toolsmith's toolkit: `<toolkitsRoot>/<agentId>/` (created 0700, inside the data dir — never anywhere else). */
   function toolkitFor(agent: { id: string; name: string; roleId: string | null }) {
@@ -427,12 +554,17 @@ export function createRuntime(deps: RuntimeDeps) {
       const r = requireRun(projectId, runId);
       const l = live.get(runId);
       if (!l) throw conflict(`Run is already ${r.status}`);
+      l.cancelled = true;
       l.handle.cancel();
       return r;
     },
     /** Resolves once the run has ended and been recorded (tests, shutdown). */
     settled: async (runId: string) => {
-      await live.get(runId)?.handle.done;
+      /* a forget restarts the run under a new handle: wait until it is really over */
+      for (let l = live.get(runId); l; l = live.get(runId)) {
+        await l.handle.done.catch(() => undefined);
+        await new Promise((r) => setImmediate(r));
+      }
       await new Promise((r) => setImmediate(r));
       return repo.get(runId) as Run;
     },
@@ -475,6 +607,7 @@ export function createRuntime(deps: RuntimeDeps) {
       },
       openAsk,
       fileReport,
+      nudge,
       waitAsk(runId: string, askId: string, timeoutMs: number) {
         const a = repo.ask(askId);
         if (!a || a.runId !== runId) return Promise.reject(notFound('Ask', askId));
@@ -496,8 +629,12 @@ export function createRuntime(deps: RuntimeDeps) {
     recover: () => repo.failInterrupted(),
     shutdown: async () => {
       const all = [...live.values()];
-      for (const l of all) l.handle.cancel();
+      for (const l of all) {
+        l.cancelled = true;
+        l.handle.cancel();
+      }
       await Promise.allSettled(all.map((l) => l.handle.done));
+      await new Promise((r) => setImmediate(r));
     },
     liveCount: () => live.size,
     /** Is this agent on a live run in this project? (one at a time) */

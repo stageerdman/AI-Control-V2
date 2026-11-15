@@ -101,6 +101,12 @@ export const runRoutes =
       runtime.internal.authorize(runId, token(req.headers['x-run-token']));
       return reply.status(201).send(runtime.internal.fileReport(runId, req.body));
     });
+    /* STUDIO LIFE: the forget nudge hook (PostToolUse) asks after each tool */
+    app.get('/internal/runs/:runId/nudge', async (req) => {
+      const { runId } = parse(InternalParams, req.params);
+      runtime.internal.authorize(runId, token(req.headers['x-run-token']));
+      return { nudge: runtime.internal.nudge(runId) };
+    });
     app.get('/internal/runs/:runId/asks/:askId/wait', async (req) => {
       const { runId, askId } = parse(InternalWait, req.params);
       runtime.internal.authorize(runId, token(req.headers['x-run-token']));

@@ -15,6 +15,8 @@ export type ComposeInput = {
   ports?: { port: number; app: number; spares: readonly number[] } | null;
   /** AGENT MCP: the run has `room` + `call_agent` — say how to work with the others. */
   room?: string | null;
+  /** STUDIO LIFE: the run may `forget` — how to use it. */
+  memory?: string | null;
   access?: readonly {
     name: string;
     serves: string;
@@ -34,6 +36,7 @@ export function composePrompt({
   access,
   ports,
   room,
+  memory,
 }: ComposeInput): string {
   const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
   const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
@@ -78,6 +81,7 @@ export function composePrompt({
         )
       : '',
     room ? section('Working with others', room) : '',
+    memory ? section('Your memory', memory) : '',
     section(
       'How to work here',
       [

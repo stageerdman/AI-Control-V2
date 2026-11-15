@@ -48,6 +48,7 @@ const runner =
           allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', ...shellAllowed(shell), ASK_TOOL],
           /* G1: `NAME=value <allowed command>` (literal values) — approved by a PreToolUse hook */
           shellHook: shellHookCommand(join(import.meta.dirname, 'runtime', 'shell-hook.ts'), shell),
+          nudgeHook: shellHookCommand(join(import.meta.dirname, 'runtime', 'nudge-hook.ts'), []),
         })
       : unavailableRunner(rt.binError ?? 'Claude Code CLI not found');
 /* GitHub visibility for health checks — only if gh is installed (read-only `gh repo view`) */

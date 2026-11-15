@@ -62,6 +62,8 @@ export const EVENT_SCHEMAS = {
     approver: id.optional(),
     note: text(300).optional(),
   }),
+  /** STUDIO LIFE: an agent left a note on its desk and forgot (GET …/desk-notes/:noteId has the text). */
+  'desk.note': z.strictObject({ agentId: id, noteId: id, runId: id.optional() }),
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({
     summary: text(1000),

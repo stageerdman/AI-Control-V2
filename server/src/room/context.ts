@@ -22,3 +22,14 @@ export const CREATOR_TOOLS = [
 /** The orchestrator, about the calls it may be asked to allow. */
 export const ORCHESTRATOR_ROOM =
   'You bring people into the room: the Agent Creator when the Cast lacks someone, and anyone else the work needs. When someone else wants to bring in a fellow agent, you decide — yes if it clearly helps the work, no if it is off-scope or wasteful.';
+
+/** For agent runs that have `forget`. */
+export const YOUR_MEMORY = [
+  '- When your context gets long, you feel lost, or a big chunk of work is done, you may forget on purpose: call `forget` with where you are, what you are doing and the next step (plus anything you must not lose). The note goes on your desk and you continue with a fresh memory from it.',
+  '- Write the note for a stranger: concrete file paths, decisions, what is done and what is not. Commit finished work before you forget.',
+  '- If the studio reminds you that your context is large, finish the step you are on, then forget.',
+].join('\n');
+
+/** The studio's nudge (PostToolUse) when a run's context passes the threshold. */
+export const FORGET_NUDGE =
+  'AI Studio: your context is getting large. Finish the step you are on, commit, then call `forget` with where you are, what you are doing and the next step — you will continue fresh from that note.';

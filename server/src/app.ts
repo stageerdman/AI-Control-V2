@@ -24,6 +24,7 @@ import type { GhProbe } from './health/git-status.ts';
 import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
+import { createDesk } from './office/desk.ts';
 import { createFeatures } from './office/features.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createOffice } from './office/office.ts';
@@ -42,6 +43,7 @@ import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
+import { deskRoutes } from './routes/desk.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
@@ -164,8 +166,14 @@ export function buildApp({
   const autoApprove = metaFlag(db, 'auto_approve');
   /* AGENT MCP: studio tools per run, served to the MCP server over the internal side door */
   const bridges = createBridges();
+  /* STUDIO LIFE: every message between agents, kept whole; desk notes for agents who forget on purpose */
+  const comms = createComms({ db, events, secretValues: secretValuesOf(secrets) });
+  const desk = createDesk({ db, events, comms });
+  const forgetAt = Number(process.env.AI_STUDIO_FORGET_AT);
   const runtime = createRuntime({
     bridges,
+    desk,
+    ...(Number.isInteger(forgetAt) && forgetAt > 0 ? { forgetAt } : {}),
     db,
     store,
     events,
@@ -202,8 +210,6 @@ export function buildApp({
   });
   const chat = createSetupChat({ store, events, crew });
   /* AGENT MCP: who is in the room, and agents calling each other into it */
-  /* STUDIO LIFE: every message between agents, kept whole */
-  const comms = createComms({ db, events, secretValues: secretValuesOf(secrets) });
   const room = createRoom({ db, store, events, crew, sandbox: config.sandbox, helpCaps: caps.review, comms });
   runtime.setStudioTools(({ projectId, agentId }) =>
     room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
@@ -340,6 +346,7 @@ export function buildApp({
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(commsRoutes({ comms }));
+  app.register(deskRoutes({ desk, store }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps, github }));

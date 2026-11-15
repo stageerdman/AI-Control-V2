@@ -17,6 +17,8 @@ export type RunSpec = {
   /** Values to scrub from anything the runner reports (the granted secrets). */
   secretValues: readonly string[];
   resumeSessionId?: string;
+  /** A fresh session under another id (STUDIO LIFE: the same run starting again after `forget`). Default: runId. */
+  sessionId?: string;
   /** Built-in tools the run may use (all pre-approved). Omitted → the agent set; [] → none (big-picture runs). */
   tools?: readonly string[];
   /** Pre-approved permission patterns (e.g. `Bash(git log *)`); defaults to `tools`. Ignored without `tools`. */
