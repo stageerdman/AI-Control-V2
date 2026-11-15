@@ -1,11 +1,10 @@
 /* Agent hero zoom — the camera pushes into the lineup and the bot flies up onto its own stage
-   (FLIP from its slot), with the in-game look editor (‹ › beside the bot at each slot's height
-   + a random-look dice) and the detail panel. ‹ 1 / 14 › and [ / ] step through the cast.
+   (FLIP from its slot), with the in-game look editor (LookRig) and the detail panel. ‹ 1 / 14 › and [ / ] step through the cast.
    Create mode (#cast/agent/new | new-orchestrator) becomes a real agent on its first valid name.
    The stage figure is imperative (crossfades, FLIP); everything else is React. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Agent, Look, Role, Team } from '../../api/types';
-import { hero, LOOK_SLOTS, type LookSlotId, lookAnchors, randomLook, setPose } from '../../characters';
+import { hero, LOOK_SLOTS, type LookSlotId, randomLook, setPose } from '../../characters';
 import { hueHex } from '../../design/palette';
 import { go } from '../../shell/router';
 import { AgentPanel, type PanelAgent } from './AgentPanel';
@@ -21,6 +20,7 @@ import {
   reducedMotion,
   trapTab,
 } from './fx';
+import { LookRig } from './LookRig';
 import { castOrder, cycleLook, leastUsedHue, lookTag, roleText } from './model';
 import { createAgent, deleteAgent, flushAll, saveAgent, saveAgentSoon } from './store';
 
@@ -455,90 +455,8 @@ export function HeroZoom(p: HeroZoomProps) {
         onPrompt={onPrompt}
         onDelete={onDelete}
         onSaved={saved}
+        onTinker={p.id === 'new' ? () => go('cast/agent/tinker') : undefined}
       />
     </section>
-  );
-}
-
-const DICE = (
-  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-    <rect x="3.5" y="3.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" strokeWidth="2" />
-    <circle cx="8.5" cy="8.5" r="1.6" fill="currentColor" />
-    <circle cx="15.5" cy="15.5" r="1.6" fill="currentColor" />
-    <circle cx="12" cy="12" r="1.6" fill="currentColor" />
-    <circle cx="15.5" cy="8.5" r="1.6" fill="currentColor" />
-    <circle cx="8.5" cy="15.5" r="1.6" fill="currentColor" />
-  </svg>
-);
-
-/** In-game look editor: ‹ › beside the bot at each slot's height + one dice. */
-function LookRig({
-  look,
-  px,
-  onSlot,
-  onDice,
-}: {
-  look: Look;
-  px: number;
-  onSlot: (slot: LookSlotId, d: 1 | -1) => void;
-  onDice: () => void;
-}) {
-  const ys = lookAnchors(look, px);
-  return (
-    // biome-ignore lint/a11y/useSemanticElements: the prototype's look rig (a labelled group of arrow pairs)
-    <div
-      className="lk-rig"
-      role="group"
-      aria-label="Look"
-      style={{ '--fw': `${Math.round(px * 0.75)}px`, height: `${px}px` } as React.CSSProperties}
-    >
-      {LOOK_SLOTS.map((sl) => {
-        const tag = lookTag(look, sl.id);
-        const low = sl.label.toLowerCase();
-        return (
-          // biome-ignore lint/a11y/useSemanticElements: the prototype's labelled arrow pair
-          <div
-            key={sl.id}
-            className="lk-row"
-            data-slot={sl.id}
-            style={{ top: `${ys[sl.id]}px` }}
-            role="group"
-            aria-label={tag}
-          >
-            <button
-              type="button"
-              className="lk-arrow"
-              aria-label={`Previous ${low}`}
-              title={`Previous ${low}`}
-              onClick={() => onSlot(sl.id, -1)}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="lk-arrow"
-              aria-label={`Next ${low}`}
-              title={`Next ${low}`}
-              onClick={() => onSlot(sl.id, 1)}
-            >
-              ›
-            </button>
-            <span className="lk-tag" aria-hidden="true">
-              {tag}
-            </span>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        className="lk-dice"
-        aria-label="Random look"
-        title="Random look"
-        style={{ top: `${Math.max(-46, ys.antenna - 52)}px` }}
-        onClick={onDice}
-      >
-        {DICE}
-      </button>
-    </div>
   );
 }

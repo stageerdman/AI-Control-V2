@@ -1,6 +1,7 @@
 /* Hash router — the prototype's routes, typed. parseRoute/formatRoute are pure (tested);
    useRoute() re-renders on hashchange; go() navigates.
      #projects · #cast · #cast/teams · #cast/agent/:id · #cast/teams/:id · #access · #blueprint
+     #cast/agent/tinker[/:sid]   (design a new agent with Tinker; :sid once the chat exists)
      #new[/:draftId] · #office/:projectId[/board|how|health|features|feature/:id|reports|report/:id]
      #gallery[/:section]   (dev: every pose / look / emblem)
    Anything unknown lands on #projects. */
@@ -22,6 +23,8 @@ export type Route =
   | { name: 'projects' }
   | { name: 'cast'; tab: 'agents' | 'teams' }
   | { name: 'cast.agent'; id: string }
+  /** Design a new agent with Tinker; sid = the saved chat (null until the first message). */
+  | { name: 'cast.tinker'; sid: string | null }
   | { name: 'cast.team'; id: string }
   | { name: 'access' }
   | { name: 'blueprint' }
@@ -53,6 +56,7 @@ export function parseRoute(hash: string): Route {
   const [head, a, b] = parts;
   switch (head) {
     case 'cast':
+      if (a === 'agent' && b === 'tinker') return { name: 'cast.tinker', sid: parts[3] ?? null };
       if (a === 'agent' && b) return { name: 'cast.agent', id: b };
       if (a === 'teams' && b) return { name: 'cast.team', id: b };
       return { name: 'cast', tab: a === 'teams' ? 'teams' : 'agents' };
@@ -89,6 +93,8 @@ export function formatRoute(r: Route): string {
       return r.tab === 'teams' ? '#cast/teams' : '#cast';
     case 'cast.agent':
       return `#cast/agent/${enc(r.id)}`;
+    case 'cast.tinker':
+      return r.sid ? `#cast/agent/tinker/${enc(r.sid)}` : '#cast/agent/tinker';
     case 'cast.team':
       return `#cast/teams/${enc(r.id)}`;
     case 'new':
@@ -108,7 +114,8 @@ export function formatRoute(r: Route): string {
 /** Which nav stage is lit for a route (null outside the studio layer). */
 export function stageOf(r: Route): Stage | null {
   if (r.name === 'projects' || r.name === 'new') return 'projects';
-  if (r.name === 'cast' || r.name === 'cast.agent' || r.name === 'cast.team') return 'cast';
+  if (r.name === 'cast' || r.name === 'cast.agent' || r.name === 'cast.tinker' || r.name === 'cast.team')
+    return 'cast';
   if (r.name === 'access' || r.name === 'blueprint') return r.name;
   return null;
 }

@@ -1,6 +1,6 @@
 /* Cast — pure rules (no DOM, no I/O), ported from the prototype's data-cast.js / cast.js / teams.js.
    Everything here is unit-tested (model.test.ts); components and the store only call into it. */
-import type { Agent, AgentKind, Look, Member, Role, Team } from '../../api/types';
+import type { Agent, AgentKind, CreatorDraft, Look, Member, Role, Team } from '../../api/types';
 import { EMBLEMS, hatDecal, LOOK_SLOTS, type LookSlotId } from '../../characters';
 import { HUES, type Hue } from '../../design/palette';
 
@@ -211,3 +211,42 @@ export const jobLocal = <T extends Roster>(t: T, agentId: string, instr: string)
 /** Who can join a crew: non-crew cast members not already on it, in lineup order. */
 export const candidates = <A extends HasKind & { id: string }>(agents: readonly A[], t: Roster) =>
   castOrder(agents).filter((a) => !isCrew(a) && !t.members.some((m) => m.agentId === a.id));
+
+/* ---------- design with Tinker: what changed between two drafts ---------- */
+
+export const DRAFT_FIELDS = ['name', 'role', 'summary', 'prompt'] as const;
+export type DraftField = (typeof DRAFT_FIELDS)[number];
+export type DraftDiff = { fields: DraftField[]; look: LookSlotId[] };
+
+/** Which text fields and look slots differ between the previous draft and the new one. */
+export function draftDiff(prev: CreatorDraft | null, next: CreatorDraft | null): DraftDiff {
+  const t = (s: string | undefined) => (s ?? '').trim();
+  const fields = DRAFT_FIELDS.filter((k) => t(prev?.[k]) !== t(next?.[k]));
+  const look = LOOK_SLOTS.map((s) => s.id).filter(
+    (id) => (prev?.look?.[id] ?? '') !== (next?.look?.[id] ?? ''),
+  );
+  return { fields, look };
+}
+
+/** The screen-reader line for a diff — field names only, never values. null when nothing changed. */
+export function diffLine(d: DraftDiff): string | null {
+  const parts: string[] = [...d.fields];
+  if (d.look.length) parts.push('look');
+  return parts.length ? `Draft updated: ${parts.join(', ')}` : null;
+}
+
+/** A drafted look, completed over a base (a partial look still dresses a whole bot). */
+export const draftLook = (base: Look, d: CreatorDraft | null): Look => ({ ...base, ...d?.look });
+
+/** What Tinker is doing during a turn: the status line, and the research bubble (one per lookup). */
+export function tinkerDoing(activity: { kind: string; label: string } | null): {
+  status: string;
+  research: string | null;
+} {
+  if (!activity) return { status: '', research: null };
+  if (activity.kind === 'research') {
+    const line = activity.label.endsWith('…') ? activity.label : `${activity.label}…`;
+    return { status: line, research: line };
+  }
+  return { status: 'Thinking…', research: null };
+}

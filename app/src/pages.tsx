@@ -11,6 +11,7 @@ export const pages: PageRegistry = {
   gallery: Gallery,
   cast: Cast,
   'cast.agent': Cast,
+  'cast.tinker': Cast,
   'cast.team': Cast,
   access: lazy(() => import('./features/access/AccessPage').then((m) => ({ default: m.AccessPage }))),
   blueprint: lazy(() =>

@@ -1,12 +1,14 @@
 /* The hero zoom's dark-glass panel: name (auto-save; a new recruit is created on its first valid
    name), role (pick or type), brain (its own system prompt), teams, and the delete rules
    (setter/creator never; orchestrators down to one — the server's canDelete). No Save button:
-   a quiet "Saved ✓" pip answers every save. */
+   a quiet "Saved ✓" pip answers every save. A new recruit with no name yet may switch to
+   design-with-Tinker (onTinker); `draft` is Tinker's Details tab (no teams, no delete). */
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Agent, Role, Team } from '../../api/types';
 import { Emblem } from '../../characters';
 import { go } from '../../shell/router';
 import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
+import { Radios } from './Radios';
 import { RoleCombo } from './RoleCombo';
 
 export type PanelAgent = Pick<
@@ -26,8 +28,17 @@ export const AgentPanel = forwardRef<
     onPrompt: (prompt: string) => void;
     onDelete: () => void;
     onSaved: () => void;
+    /** "With Tinker" in the mode toggle (a new agent whose name is still empty). */
+    onTinker?: () => void;
+    /** Tinker's Details tab: the draft's fields only. */
+    draft?: boolean;
+    /** Fields Tinker just changed (tinted once). */
+    changed?: ReadonlySet<string>;
   }
->(function AgentPanel({ agent, isNew, roles, teams, onName, onRole, onPrompt, onDelete, onSaved }, ref) {
+>(function AgentPanel(
+  { agent, isNew, roles, teams, onName, onRole, onPrompt, onDelete, onSaved, onTinker, draft, changed },
+  ref,
+) {
   const crew = isCrew(agent);
   const kind = agent.kind;
   const [name, setName] = useState(agent.name);
@@ -50,6 +61,7 @@ export const AgentPanel = forwardRef<
   const n = exists ? agent.projectIds.length : 0;
   const myTeams = exists ? teams.filter((t) => t.members.some((m) => m.agentId === agent.id)) : [];
   const roleShown = (agent.roleId && roles.find((r) => r.id === agent.roleId)?.name) || '';
+  const tint = (f: string) => (changed?.has(f) ? ' tk-changed' : '');
 
   /* keep the name field in step when it changes elsewhere (e.g. restored by Undo) */
   const typing = useRef(false);
@@ -64,16 +76,29 @@ export const AgentPanel = forwardRef<
           {agent.name || 'New agent'}: hero details
         </h2>
         <div className="zp-top">
-          <span className="zp-kicker">
-            {crew ? 'Studio crew' : isNew && !exists ? 'New recruit' : 'Agent'}
-          </span>
+          {onTinker && !exists && !name ? (
+            <Radios
+              label="How to make them"
+              className="tk-mode"
+              value="manual"
+              onPick={(v) => v === 'tinker' && onTinker()}
+              items={[
+                { value: 'manual', label: 'Manual', content: 'Manual' },
+                { value: 'tinker', label: 'With Tinker', content: 'With Tinker' },
+              ]}
+            />
+          ) : (
+            <span className="zp-kicker">
+              {crew ? 'Studio crew' : draft ? 'Draft' : isNew && !exists ? 'New recruit' : 'Agent'}
+            </span>
+          )}
           <span className="zp-saved" aria-hidden="true">
             Saved ✓
           </span>
         </div>
         <div className="zp-name">
           <input
-            className="zp-title"
+            className={`zp-title${tint('name')}`}
             id="zpName"
             maxLength={22}
             placeholder={`Name your ${crew ? KIND_LABEL[kind].toLowerCase() : 'agent'}`}
@@ -113,7 +138,7 @@ export const AgentPanel = forwardRef<
         <p className="zp-err" id="zpNameErr" hidden={!err}>
           Give them a name first
         </p>
-        <p className="zp-caption">
+        <p className={`zp-caption${tint('role')}`}>
           {crew ? (
             <>
               <span>{KIND_LABEL[kind]}</span>
@@ -135,7 +160,7 @@ export const AgentPanel = forwardRef<
           </h3>
           <textarea
             ref={area}
-            className="zp-area mono"
+            className={`zp-area mono${tint('prompt')}`}
             id="zpPrompt"
             rows={6}
             spellCheck={false}
@@ -148,7 +173,7 @@ export const AgentPanel = forwardRef<
             }}
           />
         </section>
-        {!crew && (
+        {!crew && !draft && (
           <section className="zp-sec zp-teams-sec">
             <h3 className="zp-label">Teams</h3>
             <ul className="zp-teams">

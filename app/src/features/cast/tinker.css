@@ -1,0 +1,218 @@
+/* Design with Tinker — the hero zoom's stage with Tinker's chat on the side (spec-ux-tinker.md).
+   The chat column itself is the shared .np-chat look (features/collab/chat.css). */
+
+/* stage: room under the bot for the nameplate + "Add to the Cast" */
+.zoom-tinker .z-stage {
+  padding-bottom: 172px;
+}
+.zoom-tinker .z-floor {
+  bottom: 142px;
+}
+.zoom-tinker .z-nav {
+  bottom: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+.tk-arrive {
+  display: contents;
+}
+.tk-arrive .hero {
+  animation: tkArrive 0.26s ease both;
+}
+@keyframes tkArrive {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tk-plate {
+  position: absolute;
+  left: 50%;
+  bottom: 78px;
+  transform: translateX(-50%);
+  z-index: 3;
+  width: min(420px, 92%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+.tk-name {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: var(--cream);
+  padding: 0 6px;
+}
+.tk-role {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream-72);
+  padding: 0 6px;
+}
+.tk-sum {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--cream-72);
+  padding: 0 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tk-err {
+  margin: 0;
+  max-width: min(420px, 90vw);
+  white-space: normal;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--coral);
+}
+
+/* what Tinker just changed: a sun tint that fades */
+.tk-changed {
+  border-radius: 6px;
+  animation: tkChanged 1.6s ease both;
+}
+@keyframes tkChanged {
+  from {
+    background: rgba(255, 194, 75, 0.14);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* side column: dark strip for the tabs, panes fill the rest */
+.tk-chat .op-head {
+  min-height: 88px;
+}
+.tk-tabs {
+  background: #241a44;
+  padding: 0 14px 12px;
+}
+.tk-tabs .lib-tabs {
+  display: flex;
+}
+.tk-tabs .lib-tabs button {
+  flex: 1;
+}
+.tk-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tk-pane[hidden] {
+  display: none;
+}
+.tk-details {
+  background: #241a44;
+}
+.tk-lock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tk-lock:disabled {
+  opacity: 0.6;
+}
+.tk-details .z-panel {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+.tk-details .zp-scroll {
+  padding: 16px 18px 20px;
+}
+.tk-empty {
+  margin: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cream-60);
+}
+.np-chat .bubble.tk-research {
+  font-style: italic;
+  color: var(--ink-soft);
+}
+.tk-slow {
+  margin: 0;
+  padding: 0 14px 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.tk-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.tk-foot .zp-link {
+  font-size: 12.5px;
+}
+.tk-foot .zp-link:not(.danger) {
+  color: var(--ink-soft);
+}
+
+@media (max-width: 1100px) {
+  .zoom.zoom-tinker {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    overflow: auto;
+    gap: 18px;
+  }
+  .zoom-tinker .z-stage {
+    height: min(560px, 70vh);
+  }
+}
+@media (max-width: 640px) {
+  .zoom.zoom-tinker {
+    padding: 0 16px;
+  }
+  .zoom-tinker .z-stage {
+    height: auto;
+    min-height: 420px;
+  }
+  .tk-sum {
+    -webkit-line-clamp: 1;
+  }
+  .zoom-tinker .z-nav {
+    left: 0;
+    right: 0;
+    transform: none;
+  }
+  .zoom-tinker .tk-add {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-arrive .hero {
+    animation: none;
+  }
+  .tk-changed {
+    animation: none;
+    border-radius: 0;
+    box-shadow: inset 0 -2px 0 var(--sun);
+  }
+}

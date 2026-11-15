@@ -1,19 +1,24 @@
-/* The Cast — routes #cast · #cast/teams · #cast/agent/:id|new|new-orchestrator · #cast/teams/:id|new.
+/* The Cast — routes #cast · #cast/teams · #cast/agent/:id|new|new-orchestrator · #cast/teams/:id|new
+   · #cast/agent/tinker[/:sid] (design a new agent with Tinker).
    One mounted page for all of them so the zooms animate in place (camera push / FLIP) between
    the list and the detail, like the prototype's renderCast(). */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useQuery } from '../../api';
 import type { Route } from '../../shell/router';
 import { ErrorState, Loading } from '../../ui';
+import { castApi, KEYS } from './api';
 import { HeroZoom } from './HeroZoom';
 import { Lineup } from './Lineup';
 import { RollCall } from './RollCall';
 import { SquadZoom } from './SquadZoom';
 import { useCast } from './store';
+import { TinkerZoom } from './TinkerZoom';
 import './cast.css';
 
 type Tab = 'agents' | 'teams';
 type Zoom = {
-  kind: 'agent' | 'team';
+  kind: 'agent' | 'team' | 'tinker';
+  /** For 'tinker': the saved chat ('' until the first message). */
   id: string;
   session: number;
   animate: boolean;
@@ -28,19 +33,22 @@ const zoomOf = (r: Route) =>
     ? { kind: 'agent' as const, id: r.id }
     : r.name === 'cast.team'
       ? { kind: 'team' as const, id: r.id }
-      : null;
+      : r.name === 'cast.tinker'
+        ? { kind: 'tinker' as const, id: r.sid ?? '' }
+        : null;
 
 let sessions = 0;
 /** The search survives tab switches (the prototype's CAST.q). */
 let lastQ = '';
 
-/** Registered for 'cast', 'cast.agent' and 'cast.team'. */
+/** Registered for 'cast', 'cast.agent', 'cast.tinker' and 'cast.team'. */
 export function CastPage({
   route,
 }: {
-  route: Extract<Route, { name: 'cast' | 'cast.agent' | 'cast.team' }>;
+  route: Extract<Route, { name: 'cast' | 'cast.agent' | 'cast.tinker' | 'cast.team' }>;
 }) {
   const { agents, roles, teams, loading, error, retry } = useCast();
+  const drafts = useQuery(KEYS.tinker, castApi.tinker.list).data?.sessions;
   const tab = tabOf(route);
   const [z, setZ] = useState<Zoom | null>(() => {
     const w = zoomOf(route);
@@ -78,6 +86,7 @@ export function CastPage({
       if (cur && want) {
         if (cur.closing) return { ...want, session: ++sessions, animate: false, closing: false };
         if (want.id === cur.id) return cur;
+        if (cur.kind === 'tinker' && want.kind === 'tinker' && !cur.id) return { ...cur, id: want.id }; // the chat got its id
         if (cur.created === want.id) return { ...cur, id: want.id };
         if (cur.kind === 'agent' && want.kind === 'agent' && !/^new/.test(want.id) && !/^new/.test(cur.id))
           return { ...cur, id: want.id }; // ‹ › step: same stage, the bot slides
@@ -151,6 +160,7 @@ export function CastPage({
           ) : tab === 'agents' ? (
             <Lineup
               agents={agents}
+              drafts={drafts ?? []}
               q={q}
               hidden={!!z && !z.closing}
               onRecruit={(name) => {
@@ -172,6 +182,18 @@ export function CastPage({
           onClosed={() => closed(z.session)}
           onCreated={(id) => created(z.session, id)}
           prefill={consume(prefill)}
+          agents={agents}
+          roles={roles}
+          teams={teams}
+        />
+      )}
+      {ready && z?.kind === 'tinker' && (
+        <TinkerZoom
+          key={z.session}
+          sid={z.id || null}
+          animate={z.animate}
+          closing={z.closing}
+          onClosed={() => closed(z.session)}
           agents={agents}
           roles={roles}
           teams={teams}
