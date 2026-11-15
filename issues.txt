@@ -4,6 +4,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- [ ] At 390 px the studio top nav (logo + Projects/Cast/Access/Blueprint) is wider than the screen → sideways scroll. Pre-existing shell layout. (STUDIO LIFE)
 - [ ] Office doesn't draw guests a project agent calls in with call_agent (events room.joined / room.call exist; spec-ux-room.md §4). (AGENT MCP)
 - [ ] /Applications/AI Studio.app front end not rebuilt since AGENT MCP — rebuild + reinstall to see the setup room. (AGENT MCP)
 - [ ] Fresh data dirs still seed the 9 prototype demo projects (Aurora Storefront…). Removed from the user's real data 2026-11-14; seed.ts should stop creating them (tests depend on them — move to a test fixture).
