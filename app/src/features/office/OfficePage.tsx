@@ -42,6 +42,7 @@ import { MailSheet, refreshMail } from './MailSheet';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
+import { Rearrange } from './rebuild/Rearrange';
 import { RecapSheet } from './RecapSheet';
 import {
   activityOf,
@@ -553,11 +554,18 @@ function Office({
             () => reload(ev.payload.added[0] ?? '', 'joined'),
           );
           const n = ev.payload.added.length;
+          const gone = ev.payload.removed ?? [];
           if (n)
             announce(
               n === 1
                 ? `${nickOf(ev.payload.added[0] as string)} joined the team.`
                 : `${n} people joined the project.`,
+            );
+          else if (gone.length)
+            announce(
+              gone.length === 1
+                ? `${nickOf(gone[0] as string)} left the project.`
+                : `${gone.length} people left the project.`,
             );
           break;
         }
@@ -602,6 +610,7 @@ function Office({
   const [bellOpen, setBellOpen] = useState(false);
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [binderFor, setBinderFor] = useState<string | null>(null);
+  const [rearranging, setRearranging] = useState(false);
   const newAccess = useNewAccessCount(pid);
   const leave = () => {
     if (reducedMotion()) {
@@ -1080,7 +1089,19 @@ function Office({
           setContext({ title: `${binderTeam.name.replace(/^The /, '')} principles` });
           openThread(binderCaptain, 'chat');
         }}
+        onRearrange={() => {
+          setBinderFor(null);
+          setRearranging(true);
+        }}
       />
+      {rearranging && (
+        <Rearrange
+          pid={pid}
+          faceOf={(a) => agentsById[a] ?? null}
+          director={nickOf(director)}
+          onClose={() => setRearranging(false)}
+        />
+      )}
       <MailSheet
         pid={pid}
         hq={hq}

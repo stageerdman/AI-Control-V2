@@ -19,6 +19,7 @@ export function PrinciplesSheet({
   open,
   onClose,
   onTalk,
+  onRearrange,
 }: {
   pid: string;
   team: BinderTeam | null;
@@ -27,11 +28,15 @@ export function PrinciplesSheet({
   open: boolean;
   onClose: () => void;
   onTalk: () => void;
+  /** Move people between teams, to solo desks or off the project (team rebuild). */
+  onRearrange?: () => void;
 }) {
   const name = team?.name.replace(/^The /, '') ?? '';
   return (
     <Sheet open={open && !!team} onClose={onClose} label={`${name} principles`}>
-      {open && team && <PrinciplesBody pid={pid} team={team} captain={captain} onTalk={onTalk} />}
+      {open && team && (
+        <PrinciplesBody pid={pid} team={team} captain={captain} onTalk={onTalk} onRearrange={onRearrange} />
+      )}
     </Sheet>
   );
 }
@@ -41,11 +46,13 @@ export function PrinciplesBody({
   team,
   captain,
   onTalk,
+  onRearrange,
 }: {
   pid: string;
   team: BinderTeam;
   captain: string | null;
   onTalk: () => void;
+  onRearrange?: () => void;
 }) {
   const q = useQuery(keys.principles(pid), () => studio.principles.list(pid));
   const { refetch } = q;
@@ -98,11 +105,18 @@ export function PrinciplesBody({
       </h2>
       {!file && <p className="hint">{captain ? `Kept by ${captain}. ` : ''}The team reads these first.</p>}
       {body}
-      {captain && (
+      {(captain || onRearrange) && (
         <footer className="lf-foot">
-          <Button variant="ghost" onClick={onTalk}>
-            Talk to {captain}
-          </Button>
+          {onRearrange && (
+            <Button variant="ghost" onClick={onRearrange}>
+              Rearrange
+            </Button>
+          )}
+          {captain && (
+            <Button variant="ghost" onClick={onTalk}>
+              Talk to {captain}
+            </Button>
+          )}
         </footer>
       )}
     </div>

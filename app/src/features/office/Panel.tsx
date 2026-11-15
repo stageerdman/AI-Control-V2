@@ -4,11 +4,12 @@
    office is the switcher (click a robot). "!" asks arrive as cards in the agent's thread and are
    answered on the asks endpoint. One Send (OFFICE): the director decides — a clear ask becomes a goal on the
    whiteboard (the server posts it, the board follows its events), a question or a maybe gets a reply. */
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, Fragment, useEffect, useRef, useState } from 'react';
 import { isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
 import { Button } from '../../ui';
 import { keys, officeApi, type Thread, type ThreadMessage } from './api';
+import { answerByVoice, RebuildCard, UndoLine } from './rebuild/RebuildCard';
 import { type Actor, activityOf, mergeMessage, type PendingAsk } from './state';
 
 export type PanelAgent = {
@@ -69,6 +70,7 @@ export function Panel(p: PanelProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const openedAt = useRef(Date.now());
   const lkey = `${pid}:${id}`;
   const addLocal = (m: ThreadMessage) => {
     local.set(lkey, [...(local.get(lkey) ?? []), m]);
@@ -100,6 +102,8 @@ export function Panel(p: PanelProps) {
       return;
     }
     setText('');
+    /* a plain yes / no while a rebuild card waits answers the card, not the director */
+    if (isDir && !p.context && answerByVoice(v)) return;
     const ctx = p.context;
     if (ctx?.reportId) aboutTitles.set(ctx.reportId, ctx.title);
     p.clearContext();
@@ -184,13 +188,31 @@ export function Panel(p: PanelProps) {
               : `Ask ${short} about their work.`}
           </p>
         )}
-        {messages.map((m) => (
-          <Bubble
-            key={m.id}
-            m={m}
-            who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
-            openReport={p.openReport}
-          />
+        {messages.map((m, i) => (
+          <Fragment key={m.id}>
+            <Bubble
+              m={m}
+              who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
+              openReport={p.openReport}
+            />
+            {isDir && m.rebuild && (
+              <div className="op-rebuild">
+                {m.rebuild.undoToken ? (
+                  <UndoLine token={m.rebuild.undoToken} summary={m.rebuild.summary} since={Date.parse(m.at)} />
+                ) : (
+                  <RebuildCard
+                    card={m.rebuild.card}
+                    faceOf={(aid) => p.agents[aid] ?? null}
+                    director={dirShort}
+                    /* a newer message to the director: this card is out of date (spec §3) */
+                    stale={messages.slice(i + 1).some((x) => x.from === 'user')}
+                    /* only a card that just arrived takes focus — not one in the history */
+                    focus={Date.parse(m.at) > openedAt.current}
+                  />
+                )}
+              </div>
+            )}
+          </Fragment>
         ))}
         {asks.map((a) => (
           <AskCard

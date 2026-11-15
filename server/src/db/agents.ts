@@ -28,7 +28,7 @@ export type AgentRecord = {
   position: number;
   /** STUDIO LIFE: may send mail (absent on rows read before migration 28). */
   can_mail?: number;
-  /** JSON Toolset, NULL = the studio's full kit (absent on rows read before migration 31). */
+  /** JSON Toolset, NULL = the studio's full kit (absent on rows read before migration 32). */
   tools?: string | null;
   created_at: string;
   updated_at: string;

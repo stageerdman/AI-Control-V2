@@ -72,11 +72,15 @@ export const EVENT_SCHEMAS = {
     change: z.enum(['arrived', 'triaged', 'filed', 'reopened']),
     status: z.enum(['new', 'board', 'discussed', 'filed']),
   }),
-  /** The director (re)staffed the project from chat: its teams + specialists now, and who just joined. */
+  /** STUDIO LIFE: a team rebuild took someone off the project — `by` is the director (or the user). */
+  'room.left': z.strictObject({ agentId: id, by: id.optional() }),
+  /** The director (re)staffed or rebuilt the project: its teams + specialists now, who joined, left or changed seats. */
   'staff.changed': z.strictObject({
     teamIds: z.array(id).max(40),
     agentIds: z.array(id).max(40),
     added: z.array(id).max(60),
+    removed: z.array(id).max(60).optional(),
+    moved: z.array(id).max(60).optional(),
   }),
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({
@@ -242,6 +246,16 @@ export const EVENT_SCHEMAS = {
     reportId: id.optional(),
     /** A goal posted to the orchestrator (the user's goal line and the orchestrator's plan reply). */
     goalId: id.optional(),
+    /** A team rebuild the director's reply carries: the confirm card, or (applied at once) its Undo. */
+    rebuild: z
+      .strictObject({
+        planId: id,
+        needsConfirm: z.boolean(),
+        card: z.record(z.string(), z.unknown()),
+        undoToken: id.optional(),
+        summary: text(2000).optional(),
+      })
+      .optional(),
   }),
   /** Reports (U1): a reporter filed one — title only, never the body (GET the report for it). */
   'report.filed': z.strictObject({ reportId: id, projectId: id, authorAgentId: id, title: text(80) }),

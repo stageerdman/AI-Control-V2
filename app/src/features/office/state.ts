@@ -11,6 +11,7 @@ import {
 } from '../../api';
 import type { Pose } from '../../characters';
 import type { AgentStatus, Feature, OfficeProgress, OfficeView, ThreadMessage, WorkTime } from './api';
+import type { RebuildOffer } from './rebuild/api';
 import type { BoardFacts } from './theme';
 
 /** One row per activity kind (prototype office-engine.js ACTIVITY): pose, prop, monitor glyph. */
@@ -167,6 +168,7 @@ export function threadMessageOf(ev: StudioEvent<'thread.message'>): ThreadMessag
     runId: p.runId ?? null,
     reportId: p.reportId ?? null,
     goalId: p.goalId ?? null,
+    ...(p.rebuild ? { rebuild: p.rebuild as unknown as RebuildOffer } : {}),
     at: ev.at,
   };
 }

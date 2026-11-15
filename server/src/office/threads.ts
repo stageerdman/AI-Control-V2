@@ -32,6 +32,7 @@ import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { DIRECTOR_ANSWER, parseDirectorReply } from './director-reply.ts';
 import type { Features } from './features.ts';
+import type { Offer, Rebuilds } from './rebuild-service.ts';
 import { castAvailable, type Staffing } from './staffing.ts';
 
 export type ThreadMessage = {
@@ -46,6 +47,8 @@ export type ThreadMessage = {
   reportId: string | null;
   /** A goal on the whiteboard: the user's goal line and the orchestrator's plan reply. */
   goalId: string | null;
+  /** A team rebuild the director's reply carries: the confirm card, or (applied at once) its Undo. */
+  rebuild?: Offer | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
@@ -112,6 +115,8 @@ export function createThreads(deps: {
   startWork?: (projectId: string, goal: string) => Promise<Goal>;
   /** The director staffs the project from chat (office/staffing.ts). */
   staffing?: Staffing;
+  /** The director rebuilds teams from chat (office/rebuild-service.ts). */
+  rebuilds?: Rebuilds;
   /** Continue a stopped goal where it was (dispatch.resume). Absent → the director can't. */
   resumeGoal?: (projectId: string, goalId: string) => Goal;
   /** The director asks someone a question (room.call from the director) → their answer. */
@@ -136,6 +141,7 @@ export function createThreads(deps: {
     runId: (r.run_id as string | null) ?? null,
     reportId: (r.report_id as string | null) ?? null,
     goalId: (r.goal_id as string | null) ?? null,
+    ...(r.rebuild ? { rebuild: JSON.parse(r.rebuild as string) as Offer } : {}),
     at: r.created_at as string,
   });
   const insert = (
@@ -148,14 +154,15 @@ export function createThreads(deps: {
       runId: string | null;
       reportId?: string | null;
       goalId?: string | null;
+      rebuild?: Offer | null;
     },
   ): ThreadMessage => {
     const id = randomUUID();
     const text = scrub(m.text);
     const at = now();
     db.prepare(
-      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, m.reportId ?? null, m.goalId ?? null, at);
+      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, rebuild, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, m.reportId ?? null, m.goalId ?? null, m.rebuild ? JSON.stringify(m.rebuild) : null, at);
     try {
       events.append('project', projectId, {
         type: 'thread.message',
@@ -168,6 +175,7 @@ export function createThreads(deps: {
           ...(m.runId ? { runId: m.runId } : {}),
           ...(m.reportId ? { reportId: m.reportId } : {}),
           ...(m.goalId ? { goalId: m.goalId } : {}),
+          ...(m.rebuild ? { rebuild: m.rebuild } : {}),
         },
       });
     } catch {
@@ -181,6 +189,7 @@ export function createThreads(deps: {
       runId: m.runId,
       reportId: m.reportId ?? null,
       goalId: m.goalId ?? null,
+      ...(m.rebuild ? { rebuild: m.rebuild } : {}),
       at,
     };
   };
@@ -515,12 +524,35 @@ export function createThreads(deps: {
     const ok = run.status === 'succeeded' && !!run.result?.trim();
     if (ok && t.orchestrator) {
       const d = parseDirectorReply(run.result as string);
+      /* a rebuild rides on the reply: a confirm card, or (nothing to decide) applied at once with its Undo */
+      let rebuild: Offer | null = null;
+      let rebuildError: string | null = null;
+      if (d.rebuild && deps.rebuilds) {
+        try {
+          const offer = deps.rebuilds.plan(t.projectId, d.rebuild);
+          if (offer.needsConfirm) rebuild = offer;
+          else {
+            const done = deps.rebuilds.apply(offer.planId, {}, t.agentId);
+            rebuild = { ...offer, card: done.card, undoToken: done.undoToken, summary: done.summary };
+          }
+        } catch (e) {
+          rebuildError = clip(e instanceof Error ? e.message : String(e), 2000);
+        }
+      }
       const reply = insert(t.projectId, t.agentId, {
         sender: 'agent',
         kind: 'text',
         text: d.reply,
         runId: run.id,
+        rebuild,
       });
+      if (rebuildError)
+        insert(t.projectId, t.agentId, {
+          sender: 'agent',
+          kind: 'error',
+          text: `I couldn’t change the teams: ${rebuildError}`,
+          runId: null,
+        });
       if (d.staff && deps.staffing) {
         try {
           deps.staffing.apply(t.projectId, d.staff, t.agentId);
@@ -592,6 +624,8 @@ export function createThreads(deps: {
       const task = taskFor(p, s, text, opts.reportId, recap); // an unknown report is a 404 before anything starts
       const k = key(projectId, s.agent.id);
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
+      /* a newer message to the director: any open rebuild card goes stale (spec §3) */
+      if (s.orchestrator) deps.rebuilds?.staleAll(projectId);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
       const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
       const run = runtime.start(projectId, {
