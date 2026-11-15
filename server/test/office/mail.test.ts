@@ -98,7 +98,7 @@ describe('the mailbox', () => {
       (m: { text: string }) => m.text,
     );
     expect(thread).toContain(
-      '📬 Dark mode (from Pixel Pete from Aurora Storefront) — Worth a chat — do we want a dark office?',
+      '📬 Dark mode (from Pixel Pete in Aurora Storefront) — Worth a chat — do we want a dark office?',
     );
     expect(thread.at(-1)).toBe('Four letters: one on the board, one to talk about, two filed.');
     expect(

@@ -200,13 +200,11 @@ export function createMail(deps: {
           ? { agentId: director.id, status: 'working', activity: { kind: 'mail', label } }
           : { agentId: director.id, status: 'idle' },
       });
-    const sender = (m: Mail) =>
-      [
-        m.fromAgentId ? store.agents.get(m.fromAgentId)?.name : 'the user',
-        m.fromProjectId ? store.projects.get(m.fromProjectId)?.name : null,
-      ]
-        .filter(Boolean)
-        .join(' from ');
+    const sender = (m: Mail) => {
+      const who = m.fromAgentId ? (store.agents.get(m.fromAgentId)?.name ?? 'an agent') : 'you';
+      const where = m.fromProjectId ? store.projects.get(m.fromProjectId)?.name : null;
+      return where ? `${who} in ${where}` : who;
+    };
     const say = (text: string, goalId?: string | null) => {
       try {
         deps.say(projectId, director.id, text, goalId);
