@@ -20,12 +20,16 @@ describe('staleNotice', () => {
   });
 
   it('says a newer build is installed when the marker matches the backend', () => {
-    expect(staleNotice('13c5ed4', report())?.text).toMatch(/newer AI Studio \(ab691c5\) is installed — quit and reopen/);
+    expect(staleNotice('13c5ed4', report())?.text).toMatch(
+      /newer AI Studio \(ab691c5\) is installed — quit and reopen/,
+    );
   });
 
   it('says an install is running, or failed with where to look', () => {
     const at = '2026-11-15T00:00:00Z';
-    expect(staleNotice('13c5ed4', report({ install: { state: 'installing', at } }))?.text).toMatch(/Installing/);
+    expect(staleNotice('13c5ed4', report({ install: { state: 'installing', at } }))?.text).toMatch(
+      /Installing/,
+    );
     const failed = staleNotice('13c5ed4', report({ install: { state: 'failed', at, error: 'x' } }));
     expect(failed).toMatchObject({ tone: 'error' });
     expect(failed?.text).toMatch(/didn’t install.*self-install\.log/);

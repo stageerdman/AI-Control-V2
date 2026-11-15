@@ -6,8 +6,8 @@ import { Building } from './Building';
 import { BUILD, buildLabel } from './build';
 import { Motes } from './Motes';
 import type { PageRegistry, PagerComponent } from './pages';
-import { StaleNotice } from './StaleNotice';
 import { go, type Route, STAGES, stageOf, useRoute } from './router';
+import { StaleNotice } from './StaleNotice';
 import './shell.css';
 
 export function Shell({ pages, Pager }: { pages: PageRegistry; Pager?: PagerComponent | null }) {

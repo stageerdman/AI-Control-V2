@@ -22,7 +22,11 @@ export type InstalledBuild = { commit: string; at?: string };
 /** The latest install this backend ran (null: none since it started). */
 export type InstallStatus = { state: 'installing' | 'installed' | 'failed'; at: string; error?: string };
 /** What /health says about builds, so the window (and anyone without access to the Mac) can tell if it is stale. */
-export type BuildReport = { running: string; installed: InstalledBuild | null; install: InstallStatus | null };
+export type BuildReport = {
+  running: string;
+  installed: InstalledBuild | null;
+  install: InstallStatus | null;
+};
 type Log = {
   info: (ctx: object, msg: string) => void;
   error: (ctx: object, msg: string) => void;
@@ -52,7 +56,10 @@ export function createSelfInstall(deps: {
         deps.log.info({ module: 'self-install' }, 'Installed the newest AI Studio build');
       } else {
         mark('failed', `the installer exited with ${code}`);
-        deps.log.error({ module: 'self-install', code }, 'AI Studio install failed — see logs/self-install.log');
+        deps.log.error(
+          { module: 'self-install', code },
+          'AI Studio install failed — see logs/self-install.log',
+        );
       }
     } catch (e) {
       const err = (e as Error).message;
