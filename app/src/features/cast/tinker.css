@@ -117,6 +117,18 @@
 .tk-details {
   background: #241a44;
 }
+.tk-lock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tk-lock:disabled {
+  opacity: 0.6;
+}
 .tk-details .z-panel {
   flex: 1;
   background: transparent;

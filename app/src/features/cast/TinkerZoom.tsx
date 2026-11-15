@@ -314,10 +314,11 @@ export function TinkerZoom(p: TinkerZoomProps) {
     }
   }
 
-  /* ---------- direct edits (Details tab, look arrows, dice) ---------- */
+  /* ---------- direct edits (Details tab, look arrows, dice) — locked while Tinker works:
+     the turn saves his whole draft and would drop an edit made meanwhile ---------- */
   const patch = (d: CreatorDraft, ms?: number) => {
     const s = sessionRef.current;
-    if (!s) return;
+    if (!s || working) return;
     const next = { ...s.draft, ...d, ...(d.look ? { look: { ...s.draft?.look, ...d.look } } : {}) };
     const ns = { ...s, draft: next };
     sessionRef.current = ns;
@@ -454,7 +455,7 @@ export function TinkerZoom(p: TinkerZoomProps) {
                     pose={arrived ? 'waving' : 'idle'}
                   />
                 </span>
-                <LookRig look={look} px={px} onSlot={onSlot} onDice={onDice} />
+                {!working && <LookRig look={look} px={px} onSlot={onSlot} onDice={onDice} />}
               </>
             ) : (
               <Hero ghost agent={{ hue: 'sun' }} size={px} facing="front" />
@@ -579,21 +580,23 @@ export function TinkerZoom(p: TinkerZoomProps) {
           hidden={tab !== 'details'}
         >
           {draft ? (
-            <AgentPanel
-              key={rev}
-              ref={panel}
-              agent={panelAgent}
-              isNew
-              draft
-              changed={changed}
-              roles={roles}
-              teams={p.teams}
-              onName={(v) => patch({ name: v })}
-              onRole={(r) => r && patch({ role: r.name })}
-              onPrompt={(v) => patch({ prompt: v }, 600)}
-              onDelete={() => undefined}
-              onSaved={() => pingSaved(panel.current)}
-            />
+            <fieldset className="tk-lock" disabled={working}>
+              <AgentPanel
+                key={rev}
+                ref={panel}
+                agent={panelAgent}
+                isNew
+                draft
+                changed={changed}
+                roles={roles}
+                teams={p.teams}
+                onName={(v) => patch({ name: v })}
+                onRole={(r) => r && patch({ role: r.name })}
+                onPrompt={(v) => patch({ prompt: v }, 600)}
+                onDelete={() => undefined}
+                onSaved={() => pingSaved(panel.current)}
+              />
+            </fieldset>
           ) : (
             <p className="tk-empty">Details show up once {tName} has a first sketch.</p>
           )}

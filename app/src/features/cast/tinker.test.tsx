@@ -204,4 +204,15 @@ describe('Design with Tinker — the chat', () => {
     await waitFor(() => expect(tinker.edit).toHaveBeenCalledWith('s1', { name: 'Swiftly' }));
     expect(tinker.say).not.toHaveBeenCalled();
   });
+
+  it('locks direct edits while Tinker works (his turn would overwrite them)', async () => {
+    tinker.get.mockResolvedValue(session({ draft: DRAFT }));
+    tinker.say.mockReturnValue(new Promise(() => {}));
+    const input = zoom('s1');
+    await waitFor(() => expect(screen.getByText('Ships SwiftUI apps.')).toBeTruthy());
+    await act(async () => say(input, 'Make him playful'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Details' }));
+    const name = screen.getByRole('textbox', { name: 'Agent name' }) as HTMLInputElement;
+    expect(name.closest('fieldset')?.disabled).toBe(true);
+  });
 });
