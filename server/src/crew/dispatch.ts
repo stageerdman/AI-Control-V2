@@ -1292,6 +1292,15 @@ export function createDispatch(deps: {
       return work.goal(goalId) as Goal;
     },
 
+    /** Stop every running goal of the project (the "stop everything" path): nothing queued starts after. */
+    cancelAll(projectId: string): Goal[] {
+      store.projects.require(projectId);
+      return work
+        .goals(projectId)
+        .filter((g) => g.status === 'running')
+        .map((g) => this.cancel(projectId, g.id));
+    },
+
     /** Continue a stopped goal (failed, or cancelled by the user): its unfinished items queue again in order.
         An item that had started carries on in its own session and checkout (re-made from its branch). */
     resume(projectId: string, goalId: string): Goal {

@@ -37,6 +37,7 @@ import { createPrinciples } from './office/principles.ts';
 import { createRebuilds } from './office/rebuild-service.ts';
 import { createReportIn } from './office/report-in.ts';
 import { createStaffing } from './office/staffing.ts';
+import { createDirectorStop } from './office/director-stop.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
@@ -80,6 +81,7 @@ import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
 import { trashRoutes } from './routes/trash.ts';
 import { createRunning } from './running/registry.ts';
+import { createStopper } from './running/stop.ts';
 import { runningTools } from './running/tools.ts';
 import { createChatReplier } from './runtime/chat-reply.ts';
 import { AGENT_SHELL, loadCaps, type StudioCaps } from './runtime/config.ts';
@@ -283,6 +285,8 @@ export function buildApp({
     },
   });
   dispatch.recover();
+  /* RUNNING: stop one agent completely, or everything in a project (its queue first, so nothing new starts) */
+  const stopper = createStopper({ running, cancelGoals: (projectId) => void dispatch.cancelAll(projectId) });
   /* status (live → needs → idle) and overall progress follow the event log on their own */
   const lifecycle = createLifecycle({ db, store, events });
   lifecycle.recover();
@@ -316,6 +320,8 @@ export function buildApp({
     store,
     events,
     runtime,
+    /* "stop Jony" / "stop everything" from the office chat */
+    stops: createDirectorStop({ store, running, stopper }),
     features,
     health,
     reports,
@@ -446,7 +452,7 @@ export function buildApp({
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
-  app.register(runningRoutes({ running, store }));
+  app.register(runningRoutes({ running, stopper, store }));
   app.register(portRoutes({ store, ports, apps, db }));
   app.register(collaborationRoutes({ collaboration }));
   app.register(featureRoutes({ features }));
