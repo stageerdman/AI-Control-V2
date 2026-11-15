@@ -296,6 +296,12 @@ export function buildApp({
     staffing: createStaffing({ store, events }),
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
+    /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
+    ask: (projectId, directorId, to, request) =>
+      room.call(
+        { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
+        { agent: to, request, why: 'answer a question for the user' },
+      ),
   });
   threadsRef = threads;
   /* STUDIO LIFE: the mailbox — HQ is the project in meta 'hq_project'; the director triages new mail on its own */

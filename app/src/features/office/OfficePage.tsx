@@ -497,6 +497,17 @@ function Office({
           if (ev.payload.agentId !== director && liveRef.current.ids.includes(ev.payload.agentId))
             void e?.say(director, { to: ev.payload.agentId, ms: 1300 });
           break;
+        case 'room.call': {
+          /* someone asks someone (the director checking with Jony): "…" toward them, and back when they answer */
+          const { from, to, status } = ev.payload;
+          if (!liveRef.current.ids.includes(from) || !liveRef.current.ids.includes(to)) break;
+          if (status === 'working') {
+            void e?.say(from, { to, ms: 1300 });
+            announce(`Asking ${nickOf(to)}…`);
+          } else if (status === 'answered') void e?.say(to, { to: from, ms: 1300 });
+          else if (status === 'failed') announce(`Couldn’t reach ${nickOf(to)}.`);
+          break;
+        }
         case 'run.finished':
           if (ev.payload.status === 'succeeded') e?.react(ev.payload.agentId, 'hop');
           break;
