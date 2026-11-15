@@ -64,8 +64,12 @@ export const chatRoutes =
       const { runId } = parse(RunParams, req.params);
       const { text } = parse(SendBody, req.body);
       const chat = requireWritableChat(runId);
-      const earlier = getChatMessages(db, runId);
-      const sent = say(chat, 'user', text);
+      let earlier = getChatMessages(db, runId);
+      /* a retry after a failed reply: the same unanswered line is already saved — answer it, don't save it twice */
+      const last = earlier.at(-1);
+      const retry = last?.role === 'user' && last.meta?.followUp === true && last.text === text;
+      if (retry) earlier = earlier.slice(0, -1);
+      const sent = retry ? last : say(chat, 'user', text);
       const reply = say(chat, 'assistant', await replyInChat(chat, earlier, text));
       return { sent, reply };
     });

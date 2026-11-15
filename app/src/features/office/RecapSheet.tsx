@@ -74,9 +74,7 @@ export function RecapBody({ agentId, name, onOpenChat }: Props & { agentId: stri
         ) : !q.data ? (
           <div className="rp-error" role="alert">
             <span>{RECAP_COPY.error}</span>
-            <Button onClick={() => void refetch()}>
-              Try again
-            </Button>
+            <Button onClick={() => void refetch()}>Try again</Button>
           </div>
         ) : words ? (
           <p className="rc-recap">{words}</p>

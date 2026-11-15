@@ -30,9 +30,10 @@ import { refreshProjectAccess, useNewAccessCount } from '../access';
 import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
 import { AccessSheet } from './AccessSheet';
-import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
+import { type ChatSummary, keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
+import { ChatHistorySheet } from './ChatHistorySheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
@@ -632,6 +633,8 @@ function Office({
   const pokeN = useRef(0);
   /* the director and anyone asking you something open the chat; everyone else tells you what they did */
   const [recapFor, setRecapFor] = useState<string | null>(null);
+  /* Open chat in the recap → that saved chat (null chat = their list of chats) */
+  const [chatsFor, setChatsFor] = useState<{ agentId: string; chat: ChatSummary | null } | null>(null);
   const clickActor = (a: string) => {
     const e = engine.current;
     if (!e) return;
@@ -1049,11 +1052,20 @@ function Office({
           setRecapFor(null);
           opener.current?.focus({ preventScroll: true });
         }}
-        /* the saved-chat page isn't in yet: Open chat = their live chat in the panel */
-        onOpenChat={() => {
+        onOpenChat={(chat) => {
           const a = recapFor;
           setRecapFor(null);
-          if (a) openThread(a, 'chat');
+          if (a) setChatsFor({ agentId: a, chat });
+        }}
+      />
+      <ChatHistorySheet
+        agentId={chatsFor?.agentId ?? null}
+        name={chatsFor ? nameOf(chatsFor.agentId) : ''}
+        chat={chatsFor?.chat ?? null}
+        open={!!chatsFor}
+        onClose={() => {
+          setChatsFor(null);
+          opener.current?.focus({ preventScroll: true });
         }}
       />
       <PrinciplesSheet

@@ -104,4 +104,14 @@ describe('POST /chats/:runId/messages', () => {
     const last = (await h.call('GET', `/chats/${runId}/messages`)).body.at(-1);
     expect(last).toMatchObject({ role: 'user', text: 'Still there?', meta: { followUp: true } });
   });
+
+  it('retrying the same message after a failure answers it without saving it twice', async () => {
+    h = studio([{ result: 'done' }], [{ fail: 'model unavailable' }]);
+    const runId = await finishedChat();
+    expect((await send(runId, { text: 'Still there?' })).status).toBe(502);
+    const before = (await h.call('GET', `/chats/${runId}/messages`)).body;
+    expect((await send(runId, { text: 'Still there?' })).status).toBe(502);
+    expect((await h.call('GET', `/chats/${runId}/messages`)).body).toEqual(before);
+    expect(h.asked[1]?.match(/Still there\?/g)).toHaveLength(h.asked[0]?.match(/Still there\?/g)?.length ?? 0);
+  });
 });
