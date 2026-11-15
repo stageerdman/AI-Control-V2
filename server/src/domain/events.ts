@@ -66,6 +66,12 @@ export const EVENT_SCHEMAS = {
   'desk.note': z.strictObject({ agentId: id, noteId: id, runId: id.optional() }),
   /** STUDIO LIFE: the user brought someone in, changed their brief / lock, or sent them home. */
   'guest.changed': z.strictObject({ agentId: id, change: z.enum(['joined', 'updated', 'left']) }),
+  /** STUDIO LIFE: mail arrived in this office, or its director / the user dealt with it. */
+  'mail.changed': z.strictObject({
+    mailId: id,
+    change: z.enum(['arrived', 'triaged', 'filed', 'reopened']),
+    status: z.enum(['new', 'board', 'discussed', 'filed']),
+  }),
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({
     summary: text(1000),

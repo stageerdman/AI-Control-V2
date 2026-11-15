@@ -179,6 +179,7 @@ describe('agent runs (FakeRunner end-to-end)', () => {
     expect((await h.call('PATCH', '/settings', { autoApprove: false })).body).toEqual({
       githubByDefault: true,
       autoApprove: false,
+      hqProjectId: null,
     });
     h.close();
     h = studio(() => [

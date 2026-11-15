@@ -63,7 +63,14 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
       clientInfo: { name: 't', version: '0' },
     });
     const list = (await rpc(2, 'tools/list')).result as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(['room', 'call_agent', 'comms_log', 'forget']);
+    expect(list.tools.map((t) => t.name)).toEqual([
+      'room',
+      'call_agent',
+      'comms_log',
+      'send_mail',
+      'mail_directory',
+      'forget',
+    ]);
     const room = (await rpc(3, 'tools/call', { name: 'room', arguments: {} })).result as {
       content: { text: string }[];
     };

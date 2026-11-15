@@ -25,6 +25,8 @@ export type AgentRecord = {
   look: string;
   prompt: string;
   position: number;
+  /** STUDIO LIFE: may send mail (absent on rows read before migration 28). */
+  can_mail?: number;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +42,8 @@ export type Agent = {
   role: string;
   look: Look;
   prompt: string;
+  /** STUDIO LIFE: may send mail to other projects and HQ (default on). */
+  canMail: boolean;
   teamIds: string[];
   /** Projects using this agent (as orchestrator, specialist, or via a team). */
   projectIds: string[];
@@ -56,7 +60,7 @@ export type AgentCreate = {
   look?: Look;
   prompt?: string;
 };
-export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>>;
+export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>> & { canMail?: boolean };
 
 const kindRank = (a: { kind: AgentKind; position: number }) => KIND_ORDER[a.kind] * 1e9 + a.position;
 
@@ -97,6 +101,7 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
       role: roleName || (isSystemKind(r.kind) ? KIND_LABEL[r.kind] : ''),
       look: JSON.parse(r.look) as Look,
       prompt: r.prompt,
+      canMail: r.can_mail !== 0,
       teamIds: teamIds(r.id),
       projectIds: projectIds(r.id),
       canDelete: canDelete(r, cast),
@@ -165,6 +170,8 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
       db.prepare(
         'UPDATE agents SET name = ?, nick = ?, role_id = ?, look = ?, prompt = ?, updated_at = ? WHERE id = ?',
       ).run(next.name, next.nick, next.role_id, next.look, next.prompt, next.updated_at, id);
+      if (patch.canMail !== undefined)
+        db.prepare('UPDATE agents SET can_mail = ? WHERE id = ?').run(patch.canMail ? 1 : 0, id);
       return repo.require(id);
     },
 

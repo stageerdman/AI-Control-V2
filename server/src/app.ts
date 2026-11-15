@@ -13,7 +13,7 @@ import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import type { Db } from './db/connection.ts';
-import { metaFlag } from './db/settings.ts';
+import { metaFlag, metaValue } from './db/settings.ts';
 import { createStore, type Store } from './db/store.ts';
 import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
@@ -28,6 +28,7 @@ import { createDesk } from './office/desk.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
 import { createLifecycle } from './office/lifecycle.ts';
+import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
 import { createPortraits } from './office/portrait.ts';
 import { createPrinciples } from './office/principles.ts';
@@ -52,6 +53,7 @@ import { featureRoutes } from './routes/features.ts';
 import { githubRoutes } from './routes/github.ts';
 import { guestRoutes } from './routes/guests.ts';
 import { healthRoutes } from './routes/health.ts';
+import { mailRoutes } from './routes/mail.ts';
 import { officeRoutes } from './routes/office.ts';
 import { portraitRoutes } from './routes/portrait.ts';
 import { portRoutes } from './routes/ports.ts';
@@ -215,9 +217,6 @@ export function buildApp({
   const chat = createSetupChat({ store, events, crew });
   /* AGENT MCP: who is in the room, and agents calling each other into it */
   const room = createRoom({ db, store, events, crew, sandbox: config.sandbox, helpCaps: caps.review, comms });
-  runtime.setStudioTools(({ projectId, agentId }) =>
-    room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
-  );
   const creator = createCreator({ store, events, crew, room });
   /* the orchestrator's thread records goals and designs (threads are built below) */
   let threadsRef: ReturnType<typeof createThreads> | null = null;
@@ -294,6 +293,27 @@ export function buildApp({
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
   });
   threadsRef = threads;
+  /* STUDIO LIFE: the mailbox — HQ is the project in meta 'hq_project'; the director triages new mail on its own */
+  const hq = metaValue(db, 'hq_project');
+  const mail = createMail({
+    db,
+    store,
+    events,
+    crew,
+    comms,
+    hq: () => {
+      const id = hq.get();
+      return id && store.projects.get(id) ? id : null;
+    },
+    startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
+    say: (projectId, directorId, text, goalId) =>
+      threads.record(projectId, directorId, { sender: 'agent', text, goalId: goalId ?? null }),
+  });
+  /* every agent run's studio tools: the room (call_agent, comms_log) + mail when it may */
+  runtime.setStudioTools(({ projectId, agentId }) => [
+    ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
+    ...mail.tools(projectId, agentId),
+  ]);
   /* the project's own app (its dev server), on the user's Mac; stopped with the server */
   const apps = createAppRunner({
     store,
@@ -342,7 +362,8 @@ export function buildApp({
   app.register(timeRoutes({ store, clock }));
   app.register(portraitRoutes({ portraits: createPortraits({ db, store, events, home: config.home }) }));
   app.register(githubRoutes({ github }));
-  app.register(settingsRoutes({ github, autoApprove }));
+  app.register(settingsRoutes({ github, autoApprove, hq, store }));
+  app.register(mailRoutes({ mail }));
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );

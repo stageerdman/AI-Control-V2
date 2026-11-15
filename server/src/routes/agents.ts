@@ -15,7 +15,7 @@ const fields = {
 };
 /* kind is chosen once, at creation; it never changes (the cast rules depend on it) */
 const AgentCreate = z.strictObject({ kind: z.enum(AGENT_KINDS).optional(), ...fields });
-const AgentPatch = z.strictObject({ ...fields, name: Name.optional() });
+const AgentPatch = z.strictObject({ ...fields, name: Name.optional(), canMail: z.boolean().optional() });
 
 export const agentRoutes =
   (store: Store): FastifyPluginAsync =>

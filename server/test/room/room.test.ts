@@ -215,7 +215,14 @@ describe('calls inside a project', () => {
     // the agent's own prompt says how to work with the others
     const agentRun = s.calls.find((c) => !c.task.startsWith('AI Studio contract'));
     expect(agentRun?.systemPrompt).toContain('## Working with others');
-    expect(agentRun?.studioTools?.names).toEqual(['room', 'call_agent', 'comms_log', 'forget']);
+    expect(agentRun?.studioTools?.names).toEqual([
+      'room',
+      'call_agent',
+      'comms_log',
+      'send_mail',
+      'mail_directory',
+      'forget',
+    ]);
     expect(agentRun?.systemPrompt).toContain('## Your memory');
   });
 
