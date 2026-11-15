@@ -18,11 +18,11 @@ export type PackAgent = {
 export type CastPack = { key: string; roles: PackRole[]; agents: PackAgent[] };
 
 const flag = (pack: CastPack) => `cast-pack:${pack.key}`;
-const installed = (store: Store, pack: CastPack) =>
+export const installed = (store: Store, pack: CastPack) =>
   store.db.prepare('SELECT 1 FROM meta WHERE key = ?').get(flag(pack)) !== undefined;
 
 /** The pack's role, or the user's role of the same name if they already made one. Returns its id. */
-function ensureRole(store: Store, r: PackRole): string {
+export function ensureRole(store: Store, r: PackRole): string {
   if (store.roles.get(r.id)) return r.id;
   const same = store.roles.findByName(r.name);
   if (same) return same.id;
