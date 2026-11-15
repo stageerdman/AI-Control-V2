@@ -64,6 +64,8 @@ export const EVENT_SCHEMAS = {
   }),
   /** STUDIO LIFE: an agent left a note on its desk and forgot (GET …/desk-notes/:noteId has the text). */
   'desk.note': z.strictObject({ agentId: id, noteId: id, runId: id.optional() }),
+  /** STUDIO LIFE: the user brought someone in, changed their brief / lock, or sent them home. */
+  'guest.changed': z.strictObject({ agentId: id, change: z.enum(['joined', 'updated', 'left']) }),
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({
     summary: text(1000),

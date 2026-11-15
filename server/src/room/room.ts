@@ -95,7 +95,10 @@ export function createRoom(deps: {
     };
     add(orchestratorOf(scope, ownerId));
     for (const t of teamsOf(scope, ownerId)) for (const m of t.members) add(m.agentId);
-    if (scope === 'project') for (const id of store.projects.require(ownerId).agentIds) add(id);
+    if (scope === 'project') {
+      for (const id of store.projects.require(ownerId).agentIds) add(id);
+      for (const id of store.guests.ids(ownerId)) add(id); // brought in by the user
+    }
     for (const j of joined(scope, ownerId)) add(j.agentId);
     return ids.filter((id) => store.agents.get(id));
   }

@@ -33,6 +33,8 @@ export type Office = {
   director: string;
   teams: OfficeTeam[];
   solo: string[];
+  /** STUDIO LIFE: who the user brought in (they sit with the solo desks): brief + may the director use them. */
+  guests: { agentId: string; brief: string; orchestratorMay: boolean }[];
   agents: Record<string, AgentState>;
   /** live / needs / idle (moves on its own) — or the user's draft / archived. */
   status: string;
@@ -87,7 +89,10 @@ export function createOffice(deps: {
         ];
       });
       const seated = new Set(teams.flatMap((t) => t.members));
-      const solo = p.agentIds.filter((id) => !seated.has(id));
+      const guests = store.guests
+        .list(projectId)
+        .filter((g) => !seated.has(g.agentId) && !p.agentIds.includes(g.agentId));
+      const solo = [...p.agentIds.filter((id) => !seated.has(id)), ...guests.map((g) => g.agentId)];
       const everyone = [p.orchestratorId, ...seated, ...solo];
 
       const live = liveRuns(projectId);
@@ -122,6 +127,11 @@ export function createOffice(deps: {
         director: p.orchestratorId,
         teams,
         solo,
+        guests: guests.map((g) => ({
+          agentId: g.agentId,
+          brief: g.brief,
+          orchestratorMay: g.orchestratorMay,
+        })),
         agents,
         status: p.status,
         progress: deps.progressOf?.(p.id) ?? null,

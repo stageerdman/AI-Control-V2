@@ -170,6 +170,7 @@ export function createThreads(deps: {
     const teamId = p.teamIds.find((t) => store.teams.get(t)?.members.some((m) => m.agentId === agent.id));
     if (teamId) return { agent, teamId, orchestrator: false };
     if (p.agentIds.includes(agent.id)) return { agent, teamId: null, orchestrator: false };
+    if (store.guests.get(p.id, agent.id)) return { agent, teamId: null, orchestrator: false }; // brought in by the user
     throw conflict(`${agent.name} isn’t on ${p.name}`, { agentId: agent.id });
   }
 

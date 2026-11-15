@@ -238,7 +238,8 @@ export function createDispatch(deps: {
     return {
       captains,
       ...(p.collaboration?.orchestratorTalksTo === 'everyone' ? { members } : {}),
-      specialists: new Set(p.agentIds),
+      /* STUDIO LIFE: guests the user lets the director use count as specialists */
+      specialists: new Set([...p.agentIds, ...store.guests.ids(projectId, true)]),
       name,
       canReport: (id, teamId) => {
         const a = store.agents.get(id);
@@ -1059,7 +1060,7 @@ export function createDispatch(deps: {
                 ]
               : [];
           }),
-          specialists: p.agentIds.map((id) => ({
+          specialists: [...p.agentIds, ...store.guests.ids(projectId, true)].map((id) => ({
             id,
             name: c.name(id),
             role: store.agents.get(id)?.role ?? '',
@@ -1076,6 +1077,7 @@ export function createDispatch(deps: {
         /* a reviewer who left the project since the design: that gate is skipped */
         const onProject = (id: string) =>
           p.agentIds.includes(id) ||
+          store.guests.ids(projectId).includes(id) ||
           p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
         const everyone = collab?.orchestratorTalksTo === 'everyone';
         const state = projectState(repoOf(projectId));
