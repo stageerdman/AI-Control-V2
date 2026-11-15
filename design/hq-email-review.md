@@ -1,5 +1,7 @@
 # HQ email review: verdicts
 
+*One-minute version: [hq-email-summary.md](hq-email-summary.md).*
+
 **The email.** HQ has one mail: HR's "Office communication review" (sent 08:35 on 2026-11-15, mail id `20471535…`). It is also committed at `updates/2026-11-15 HR - OPEN/comms-review.md`.
 
 **Summary.** HR found no misconduct. Their main point is that agents waste round trips and lose information: work asked for in calls goes nowhere, finished steps get cancelled, reviews start too early, migration numbers clash, and known gaps never reach the user.
