@@ -71,3 +71,23 @@ export function editedAgo(iso: string, now = Date.now()): string {
 /** The card's progress line: "64% to v1.0" with a target, else "64% done". */
 export const progressLine = (p: Pick<Project, 'progress' | 'target'>): string =>
   `${Math.round(p.progress)}% ${p.target?.trim() ? `to ${p.target.trim()}` : 'done'}`;
+
+/** Not adopted: ~/dev folders not under AI Studio (the server leaves out projects + set-up drafts),
+    minus any a draft has already picked; search matches the folder and its GitHub repo. */
+export type LooseFolder = { folder: string; git: boolean; remote?: { github: string | null } | null };
+export function unadopted<F extends LooseFolder>(
+  folders: F[],
+  drafts: Pick<Draft, 'folder'>[],
+  q: string,
+): F[] {
+  const picked = new Set(drafts.map((d) => d.folder).filter(Boolean));
+  return folders.filter(
+    (f) =>
+      !picked.has(f.folder) &&
+      (!norm(q) ||
+        f.folder.toLowerCase().includes(norm(q)) ||
+        !!f.remote?.github?.toLowerCase().includes(norm(q))),
+  );
+}
+/** The row's one quiet hint: its GitHub repo, else "git", else nothing. */
+export const folderHint = (f: LooseFolder): string => f.remote?.github ?? (f.git ? 'git' : '');

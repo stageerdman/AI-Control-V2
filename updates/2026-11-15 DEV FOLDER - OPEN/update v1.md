@@ -12,7 +12,7 @@ under AI Studio shows on the Projects home under **Not adopted**, one click from
 - **P3 — Verify & install.** Full test suites, build, install in /Applications, check the shelf live.
 
 ## Status
-- [x] P1  - [ ] P2  - [ ] P3
+- [x] P1  - [x] P2  - [ ] P3
 
 ## Decisions
 - Folder deletion audit: the only `rmSync` on project paths removes a folder that a *new* project's first

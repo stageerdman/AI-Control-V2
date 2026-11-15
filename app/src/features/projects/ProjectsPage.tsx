@@ -1,14 +1,26 @@
 /* Projects home (#projects) — the prototype's renderProjects(): head with "+ New project",
-   search (press /), then shelves: In setup (drafts) · On set today · The back lot. */
+   search (press /), then shelves: In setup (drafts) · On set today · The back lot · Not adopted. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Agent, type Draft, type Project, studio, type Team, useQuery } from '../../api';
 import { Hero } from '../../characters/Hero';
 import { go } from '../../shell/router';
 import { Button, EmptyState, ErrorState, Loading, Pill, Progress } from '../../ui';
+import { sandboxFolders } from '../setup/api';
 import { DraftCard } from '../setup/DraftCard';
 import { DRAFTS_KEY } from '../setup/drafts';
 import { LogoTile } from './LogoTile';
-import { backLotTag, castOf, editedAgo, ghBadge, nickOf, progressLine, type Shelves, shelves } from './model';
+import {
+  backLotTag,
+  castOf,
+  editedAgo,
+  ghBadge,
+  nickOf,
+  progressLine,
+  type Shelves,
+  shelves,
+  unadopted,
+} from './model';
+import { NotAdoptedShelf } from './NotAdoptedShelf';
 import './projects.css';
 
 const newProject = () => go({ name: 'new', draftId: null });
@@ -19,6 +31,7 @@ export function ProjectsPage() {
   const drafts = useQuery(DRAFTS_KEY, studio.drafts.list);
   const agents = useQuery('agents', studio.agents.list);
   const teams = useQuery('teams', studio.teams.list);
+  const folders = useQuery('sandbox:folders', sandboxFolders);
   const [q, setQ] = useState(lastQuery);
   const search = useRef<HTMLInputElement>(null);
   lastQuery = q;
@@ -26,13 +39,15 @@ export function ProjectsPage() {
   /* status + progress move on their own (server lifecycle) and there's no studio-wide stream:
      fresh on every visit, then a quiet refresh while the page is on screen */
   const refresh = projects.refetch;
+  const refreshFolders = folders.refetch;
   useEffect(() => {
     void refresh();
+    void refreshFolders(); // a folder adopted elsewhere (or added to ~/dev) since the last visit
     const t = setInterval(() => {
       if (document.visibilityState === 'visible') void refresh();
     }, 10000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, refreshFolders]);
 
   /* "/" jumps to the search (not while typing somewhere) */
   useEffect(() => {
@@ -50,6 +65,10 @@ export function ProjectsPage() {
   const s = useMemo(
     () => shelves(projects.data ?? [], drafts.data ?? [], q),
     [projects.data, drafts.data, q],
+  );
+  const loose = useMemo(
+    () => unadopted(folders.data ?? [], drafts.data ?? [], q),
+    [folders.data, drafts.data, q],
   );
   const err = projects.error ?? drafts.error ?? agents.error ?? teams.error;
   const loading = projects.loading || drafts.loading || agents.loading || teams.loading;
@@ -104,15 +123,56 @@ export function ProjectsPage() {
       ) : loading ? (
         <Loading label="Opening the studio lot…" />
       ) : (
-        <ShelvesView s={s} q={q} agents={agents.data ?? []} teams={teams.data ?? []} />
+        <ShelvesView
+          s={s}
+          q={q}
+          agents={agents.data ?? []}
+          teams={teams.data ?? []}
+          looseCount={loose.length + (folders.error ? 1 : 0)}
+          loose={
+            /* never blocks the page: still loading = no shelf yet */
+            <NotAdoptedShelf
+              folders={loose}
+              error={folders.error}
+              onRetry={() => void folders.refetch()}
+              forceOpen={!hasWork(s) || !!q.trim()}
+              orchestratorId={agents.data?.find((a) => a.kind === 'orchestrator')?.id ?? null}
+            />
+          }
+        />
       )}
     </>
   );
 }
 
-function ShelvesView({ s, q, agents, teams }: { s: Shelves; q: string; agents: Agent[]; teams: Team[] }) {
+const hasWork = (s: Shelves) => !!(s.onSet.length || s.backLot.length || s.drafts.length);
+
+function ShelvesView({
+  s,
+  q,
+  agents,
+  teams,
+  loose,
+  looseCount,
+}: {
+  s: Shelves;
+  q: string;
+  agents: Agent[];
+  teams: Team[];
+  loose: React.ReactNode;
+  looseCount: number;
+}) {
   const orchestrators = agents.filter((a) => a.kind === 'orchestrator');
-  if (!s.onSet.length && !s.backLot.length && !s.drafts.length)
+  if (!hasWork(s) && looseCount > 0)
+    return (
+      <div>
+        <p className="hint" style={{ color: 'rgba(255,246,233,.75)' }}>
+          {q.trim() ? 'No production by that name.' : 'Pick a folder to adopt, or start something new.'}
+        </p>
+        {loose}
+      </div>
+    );
+  if (!hasWork(s))
     return (
       <EmptyState
         title={q.trim() ? 'No production by that name' : 'No productions yet'}
@@ -177,6 +237,7 @@ function ShelvesView({ s, q, agents, teams }: { s: Shelves; q: string; agents: A
           )}
         </div>
       </section>
+      {loose}
     </div>
   );
 }
