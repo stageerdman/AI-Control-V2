@@ -100,6 +100,8 @@ import {
   type Installer,
   studioProject,
 } from './self-install/self-install.ts';
+import { createBoard } from './whiteboard/board.ts';
+import { whiteboardTools } from './whiteboard/tools.ts';
 
 export type AppDeps = {
   config: Config;
@@ -351,7 +353,10 @@ export function buildApp({
   });
   /* the director staffs the project from chat (existing Cast agents only); Rearrange brings people back */
   const staffing = createStaffing({ store, events });
+  /* the director edits and tidies the whiteboard itself (its chat turns' only tools) */
+  const board = createBoard({ db, store, port: dispatch.board });
   const threads = createThreads({
+    boardTools: (projectId) => whiteboardTools(board, projectId),
     db,
     store,
     events,
