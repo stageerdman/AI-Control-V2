@@ -166,5 +166,10 @@ export const keys = {
   app: (pid: string) => `office:${pid}:app`,
   time: (pid: string) => `office:${pid}:time`,
   project: (pid: string) => `office:${pid}:project`,
+  /* STUDIO LIFE */
+  deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,
+  principles: (pid: string) => `office:${pid}:principles`,
+  principle: (pid: string, teamId: string, file: string) => `office:${pid}:principles:${teamId}:${file}`,
+  mail: (pid: string, box: 'in' | 'sent' = 'in') => `office:${pid}:mail:${box}`,
   pager: 'pager:asks',
 };
