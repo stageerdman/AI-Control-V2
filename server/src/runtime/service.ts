@@ -20,6 +20,7 @@ import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import { type Desk, type DeskNoteBody, DeskNoteSchema, deskBrief } from '../office/desk.ts';
+import { principlesBrief, principlesDir } from '../office/principles.ts';
 import type { WorkKind } from '../office/work-time.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import { FORGET_NUDGE, WORKING_WITH_OTHERS, YOUR_MEMORY } from '../room/context.ts';
@@ -261,6 +262,7 @@ export function createRuntime(deps: RuntimeDeps) {
     }
     const agent = store.agents.require(store.agents.ref(req.agentId).id);
     let team = null;
+    let principles: string | null = null;
     if (req.teamId) {
       const t = store.teams.get(req.teamId);
       if (!t) throw invalid(`Unknown team '${req.teamId}'`, { teamId: req.teamId });
@@ -273,7 +275,8 @@ export function createRuntime(deps: RuntimeDeps) {
         job: seat.instr,
         isCaptain: t.captainId === agent.id,
       };
-    }
+      principles = principlesBrief({ dir: principlesDir(t), keeper: t.captainId === agent.id });
+    } else if (!req.bigPicture && project.teamIds.length) principles = principlesBrief({ all: true });
     if (repo.live(projectId, agent.id))
       throw conflict(`${agent.name} is already running on this project`, { agentId: agent.id });
     let resumeSessionId: string | undefined;
@@ -381,6 +384,7 @@ export function createRuntime(deps: RuntimeDeps) {
           ...(ports ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } } : {}),
           room: bridge && studioToolsFor ? WORKING_WITH_OTHERS : null,
           memory: forgetTool ? YOUR_MEMORY : null,
+          principles,
         }),
       task: req.task,
       model: deps.model,

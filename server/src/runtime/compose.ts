@@ -15,6 +15,8 @@ export type ComposeInput = {
   ports?: { port: number; app: number; spares: readonly number[] } | null;
   /** AGENT MCP: the run has `room` + `call_agent` — say how to work with the others. */
   room?: string | null;
+  /** STUDIO LIFE: what to read (and, for captains, keep) in principles/. */
+  principles?: string | null;
   /** STUDIO LIFE: the run may `forget` — how to use it. */
   memory?: string | null;
   access?: readonly {
@@ -37,6 +39,7 @@ export function composePrompt({
   ports,
   room,
   memory,
+  principles,
 }: ComposeInput): string {
   const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
   const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
@@ -48,6 +51,7 @@ export function composePrompt({
     team ? section('What the team does', team.instr) : '',
     team ? section('How the team codes', team.code) : '',
     team ? section('Your job on this team', team.job) : '',
+    principles ? section('Team principles', principles) : '',
     section(
       'Project rules',
       `You are working on the project "${project.name}" in the current working directory. Its CLAUDE.md holds the project's rules — follow them.`,
