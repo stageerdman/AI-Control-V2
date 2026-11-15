@@ -562,6 +562,9 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE checklist_items ADD COLUMN resume_run_id TEXT;
   ALTER TABLE checklist_items ADD COLUMN continues INTEGER NOT NULL DEFAULT 0;
   `,
+  /* 31 — working tools per agent: JSON Toolset (src/domain/toolset.ts) — what it may edit and run.
+     NULL = the studio's full kit, as every agent had before. */
+  `ALTER TABLE agents ADD COLUMN tools TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {

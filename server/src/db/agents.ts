@@ -11,6 +11,7 @@ import {
 } from '../domain/cast.ts';
 import { slugify, uniqueId } from '../domain/ids.ts';
 import { DEFAULT_LOOK, type Look } from '../domain/look.ts';
+import type { Toolset } from '../domain/toolset.ts';
 import { invalid, notFound } from '../errors.ts';
 import type { Db } from './connection.ts';
 import type { RolesRepo } from './roles.ts';
@@ -27,6 +28,8 @@ export type AgentRecord = {
   position: number;
   /** STUDIO LIFE: may send mail (absent on rows read before migration 28). */
   can_mail?: number;
+  /** JSON Toolset, NULL = the studio's full kit (absent on rows read before migration 31). */
+  tools?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -44,6 +47,8 @@ export type Agent = {
   prompt: string;
   /** STUDIO LIFE: may send mail to other projects and HQ (default on). */
   canMail: boolean;
+  /** Working tools: what it may edit and run. null = the studio's full kit. */
+  tools: Toolset | null;
   teamIds: string[];
   /** Projects using this agent (as orchestrator, specialist, or via a team). */
   projectIds: string[];
@@ -59,8 +64,9 @@ export type AgentCreate = {
   roleId?: string | null;
   look?: Look;
   prompt?: string;
+  tools?: Toolset | null;
 };
-export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>> & { canMail?: boolean };
+export type AgentPatch = Partial<Omit<AgentCreate, 'kind' | 'tools'>> & { canMail?: boolean };
 
 const kindRank = (a: { kind: AgentKind; position: number }) => KIND_ORDER[a.kind] * 1e9 + a.position;
 
@@ -102,6 +108,7 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
       look: JSON.parse(r.look) as Look,
       prompt: r.prompt,
       canMail: r.can_mail !== 0,
+      tools: r.tools ? (JSON.parse(r.tools) as Toolset) : null,
       teamIds: teamIds(r.id),
       projectIds: projectIds(r.id),
       canDelete: canDelete(r, cast),
@@ -147,6 +154,7 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         role_id: input.roleId ?? null,
         look: JSON.stringify(input.look ?? DEFAULT_LOOK),
         prompt: input.prompt ?? '',
+        tools: input.tools ? JSON.stringify(input.tools) : null,
         position: nextPosition(db, 'agents'),
         created_at: t,
         updated_at: t,
@@ -175,10 +183,11 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
       return repo.require(id);
     },
 
+    /** Every column, so a restored agent comes back exactly as it was (mail rights and tools included). */
     insertRecord(r: AgentRecord): void {
       db.prepare(
-        `INSERT INTO agents (id, kind, name, nick, role_id, look, prompt, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO agents (id, kind, name, nick, role_id, look, prompt, position, can_mail, tools, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.kind,
@@ -188,6 +197,8 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         r.look,
         r.prompt,
         r.position,
+        r.can_mail ?? 1,
+        r.tools ?? null,
         r.created_at,
         r.updated_at,
       );

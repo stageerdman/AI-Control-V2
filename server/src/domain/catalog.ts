@@ -40,6 +40,14 @@ export const HAT_DECAL: Record<string, string> = {
   helm: 'Quality',
   director: 'Director',
   inventor: 'Inventor',
+  /* the archetype kits (updates/2026-11-15 AGENT ARCHETYPES) */
+  visor: 'Moonshot',
+  starcrest: 'Navigator',
+  hood: 'Warden',
+  flightcap: 'Rogue',
+  crown: 'Fable',
+  boater: 'Showman',
+  starhat: 'Archivist',
 };
 export const TOOL_IDS = [
   'none',
@@ -57,6 +65,15 @@ export const TOOL_IDS = [
   'clipboard',
   'blueprint',
   'baton',
+  'eraser',
+  'rocket',
+  'starcompass',
+  'crystalstaff',
+  'grapple',
+  'wand',
+  'balloon',
+  'scroll',
+  'flask',
 ] as const;
 export const BODIES = ['hero', 'sprout', 'bruiser', 'lanky'] as const;
 export const ANTENNAS = ['none', 'tuft', 'spikes', 'swoop', 'bob', 'bun', 'curl'] as const;
