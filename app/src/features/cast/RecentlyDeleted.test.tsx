@@ -84,7 +84,14 @@ const agent = (id: string, name: string, role: string): Agent => ({
   nick: null,
   roleId: `r-${id}`,
   role,
-  look: { hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue: 'sky' } as Agent['look'],
+  look: {
+    hat: 'none',
+    tool: 'none',
+    body: 'hero',
+    antenna: 'none',
+    face: 'none',
+    hue: 'sky',
+  } as Agent['look'],
   prompt: '',
   teamIds: [],
   projectIds: [],
@@ -109,7 +116,9 @@ function Stage() {
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
 const lineupNames = () =>
-  [...document.querySelectorAll('.lineup .slot-name')].map((n) => n.textContent).filter((n) => n !== 'New agent');
+  [...document.querySelectorAll('.lineup .slot-name')]
+    .map((n) => n.textContent)
+    .filter((n) => n !== 'New agent');
 const row = () => screen.queryByRole('button', { name: /^Recently deleted/ });
 const open = () => fireEvent.click(row() as HTMLElement);
 
@@ -258,9 +267,7 @@ describe('delete → listed → restore → back in the lineup', () => {
     const status = screen.getByRole('status');
     expect(status.getAttribute('aria-live')).toBe('polite');
     expect(status.textContent).toBe('Health Analyst is back');
-    await waitFor(() =>
-      expect((document.activeElement as HTMLElement | null)?.dataset.id).toBe('a-c'),
-    );
+    await waitFor(() => expect((document.activeElement as HTMLElement | null)?.dataset.id).toBe('a-c'));
   });
 
   it('the delete toast’s Undo uses the same token and the same way back', async () => {

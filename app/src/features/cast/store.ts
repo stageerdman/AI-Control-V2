@@ -187,7 +187,9 @@ export async function bringBack(token: string, name: string): Promise<string> {
   void invalidate(KEYS.deleted);
   void invalidate('projects');
   const lost = res.seatsLost ?? [];
-  toast(lost.length ? `${name} is back, but their seat on ${lost.join(' and ')} was taken` : `${name} is back`);
+  toast(
+    lost.length ? `${name} is back, but their seat on ${lost.join(' and ')} was taken` : `${name} is back`,
+  );
   arrive(res.restored.id);
   return res.restored.id;
 }
