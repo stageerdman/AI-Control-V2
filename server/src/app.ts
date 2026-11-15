@@ -44,6 +44,7 @@ import { agentRoutes } from './routes/agents.ts';
 import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
 import { bridgeRoutes } from './routes/bridges.ts';
+import { chatRoutes } from './routes/chats.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
 import { creatorChatRoutes } from './routes/creator-chat.ts';
@@ -392,6 +393,7 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
+  app.register(chatRoutes({ db, store }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));

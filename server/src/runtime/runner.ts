@@ -39,7 +39,8 @@ export type Activity = { kind: string; label: string; detail?: string; target?: 
 
 export type RunEvent =
   | { kind: 'session'; sessionId: string }
-  | { kind: 'activity'; status: 'working' | 'waiting'; activity: Activity }
+  /** `tool` = the tool call behind this activity (it goes into the chat history as a short line). */
+  | { kind: 'activity'; status: 'working' | 'waiting'; activity: Activity; tool?: string }
   | { kind: 'tokens'; input: number; output: number }
   | { kind: 'text'; text: string };
 

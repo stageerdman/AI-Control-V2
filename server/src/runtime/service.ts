@@ -11,6 +11,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import type { Ports } from '../apps/ports.ts';
+import { appendChatMessage, type ChatRole } from '../db/chats.ts';
 import type { Db } from '../db/connection.ts';
 import { type Ask, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
@@ -18,6 +19,7 @@ import type { EventInput } from '../domain/events.ts';
 import { slugify } from '../domain/ids.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
+import { redactSecrets } from '../events/redact.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import { type Desk, type DeskNoteBody, DeskNoteSchema, deskBrief } from '../office/desk.ts';
 import { principlesBrief, principlesDir } from '../office/principles.ts';
@@ -30,6 +32,7 @@ import { DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
+import { ASK_TOOL } from './stream.ts';
 
 export type StartRun = {
   agentId: string;
@@ -60,6 +63,8 @@ type Live = {
   /** The latest turn's context size (input + cache), for the forget nudge. */
   context: number;
   nudged: boolean;
+  /** The agent's latest words in the chat (the final result is saved only when it says something new). */
+  said?: string;
 };
 /** A run may forget this many times (a loop guard). */
 export const MAX_FORGETS = 5;
@@ -126,6 +131,21 @@ export function createRuntime(deps: RuntimeDeps) {
       /* a malformed progress line never kills a run */
     }
   };
+  /** One line of the run's chat history, secrets scrubbed. A failed write is reported, never fatal to the run. */
+  const record = (
+    run: Pick<Run, 'id' | 'projectId' | 'agentId'>,
+    secrets: readonly string[],
+    role: ChatRole,
+    text: string,
+    meta?: Record<string, unknown>,
+  ) => {
+    try {
+      const clean = redactSecrets({ text, meta: meta ?? null }, secrets).value;
+      appendChatMessage(db, { runId: run.id, projectId: run.projectId, agentId: run.agentId, role, ...clean });
+    } catch (e) {
+      console.error(`[chats] could not save a ${role} message of run ${run.id}: ${(e as Error).message}`);
+    }
+  };
   const settle = (ask: Ask) => {
     for (const w of waiters.get(ask.id) ?? []) w(ask);
     waiters.delete(ask.id);
@@ -145,9 +165,15 @@ export function createRuntime(deps: RuntimeDeps) {
       question: clip(q, 2000),
       options: options?.length ? options.slice(0, 10).map((o) => clip(o, 200)) : null,
     });
+    record(l.run, l.secrets, 'assistant', ask.question, {
+      kind: 'ask',
+      askId: ask.id,
+      ...(ask.options ? { options: ask.options } : {}),
+    });
     const yes = deps.autoApprove?.() ? autoAnswer(ask.question, ask.options) : null;
     if (yes) {
       repo.answerAsk(ask.id, yes, 'auto');
+      record(l.run, l.secrets, 'system', `The studio answered for you: ${yes}`, { kind: 'answer', askId: ask.id, by: 'auto' });
       emit(l.run.projectId, { type: 'ask.answered', payload: { askId: ask.id, answer: yes } }, l.secrets);
       return repo.ask(ask.id) as Ask;
     }
@@ -191,6 +217,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const { run } = l;
     live.delete(run.id);
     repo.finish(run.id, o);
+    recordEnd(l, o);
     for (const id of repo.cancelAsks(run.id)) settle(repo.ask(id) as Ask);
     emit(
       run.projectId,
@@ -224,8 +251,27 @@ export function createRuntime(deps: RuntimeDeps) {
     }
   }
 
+  /** The chat's last lines: the final answer (unless the agent already said it) and how the run ended. */
+  function recordEnd(l: Live, o: RunOutcome) {
+    if (o.result && o.result !== l.said) record(l.run, l.secrets, 'assistant', o.result, { kind: 'result' });
+    const text =
+      o.status === 'succeeded' ? 'Finished' : o.status === 'cancelled' ? 'Cancelled' : `Failed: ${o.error ?? 'error'}`;
+    record(l.run, l.secrets, 'system', text, { kind: 'end', status: o.status });
+  }
+
+  /** What a run says goes into its chat: its words, and each tool call as one short line (never the payload). */
+  function recordEvent(l: Live, e: RunEvent) {
+    if (e.kind === 'text') {
+      l.said = e.text;
+      record(l.run, l.secrets, 'assistant', e.text);
+    } else if (e.kind === 'activity' && e.tool && e.tool !== ASK_TOOL)
+      /* ask_user is saved as the question itself (openAsk) */
+      record(l.run, l.secrets, 'tool', e.activity.label, { tool: e.tool, summary: e.activity.label });
+  }
+
   function onRunEvent(l: Live, e: RunEvent) {
     const { run } = l;
+    recordEvent(l, e);
     if (e.kind === 'session') repo.setSession(run.id, e.sessionId);
     else if (e.kind === 'activity')
       emit(
@@ -304,6 +350,7 @@ export function createRuntime(deps: RuntimeDeps) {
       caps,
       kind: req.kind ?? null,
     });
+    record(run, secrets, 'user', req.task);
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
     const toolkit = big ? null : toolkitFor(agent);
     const ports = big || !deps.ports ? null : deps.ports.take(projectId, runId);
@@ -472,7 +519,9 @@ export function createRuntime(deps: RuntimeDeps) {
             });
             try {
               const { resumeSessionId: _old, ...fresh } = spec;
-              watch(runner.start({ ...fresh, task: deskBrief(note, req.task), sessionId: randomUUID() }, io));
+              const brief = deskBrief(note, req.task);
+              record(run, secrets, 'system', brief, { kind: 'forget' });
+              watch(runner.start({ ...fresh, task: brief, sessionId: randomUUID() }, io));
               return;
             } catch (e) {
               o = { ...o, status: 'failed', error: (e as Error).message };
@@ -590,10 +639,12 @@ export function createRuntime(deps: RuntimeDeps) {
       if (a.status !== 'open') throw conflict(`This question is already ${a.status}`);
       repo.answerAsk(askId, answer);
       const done = repo.ask(askId) as Ask;
+      const l = live.get(a.runId);
+      if (l) record(l.run, l.secrets, 'user', answer, { kind: 'answer', askId, by: 'user' });
       emit(
         projectId,
         { type: 'ask.answered', payload: { askId, answer: clip(answer, 2000) } },
-        live.get(a.runId)?.secrets,
+        l?.secrets,
       );
       settle(done);
       return done;

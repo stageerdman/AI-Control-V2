@@ -182,7 +182,7 @@ export function createStreamParser(secretValues: readonly string[] = []) {
         }
         for (const b of Array.isArray(m.message.content) ? m.message.content : []) {
           if (b.type === 'tool_use' && b.name)
-            out.push({ kind: 'activity', ...scrub(activityFor(b.name, b.input ?? {})) });
+            out.push({ kind: 'activity', tool: b.name, ...scrub(activityFor(b.name, b.input ?? {})) });
           else if (b.type === 'thinking')
             out.push({
               kind: 'activity',

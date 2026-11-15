@@ -539,6 +539,23 @@ export const MIGRATIONS: readonly string[] = [
   );
   ALTER TABLE agents ADD COLUMN can_mail INTEGER NOT NULL DEFAULT 1;
   `,
+  /* 29 — chat history: every message of a run (its opening task = seq 0, the agent's words, short tool lines,
+     the user's answers, how it ended), kept after the run ends so the user can read it back or ask about it. */
+  `
+  CREATE TABLE chat_messages (
+    id         TEXT PRIMARY KEY,
+    run_id     TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
+    agent_id   TEXT NOT NULL,
+    seq        INTEGER NOT NULL,
+    role       TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool', 'system')),
+    text       TEXT NOT NULL,
+    meta       TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX chat_messages_agent ON chat_messages(agent_id, created_at);
+  CREATE UNIQUE INDEX chat_messages_run ON chat_messages(run_id, seq);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
