@@ -71,6 +71,13 @@ All 17 rows cover the whole email. The summary paragraph ("nothing suspicious") 
 
 - **Fix: Flaky Guests Test**: done when `server/test/office/guests.test.ts` passes 20 runs in a row and no run saves after the DB has closed.
 
+## Applied to the board (2026-11-15)
+
+Done through the features API. No status was changed.
+- Added to descriptions: Revision of AI Communication, Fix "Stopped" Bug, Agent Description, AI Safety, Team Rebuilding (known gaps), Fix: Chat History UX (read-only follow-up).
+- Rewritten: Smoother Studio Teamwork (dropped "questions-only calls", now lists the four kept parts) and Agent Chat History (past chats are read-only).
+- New Planned feature: Fix: Flaky Guests Test.
+
 ## 3. Dropped
 
 - **Calls are for questions only (prompt rule)** (row 1): goes against the user's wish for face-to-face work between agents, and leaves the wasted round trip in place. Row 2 replaces it.
