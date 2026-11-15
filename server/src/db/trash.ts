@@ -18,7 +18,7 @@ import { exists, now, row } from './util.ts';
 export const TRASH_TTL_MS = 7 * 24 * 3600 * 1000;
 
 type Kind = 'agent' | 'role' | 'team' | 'draft';
-type AgentSnap = {
+export type AgentSnap = {
   agent: AgentRecord;
   seats: { teamId: string; index: number; member: Member; wasCaptain: boolean }[];
   specialistOn: { projectId: string; index: number }[];
