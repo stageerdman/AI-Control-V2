@@ -14,8 +14,8 @@ import type {
   TeamPatch,
 } from '../../api/types';
 import { toast } from '../../ui';
-import { castApi, KEYS } from './api';
-import { announce } from './fx';
+import { castApi, type DeletedAgent, KEYS, restoreAgent } from './api';
+import { announce, reducedMotion } from './fx';
 
 export function useCast() {
   const agents = useQuery(KEYS.agents, castApi.agents.list);
@@ -168,12 +168,47 @@ export async function deleteAgent(a: Agent, then?: () => void) {
     void invalidate('projects');
     void invalidate(KEYS.agents); // the other orchestrator's project count
   }
+  void invalidate(KEYS.deleted);
   then?.();
   const also = moved ? ` · ${moved} project${moved === 1 ? '' : 's'} handed to another orchestrator` : '';
   toast(`${a.name} deleted${also}`, {
-    undo: () => void restore(res.restoreToken, `${a.name} is back.`),
+    undo: () => void bringBack(res.restoreToken, a.name).catch(failed),
   });
   return true;
+}
+
+/** Restore a deleted agent (Undo or Recently deleted — the same token): the row leaves the
+    list, the agent stands back in their old spot, focus lands on them, a toast says so.
+    Throws on failure so the caller can show it inline. */
+export async function bringBack(token: string, name: string): Promise<string> {
+  const res = await restoreAgent(token);
+  setQueryData<DeletedAgent[]>(KEYS.deleted, (l) => (l ?? []).filter((d) => d.token !== token));
+  await resync();
+  void invalidate(KEYS.deleted);
+  void invalidate('projects');
+  const lost = res.seatsLost ?? [];
+  toast(lost.length ? `${name} is back, but their seat on ${lost.join(' and ')} was taken` : `${name} is back`);
+  arrive(res.restored.id);
+  return res.restored.id;
+}
+
+/** The restored agent slides into their slot and takes keyboard focus. */
+function arrive(id: string) {
+  const run = () => {
+    const slot = document.querySelector<HTMLElement>(`.slot[data-id="${CSS.escape(id)}"]`);
+    if (!slot) return;
+    slot.focus({ preventScroll: true });
+    slot.scrollIntoView?.({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
+    if (!reducedMotion())
+      slot.animate?.(
+        [
+          { opacity: 0, transform: 'translateY(18px) scale(.94)' },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' },
+      );
+  };
+  typeof requestAnimationFrame === 'function' ? requestAnimationFrame(run) : run();
 }
 
 export async function restore(token: string, said: string) {

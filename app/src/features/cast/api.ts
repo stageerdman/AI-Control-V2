@@ -1,10 +1,30 @@
 /* Cast endpoints — the shared studio.* ones plus what only the Cast needs (reporter switches,
-   re-adding a member at its old place for Undo), Tinker's design chats.
-   Query keys: 'agents' · 'roles' · 'teams' · 'creator-sessions'. */
+   re-adding a member at its old place for Undo), Tinker's design chats, Recently deleted.
+   Query keys: 'agents' · 'roles' · 'teams' · 'creator-sessions' · 'trash-agents'. */
 import { http, studio } from '../../api';
-import type { Role, Team } from '../../api/types';
+import type { Agent, Restored, Role, Team } from '../../api/types';
 
 const e = encodeURIComponent;
+
+/** An agent in the trash: hidden, kept 30 days, restorable with its token (GET /trash/agents). */
+export type DeletedAgent = {
+  token: string;
+  id: string;
+  name: string;
+  role: string;
+  look: Agent['look'];
+  deletedAt: string;
+  expiresAt: string;
+  chats: number;
+};
+/** The restore reply; `seatsLost` (team names) if a seat filled up meanwhile — optional, older servers omit it. */
+export type AgentRestored = Restored & { seatsLost?: string[] };
+
+/** Recently deleted agents, newest first. */
+export const listDeletedAgents = () =>
+  http.get<{ items: DeletedAgent[] }>('/trash/agents').then((r) => r.items);
+/** Bring a deleted agent back (same token as the delete's Undo). */
+export const restoreAgent = (token: string) => studio.restore(token) as Promise<AgentRestored>;
 
 export const castApi = {
   agents: studio.agents,
@@ -25,4 +45,10 @@ export const castApi = {
   tinker: studio.creatorChat,
 };
 
-export const KEYS = { agents: 'agents', roles: 'roles', teams: 'teams', tinker: 'creator-sessions' } as const;
+export const KEYS = {
+  agents: 'agents',
+  roles: 'roles',
+  teams: 'teams',
+  tinker: 'creator-sessions',
+  deleted: 'trash-agents',
+} as const;
