@@ -219,6 +219,8 @@ describe('calls inside a project', () => {
       'room',
       'call_agent',
       'comms_log',
+      'my_runs',
+      'cancel_run',
       'send_mail',
       'mail_directory',
       'forget',
