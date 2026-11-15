@@ -240,6 +240,14 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
             : 'One step landed.',
       });
     }
+    /* chat history: the agent says what it did, from the task line the recap prompt carries */
+    case 'agent-recap': {
+      const task = field<string>(t, 'Task line:') ?? 'a task';
+      const status = field<string>(t, 'Status:');
+      return answer({
+        recap: `I was asked to ${task.replace(/\.$/, '').toLowerCase()}. ${status === 'running' ? 'I am still working on it.' : `It ended ${status ?? 'quietly'}.`} (A scripted recap: AI_STUDIO_RUNNER=fake.)`,
+      });
+    }
     case 'help':
       return answer({
         answer: `Costume: ${JSON.stringify(LOOKS[2])} — a beret, a palette and a rose finish read as "maker".`,
