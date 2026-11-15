@@ -259,7 +259,7 @@ export function Rearrange(p: RearrangeProps) {
                               {busyHere ? 'Bringing back…' : 'Bring back'}
                             </button>
                             {rowErr[l.id] && (
-                              <span id={errId} className="rb-err" style={{ margin: 0, flexBasis: '100%' }}>
+                              <span id={errId} role="alert" className="rb-err" style={{ margin: 0, flexBasis: '100%' }}>
                                 {rowErr[l.id]}
                               </span>
                             )}
