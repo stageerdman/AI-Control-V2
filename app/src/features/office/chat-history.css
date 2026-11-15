@@ -7,6 +7,12 @@
   overflow: hidden;
   padding-bottom: 16px;
 }
+/* the live chat stays mounted under history (drafts survive); hidden beats its display:flex */
+.op-log[hidden],
+.op-ctx[hidden],
+.op-composer[hidden] {
+  display: none !important;
+}
 .ch-body {
   display: flex;
   flex-direction: column;

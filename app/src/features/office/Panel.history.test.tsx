@@ -280,6 +280,32 @@ describe('Back to the live chat', () => {
     expect(document.activeElement).toBe(pill());
   });
 
+  it('a trip to History keeps the live chat’s drafts (ask answer, composer)', async () => {
+    await mount({
+      asks: [
+        { id: 'k2', agentId: 'a-mira', question: 'Which form?' } as PanelProps['asks'][number],
+      ],
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'The signup one' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Mira Vale' }), {
+      target: { value: 'half a thought' },
+    });
+    await openHistory();
+    fireEvent.click(await pastRow(/Fix the signup form/));
+    await screen.findByText('Fixed.');
+    fireEvent.click(screen.getByTestId('back-to-chat'));
+    await flush();
+    expect(isLive()).toBe(true);
+    expect((screen.getByRole('textbox', { name: 'Your answer' }) as HTMLInputElement).value).toBe(
+      'The signup one',
+    );
+    expect((screen.getByRole('textbox', { name: 'Message Mira Vale' }) as HTMLInputElement).value).toBe(
+      'half a thought',
+    );
+  });
+
   it('the Current chat row returns to live and focuses the History pill', async () => {
     await mount();
     await openHistory();

@@ -1,5 +1,6 @@
 /* An agent's saved chats: open one, read it like a Claude chat, keep writing.
-   Opens on the chat it's given (Open chat in the recap); a quiet All chats link shows the others.
+   The app uses ChatList + ChatView inside the chat panel's History (Panel.tsx owns that flow,
+   recap's Open chat included); the sheet wrapper below is kept only for its own tests.
    One action: the composer pinned at the bottom (Enter sends, Shift+Enter = new line). A running
    chat has no composer — you can't write into a live run. */
 import {

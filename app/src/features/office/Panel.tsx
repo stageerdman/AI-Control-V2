@@ -4,7 +4,7 @@
    office is the switcher (click a robot). "!" asks arrive as cards in the agent's thread and are
    answered on the asks endpoint. One Send (OFFICE): the director decides — a clear ask becomes a goal on the
    whiteboard (the server posts it, the board follows its events), a question or a maybe gets a reply. */
-import { type FormEvent, Fragment, useEffect, useRef, useState } from 'react';
+import { type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
 import { Button } from '../../ui';
@@ -101,11 +101,22 @@ export function Panel(p: PanelProps) {
   const typing = !!t.data?.busy;
   const asks = p.asks.filter((a) => a.agentId === id);
 
+  const live = view === 'live';
+  /** Where the live log was when you left for history (null: at the bottom). */
+  const keptScroll = useRef<number | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the newest line
   useEffect(() => {
     const el = log.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages.length, typing, asks.length, id, nav]);
+    if (el && live) el.scrollTop = el.scrollHeight;
+  }, [messages.length, typing, asks.length, id]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only leaving or coming back to live
+  useLayoutEffect(() => {
+    const el = log.current;
+    if (!el || !live) return;
+    /* coming back: land where you left, unless you were at the bottom (then follow new lines) */
+    el.scrollTop = keptScroll.current ?? el.scrollHeight;
+    keptScroll.current = null;
+  }, [live]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: only a new context moves you
   useEffect(() => {
     if (!p.context) return;
@@ -121,6 +132,9 @@ export function Panel(p: PanelProps) {
 
   /* ---------- history */
   const go = (v: PanelView, focus: typeof focusTo.current) => {
+    const el = log.current;
+    if (live && v !== 'live' && el)
+      keptScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 ? null : el.scrollTop;
     focusTo.current = focus;
     setNav({ for: id, view: v });
   };
@@ -324,9 +338,9 @@ export function Panel(p: PanelProps) {
           </div>
         </div>
       )}
-      {view === 'live' && (
-        <>
-          <div className="op-log" ref={log} role="log" aria-live="polite">
+      {/* the live chat stays mounted while you're in history, so drafts in its cards survive */}
+      <>
+          <div className="op-log" ref={log} role="log" aria-live="polite" hidden={!live}>
             {t.loading && <p className="op-note">…</p>}
             {t.error && !t.data && <p className="op-note">Couldn’t load this conversation.</p>}
             {t.data && !messages.length && !asks.length && (
@@ -387,14 +401,14 @@ export function Panel(p: PanelProps) {
             )}
           </div>
           {p.context && (
-            <div className="op-ctx">
+            <div className="op-ctx" hidden={!live}>
               <span>About: {p.context.title}</span>
               <button type="button" aria-label="Drop the context" onClick={p.clearContext}>
                 ✕
               </button>
             </div>
           )}
-          <form className="op-composer" onSubmit={submit}>
+          <form className="op-composer" onSubmit={submit} hidden={!live}>
             <input
               ref={input}
               autoComplete="off"
@@ -413,8 +427,7 @@ export function Panel(p: PanelProps) {
               Send
             </Button>
           </form>
-        </>
-      )}
+      </>
     </>
   );
 }
