@@ -1,0 +1,103 @@
+/* Team rebuild: the confirm card, the Undo line, Rearrange (spec-ux-team-rebuild §3, §5).
+   Coral is an accent only (bar + tint): the text on it stays ink, so it reads at any size. */
+
+/* ---------- the card */
+.rb-card{background:var(--panel);color:var(--ink);border-radius:var(--r-md);box-shadow:var(--shadow-sm);
+  padding:16px 16px 14px;margin:6px 0 10px;max-width:520px;animation:rb-in .22s ease-out both}
+.rb-card h3{margin:0 0 10px;font-size:16px;font-weight:800}
+.rb-card.stale{opacity:.62;filter:grayscale(.7)}
+.rb-groups{margin:0;display:grid;gap:10px}
+.rb-group{display:grid;grid-template-columns:minmax(110px,30%) 1fr;gap:4px 12px;align-items:start;
+  padding:8px 0 8px 10px;border-left:4px solid var(--line);border-radius:4px}
+.rb-group.warm{border-left-color:var(--coral);background:rgba(255,111,115,.10)}
+.rb-group dt{font-size:13px;font-weight:700;color:var(--ink-soft);padding-top:8px}
+.rb-group dd{margin:0}
+.rb-group ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rb-who{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-height:36px;font-size:14px}
+.rb-name{font-weight:700}
+.rb-sub{font-weight:500;color:var(--ink-soft)}
+.rb-faces{display:inline-flex;align-items:center}
+.rb-face{width:30px;height:30px;border-radius:50%;background:rgba(36,26,68,.06);display:inline-grid;
+  place-items:center;overflow:hidden;margin-right:-6px;border:2px solid var(--panel)}
+.rb-faces .rb-face:last-of-type{margin-right:0}
+.rb-more{font-size:12px;font-weight:700;color:var(--ink-soft);margin-left:8px}
+.rb-work{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding-left:38px;
+  font-size:13px;color:var(--ink)}
+.rb-arrow{color:var(--ink-soft)}
+.rb-items{color:var(--ink-soft)}
+.rb-pick{position:relative;display:inline-flex;align-items:center}
+.rb-pick select{font:inherit;font-size:13px;color:var(--ink);background:#fff;border:2px solid var(--line);
+  border-radius:999px;min-height:44px;padding:0 12px;max-width:100%}
+.rb-change select{color:transparent;width:84px;cursor:pointer}
+.rb-change select option{color:var(--ink)}
+.rb-change-l{position:absolute;left:0;right:0;text-align:center;pointer-events:none;font-weight:700;
+  text-decoration:underline;color:var(--ink)}
+.rb-pick select:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.rb-copy{margin:12px 0 0;font-size:13px;color:var(--ink)}
+.rb-stale{margin:12px 0 0;font-weight:700;color:var(--ink-soft)}
+.rb-err{margin:12px 0 0;font-size:13px;font-weight:700;color:#a3242a}
+.rb-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.rb-foot .btn{min-height:44px}
+.rb-keep{background:transparent;border:2px solid rgba(36,26,68,.28)}
+
+/* ---------- after: one line + Undo */
+.rb-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:4px 0 10px;font-size:14px;
+  color:var(--ink);background:var(--panel);border-radius:var(--r-md);padding:6px 12px;max-width:520px}
+.rb-quiet{color:var(--ink-soft)}
+.rb-undo{appearance:none;border:0;background:none;font:inherit;font-weight:800;color:var(--ink);
+  text-decoration:underline;min-height:44px;min-width:44px;padding:0 8px;cursor:pointer}
+.rb-undo:focus-visible{outline:3px solid var(--sky);outline-offset:2px;border-radius:8px}
+.rb-late{color:var(--ink-soft)}
+
+/* ---------- Rearrange: the room as tables, a solo row and the door */
+.rr{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;background:rgba(26,20,48,.84);
+  color:var(--ink);animation:rb-in .2s ease-out both}
+.rr-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;color:var(--cream)}
+.rr-head h2{margin:0;font-size:18px}
+.rr-head p{margin:2px 0 0;font-size:13px;color:var(--cream-72)}
+.rr-room{flex:1;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;
+  padding:4px 18px 18px;align-content:start}
+.rr-zone{background:var(--panel);border-radius:var(--r-md);padding:12px;border:3px solid transparent;min-height:120px;
+  transition:border-color .12s}
+.rr-zone h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:14px}
+.rr-zone .hint{font-size:12px;color:var(--ink-soft);margin:0 0 8px}
+.rr-zone.over{border-color:var(--sky)}
+.rr-zone.full{opacity:.7}
+.rr-zone.door{background:#fff3f1;border-left:6px solid var(--coral)}
+.rr-zone ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.rr-bot{display:flex;align-items:center;gap:6px;background:rgba(36,26,68,.05);border-radius:999px;
+  padding:4px 4px 4px 4px;cursor:grab;touch-action:none;min-height:44px}
+.rr-bot.moved{background:rgba(78,168,255,.16)}
+.rr-bot.dragging{opacity:.45}
+.rr-bot b{font-size:13px}
+.rr-to{appearance:none;border:0;background:none;font:inherit;font-size:12px;font-weight:700;color:var(--ink);
+  text-decoration:underline;min-height:44px;min-width:44px;padding:0 8px;cursor:pointer;border-radius:999px}
+.rr-to:focus-visible{outline:3px solid var(--sky);outline-offset:1px}
+.rr-menu{position:fixed;z-index:60;background:var(--panel);border-radius:var(--r-md);box-shadow:var(--shadow);
+  padding:6px;min-width:220px;list-style:none;margin:0}
+.rr-menu button{display:block;width:100%;text-align:left;appearance:none;border:0;background:none;font:inherit;
+  font-size:14px;color:var(--ink);min-height:44px;padding:0 12px;border-radius:8px;cursor:pointer}
+.rr-menu button:hover,.rr-menu button:focus-visible{background:rgba(36,26,68,.07);outline:none}
+.rr-menu button[aria-disabled="true"]{color:var(--ink-soft);cursor:default}
+.rr-bar{display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--panel);color:var(--ink)}
+.rr-bar b{flex:1;font-size:15px}
+.rr-bar .btn{min-height:44px}
+.rr-review{padding:0 18px 18px;overflow:auto}
+.rr-review .rb-card{margin:0 auto}
+
+/* ---------- motion (§5) — reduced motion: a fade, nothing travels */
+@keyframes rb-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes rb-leave{0%{transform:scale(1,1)}18%{transform:scale(1.04,.92)}36%{transform:scale(.96,1.06)}
+  55%{transform:rotate(-6deg)}70%{transform:rotate(6deg)}100%{transform:none}}
+@keyframes rb-chair{0%{transform:none}30%{transform:scale(.96,1.07) translateY(-6px)}80%{transform:translateY(-6px)}
+  92%{transform:scale(1.05,.94)}100%{transform:none}}
+@keyframes rb-split{from{opacity:.4;transform:scaleX(.92)}to{opacity:1;transform:none}}
+@keyframes rb-fade{from{opacity:0}to{opacity:1}}
+.o-body.rb-leaving{animation:rb-leave .9s ease-in-out both}
+.o-body.rb-moved{animation:rb-chair .6s ease-in-out both}
+.o-world.rb-split .o-table,.o-world.rb-split [class*="table"]{animation:rb-split .6s ease-out both}
+@media (prefers-reduced-motion:reduce){
+  .rb-card,.rr{animation:rb-fade .2s ease-out both}
+  .o-body.rb-leaving,.o-body.rb-moved,.o-world.rb-split .o-table,.o-world.rb-split [class*="table"]{
+    animation:rb-fade .3s ease-out both}
+}
