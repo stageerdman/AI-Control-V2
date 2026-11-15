@@ -25,6 +25,17 @@ export function staleCopies(found, keep) {
   return [...new Set(paths)].filter((p) => p.endsWith('.app') && !keepers.has(p));
 }
 
+/** PATH for the build. An app opened from Spotlight hands its backend a bare PATH without rustup's
+    ~/.cargo/bin, so `tauri build` couldn't find cargo; put the usual tool dirs first, keep the rest. */
+export function buildPath(path, home) {
+  const preferred = [join(home, '.cargo', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'];
+  const all = [...preferred, ...(path ?? '').split(':'), '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
+  return [...new Set(all.filter(Boolean))].join(':');
+}
+
+/** Where the installer records the commit it installed; the backend reads it to catch up on start. */
+export const markerPath = (studioHome) => join(studioHome, 'installed-build.json');
+
 /** npm install is needed when dependencies were never installed or the lockfile changed since. */
 export const needsDeps = (lockMtimeMs, installedMtimeMs) =>
   installedMtimeMs === undefined || lockMtimeMs > installedMtimeMs;

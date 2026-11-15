@@ -4,11 +4,11 @@
 // Prints one JSON line per step (with a trace id) so the log tells the whole story.
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { freshBundle, installPath, needsDeps, staleCopies, targetDirs } from './plan.mjs';
+import { buildPath, freshBundle, installPath, markerPath, needsDeps, staleCopies, targetDirs } from './plan.mjs';
 
 const LSREGISTER =
   '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
@@ -47,6 +47,25 @@ function checkCheckout() {
   /* the app bakes in the path of this checkout's server/ — a worktree is deleted after its merge */
   if (!statSync(join(repo, '.git')).isDirectory())
     throw new InstallError('check', `${repo} is a git worktree; run this from the main checkout`);
+}
+
+/** Fail before a long build when the Rust toolchain isn't reachable (tauri build needs cargo). */
+function checkToolchain() {
+  process.env.PATH = buildPath(process.env.PATH, homedir());
+  try {
+    run('check', 'cargo', ['--version'], { capture: true });
+  } catch (e) {
+    throw new InstallError('check', `cargo not found on PATH (${process.env.PATH}); install Rust with rustup`, e);
+  }
+}
+
+/** Record what is installed, so the backend can tell on its next start whether the app is behind. */
+function writeMarker(commit, target) {
+  const home = process.env.AI_STUDIO_HOME?.replace(/^~(?=$|\/)/, homedir()) ?? join(homedir(), '.ai-studio');
+  const file = markerPath(home);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify({ commit, target, at: new Date().toISOString() })}\n`);
+  log('done', 'marker written', { file });
 }
 
 function ensureDeps() {
@@ -121,16 +140,19 @@ function main() {
   const target = installPath(conf.productName);
   log('start', 'installing AI Studio', { repo, target });
   checkCheckout();
+  checkToolchain();
+  /* the commit being built, read before the build: a merge landing mid-build is the next run's job */
+  const commit = run('start', 'git', ['rev-parse', 'HEAD'], { cwd: repo, capture: true }).trim();
   ensureDeps();
   const bundle = build(conf.productName);
   const open = isOpen(target);
   install(bundle, target);
   removeStale(conf.identifier, conf.productName, target);
   register(target);
-  const commit = run('done', 'git', ['rev-parse', '--short', 'HEAD'], { cwd: repo, capture: true }).trim();
+  writeMarker(commit, target);
   log('done', open ? 'installed; the open app switches to it when quit and reopened' : 'installed', {
     target,
-    commit,
+    commit: commit.slice(0, 7),
   });
 }
 

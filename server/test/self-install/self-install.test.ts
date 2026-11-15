@@ -1,12 +1,12 @@
 /* Self-install: merges into AI Studio's own project (and only those) run the installer, one at a time,
    with merges that land meanwhile folded into a single extra run. */
-import { mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Store } from '../../src/db/store.ts';
 import { createBus, type StoredEvent } from '../../src/events/bus.ts';
-import { createSelfInstall, studioProject } from '../../src/self-install/self-install.ts';
+import { createSelfInstall, installedBehind, markerFile, studioProject } from '../../src/self-install/self-install.ts';
 
 const merged = (scopeId: string, type = 'item.merged'): StoredEvent => ({
   id: 1,
@@ -17,7 +17,7 @@ const merged = (scopeId: string, type = 'item.merged'): StoredEvent => ({
   at: '',
 });
 
-function harness(exitCode: number | Error = 0) {
+function harness(exitCode: number | Error = 0, isBehind: () => boolean = () => false) {
   const bus = createBus();
   const logs: string[] = [];
   let runs = 0;
@@ -29,7 +29,7 @@ function harness(exitCode: number | Error = 0) {
     });
   };
   const log = { info: (_: object, m: string) => logs.push(m), error: (_: object, m: string) => logs.push(m) };
-  const si = createSelfInstall({ bus, isStudio: (id) => id === 'p-studio', install, log });
+  const si = createSelfInstall({ bus, isStudio: (id) => id === 'p-studio', isBehind, install, log });
   const tick = () => new Promise((r) => setTimeout(r, 0));
   return { bus, si, logs, runs: () => runs, finish: () => finish(), tick };
 }
@@ -75,6 +75,41 @@ describe('self-install', () => {
     expect(broken.logs[0]).toMatch(/Could not start/);
     broken.bus.publish(merged('p-studio'));
     expect(broken.runs()).toBe(2);
+  });
+
+  /* the bug: merges landed before any backend had the trigger, and a restart alone never installed */
+  it('catches up on start when the installed app is behind, and only then', async () => {
+    expect(harness(0, () => false).runs()).toBe(0);
+    const h = harness(0, () => true);
+    expect(h.runs()).toBe(1);
+    h.bus.publish(merged('p-studio')); // a merge during the catch-up folds into one more run
+    h.finish();
+    await h.tick();
+    expect(h.runs()).toBe(2);
+  });
+
+  it('a failing staleness check is logged and never stops the backend', () => {
+    const h = harness(0, () => {
+      throw new Error('git: not a repository');
+    });
+    expect(h.runs()).toBe(0);
+    expect(h.logs[0]).toMatch(/Could not tell/);
+  });
+
+  it('the installed app is behind without a marker, with a torn one, or on another commit', () => {
+    const dir = join(tmpdir(), `ais-marker-${process.pid}`);
+    mkdirSync(dir, { recursive: true });
+    const file = markerFile(dir);
+    const behind = installedBehind(file, () => 'abc');
+    rmSync(file, { force: true });
+    expect(behind()).toBe(true);
+    writeFileSync(file, '{"comm');
+    expect(behind()).toBe(true);
+    writeFileSync(file, JSON.stringify({ commit: 'old' }));
+    expect(behind()).toBe(true);
+    writeFileSync(file, JSON.stringify({ commit: 'abc' }));
+    expect(behind()).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
   });
 
   it('stop() unsubscribes', () => {

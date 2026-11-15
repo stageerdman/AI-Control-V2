@@ -129,7 +129,7 @@ export type AppDeps = {
   /** Turn/budget caps per kind of run (default: loadCaps() — env overridable). */
   caps?: StudioCaps;
   /** Rebuild + reinstall the Mac app after merges into this checkout (`repo`). Default null = never. */
-  selfInstall?: { repo: string; install: Installer } | null;
+  selfInstall?: { repo: string; install: Installer; isBehind: () => boolean } | null;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -310,6 +310,7 @@ export function buildApp({
     ? createSelfInstall({
         bus: events.bus,
         isStudio: studioProject(store, config.sandbox, selfInstall.repo),
+        isBehind: selfInstall.isBehind,
         install: selfInstall.install,
         log: app.log,
       })

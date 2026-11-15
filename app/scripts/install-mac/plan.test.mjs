@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { freshBundle, installPath, needsDeps, staleCopies, targetDirs } from './plan.mjs';
+import { buildPath, freshBundle, installPath, needsDeps, staleCopies, targetDirs } from './plan.mjs';
 
 describe('Mac installer plan', () => {
   it('installs into /Applications under the product name', () => {
@@ -35,6 +35,14 @@ describe('Mac installer plan', () => {
       '/Users/u/.cargo-shared-target/release/bundle/macos/AI Studio.app',
       '/Users/u/Applications/AI Studio.app',
     ]);
+  });
+
+  it('builds with cargo and Homebrew on PATH even from a bare Spotlight PATH, without repeats', () => {
+    const p = buildPath('/usr/bin:/bin:/usr/sbin:/sbin', '/Users/u').split(':');
+    expect(p[0]).toBe('/Users/u/.cargo/bin');
+    expect(p).toContain('/opt/homebrew/bin');
+    expect(p.filter((d) => d === '/usr/bin')).toHaveLength(1);
+    expect(buildPath(undefined, '/h')).toContain('/h/.cargo/bin');
   });
 
   it('installs dependencies when missing or when the lockfile is newer', () => {
