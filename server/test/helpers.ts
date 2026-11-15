@@ -41,13 +41,15 @@ export function testApp(
     /** G1: a stub gh (test/github/stub-gh.ts) and git env pointing github.com at local bare repos. */
     ghRun?: GhRun | null;
     gitEnv?: Record<string, string>;
+    /** Restart tests: run in this folder with a file db there; close() keeps both for the next boot. */
+    at?: string;
   } = {},
 ) {
-  const t = tempDir();
+  const t = opts.at ? { dir: opts.at, cleanup: () => {} } : tempDir();
   const config = testConfig(t.dir);
   ensureDirs(config);
   writeModules(config.controlHome);
-  const db = openDb(':memory:');
+  const db = openDb(opts.at ? join(opts.at, 'studio.db') : ':memory:');
   const store = createStore(db, { sandbox: config.sandbox });
   if (opts.seed) seedIfNeeded(store);
   let runtime: Runtime | undefined;

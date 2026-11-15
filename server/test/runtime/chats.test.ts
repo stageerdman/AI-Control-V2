@@ -90,7 +90,7 @@ describe('chat history (runs keep every message)', () => {
     expect(lines(msgs)).toEqual([
       ['user', 'Make hello.txt'],
       ['assistant', 'Starting a long job.'],
-      ['system', 'Cancelled'],
+      ['system', 'Stopped by you. The chat and the work so far are kept — ask to continue any time.'],
     ]);
     expect(msgs.at(-1)?.meta).toEqual({ kind: 'end', status: 'cancelled' });
   });

@@ -69,6 +69,7 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
       'comms_log',
       'my_runs',
       'cancel_run',
+      'my_history',
       'send_mail',
       'mail_directory',
       'forget',
