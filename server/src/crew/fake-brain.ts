@@ -82,6 +82,24 @@ function viaTools(spec: RunSpec, create: string, def: unknown, who: string): Fak
 export function pacedBrain(pace: number): (spec: RunSpec) => FakeStep[] {
   return (spec) => {
     let steps = fakeBrain(spec);
+    /* STUDIO LIFE demo: "please forget" → the agent leaves a desk note and starts fresh from it */
+    if (
+      !contractOf(spec.task) &&
+      /please forget/i.test(spec.task) &&
+      !spec.task.startsWith('You chose to forget')
+    )
+      steps = [
+        { tokens: { input: 900, output: 40 } },
+        {
+          tool: 'forget',
+          args: {
+            where: 'The first half is done and committed.',
+            doing: 'Working through the brief step by step.',
+            next: 'Pick up the second half of the brief.',
+          },
+        },
+        { wait: 5000 },
+      ];
     if (!contractOf(spec.task) && /\bask me\b/i.test(spec.task))
       steps = [{ ask: 'Quick check before I start — go ahead?', options: ['Go ahead', 'Hold on'] }, ...steps];
     return pace > 0 ? steps.flatMap((s) => [s, { wait: pace }]) : steps;
@@ -184,6 +202,27 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           draft,
         }),
       ];
+    }
+    /* STUDIO LIFE: the director's mail — tickets go on the board, ideas get discussed, the rest is filed */
+    case 'mail-triage': {
+      const mail = (() => {
+        const line = t.split('\n').find((l) => l.startsWith('[{"mailId"'));
+        try {
+          return line ? (JSON.parse(line) as { mailId: string; kind: string; subject: string }[]) : [];
+        } catch {
+          return [];
+        }
+      })();
+      return answer({
+        decisions: mail.map((m) =>
+          m.kind === 'ticket'
+            ? { mailId: m.mailId, action: 'board', goal: m.subject, say: 'On the whiteboard.' }
+            : m.kind === 'idea'
+              ? { mailId: m.mailId, action: 'discuss', say: 'Worth a word with you first.' }
+              : { mailId: m.mailId, action: 'file', say: 'Noted.' },
+        ),
+        summary: `${mail.length} letter${mail.length === 1 ? '' : 's'} read.`,
+      });
     }
     /* AGENT MCP: an approver always says yes; a helper answers with a costume */
     case 'allow-call':
