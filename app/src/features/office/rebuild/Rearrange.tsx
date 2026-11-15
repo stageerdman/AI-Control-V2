@@ -2,7 +2,7 @@
    robot to another table, to Solo (= specialist) or to the door (= leaves); keyboard and screen readers use each
    robot's "Move to…" menu. Nothing applies while arranging: the bar reads "N changes" with Cancel / Review, and
    Review opens the same confirm card as the chat path. One card, two ways in. */
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Hero } from '../../../characters';
 import { Button } from '../../../ui';
 import {
@@ -44,22 +44,54 @@ export function Rearrange(p: RearrangeProps) {
   const [menu, setMenu] = useState<{ agent: string; x: number; y: number; back: HTMLElement } | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [said, setSaid] = useState('');
+  const [bringing, setBringing] = useState<string | null>(null);
+  const [rowErr, setRowErr] = useState<Record<string, string>>({});
+  const [focusTo, setFocusTo] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
 
-  const load = () => {
+  /** Read the lineup. `keepDraft`: someone was added outside the draft — keep everyone else's pending moves. */
+  const load = (keepDraft = false) => {
     setErr('');
-    rebuildApi.lineup(p.pid).then(
+    return rebuildApi.lineup(p.pid).then(
       (w) => {
         const l = lineupOf(w);
         const at = placesOf(l);
         setLineup(l);
         setFrom(at);
-        setTo(at);
+        setTo((prev) =>
+          keepDraft ? Object.fromEntries(Object.entries(at).map(([a, pl]) => [a, prev[a] ?? pl])) : at,
+        );
         setCard(null);
       },
       () => setErr('Couldn’t read who sits where.'),
     );
   };
+
+  /* Bring back runs at once (not part of the draft): busy on that row only, error inline on that row. */
+  const bringBack = async (id: string, who: string) => {
+    if (bringing) return;
+    setBringing(id);
+    setRowErr(({ [id]: _, ...rest }) => rest);
+    const r = await rebuildApi.bringBack(p.pid, id);
+    if (r.ok) {
+      await load(true);
+      setSaid(`${r.name || who} is back as a specialist`);
+      setFocusTo(id);
+    } else setRowErr((m) => ({ ...m, [id]: r.error }));
+    setBringing(null);
+  };
+
+  // after a bring back: focus their new row's Move button, else the 'Left this project' heading, else Solo desks
+  useEffect(() => {
+    if (!focusTo || !lineup) return;
+    const r = root.current;
+    const el =
+      [...(r?.querySelectorAll<HTMLElement>('[data-agent]') ?? [])].find((b) => b.dataset.agent === focusTo) ??
+      r?.querySelector<HTMLElement>('#rr-left-h') ??
+      r?.querySelector<HTMLElement>('#rr-solo-h');
+    el?.focus();
+    setFocusTo(null);
+  }, [focusTo, lineup]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: read once, when it opens
   useEffect(() => {
     load();
@@ -131,7 +163,7 @@ export function Rearrange(p: RearrangeProps) {
             faceOf={p.faceOf}
             director={p.director}
             onKept={() => setCard(null)}
-            onUndone={load}
+            onUndone={() => void load()}
           />
         </div>
       ) : (
@@ -141,6 +173,7 @@ export function Rearrange(p: RearrangeProps) {
             {zones.map((z) => {
               const here = Object.keys(to).filter((a) => placeKey(to[a]) === z.key);
               return (
+                <Fragment key={z.key}>
                 <section
                   key={z.key}
                   aria-label={z.title}
@@ -157,7 +190,7 @@ export function Rearrange(p: RearrangeProps) {
                     if (a && to[a]) place(a, z.place);
                   }}
                 >
-                  <h3>
+                  <h3 {...(z.key === 'solo' ? { id: 'rr-solo-h', tabIndex: -1 } : {})}>
                     {z.title}
                     {z.place.kind === 'team' && (
                       <span className="rb-sub">
@@ -189,6 +222,7 @@ export function Rearrange(p: RearrangeProps) {
                           className="rr-to"
                           aria-haspopup="menu"
                           aria-label={`Move ${name(a)} to…`}
+                          data-agent={a}
                           onClick={(e) => {
                             const r = e.currentTarget.getBoundingClientRect();
                             setMenu({ agent: a, x: r.left, y: r.bottom + 4, back: e.currentTarget });
@@ -200,6 +234,42 @@ export function Rearrange(p: RearrangeProps) {
                     ))}
                   </ul>
                 </section>
+                {z.key === 'solo' && lineup && lineup.left.length > 0 && (
+                  <section aria-labelledby="rr-left-h" className="rr-zone rr-left">
+                    <h3 id="rr-left-h" tabIndex={-1}>
+                      Left this project
+                    </h3>
+                    <ul>
+                      {lineup.left.map((l) => {
+                        const busyHere = bringing === l.id;
+                        const errId = `rr-left-err-${l.id}`;
+                        return (
+                          <li key={l.id} className="rr-bot" style={{ cursor: 'default', flexWrap: 'wrap' }}>
+                            <b>{l.name}</b>
+                            {l.role && <span className="rb-sub">{l.role}</span>}
+                            <button
+                              type="button"
+                              className="rr-to"
+                              aria-label={`Bring back ${l.name} as a specialist`}
+                              aria-busy={busyHere || undefined}
+                              aria-disabled={bringing ? true : undefined}
+                              aria-describedby={rowErr[l.id] ? errId : undefined}
+                              onClick={() => void bringBack(l.id, l.name)}
+                            >
+                              {busyHere ? 'Bringing back…' : 'Bring back'}
+                            </button>
+                            {rowErr[l.id] && (
+                              <span id={errId} role="alert" className="rb-err" style={{ margin: 0, flexBasis: '100%' }}>
+                                {rowErr[l.id]}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                )}
+                </Fragment>
               );
             })}
           </div>

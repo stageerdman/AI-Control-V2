@@ -9,6 +9,7 @@ import { workRepo } from '../db/work.ts';
 import { HUES } from '../domain/catalog.ts';
 import { addMember, type Member, removeMember, TEAM_MAX } from '../domain/teams.ts';
 import { AppError, invalid } from '../errors.ts';
+import { formerStaff } from './former.ts';
 
 const Name = z.string().trim().min(1).max(80);
 export const HANDOVER = ['captain', 'director', 'finish-first', 'stop-now'] as const;
@@ -140,6 +141,8 @@ type World = {
   teams: TeamNow[];
   specialists: string[];
   people: Map<string, Person>;
+  /** Cast agents not on the project (a "specialist" move may bring one in). */
+  outsiders: Map<string, Person>;
   items: OpenItem[];
   castTeamNames: Set<string>;
   usedLooks: Set<string>;
@@ -160,9 +163,11 @@ function readWorld(store: Store, projectId: string): World {
   });
   const ids = new Set([...teams.flatMap((t) => t.members.map((m) => m.agentId)), ...p.agentIds]);
   const people = new Map<string, Person>();
-  for (const id of ids) {
-    const a = store.agents.get(id);
-    if (a) people.set(id, { id, name: a.name, nick: a.nick, role: a.role });
+  const outsiders = new Map<string, Person>();
+  for (const a of store.agents.list()) {
+    const it = { id: a.id, name: a.name, nick: a.nick, role: a.role };
+    if (ids.has(a.id)) people.set(a.id, it);
+    else if (a.kind === 'agent') outsiders.set(a.id, it);
   }
   const work = workRepo(store.db);
   const items = [...work.projectItems(projectId, 'running'), ...work.projectItems(projectId, 'todo')].map(
@@ -184,6 +189,7 @@ function readWorld(store: Store, projectId: string): World {
     teams,
     specialists: p.agentIds.filter((id) => people.has(id)),
     people,
+    outsiders,
     items,
     castTeamNames: new Set(cast.map((t) => key(t.name))),
     usedLooks: new Set(cast.map((t) => `${t.emblem}:${t.color}`)),
@@ -209,6 +215,8 @@ export function projectLineup(store: Store, projectId: string) {
       const p = person(id);
       return { id: p.id, name: p.name, role: p.role };
     }),
+    /* who could be brought back as a specialist */
+    left: formerStaff(store, projectId).map((a) => ({ id: a.id, name: a.name, role: a.role })),
   };
 }
 export type Lineup = ReturnType<typeof projectLineup>;
@@ -254,16 +262,20 @@ function simulator(w: World) {
     copies: [],
     fresh: 0,
   };
-  const nameOf = (id: string) => w.people.get(id)?.name ?? id;
-  const person = (n: string): string => {
-    if (w.people.has(n)) return n;
-    const hits = [...w.people.values()].filter(
-      (p) => key(p.name) === key(n) || (p.nick && key(p.nick) === key(n)),
-    );
+  const nameOf = (id: string) => (w.people.get(id) ?? w.outsiders.get(id))?.name ?? id;
+  const find = (n: string, pool: Map<string, Person>): string | null => {
+    if (pool.has(n)) return n;
+    const hits = [...pool.values()].filter((p) => key(p.name) === key(n) || (p.nick && key(p.nick) === key(n)));
     if (hits.length > 1) throw invalid(`two people are called "${n}" — say which`);
-    if (hits[0]) return hits[0].id;
-    throw invalid(`"${n}" isn't on this project`);
+    return hits[0]?.id ?? null;
   };
+  const person = (n: string): string => {
+    const id = find(n, w.people);
+    if (!id) throw invalid(`"${n}" isn't on this project`);
+    return id;
+  };
+  /** A Cast agent who isn't on the project (only a "specialist" move takes one in). */
+  const outsider = (n: string): string | null => (find(n, w.people) ? null : find(n, w.outsiders));
   const table = (n: string): Table => {
     const t = d.tables.find((x) => x.key === n || key(x.name) === key(n) || bare(x.name) === bare(n));
     if (!t) throw invalid(`there's no team called "${n}" on this project`);
@@ -376,6 +388,13 @@ function simulator(w: World) {
 
   function move(m: NonNullable<Rebuild['move']>[number]) {
     step(`Moving ${m.agent} to ${m.to}`, () => {
+      const joiner = key(m.to) === 'specialist' ? outsider(m.agent) : null;
+      if (joiner) {
+        if (d.specialists.includes(joiner)) return;
+        d.specialists.push(joiner);
+        d.solo.push(joiner);
+        return;
+      }
       const id = person(m.agent);
       const from = tablesOf(id);
       if (!from.length && !d.specialists.includes(id)) throw invalid(`${nameOf(id)} is leaving this project`);
