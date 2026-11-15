@@ -18,8 +18,8 @@ full record; users who bring agents in themselves and design new ones in a chat 
   (contract `mail-triage`: board → a goal / discuss → a thread line / file).
 - [x] **L6 New agent with Tinker** — Cast "New agent": Manual or Design with Tinker (persistent chat, live preview,
   web research, "Add to Cast").
-- [ ] **L7 Office + Cast UI** for L2–L6 (UX specs: `spec-ux-office.md`, `spec-ux-tinker.md`).
-- [ ] **L8 Verify** — free runner in the real app, a short real-AI pass, adopt AI-Control-V2 as HQ, rebuild + install.
+- [x] **L7 Office + Cast UI** for L2–L6 (UX specs: `spec-ux-office.md`, `spec-ux-tinker.md`).
+- [x] **L8 Verify** — free runner in the real app, a short real-AI pass, adopt AI-Control-V2 as HQ, rebuild + install.
 
 ## Status
 - 2026-11-15: roadmap; UX specs commissioned.
@@ -27,3 +27,14 @@ full record; users who bring agents in themselves and design new ones in a chat 
   it; one run.finished); principles live in the repo (`principles/<team-slug>/`), read-only in the studio; HQ =
   `settings.hqProjectId`, mail to HQ waits under 'hq'; Tinker's live research is a polled `activity` field, not a new
   event stream. L7 UI in progress (office + Tinker, built in parallel).
+- 2026-11-15: **L7–L8 done.**
+  - UI: office (desk notes, binders, mailbox + HQ plaque, bell + guests) and Cast (Manual · With Tinker) built in
+    parallel worktrees, merged; app 286 tests. Seen live on the free runner: triage lines, the guest's desk, Pete's
+    note, all sheets — `shots/`. Fix found by the Tinker builder: hand edits during a turn were lost → server merges them.
+  - Real Claude (throwaway root): forget restarts the same run from the note (2 commits, 1 run); Tinker researched the
+    App Store kids rules live and drafted "Rulebook Ruby"; the director chose "discuss" for a dark-mode idea.
+  - Shipped: DB backup `~/.ai-studio/backups/studio-before-studio-life-20261115-131802.db` (integrity ok, v27);
+    release build, graceful quit, replaced `/Applications/AI Studio.app` (previous copy in the session scratchpad),
+    reopened — migration 28. **HQ adopted:** project `ai-studio` ("AI Studio", folder `AI-Control-V2`, director Pixel,
+    keeps origin; the Setter kept every file, no commit); `settings.hqProjectId = ai-studio`. No teams staffed — the
+    real Cast has none yet; the director plans with whoever you add (or bring HR in with the bell).
