@@ -10,7 +10,7 @@ import { createInterface } from 'node:readline';
 import { redactSecrets } from '../events/redact.ts';
 import { AGENT_SHELL } from './config.ts';
 import type { RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
-import { ASK_TOOL, createStreamParser, REPORT_TOOL } from './stream.ts';
+import { ASK_TOOL, createStreamParser, REPORT_TOOL, studioTool } from './stream.ts';
 
 export const TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'];
 /** Pre-approved patterns for a shell allow-list (`Bash(npm *)`…); everything else is denied (dontAsk). */
@@ -54,30 +54,45 @@ export function cliArgs(
   spec: RunSpec,
   opts: Pick<CliOptions, 'askServer' | 'node' | 'allowedTools' | 'shellHook'>,
 ): string[] {
-  const mcp = spec.askBridge
-    ? {
-        mcpServers: {
-          studio: {
-            type: 'stdio',
-            command: opts.node ?? process.execPath,
-            args: [opts.askServer],
-            env: {
-              AI_STUDIO_ASK_URL: spec.askBridge.url,
-              AI_STUDIO_RUN_TOKEN: spec.askBridge.token,
-              /* reporter runs only: the server then also lists file_report */
-              ...(spec.askBridge.reportUrl ? { AI_STUDIO_REPORT_URL: spec.askBridge.reportUrl } : {}),
+  const remote = spec.studioTools?.remote;
+  const mcp =
+    spec.askBridge || remote
+      ? {
+          mcpServers: {
+            studio: {
+              type: 'stdio',
+              command: opts.node ?? process.execPath,
+              args: [opts.askServer],
+              env: {
+                ...(spec.askBridge
+                  ? {
+                      AI_STUDIO_ASK_URL: spec.askBridge.url,
+                      AI_STUDIO_RUN_TOKEN: spec.askBridge.token,
+                      /* reporter runs only: the server then also lists file_report */
+                      ...(spec.askBridge.reportUrl ? { AI_STUDIO_REPORT_URL: spec.askBridge.reportUrl } : {}),
+                    }
+                  : {}),
+                /* the bridge's tools (room, call_agent, the Agent Creator's create_*) */
+                ...(remote ? { AI_STUDIO_TOOLS_URL: remote.url, AI_STUDIO_TOOLS_TOKEN: remote.token } : {}),
+              },
             },
           },
-        },
-      }
-    : { mcpServers: {} };
+        }
+      : { mcpServers: {} };
+  const studio = remote ? (spec.studioTools?.names ?? []).map(studioTool) : [];
   /* big-picture runs (orchestrator, Agent Creator) pass their own, usually empty, tool list */
   const web = spec.web ? WEB_TOOLS : [];
   const tools = [...(spec.tools ?? TOOLS), ...web];
   const report = spec.askBridge?.reportUrl ? [REPORT_TOOL] : [];
   const allowed = spec.tools
-    ? [...(spec.allowedTools ?? spec.tools), ...(spec.askBridge ? [ASK_TOOL] : []), ...report, ...web]
-    : [...(opts.allowedTools ?? DEFAULT_ALLOWED), ...report, ...web];
+    ? [
+        ...(spec.allowedTools ?? spec.tools),
+        ...(spec.askBridge ? [ASK_TOOL] : []),
+        ...report,
+        ...web,
+        ...studio,
+      ]
+    : [...(opts.allowedTools ?? DEFAULT_ALLOWED), ...report, ...web, ...studio];
   return [
     '-p',
     '--output-format',

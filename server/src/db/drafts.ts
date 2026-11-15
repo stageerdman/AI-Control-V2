@@ -10,7 +10,12 @@ import type { Db } from './connection.ts';
 import type { TeamsRepo } from './teams.ts';
 import { now, row, rows } from './util.ts';
 
-export type ChatMessage = { from: 'user' | 'orchestrator' | 'creator'; text: string };
+/** 'agent' = a guest in the setup room (AGENT MCP), by agentId. */
+export type ChatMessage = {
+  from: 'user' | 'orchestrator' | 'creator' | 'agent';
+  agentId?: string;
+  text: string;
+};
 export type DraftRecord = {
   id: string;
   mode: 'new' | 'adopt';

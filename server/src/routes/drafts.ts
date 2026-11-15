@@ -20,7 +20,11 @@ const DraftPatch = z.strictObject({
   plan: PlanSchema.nullable().optional(),
   chat: z
     .array(
-      z.strictObject({ from: z.enum(['user', 'orchestrator', 'creator']), text: z.string().max(10_000) }),
+      z.strictObject({
+        from: z.enum(['user', 'orchestrator', 'creator', 'agent']),
+        agentId: z.string().max(80).optional(),
+        text: z.string().max(10_000),
+      }),
     )
     .max(500)
     .optional(),

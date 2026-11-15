@@ -2,12 +2,16 @@
    per run; a call blocks until the user answers in AI Studio. Standalone on purpose —
    no imports from the backend, so plain `node ask-server.ts` runs it (type stripping).
    Env: AI_STUDIO_ASK_URL (…/internal/runs/<runId>/asks), AI_STUDIO_RUN_TOKEN, and — only for runs
-   whose role/team files reports — AI_STUDIO_REPORT_URL (…/reports): then `file_report` is listed too. */
+   whose role/team files reports — AI_STUDIO_REPORT_URL (…/reports): then `file_report` is listed too.
+   AI_STUDIO_TOOLS_URL + AI_STUDIO_TOOLS_TOKEN (…/internal/bridges/<id>): the studio's own tools for this run
+   (room, call_agent, the Agent Creator's create_*), listed and run by the backend — this server only relays. */
 import { createInterface } from 'node:readline';
 
 const URL_BASE = process.env.AI_STUDIO_ASK_URL ?? '';
 const TOKEN = process.env.AI_STUDIO_RUN_TOKEN ?? '';
 const REPORT_URL = process.env.AI_STUDIO_REPORT_URL ?? '';
+const TOOLS_URL = process.env.AI_STUDIO_TOOLS_URL ?? '';
+const TOOLS_TOKEN = process.env.AI_STUDIO_TOOLS_TOKEN ?? '';
 
 const TOOL = {
   name: 'ask_user',
@@ -66,10 +70,15 @@ const reply = (id: Rpc['id'], result: unknown) => send({ jsonrpc: '2.0', id, res
 const fail = (id: Rpc['id'], code: number, message: string) =>
   send({ jsonrpc: '2.0', id, error: { code, message } });
 
-async function call(path: string, init: RequestInit = {}, base = URL_BASE): Promise<Record<string, unknown>> {
+async function call(
+  path: string,
+  init: RequestInit = {},
+  base = URL_BASE,
+  token = TOKEN,
+): Promise<Record<string, unknown>> {
   const res = await fetch(`${base}${path}`, {
     ...init,
-    headers: { 'content-type': 'application/json', 'x-run-token': TOKEN, ...(init.headers ?? {}) },
+    headers: { 'content-type': 'application/json', 'x-run-token': token, ...(init.headers ?? {}) },
   });
   if (!res.ok) {
     /* pass the studio's reason on (it's written for the agent: limits, a malformed field…) */
@@ -102,6 +111,30 @@ async function askUser(args: Record<string, unknown>): Promise<string> {
   }
 }
 
+/* the bridge's tools: listed by the backend; a call is a job we long-poll (a fellow agent may work for minutes) */
+let bridged: { name: string }[] = [];
+async function bridgeTools(): Promise<Record<string, unknown>[]> {
+  if (!TOOLS_URL) return [];
+  const { tools } = await call('/tools', {}, TOOLS_URL, TOOLS_TOKEN);
+  bridged = (tools as { name: string }[]) ?? [];
+  return bridged as Record<string, unknown>[];
+}
+async function bridgeCall(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{ text: string; isError: boolean }> {
+  const { jobId } = await call(
+    `/tools/${encodeURIComponent(name)}`,
+    { method: 'POST', body: JSON.stringify(args) },
+    TOOLS_URL,
+    TOOLS_TOKEN,
+  );
+  for (;;) {
+    const r = await call(`/jobs/${String(jobId)}/wait`, {}, TOOLS_URL, TOOLS_TOKEN);
+    if (r.status === 'done') return { text: String(r.text ?? ''), isError: !!r.isError };
+  }
+}
+
 async function handle(m: Rpc) {
   if (m.id === undefined) return; // notifications (initialized, cancelled…) need no reply
   switch (m.method) {
@@ -113,11 +146,29 @@ async function handle(m: Rpc) {
       });
     case 'ping':
       return reply(m.id, {});
-    case 'tools/list':
-      return reply(m.id, { tools: REPORT_URL ? [TOOL, REPORT_TOOL] : [TOOL] });
+    case 'tools/list': {
+      const own = URL_BASE ? (REPORT_URL ? [TOOL, REPORT_TOOL] : [TOOL]) : [];
+      try {
+        return reply(m.id, { tools: [...own, ...(await bridgeTools())] });
+      } catch {
+        return reply(m.id, { tools: own });
+      }
+    }
     case 'tools/call': {
       const name = m.params?.name;
-      const run = name === 'ask_user' ? askUser : name === 'file_report' && REPORT_URL ? fileReport : null;
+      if (typeof name === 'string' && bridged.some((t) => t.name === name)) {
+        try {
+          const r = await bridgeCall(name, (m.params?.arguments as Record<string, unknown>) ?? {});
+          return reply(m.id, {
+            content: [{ type: 'text', text: r.text }],
+            ...(r.isError ? { isError: true } : {}),
+          });
+        } catch (e) {
+          return reply(m.id, { content: [{ type: 'text', text: (e as Error).message }], isError: true });
+        }
+      }
+      const run =
+        name === 'ask_user' && URL_BASE ? askUser : name === 'file_report' && REPORT_URL ? fileReport : null;
       if (!run) return fail(m.id, -32602, `Unknown tool ${String(name)}`);
       try {
         const text = await run((m.params?.arguments as Record<string, unknown>) ?? {});

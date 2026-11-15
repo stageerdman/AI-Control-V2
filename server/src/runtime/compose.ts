@@ -13,6 +13,8 @@ export type ComposeInput = {
   /** The project's granted accesses (G1): what each provides, by label + env var — never a value. */
   /** G1: this run's PORT, the project's app port and its spares. */
   ports?: { port: number; app: number; spares: readonly number[] } | null;
+  /** AGENT MCP: the run has `room` + `call_agent` — say how to work with the others. */
+  room?: string | null;
   access?: readonly {
     name: string;
     serves: string;
@@ -23,7 +25,16 @@ export type ComposeInput = {
 
 const section = (title: string, body: string) => (body.trim() ? `## ${title}\n\n${body.trim()}` : '');
 
-export function composePrompt({ agent, team, project, toolkit, shell, access, ports }: ComposeInput): string {
+export function composePrompt({
+  agent,
+  team,
+  project,
+  toolkit,
+  shell,
+  access,
+  ports,
+  room,
+}: ComposeInput): string {
   const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
   const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
   const who = `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`;
@@ -66,6 +77,7 @@ export function composePrompt({ agent, team, project, toolkit, shell, access, po
           ].join('\n'),
         )
       : '',
+    room ? section('Working with others', room) : '',
     section(
       'How to work here',
       [

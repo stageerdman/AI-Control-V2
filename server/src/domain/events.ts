@@ -44,9 +44,21 @@ export const EVENT_SCHEMAS = {
   'ask.answered': z.strictObject({ askId: id, answer: text() }),
   /** The setup chat (B6): a message from the user, the orchestrator or the Agent Creator. */
   'chat.message': z.strictObject({
-    from: z.enum(['user', 'orchestrator', 'creator']),
+    /** 'agent' = anyone else in the room (a guest a call brought in), by agentId. */
+    from: z.enum(['user', 'orchestrator', 'creator', 'agent']),
     agentId: id.optional(),
     text: text(4000),
+  }),
+  /** AGENT MCP: someone joined the room (the draft's setup room, or a project) — `by` brought them in. */
+  'room.joined': z.strictObject({ agentId: id, by: id.optional(), why: text(300).optional() }),
+  /** AGENT MCP: one agent calling another (call_agent): asking the approver → approved / declined → working → answered / failed. */
+  'room.call': z.strictObject({
+    callId: id,
+    from: id,
+    to: id,
+    status: z.enum(['asking', 'approved', 'declined', 'working', 'answered', 'failed']),
+    approver: id.optional(),
+    note: text(300).optional(),
   }),
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({

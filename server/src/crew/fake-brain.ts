@@ -52,6 +52,31 @@ function agentDef(brief: string, taken: string[], i = 0) {
   };
 }
 
+/** AGENT MCP: with studio tools, the creator asks the Cast's designer for a costume, then creates the design. */
+function viaTools(spec: RunSpec, create: string, def: unknown, who: string): FakeStep[] {
+  const names = spec.studioTools?.names ?? [];
+  if (!names.includes(create)) return [];
+  const designer = field<{ name: string }[]>(
+    spec.task,
+    "Fellow agents with a designer's eye (call_agent):",
+  )?.[0];
+  return [
+    ...(designer && names.includes('call_agent')
+      ? [
+          {
+            tool: 'call_agent',
+            args: {
+              agent: designer.name,
+              request: `Design a costume for ${who}, a new agent. Pick one value per look slot (see studio_catalog).`,
+              why: 'design the costume',
+            },
+          },
+        ]
+      : []),
+    { tool: create, args: def as Record<string, unknown> },
+  ];
+}
+
 /** Demo pacing for the UI (free runner only): `pace` ms between steps so a watcher sees robots work,
     and an agent task that says "ask me" asks the user first (the pager / "!" path). Off by default. */
 export function pacedBrain(pace: number): (spec: RunSpec) => FakeStep[] {
@@ -108,14 +133,15 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
     }
     case 'mint-agent': {
       const brief = field<string>(t, 'Brief from the orchestrator:') ?? 'a specialist';
-      return answer(agentDef(brief, field<string[]>(t, 'Agent names already taken:') ?? []));
+      const def = agentDef(brief, field<string[]>(t, 'Agent names already taken:') ?? []);
+      return [...viaTools(spec, 'create_agent', def, def.name), ...answer(def)];
     }
     case 'mint-team': {
       const brief = field<string>(t, 'Brief from the orchestrator:') ?? 'a team';
       const taken = field<string[]>(t, 'Agent names already taken:') ?? [];
       const lead = agentDef(brief, taken, 0);
       const mate = agentDef(brief, [...taken, lead.name], 1);
-      return answer({
+      const team = {
         name: freshName(field<string[]>(t, 'Team names already taken:') ?? [], TEAM_NAMES),
         blurb: `${topic(brief)} from first sketch to shipped build.`,
         instr: `Own everything ${topic(brief).toLowerCase()} on the projects you join. The captain splits the work and reports to the orchestrator.`,
@@ -127,8 +153,17 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           { newAgent: mate, job: 'Build alongside the captain.' },
         ],
         captain: lead.name,
-      });
+      };
+      return [...viaTools(spec, 'create_team', team, lead.name), ...answer(team)];
     }
+    /* AGENT MCP: an approver always says yes; a helper answers with a costume */
+    case 'allow-call':
+      return answer({ allow: true, reply: 'Yes — go ahead.' });
+    case 'help':
+      return answer({
+        answer: `Costume: ${JSON.stringify(LOOKS[2])} — a beret, a palette and a rose finish read as "maker".`,
+        say: 'a beret, a palette and a rose finish',
+      });
     case 'dispatch': {
       const goal = field<string>(t, "The user's goal:") ?? 'the goal';
       const staff = field<{

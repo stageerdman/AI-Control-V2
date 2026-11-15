@@ -30,10 +30,13 @@ import { createPortraits } from './office/portrait.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
+import { createBridges } from './room/bridge.ts';
+import { createRoom } from './room/room.ts';
 import { accessesRoutes } from './routes/accesses.ts';
 import { agentRoutes } from './routes/agents.ts';
 import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
+import { bridgeRoutes } from './routes/bridges.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
@@ -157,7 +160,10 @@ export function buildApp({
   const ports = createPorts(db);
   /* AGENTS: on = the studio says yes to agents' yes/no permission checks itself (never pages the user) */
   const autoApprove = metaFlag(db, 'auto_approve');
+  /* AGENT MCP: studio tools per run, served to the MCP server over the internal side door */
+  const bridges = createBridges();
   const runtime = createRuntime({
+    bridges,
     db,
     store,
     events,
@@ -185,6 +191,7 @@ export function buildApp({
   clock.recover();
   /* the studio crew (orchestrator, Agent Creator): tool-less runs in a scratch dir, never a project folder */
   const crew = createCrew({
+    bridges,
     clock,
     runner,
     model,
@@ -192,7 +199,12 @@ export function buildApp({
     caps: caps.orchestrator,
   });
   const chat = createSetupChat({ store, events, crew });
-  const creator = createCreator({ store, events, crew });
+  /* AGENT MCP: who is in the room, and agents calling each other into it */
+  const room = createRoom({ db, store, events, crew, sandbox: config.sandbox, helpCaps: caps.review });
+  runtime.setStudioTools(({ projectId, agentId }) =>
+    room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
+  );
+  const creator = createCreator({ store, events, crew, room });
   /* the orchestrator's thread records goals and designs (threads are built below) */
   let threadsRef: ReturnType<typeof createThreads> | null = null;
   const agentName = (id: string) => store.agents.get(id)?.name ?? id;
@@ -279,8 +291,11 @@ export function buildApp({
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
-    if (a && typeof a === 'object')
-      runtime.setBaseUrl(`http://${a.family === 'IPv6' ? `[${a.address}]` : a.address}:${a.port}`);
+    if (a && typeof a === 'object') {
+      const url = `http://${a.family === 'IPv6' ? `[${a.address}]` : a.address}:${a.port}`;
+      runtime.setBaseUrl(url);
+      bridges.setBaseUrl(url);
+    }
   });
   app.addHook('preClose', async () => {
     lifecycle.stop();
@@ -319,6 +334,7 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
+  app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));

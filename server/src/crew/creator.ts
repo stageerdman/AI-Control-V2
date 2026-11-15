@@ -35,8 +35,11 @@ import { assertPlan, type Plan } from '../domain/plan.ts';
 import { TEAM_MAX } from '../domain/teams.ts';
 import { conflict } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
+import type { BridgeTool } from '../room/bridge.ts';
+import { CREATOR_TOOLS } from '../room/context.ts';
+import type { Room } from '../room/room.ts';
 import { CREATOR_ALTITUDE, crewSystemPrompt, json } from './prompts.ts';
-import { type Crew, validateWith } from './structured.ts';
+import { type Crew, type Validate, validateWith } from './structured.ts';
 
 export const MINT_AGENT = 'mint-agent';
 export const MINT_TEAM = 'mint-team';
@@ -78,8 +81,11 @@ export type Minted = { roles: Role[]; agents: Agent[]; teams: Team[] };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-export function createCreator(deps: { store: Store; events: EventLog; crew: Crew }) {
-  const { store, events, crew } = deps;
+/** Fellow agents a creator may ask for a costume (a designer's eye). */
+const DESIGNERS = /design|ux|ui\b|art|look|costume|brand/i;
+
+export function createCreator(deps: { store: Store; events: EventLog; crew: Crew; room?: Room }) {
+  const { store, events, crew, room } = deps;
   const creator = () => {
     const c = store.agents.records().find((a) => a.kind === 'creator');
     if (!c) throw conflict('The studio has no Agent Creator'); // unreachable while the cast rules hold
@@ -104,6 +110,48 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
       agent: (id) => view.agent(id),
       specialists,
     };
+  };
+
+  /** studio_catalog: everything a design may use (also offered to the helpers the creator calls). */
+  const catalog = (): BridgeTool => ({
+    name: 'studio_catalog',
+    description:
+      'The studio catalogue for designing agents and teams: look slots (one value per slot), roles, agent and team names already taken, team emblems and colours.',
+    inputSchema: { type: 'object', properties: {} },
+    run: async () =>
+      JSON.stringify({
+        look: LOOK_OPTIONS,
+        roles: store.roles.list().map((r) => r.name),
+        agentNamesTaken: store.agents.records().map((a) => a.name),
+        teamNamesTaken: store.teams.list().map((t) => t.name),
+        emblems: EMBLEM_IDS,
+        colours: HUES,
+      }),
+  });
+  room?.setCatalog(catalog());
+
+  /** create_agent / create_team: checked at once (shape + studio rules), staged until the plan is accepted. */
+  const stager = <T>(kind: 'agent' | 'team', check: Validate<T>) => {
+    let staged: T | null = null;
+    const tool: BridgeTool = {
+      name: kind === 'agent' ? 'create_agent' : 'create_team',
+      description:
+        kind === 'agent'
+          ? `Create the agent: ${json(AGENT_EXAMPLE)}. Checked at once — fix what it lists and call again. Joins the Cast when the plan is accepted.`
+          : `Create the team: ${json(TEAM_EXAMPLE)}. Checked at once — fix what it lists and call again. Joins the Cast when the plan is accepted.`,
+      inputSchema: { type: 'object', additionalProperties: true },
+      run: async (args) => {
+        const v = check(args);
+        if (!v.ok)
+          throw new Error(`Not yet — fix this and call again:\n${v.issues.map((i) => `- ${i}`).join('\n')}`);
+        staged = v.value;
+        const name = (v.value as { name: string }).name;
+        return `Created ${name} — they join the Cast when the plan is accepted. Now answer with the same design as the JSON object.`;
+      },
+    };
+    /** The staged design wins; else the answer itself (the JSON contract, as before). */
+    const validate: Validate<T> = (raw) => (staged ? { ok: true, value: staged } : check(raw));
+    return { tool, validate };
   };
 
   /** One design, by the Agent Creator. `scope` is where its progress shows (the draft's stream). */
@@ -134,26 +182,55 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
     const onEvent = (e: { kind: string; input?: number; output?: number }) => {
       if (e.kind === 'tokens') opts.onTokens?.(e.input ?? 0, e.output ?? 0);
     };
+    /* AGENT MCP: in a setup room the creator works through tools and may call a fellow agent */
+    const roomTools =
+      room && opts.draftId
+        ? room.tools({ scope: 'draft', ownerId: opts.draftId, agentId: me.id, chain: [] })
+        : null;
+    const designers = store.agents
+      .list()
+      .filter((a) => a.kind === 'agent' && DESIGNERS.test(a.role))
+      .map((a) => ({ name: a.name, role: a.role }));
+    const toolsLine = roomTools
+      ? [
+          `${CREATOR_TOOLS}`,
+          ...(designers.length
+            ? [`Fellow agents with a designer's eye (call_agent): ${json(designers)}`]
+            : []),
+        ]
+      : [];
+    const system = crewSystemPrompt(me, CREATOR_ALTITUDE, !!roomTools);
     if (kind === 'agent') {
+      const s = stager(
+        'agent',
+        validateWith(AgentDefSchema, (d) => agentDefIssues(d, contextFor(opts.earlier ?? []))),
+      );
       const { value } = await crew.call({
         who: me.name,
         contract: MINT_AGENT,
         ...(track ? { track } : {}),
-        systemPrompt: crewSystemPrompt(me, CREATOR_ALTITUDE),
+        systemPrompt: system,
         task: [
           ...common,
+          ...toolsLine,
           `Design ONE agent. Answer with one JSON object shaped like this: ${json(AGENT_EXAMPLE)}`,
         ].join('\n\n'),
-        validate: validateWith(AgentDefSchema, (d) => agentDefIssues(d, contextFor(opts.earlier ?? []))),
+        validate: s.validate,
+        ...(roomTools ? { tools: [...roomTools, catalog(), s.tool] } : {}),
         onEvent,
       });
       return { kind, brief, def: value };
     }
+    const s = stager(
+      'team',
+      validateWith(TeamDefSchema, (d) => teamDefIssues(d, contextFor(opts.earlier ?? [], opts.specialists))),
+    );
     const { value } = await crew.call({
       who: me.name,
       contract: MINT_TEAM,
       ...(track ? { track } : {}),
-      systemPrompt: crewSystemPrompt(me, CREATOR_ALTITUDE),
+      systemPrompt: system,
+      ...(roomTools ? { tools: [...roomTools, catalog(), s.tool] } : {}),
       task: [
         ...common,
         `Team names already taken: ${json(ctx.teamNames)}`,
@@ -166,11 +243,10 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
         `Emblems: ${json(EMBLEM_IDS)}. Colours: ${json(HUES)}. Prefer an emblem and colour no other team uses: ${json(
           store.teams.list().map((t) => ({ emblem: t.emblem, color: t.color })),
         )}`,
+        ...toolsLine,
         `Design ONE team of 2–${TEAM_MAX} members (at most ${NEW_PER_TEAM} new agents; reuse Cast agents where they fit) with exactly one captain from its members. Answer with one JSON object shaped like this: ${json(TEAM_EXAMPLE)}`,
       ].join('\n\n'),
-      validate: validateWith(TeamDefSchema, (d) =>
-        teamDefIssues(d, contextFor(opts.earlier ?? [], opts.specialists)),
-      ),
+      validate: s.validate,
       onEvent,
     });
     return { kind, brief, def: value };
@@ -266,7 +342,29 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
         ...plan.newTeams.map((b) => ({ kind: 'team' as const, brief: b.brief })),
       ];
       try {
-        if (briefs.length) status('working');
+        if (briefs.length) {
+          /* AGENT MCP: the orchestrator calls the Agent Creator into the room */
+          const scope = { scope: 'draft' as const, ownerId: draftId };
+          if (room && draft.orchestratorId) {
+            const what = [
+              plan.newAgents.length
+                ? `${plan.newAgents.length === 1 ? 'a new agent' : `${plan.newAgents.length} new agents`}`
+                : '',
+              plan.newTeams.length
+                ? `${plan.newTeams.length === 1 ? 'a new team' : `${plan.newTeams.length} new teams`}`
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' and ');
+            if (room.join(scope, me.id, draft.orchestratorId, `design ${what}`))
+              room.say(
+                scope,
+                draft.orchestratorId,
+                `${me.nick || me.name}, could you design ${what} for this project?`,
+              );
+          }
+          status('working');
+        }
         const designs: Design[] = [];
         for (const b of briefs)
           designs.push(
@@ -311,12 +409,17 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
               : {}),
           };
           assertPlan(resolved, castView(store.agents, store.teams));
+          const before = store.drafts.require(draftId).chat; // the room may have talked meanwhile
           const chat = [
-            ...draft.chat,
+            ...before,
             ...designs.map((d) => ({ from: 'creator' as const, text: sayCreated(d, m) })),
           ];
           store.drafts.update(draftId, { plan: resolved, chat });
-          return { minted: { roles: m.roles, agents: m.agents, teams: m.teams }, resolved, chat };
+          return {
+            minted: { roles: m.roles, agents: m.agents, teams: m.teams },
+            resolved,
+            chat: chat.slice(before.length),
+          };
         });
         /* events only after the commit (a rolled-back mint must not be announced) */
         const created = (kind: 'agent' | 'team' | 'role', id: string, name: string) =>
@@ -324,7 +427,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
         for (const r of minted.roles) created('role', r.id, r.name);
         for (const a of minted.agents) created('agent', a.id, a.name);
         for (const t of minted.teams) created('team', t.id, t.name);
-        for (const m of chat.slice(draft.chat.length))
+        for (const m of chat)
           events.append('draft', draftId, {
             type: 'chat.message',
             payload: { from: 'creator', agentId: me.id, text: m.text },

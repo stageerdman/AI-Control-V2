@@ -9,6 +9,8 @@ export type FakeStep =
   | { ask: string; options?: string[] }
   /** Call file_report with this input (refused → the run goes on, like a tool error). */
   | { report: Record<string, unknown> }
+  /** Call a studio tool (call_agent, create_agent…); its answer (or refusal) is a text line, like a tool result. */
+  | { tool: string; args: Record<string, unknown> }
   | { wait: number }
   | { fail: string }
   | { result: string };
@@ -84,6 +86,13 @@ export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT
               io.emit({ kind: 'text', text: `Filed report ${id}` });
             } catch (e) {
               io.emit({ kind: 'text', text: `file_report refused: ${(e as Error).message}` });
+            }
+          } else if ('tool' in step) {
+            try {
+              if (!io.tool) throw new Error('studio tools are not available in this run');
+              io.emit({ kind: 'text', text: await io.tool(step.tool, step.args) });
+            } catch (e) {
+              io.emit({ kind: 'text', text: `${step.tool} refused: ${(e as Error).message}` });
             }
           } else if ('wait' in step) await sleep(step.wait);
           else if ('fail' in step) return end({ status: 'failed', error: step.fail });

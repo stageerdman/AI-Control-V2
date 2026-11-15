@@ -24,6 +24,9 @@ export type RunSpec = {
   /** Where the ask_user MCP tool reaches the backend (CLI runner only). `reportUrl` is set only for
       reporter runs: then the same MCP server also offers `file_report`. */
   askBridge?: { url: string; token: string; reportUrl?: string };
+  /** Studio tools from the bridge (src/room/bridge.ts): `names` are listed to the agent (pre-approved);
+      `remote` is where the CLI's MCP server reaches them (absent → only the FakeRunner can call them). */
+  studioTools?: { names: readonly string[]; remote?: { url: string; token: string } };
   /** Extra directories the file tools may reach (`--add-dir`): a toolsmith's own toolkit folder, nothing else. */
   addDirs?: readonly string[];
   /** Web research tools (WebSearch, WebFetch) — reporter runs only. */
@@ -54,6 +57,8 @@ export type RunIO = {
   ask: (question: string, options?: string[]) => Promise<string>;
   /** File a report (reporter runs only; FakeRunner calls it, the CLI reaches it via MCP). Throws when refused. */
   report?: (input: unknown) => Promise<{ id: string }>;
+  /** Call a studio tool from `spec.studioTools` (FakeRunner; the CLI reaches it via MCP). Throws when refused. */
+  tool?: (name: string, args: Record<string, unknown>) => Promise<string>;
 };
 
 export type RunHandle = { done: Promise<RunOutcome>; cancel: () => void };

@@ -8,6 +8,8 @@ import type { Activity, RunEvent, RunOutcome } from './runner.ts';
 
 export const ASK_TOOL = 'mcp__studio__ask_user';
 export const REPORT_TOOL = 'mcp__studio__file_report';
+/** A bridge tool as the CLI names it (pre-approved by this name). */
+export const studioTool = (name: string) => `mcp__studio__${name}`;
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const base = (p: string) => p.split('/').filter(Boolean).at(-1) ?? p;
@@ -62,6 +64,15 @@ export function activityFor(
       return {
         status: 'working',
         activity: { kind: 'writing', label: clip(`Filing a report: ${s('title')}`, 120) },
+      };
+    case 'mcp__studio__call_agent':
+      return {
+        status: 'waiting',
+        activity: {
+          kind: 'calling',
+          label: clip(`Asking ${s('agent')} for a hand`, 120),
+          detail: clip(s('request'), 2000),
+        },
       };
     case ASK_TOOL:
       return {

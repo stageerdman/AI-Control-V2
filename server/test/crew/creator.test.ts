@@ -108,8 +108,9 @@ describe('Agent Creator: minting on accept', () => {
     });
     // the creator speaks in the chat; the setup stream hears about every addition
     const chat = (await h.call('GET', `/drafts/${d.id}/chat`)).body.chat;
-    expect(chat.map((m: { from: string }) => m.from)).toEqual(['creator', 'creator']);
-    expect(chat[1].text).toMatch(
+    expect(chat.map((m: { from: string }) => m.from)).toEqual(['orchestrator', 'creator', 'creator']);
+    expect(chat[0].text).toBe('Tinker, could you design a new agent and a new team for this project?'); // AGENT MCP: called into the room
+    expect(chat[2].text).toMatch(
       /^Here's The Pocket Rockets: Swifty McSwipe, Kotlin Kate, Scarlett Scenario — Swifty McSwipe captains/,
     );
     const created = h.events

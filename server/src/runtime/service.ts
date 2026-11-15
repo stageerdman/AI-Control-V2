@@ -20,6 +20,8 @@ import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { WorkKind } from '../office/work-time.ts';
+import type { Bridges, BridgeTool } from '../room/bridge.ts';
+import { WORKING_WITH_OTHERS } from '../room/context.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { DEFAULT_CAPS } from './config.ts';
@@ -75,7 +77,11 @@ export type RuntimeDeps = {
   worktreesRoot?: string;
   /** The studio's `autoApprove` setting (read per ask); absent = off. */
   autoApprove?: () => boolean;
+  /** AGENT MCP: where runs' studio tools are served. */
+  bridges?: Bridges;
 };
+/** AGENT MCP: the studio tools an agent run gets (room, call_agent), wired once the room exists. */
+export type StudioToolsFor = (run: { projectId: string; agentId: string; runId: string }) => BridgeTool[];
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -86,6 +92,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const waiters = new Map<string, Set<Waiter>>();
   const finishedListeners = new Set<(run: Run) => void>();
   let baseUrl: string | null = null;
+  let studioToolsFor: StudioToolsFor | null = null;
 
   const emit = (projectId: string, input: EventInput, secrets: readonly string[] = []) => {
     try {
@@ -271,6 +278,8 @@ export function createRuntime(deps: RuntimeDeps) {
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
     const toolkit = big ? null : toolkitFor(agent);
     const ports = big || !deps.ports ? null : deps.ports.take(projectId, runId);
+    const studioTools = !big && studioToolsFor ? studioToolsFor({ projectId, agentId: agent.id, runId }) : [];
+    const bridge = studioTools.length && deps.bridges ? deps.bridges.open(studioTools) : null;
     const l: Live = {
       run,
       token,
@@ -318,6 +327,7 @@ export function createRuntime(deps: RuntimeDeps) {
             ...(ports
               ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } }
               : {}),
+            room: bridge ? WORKING_WITH_OTHERS : null,
           }),
         task: req.task,
         model: deps.model,
@@ -338,6 +348,9 @@ export function createRuntime(deps: RuntimeDeps) {
         ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
         ...(reporter ? { web: true } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
+        ...(bridge
+          ? { studioTools: { names: bridge.names, ...(bridge.remote ? { remote: bridge.remote } : {}) } }
+          : {}),
         ...(baseUrl && !big
           ? {
               askBridge: {
@@ -356,9 +369,13 @@ export function createRuntime(deps: RuntimeDeps) {
           return a.answer as string;
         },
         ...(reporter ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
+        ...(bridge ? { tool: bridge.call } : {}),
       },
     );
-    const release = () => deps.ports?.release(runId);
+    const release = () => {
+      deps.ports?.release(runId);
+      bridge?.close();
+    };
     l.handle.done.then(release, release);
     l.handle.done.then(
       (o) => finish(l, o),
@@ -471,6 +488,10 @@ export function createRuntime(deps: RuntimeDeps) {
     },
     setBaseUrl: (url: string) => {
       baseUrl = url;
+    },
+    /** AGENT MCP: from now on agent runs get these studio tools. */
+    setStudioTools: (fn: StudioToolsFor) => {
+      studioToolsFor = fn;
     },
     recover: () => repo.failInterrupted(),
     shutdown: async () => {

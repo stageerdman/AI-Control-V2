@@ -10,6 +10,7 @@ import { mkdirSync } from 'node:fs';
 import type { z } from 'zod';
 import { agentError, conflict } from '../errors.ts';
 import type { Track, WorkClock } from '../office/work-time.ts';
+import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import { ORCHESTRATOR_CAPS } from '../runtime/config.ts';
 import { runEnv } from '../runtime/env.ts';
 import type { Caps, RunEvent, Runner, RunOutcome } from '../runtime/runner.ts';
@@ -29,6 +30,8 @@ export type CrewDeps = {
   caps?: Caps;
   /** The office's work clock: calls with a `track` record their time (office/work-time.ts). */
   clock?: WorkClock;
+  /** AGENT MCP: where a call's studio tools are served (absent → calls never get tools). */
+  bridges?: Bridges;
 };
 
 export type CrewCall<T> = {
@@ -46,6 +49,8 @@ export type CrewCall<T> = {
   workspace?: { cwd: string; tools: readonly string[]; allowedTools: readonly string[] };
   /** Whose time this is on the work clock (project or draft, agent, kind of work). */
   track?: Track;
+  /** AGENT MCP: studio tools for this call (room, call_agent, create_*), open for both attempts. */
+  tools?: readonly BridgeTool[];
 };
 export type CrewResult<T> = { value: T; attempts: number; outcomes: RunOutcome[] };
 
@@ -93,7 +98,13 @@ export function validateWith<S extends z.ZodType>(
 export function createCrew(deps: CrewDeps) {
   const { runner } = deps;
 
-  const invoke = async (call: CrewCall<unknown>, task: string, resumeSessionId?: string) => {
+  type Open = ReturnType<Bridges['open']> | null;
+  const invoke = async (
+    call: CrewCall<unknown>,
+    task: string,
+    resumeSessionId?: string,
+    bridge: Open = null,
+  ) => {
     if (!call.workspace) mkdirSync(deps.scratchDir, { recursive: true, mode: 0o700 });
     const handle = runner.start(
       {
@@ -108,9 +119,13 @@ export function createCrew(deps: CrewDeps) {
         tools: call.workspace?.tools ?? [],
         ...(call.workspace ? { allowedTools: call.workspace.allowedTools } : {}),
         ...(resumeSessionId ? { resumeSessionId } : {}),
+        ...(bridge
+          ? { studioTools: { names: bridge.names, ...(bridge.remote ? { remote: bridge.remote } : {}) } }
+          : {}),
       },
       {
         emit: (e) => call.onEvent?.(e),
+        ...(bridge ? { tool: bridge.call } : {}),
         ask: async () => {
           throw new Error('Crew runs cannot ask the user — they answer in their reply');
         },
@@ -132,45 +147,55 @@ export function createCrew(deps: CrewDeps) {
   return {
     async call<T>(call: CrewCall<T>): Promise<CrewResult<T>> {
       if (runner.unavailable) throw conflict(runner.unavailable);
-      const outcomes: RunOutcome[] = [];
-      let issues: string[] = [];
-      let sessionId: string | undefined;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        const task =
-          attempt === 1
-            ? `${contractLine(call.contract)}\n\n${call.task}`
-            : [
-                contractLine(call.contract, true),
-                '',
-                'Your last answer did not follow the contract:',
-                ...issues.map((i) => `- ${i}`),
-                '',
-                'Reply again with ONLY the corrected JSON object.',
-                ...(sessionId ? [] : ['', 'The original request, again:', '', call.task]),
-              ].join('\n');
-        const o = await invoke(call as CrewCall<unknown>, task, attempt === 2 ? sessionId : undefined);
-        outcomes.push(o);
-        if (o.status !== 'succeeded')
-          throw agentError(`${call.who} could not finish: ${o.error ?? o.status}`, {
-            contract: call.contract,
-          });
-        sessionId = o.sessionId;
-        let raw: unknown;
-        try {
-          raw = extractJson(o.result ?? '');
-        } catch (e) {
-          issues = [(e as Error).message];
-          continue;
-        }
-        const v = (call.validate as Validate<T>)(raw);
-        if (v.ok) return { value: v.value, attempts: attempt, outcomes };
-        issues = v.issues;
+      const bridge = call.tools?.length && deps.bridges ? deps.bridges.open(call.tools) : null;
+      try {
+        return await attempts(call, bridge);
+      } finally {
+        bridge?.close();
       }
-      throw agentError(`${call.who}'s answer didn't follow the ${call.contract} contract (asked twice)`, {
-        contract: call.contract,
-        issues,
-      });
     },
   };
+
+  async function attempts<T>(call: CrewCall<T>, bridge: Open): Promise<CrewResult<T>> {
+    const outcomes: RunOutcome[] = [];
+    let issues: string[] = [];
+    let sessionId: string | undefined;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const task =
+        attempt === 1
+          ? `${contractLine(call.contract)}\n\n${call.task}`
+          : [
+              contractLine(call.contract, true),
+              '',
+              'Your last answer did not follow the contract:',
+              ...issues.map((i) => `- ${i}`),
+              '',
+              'Reply again with ONLY the corrected JSON object.',
+              ...(sessionId ? [] : ['', 'The original request, again:', '', call.task]),
+            ].join('\n');
+      const o = await invoke(call as CrewCall<unknown>, task, attempt === 2 ? sessionId : undefined, bridge);
+      outcomes.push(o);
+      if (o.status !== 'succeeded')
+        throw agentError(`${call.who} could not finish: ${o.error ?? o.status}`, {
+          contract: call.contract,
+        });
+      sessionId = o.sessionId;
+      let raw: unknown;
+      let noJson: string | null = null;
+      try {
+        raw = extractJson(o.result ?? '');
+      } catch (e) {
+        noJson = (e as Error).message;
+      }
+      /* a design staged through a studio tool (create_agent…) may stand without a JSON answer */
+      const v = (call.validate as Validate<T>)(raw);
+      if (v.ok) return { value: v.value, attempts: attempt, outcomes };
+      issues = noJson ? [noJson] : v.issues;
+    }
+    throw agentError(`${call.who}'s answer didn't follow the ${call.contract} contract (asked twice)`, {
+      contract: call.contract,
+      issues,
+    });
+  }
 }
 export type Crew = ReturnType<typeof createCrew>;

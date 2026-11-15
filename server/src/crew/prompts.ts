@@ -2,6 +2,7 @@
    well and the fake brain can parse it back (src/crew/fake-brain.ts). */
 import type { Agent } from '../db/agents.ts';
 import type { Store } from '../db/store.ts';
+import { ORCHESTRATOR_ROOM } from '../room/context.ts';
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -54,7 +55,12 @@ export function castCatalogue(store: Store): CastCatalogue {
 }
 
 /** The crew member's own brain + the studio's framing (big picture, JSON only, no tools). */
-export function crewSystemPrompt(agent: Pick<Agent, 'name' | 'role' | 'prompt'>, altitude: string): string {
+export function crewSystemPrompt(
+  agent: Pick<Agent, 'name' | 'role' | 'prompt'>,
+  altitude: string,
+  /** AGENT MCP: this call has studio tools (the creator's create_* / call_agent). */
+  tools = false,
+): string {
   return [
     `# ${agent.name}`,
     `You are ${agent.name} (${agent.role}) in AI Studio.\n\n${agent.prompt.trim()}`,
@@ -62,15 +68,16 @@ export function crewSystemPrompt(agent: Pick<Agent, 'name' | 'role' | 'prompt'>,
     [
       '## How you answer',
       '',
-      'The studio calls you, not a person at a terminal. You have no tools: everything you need is in the message.',
+      tools
+        ? 'The studio calls you, not a person at a terminal. You have only the studio tools named in the message — no files, no shell.'
+        : 'The studio calls you, not a person at a terminal. You have no tools: everything you need is in the message.',
       'Answer with exactly ONE JSON object that follows the contract in the message — no prose around it, no code fences.',
       'Write every text field in plain, friendly words for the user (short sentences, no jargon).',
     ].join('\n'),
   ].join('\n\n');
 }
 
-export const ORCHESTRATOR_ALTITUDE =
-  'Big picture only: goals, which teams carry the work, progress. Teams and their captains own the details — you never micromanage, never write code, never pick captains for existing teams.';
+export const ORCHESTRATOR_ALTITUDE = `Big picture only: goals, which teams carry the work, progress. Teams and their captains own the details — you never micromanage, never write code, never pick captains for existing teams. ${ORCHESTRATOR_ROOM}`;
 export const CREATOR_ALTITUDE =
   'You design agents and teams for the Cast. Each agent is a shared definition every project can reuse (each project runs its own copy, with no shared memory), so make them general for their role, not tied to one project.';
 
