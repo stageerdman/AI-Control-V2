@@ -9,6 +9,9 @@ import {
   captainLocal,
   castOrder,
   cycleLook,
+  diffLine,
+  draftDiff,
+  draftLook,
   enterChoice,
   formationSpot,
   inwardFacing,
@@ -24,6 +27,7 @@ import {
   roleText,
   roleUse,
   TEAM_MAX,
+  tinkerDoing,
 } from './model';
 
 const look: Look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue: 'sun' };
@@ -187,5 +191,38 @@ describe('teams', () => {
     const t = [{ color: HUES[0], emblem: EMBLEMS[0]?.id }] as Pick<Team, 'color' | 'emblem'>[];
     expect(newTeamLook(t)).toEqual({ color: HUES[1], emblem: EMBLEMS[1]?.id });
     expect(EMBLEMS).toHaveLength(18);
+  });
+});
+
+describe('design with Tinker', () => {
+  const d1 = { name: 'Swifty', role: 'iOS', summary: 'Ships SwiftUI apps.', prompt: 'You build…', look };
+  it('a first draft changes every field it brings (and the look slots it sets)', () => {
+    expect(draftDiff(null, { name: 'Swifty', look: { hue: 'mint' } })).toEqual({
+      fields: ['name'],
+      look: ['hue'],
+    });
+    expect(draftDiff(null, d1).fields).toEqual(['name', 'role', 'summary', 'prompt']);
+  });
+  it('only what differs counts; whitespace does not', () => {
+    const d2 = { ...d1, role: 'iOS Engineer', prompt: ' You build… ', look: { ...look, hat: 'cap' } };
+    expect(draftDiff(d1, d2)).toEqual({ fields: ['role'], look: ['hat'] });
+    expect(draftDiff(d1, { ...d1 })).toEqual({ fields: [], look: [] });
+  });
+  it('announces field names only, never values', () => {
+    expect(diffLine({ fields: ['role'], look: ['hat', 'hue'] })).toBe('Draft updated: role, look');
+    expect(diffLine({ fields: [], look: [] })).toBeNull();
+  });
+  it('completes a partial drafted look over a base', () => {
+    expect(draftLook(look, { look: { hue: 'mint' } })).toEqual({ ...look, hue: 'mint' });
+    expect(draftLook(look, null)).toEqual(look);
+  });
+  it('says what Tinker is doing', () => {
+    expect(tinkerDoing(null)).toEqual({ status: '', research: null });
+    expect(tinkerDoing({ kind: 'thinking', label: 'Thinking' })).toEqual({
+      status: 'Thinking…',
+      research: null,
+    });
+    const r = tinkerDoing({ kind: 'research', label: 'Looking up “SwiftUI”' });
+    expect(r).toEqual({ status: 'Looking up “SwiftUI”…', research: 'Looking up “SwiftUI”…' });
   });
 });
