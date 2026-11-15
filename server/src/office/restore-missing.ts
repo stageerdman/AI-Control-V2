@@ -123,11 +123,13 @@ function notBack(store: Store, { agent, seats, specialistOn }: AgentSnap): strin
   for (const s of seats) {
     const team = store.teams.get(s.teamId);
     if (!team) lost.push(`Seat on team '${s.teamId}': the team is gone`);
-    else if (!team.members.some((m) => m.agentId === agent.id)) lost.push(`Seat on ${team.name}: the team is full`);
+    else if (!team.members.some((m) => m.agentId === agent.id))
+      lost.push(`Seat on ${team.name}: the team is full`);
     else if (s.wasCaptain && team.captainId !== agent.id) lost.push(`Captain of ${team.name}`);
   }
   for (const p of specialistOn)
-    if (!store.projects.get(p.projectId)) lost.push(`Specialist on project '${p.projectId}': the project is gone`);
+    if (!store.projects.get(p.projectId))
+      lost.push(`Specialist on project '${p.projectId}': the project is gone`);
   return lost;
 }
 
@@ -145,7 +147,9 @@ function fromPack(store: Store, { pack, agent }: { pack: CastPack; agent: PackAg
   return {
     from: 'pack',
     tools: JSON.stringify(agent.tools),
-    lost: ['Edits, team seats and project links from before: no trash snapshot, so it came back as its cast pack made it'],
+    lost: [
+      'Edits, team seats and project links from before: no trash snapshot, so it came back as its cast pack made it',
+    ],
   };
 }
 
@@ -157,7 +161,8 @@ function putBack(store: Store, id: string, packs: readonly CastPack[]): PutBack 
 }
 
 /* ------------------------------------------------------------ carry on */
-const runIsLive = (store: Store, runId: string | null) => !!runId && runsRepo(store.db).get(runId)?.status === 'running';
+const runIsLive = (store: Store, runId: string | null) =>
+  !!runId && runsRepo(store.db).get(runId)?.status === 'running';
 
 function itemFor(store: Store, workOrRunId: string): ChecklistItem | null {
   const work = workRepo(store.db);
@@ -202,7 +207,15 @@ export function restoreAgent(store: Store, id: string, deps: RestoreDeps = {}): 
   const base = { id, chatsRelinked: runCount(store, id) };
   if (here) {
     /* already in the Cast: never overwrite it */
-    return { ...base, name: here.name, restored: false, setupFrom: 'none', toolsRestored: false, runsResumed: [], lost: [] };
+    return {
+      ...base,
+      name: here.name,
+      restored: false,
+      setupFrom: 'none',
+      toolsRestored: false,
+      runsResumed: [],
+      lost: [],
+    };
   }
   const blocked = deps.blockedRuns ?? blockedWork(store, id);
   const back = putBack(store, id, packs);
@@ -214,7 +227,10 @@ export function restoreAgent(store: Store, id: string, deps: RestoreDeps = {}): 
       setupFrom: 'none',
       toolsRestored: false,
       runsResumed: [],
-      lost: ['Setup and tools: no trash snapshot and no cast-pack archetype for this id', ...blocked.map((b) => `Work '${b}': still waiting, nobody to give it to`)],
+      lost: [
+        'Setup and tools: no trash snapshot and no cast-pack archetype for this id',
+        ...blocked.map((b) => `Work '${b}': still waiting, nobody to give it to`),
+      ],
     };
   }
   const record = store.agents.record(id);
