@@ -8,6 +8,7 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { redactSecrets } from '../events/redact.ts';
+import { stopTree } from '../running/processes.ts';
 import { AGENT_SHELL } from './config.ts';
 import type { RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL, createStreamParser, REPORT_TOOL, studioTool } from './stream.ts';
@@ -152,18 +153,14 @@ export const hookSettings = (shell: string | null, nudge: string | null) => ({
 export const shellHookCommand = (hookScript: string, allowed: readonly string[], node = process.execPath) =>
   [node, hookScript, allowed.join(',')].map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ');
 
-/** Kill the whole process group (the CLI and anything it spawned). */
-function killGroup(child: ChildProcess, signal: NodeJS.Signals) {
+/** Stop the CLI and everything it started (its group + children that made their own). */
+function stopAll(child: ChildProcess) {
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
-  try {
-    process.kill(-child.pid, signal);
-  } catch {
-    try {
-      child.kill(signal);
-    } catch {
-      /* already gone */
-    }
-  }
+  stopTree(child.pid, KILL_GRACE_MS);
+}
+/** The CLI is gone: a command it left running in its group (a server never stopped) goes with it. */
+function sweepLeftovers(child: ChildProcess) {
+  if (child.pid !== undefined) stopTree(child.pid, KILL_GRACE_MS);
 }
 
 export function claudeCliRunner(opts: CliOptions): Runner {
@@ -184,8 +181,7 @@ export function claudeCliRunner(opts: CliOptions): Runner {
       const stop = (reason: NonNullable<typeof stopReason>) => {
         if (stopReason) return;
         stopReason = reason;
-        killGroup(child, 'SIGTERM');
-        setTimeout(() => killGroup(child, 'SIGKILL'), KILL_GRACE_MS).unref();
+        stopAll(child);
       };
 
       child.stdin.on('error', () => {}); // the CLI may exit before reading
@@ -202,10 +198,8 @@ export function claudeCliRunner(opts: CliOptions): Runner {
         for (const e of parser.feed(line)) io.emit(e);
         if (parser.finished() && !child.stdin.writableEnded) {
           child.stdin.end(); // one task per run: let it exit
-          setTimeout(() => {
-            killGroup(child, 'SIGTERM'); // still here: it waits on a leftover background command
-            setTimeout(() => killGroup(child, 'SIGKILL'), KILL_GRACE_MS).unref();
-          }, opts.afterResultMs ?? AFTER_RESULT_MS).unref();
+          /* still here: it waits on a leftover background command */
+          setTimeout(() => stopAll(child), opts.afterResultMs ?? AFTER_RESULT_MS).unref();
         }
         if (parser.turns() > spec.caps.maxTurns)
           stop({ status: 'failed', error: `Stopped: reached the turn cap (${spec.caps.maxTurns})` });
@@ -216,6 +210,7 @@ export function claudeCliRunner(opts: CliOptions): Runner {
           stopReason ??= { status: 'failed', error: `Could not start Claude Code: ${err.message}` };
         });
         child.on('close', (code, signal) => {
+          sweepLeftovers(child);
           const fallback = `Claude Code exited (${signal ?? `code ${code}`})${stderr.trim() ? `: ${redactSecrets(stderr.trim(), spec.secretValues).value.slice(-500)}` : ''}`;
           const o = parser.outcome(fallback);
           resolve(
@@ -225,7 +220,11 @@ export function claudeCliRunner(opts: CliOptions): Runner {
           );
         });
       });
-      return { done, cancel: () => stop({ status: 'cancelled' }) };
+      return {
+        done,
+        cancel: () => stop({ status: 'cancelled' }),
+        ...(child.pid === undefined ? {} : { pid: child.pid }),
+      };
     },
   };
 }

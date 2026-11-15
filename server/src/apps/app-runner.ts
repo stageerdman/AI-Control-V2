@@ -12,6 +12,7 @@ import type { Store } from '../db/store.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
+import type { Running } from '../running/registry.ts';
 import { runEnv } from '../runtime/env.ts';
 import { hashPort, PORT_BASE, PORT_SPAN, type Ports } from './ports.ts';
 import { runCommandOf, writeRunLine } from './run-command.ts';
@@ -81,6 +82,8 @@ export function createAppRunner(deps: {
   parentEnv?: NodeJS.ProcessEnv;
   /** G1: the project's port block — the app runs on its first port. Absent → F3's pick. */
   ports?: Ports;
+  /** RUNNING: a running app is on the studio's running list. */
+  running?: Running;
 }) {
   const { store, events } = deps;
   const live = new Map<string, Live>();
@@ -160,6 +163,14 @@ export function createAppRunner(deps: {
     };
     live.set(projectId, l);
     ended.delete(projectId);
+    const untrack = deps.running?.add({
+      kind: 'app',
+      projectId,
+      agentId: null,
+      label: run.command,
+      pid: () => child.pid,
+      cancel: () => void stopLive(l),
+    }).end;
     const onData = (buf: Buffer) => {
       const secrets = deps.secretValues();
       for (const raw of buf.toString('utf8').split(/\r?\n/)) {
@@ -181,6 +192,7 @@ export function createAppRunner(deps: {
     const done = (code: number | null) => {
       if (live.get(projectId) !== l) return;
       live.delete(projectId);
+      untrack?.();
       l.status = l.stopping ? 'stopped' : 'exited';
       l.exitCode = code;
       ended.set(projectId, l);

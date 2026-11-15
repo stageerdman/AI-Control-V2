@@ -11,6 +11,7 @@ import type { z } from 'zod';
 import { agentError, conflict } from '../errors.ts';
 import type { Track, WorkClock } from '../office/work-time.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
+import type { Running } from '../running/registry.ts';
 import { ORCHESTRATOR_CAPS } from '../runtime/config.ts';
 import { runEnv } from '../runtime/env.ts';
 import type { Caps, RunEvent, Runner, RunOutcome } from '../runtime/runner.ts';
@@ -32,6 +33,8 @@ export type CrewDeps = {
   clock?: WorkClock;
   /** AGENT MCP: where a call's studio tools are served (absent → calls never get tools). */
   bridges?: Bridges;
+  /** RUNNING: every call is on the studio's running list while it lives (and can be stopped from there). */
+  running?: Running;
 };
 
 export type CrewCall<T> = {
@@ -130,6 +133,18 @@ export function createCrew(deps: CrewDeps) {
           throw new Error('Crew runs cannot ask the user — they answer in their reply');
         },
       },
+    );
+    const t = call.track;
+    deps.running?.watch(
+      {
+        kind: 'session',
+        projectId: t?.scope === 'project' ? t.ownerId : null,
+        agentId: t?.agentId ?? null,
+        label: `${call.who}: ${call.contract}`,
+        pid: () => handle.pid,
+        cancel: handle.cancel,
+      },
+      handle.done,
     );
     const clock = call.track && deps.clock;
     if (!clock) return handle.done;

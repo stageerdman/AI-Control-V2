@@ -71,7 +71,10 @@ import { projectRoutes } from './routes/projects.ts';
 import { recapRoutes } from './routes/recap.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { roleRoutes } from './routes/roles.ts';
+import { runningRoutes } from './routes/running.ts';
 import { runRoutes } from './routes/runs.ts';
+import { createRunning } from './running/registry.ts';
+import { runningTools } from './running/tools.ts';
 import { setterRoutes } from './routes/setter.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { teamRoutes } from './routes/teams.ts';
@@ -187,7 +190,10 @@ export function buildApp({
   const comms = createComms({ db, events, secretValues: secretValuesOf(secrets) });
   const desk = createDesk({ db, events, comms });
   const forgetAt = Number(process.env.AI_STUDIO_FORGET_AT);
+  /* RUNNING: the one list of every live session, app and code run, per agent and per project */
+  const running = createRunning({ secretValues: secretValuesOf(secrets) });
   const runtime = createRuntime({
+    running,
     bridges,
     desk,
     ...(Number.isInteger(forgetAt) && forgetAt > 0 ? { forgetAt } : {}),
@@ -218,6 +224,7 @@ export function buildApp({
   clock.recover();
   /* the studio crew (orchestrator, Agent Creator): tool-less runs in a scratch dir, never a project folder */
   const crew = createCrew({
+    running,
     bridges,
     clock,
     runner,
@@ -356,8 +363,9 @@ export function buildApp({
     scratchDir: join(config.home, 'scratch'),
   });
   /* every agent run's studio tools: the room (call_agent, comms_log) + mail when it may (+ propose_agent at HQ) */
-  runtime.setStudioTools(({ projectId, agentId }) => [
+  runtime.setStudioTools(({ projectId, agentId, runId }) => [
     ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
+    ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
     ...mail.tools(projectId, agentId),
     ...(hq.get() === projectId
       ? [
@@ -375,6 +383,7 @@ export function buildApp({
     sandbox: config.sandbox,
     secretValues: secretValuesOf(secrets),
     ports,
+    running,
   });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
@@ -437,6 +446,7 @@ export function buildApp({
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
+  app.register(runningRoutes({ running, store }));
   app.register(portRoutes({ store, ports, apps, db }));
   app.register(collaborationRoutes({ collaboration }));
   app.register(featureRoutes({ features }));

@@ -66,7 +66,8 @@ export type RunIO = {
   tool?: (name: string, args: Record<string, unknown>) => Promise<string>;
 };
 
-export type RunHandle = { done: Promise<RunOutcome>; cancel: () => void };
+/** `pid`: the OS process behind the run, when there is one (its code runs are what runs under it). */
+export type RunHandle = { done: Promise<RunOutcome>; cancel: () => void; pid?: number };
 
 export interface Runner {
   readonly name: string;

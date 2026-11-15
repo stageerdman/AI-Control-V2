@@ -26,6 +26,7 @@ import { principlesBrief, principlesDir } from '../office/principles.ts';
 import type { WorkKind } from '../office/work-time.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import { FORGET_NUDGE, WORKING_WITH_OTHERS, YOUR_MEMORY } from '../room/context.ts';
+import type { Running } from '../running/registry.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
@@ -66,6 +67,8 @@ type Live = {
   nudged: boolean;
   /** The agent's latest words in the chat (the final result is saved only when it says something new). */
   said?: string;
+  /** Takes it off the running list (src/running) once it has ended. */
+  untrack?: () => void;
 };
 /** A run may forget this many times (a loop guard). */
 export const MAX_FORGETS = 5;
@@ -110,6 +113,8 @@ export type RuntimeDeps = {
   desk?: Desk;
   /** Context size that triggers the forget nudge (default FORGET_AT). */
   forgetAt?: number;
+  /** RUNNING: the studio's list of everything running — every run is on it while it lives. */
+  running?: Running;
 };
 /** AGENT MCP: the studio tools an agent run gets (room, call_agent), wired once the room exists. */
 export type StudioToolsFor = (run: { projectId: string; agentId: string; runId: string }) => BridgeTool[];
@@ -227,6 +232,7 @@ export function createRuntime(deps: RuntimeDeps) {
   function finish(l: Live, o: RunOutcome) {
     const { run } = l;
     live.delete(run.id);
+    l.untrack?.();
     repo.finish(run.id, o);
     recordEnd(l, o);
     for (const id of repo.cancelAsks(run.id)) settle(repo.ask(id) as Ask);
@@ -562,8 +568,29 @@ export function createRuntime(deps: RuntimeDeps) {
           });
         });
     };
-    watch(runner.start(spec, io));
+    l.untrack = deps.running?.add({
+      kind: 'session',
+      projectId,
+      agentId: agent.id,
+      label: req.task,
+      runId,
+      pid: () => l.handle.pid,
+      cancel: () => stopLive(l),
+    }).end;
+    watch(startHandle(spec, io));
     return run;
+  }
+  /** A runner that throws on start still ends as a failed run (recorded, untracked) — never a ghost "running". */
+  function startHandle(spec: RunSpec, io: RunIO): RunHandle {
+    try {
+      return runner.start(spec, io);
+    } catch (e) {
+      return { done: Promise.reject(e), cancel: () => {} };
+    }
+  }
+  function stopLive(l: Live) {
+    l.cancelled = true;
+    l.handle.cancel();
   }
   /** `forget` from a live run: save the desk note, then stop this process — the run starts again from the note. */
   function forget(runId: string, input: unknown): Promise<string> {
@@ -629,8 +656,7 @@ export function createRuntime(deps: RuntimeDeps) {
       const r = requireRun(projectId, runId);
       const l = live.get(runId);
       if (!l) throw conflict(`Run is already ${r.status}`);
-      l.cancelled = true;
-      l.handle.cancel();
+      stopLive(l);
       return r;
     },
     /** Resolves once the run has ended and been recorded (tests, shutdown). */
@@ -702,10 +728,7 @@ export function createRuntime(deps: RuntimeDeps) {
     recover: () => repo.failInterrupted(),
     shutdown: async () => {
       const all = [...live.values()];
-      for (const l of all) {
-        l.cancelled = true;
-        l.handle.cancel();
-      }
+      for (const l of all) stopLive(l);
       await Promise.allSettled(all.map((l) => l.handle.done));
       await new Promise((r) => setImmediate(r));
     },
