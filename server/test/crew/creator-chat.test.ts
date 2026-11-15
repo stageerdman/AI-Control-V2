@@ -81,3 +81,18 @@ describe('designing an agent with Tinker', () => {
     expect((await h.call('DELETE', `/creator/sessions/${s.id}`)).status).toBe(204);
   });
 });
+
+describe('hand edits during a turn', () => {
+  it('win over Tinker’s draft, field by field and look slot by slot', async () => {
+    const { keepHandEdits } = await import('../../src/crew/creator-chat.ts');
+    const before = { name: 'Sally', role: 'iOS', look: { hat: 'none', hue: 'mint' } } as never;
+    const now = { name: 'Sally', role: 'iOS', look: { hat: 'none', hue: 'rose' } } as never;
+    const tinker = { name: 'Swift Sally', role: 'iOS dev', look: { hat: 'beret', hue: 'mint' } } as never;
+    expect(keepHandEdits(before, now, tinker)).toEqual({
+      name: 'Swift Sally',
+      role: 'iOS dev',
+      look: { hat: 'beret', hue: 'rose' },
+    });
+    expect(keepHandEdits(before, before, tinker)).toBe(tinker); // nothing edited
+  });
+});

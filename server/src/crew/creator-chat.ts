@@ -63,6 +63,27 @@ const EXAMPLE = {
   },
 };
 
+/** Hand edits made while Tinker was answering win over his draft (field by field; look slot by slot). */
+export function keepHandEdits(
+  before: Partial<Draft> | null,
+  now: Partial<Draft> | null,
+  tinker: Partial<Draft> | null,
+): Partial<Draft> | null {
+  if (!now || JSON.stringify(now) === JSON.stringify(before)) return tinker;
+  const out: Record<string, unknown> = { ...(tinker ?? {}) };
+  const b = (before ?? {}) as Record<string, unknown>;
+  for (const [k, v] of Object.entries(now)) {
+    if (k === 'look') {
+      const bl = (b.look ?? {}) as Record<string, unknown>;
+      const changed = Object.entries((v ?? {}) as Record<string, unknown>).filter(
+        ([slot, x]) => bl[slot] !== x,
+      );
+      if (changed.length) out.look = { ...((out.look as object) ?? {}), ...Object.fromEntries(changed) };
+    } else if (JSON.stringify(b[k]) !== JSON.stringify(v)) out[k] = v;
+  }
+  return out as Partial<Draft>;
+}
+
 export function createCreatorChat(deps: {
   db: Db;
   store: Store;
@@ -140,7 +161,7 @@ export function createCreatorChat(deps: {
         },
       });
       const chat: ChatLine[] = [...s.chat, { from: 'user', text }, { from: 'creator', text: value.reply }];
-      const saved = save(id, chat, value.draft ?? s.draft);
+      const saved = save(id, chat, keepHandEdits(s.draft, read(id).draft, value.draft ?? s.draft));
       return { reply: value.reply, draft: saved.draft, chat: saved.chat };
     } finally {
       busy.delete(id);
