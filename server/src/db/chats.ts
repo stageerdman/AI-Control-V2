@@ -120,6 +120,12 @@ export function latestAgentChat(db: Db, agentId: string): ChatSummary | null {
   return listAgentChats(db, agentId, { limit: 1 })[0] ?? null;
 }
 
+/** One run's chat summary (null for an unknown run). */
+export function getChat(db: Db, runId: string): ChatSummary | null {
+  const r = db.prepare(`${SUMMARY} WHERE r.id = ?`).get(runId) as Row | undefined;
+  return r ? toSummary(r) : null;
+}
+
 /** A run's messages in seq order ([] for an unknown run). */
 export function getChatMessages(db: Db, runId: string): ChatMessage[] {
   return (db.prepare('SELECT * FROM chat_messages WHERE run_id = ? ORDER BY seq').all(runId) as Row[]).map(
