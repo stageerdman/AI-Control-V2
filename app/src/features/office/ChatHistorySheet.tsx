@@ -83,7 +83,7 @@ const STATUS_TAG: Record<ChatSummary['status'], string | null> = {
   running: CHAT_COPY.working,
   succeeded: null,
   failed: 'Didn’t finish',
-  cancelled: 'Stopped',
+  cancelled: 'Stopped by you',
 };
 
 type Props = {

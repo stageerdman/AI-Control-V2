@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { createAppRunner } from './apps/app-runner.ts';
 import { createPorts } from './apps/ports.ts';
+import { historyTools } from './chats/tools.ts';
 import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
@@ -372,6 +373,7 @@ export function buildApp({
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
     ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
     ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
+    ...historyTools(db, { projectId, agentId, runId }),
     ...mail.tools(projectId, agentId),
     ...(hq.get() === projectId
       ? [

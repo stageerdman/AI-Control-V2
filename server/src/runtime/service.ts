@@ -60,6 +60,8 @@ type Live = {
   forgetting?: DeskNoteBody;
   forgets: number;
   cancelled?: boolean;
+  /** The studio is closing: the run is left 'running' on its row so the restart recovers it like a crash. */
+  closing?: boolean;
   /** Turns + usage of earlier handles of this run (before a forget). */
   before: { turns: number; usage: RunOutcome['usage'] };
   /** The latest turn's context size (input + cache), for the forget nudge. */
@@ -70,6 +72,10 @@ type Live = {
   /** Takes it off the running list (src/running) once it has ended. */
   untrack?: () => void;
 };
+/** How a run the user stopped is named: on its row (error), its chat's last line and its checklist item. */
+export const STOPPED_BY_YOU = 'Stopped by you';
+/** A run cut off because the studio closed; on restart it is marked interrupted and its work carries on. */
+export const STUDIO_CLOSED = 'Paused: the studio closed during this run';
 /** A run may forget this many times (a loop guard). */
 export const MAX_FORGETS = 5;
 /** Context (tokens) past which the studio nudges an agent to forget. AI_STUDIO_FORGET_AT overrides. */
@@ -229,10 +235,13 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   /* ---------------------------------------------------------------- runs */
-  function finish(l: Live, o: RunOutcome) {
+  function finish(l: Live, outcome: RunOutcome) {
     const { run } = l;
     live.delete(run.id);
     l.untrack?.();
+    if (l.closing) return closedOut(l);
+    /* a stop says so in plain words, never as an error */
+    const o = outcome.status === 'cancelled' ? { ...outcome, error: STOPPED_BY_YOU } : outcome;
     repo.finish(run.id, o);
     recordEnd(l, o);
     for (const id of repo.cancelAsks(run.id)) settle(repo.ask(id) as Ask);
@@ -275,9 +284,15 @@ export function createRuntime(deps: RuntimeDeps) {
       o.status === 'succeeded'
         ? 'Finished'
         : o.status === 'cancelled'
-          ? 'Cancelled'
+          ? `${STOPPED_BY_YOU}. The chat and the work so far are kept — ask to continue any time.`
           : `Failed: ${o.error ?? 'error'}`;
     record(l.run, l.secrets, 'system', text, { kind: 'end', status: o.status });
+  }
+  /** The studio closed mid-run: the chat says so and the row stays 'running' — the restart's recover marks
+      it interrupted, and its checklist item carries on in the same session (dispatch.recover). */
+  function closedOut(l: Live) {
+    record(l.run, l.secrets, 'system', STUDIO_CLOSED, { kind: 'end', status: 'interrupted' });
+    for (const id of repo.cancelAsks(l.run.id)) settle(repo.ask(id) as Ask);
   }
 
   /** What a run says goes into its chat: its words, and each tool call as one short line (never the payload). */
@@ -728,7 +743,10 @@ export function createRuntime(deps: RuntimeDeps) {
     recover: () => repo.failInterrupted(),
     shutdown: async () => {
       const all = [...live.values()];
-      for (const l of all) stopLive(l);
+      for (const l of all) {
+        l.closing = true; // not the user's stop: the restart picks the work up again
+        stopLive(l);
+      }
       await Promise.allSettled(all.map((l) => l.handle.done));
       await new Promise((r) => setImmediate(r));
     },

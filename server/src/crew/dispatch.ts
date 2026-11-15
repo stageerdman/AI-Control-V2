@@ -355,8 +355,12 @@ export function createDispatch(deps: {
   }
   /** The next message of a stopped session: pick up where it was (the original task is already in its context). */
   function carryOnTask(it: ChecklistItem): string {
+    const why =
+      runOf(it.resumeRunId)?.status === 'cancelled'
+        ? 'the user stopped you, and has now asked you to continue'
+        : 'you reached your turn limit, or the studio restarted';
     return [
-      `You were stopped partway through your checklist item "${it.text}" (you reached your turn limit, or the studio restarted). Your session and your files are as you left them.`,
+      `You were stopped partway through your checklist item "${it.text}" (${why}). Your session and your files are as you left them.`,
       it.workspace
         ? `Check where you are (\`git status\`, \`git log --oneline ${it.workspace.main}..HEAD\`), commit what's done, then carry on and finish it. Work in small steps and commit as you go.`
         : 'Check where you are, then carry on and finish it. Work in small steps.',

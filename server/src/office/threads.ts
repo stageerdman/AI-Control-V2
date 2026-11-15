@@ -165,7 +165,19 @@ export function createThreads(deps: {
     const at = now();
     db.prepare(
       'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, rebuild, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(id, projectId, agentId, m.sender, m.kind, text, m.runId, m.reportId ?? null, m.goalId ?? null, m.rebuild ? JSON.stringify(m.rebuild) : null, at);
+    ).run(
+      id,
+      projectId,
+      agentId,
+      m.sender,
+      m.kind,
+      text,
+      m.runId,
+      m.reportId ?? null,
+      m.goalId ?? null,
+      m.rebuild ? JSON.stringify(m.rebuild) : null,
+      at,
+    );
     try {
       events.append('project', projectId, {
         type: 'thread.message',
@@ -582,7 +594,7 @@ export function createThreads(deps: {
       text: ok
         ? (run.result as string)
         : run.status === 'cancelled'
-          ? 'Stopped before I could answer.'
+          ? 'Stopped by you before I could answer. Ask me to carry on any time.'
           : `I couldn’t finish that: ${clip(run.error ?? 'no answer', 2000)}`,
       runId: run.id,
     });
