@@ -547,6 +547,8 @@ export type EventPayloads = {
   /** STUDIO LIFE */
   'desk.note': { agentId: string; noteId: string; runId?: string };
   'guest.changed': { agentId: string; change: 'joined' | 'updated' | 'left' };
+  /** The director staffed the project from chat. */
+  'staff.changed': { teamIds: string[]; agentIds: string[]; added: string[] };
   'mail.changed': {
     mailId: string;
     change: 'arrived' | 'triaged' | 'filed' | 'reopened';
@@ -699,6 +701,7 @@ export const EVENT_TYPES = [
   'room.call',
   'desk.note',
   'guest.changed',
+  'staff.changed',
   'mail.changed',
   'plan.changed',
   'cast.created',

@@ -534,6 +534,20 @@ function Office({
           if (change === 'left') announce(`${nickOf(agentId)} went home.`);
           break;
         }
+        case 'staff.changed': {
+          /* the director brought people in: the Cast's teams + this project changed, the room rebuilds */
+          void Promise.all([invalidate('teams'), invalidate('projects'), invalidate(keys.project(pid))]).then(
+            () => reload(ev.payload.added[0] ?? '', 'joined'),
+          );
+          const n = ev.payload.added.length;
+          if (n)
+            announce(
+              n === 1
+                ? `${nickOf(ev.payload.added[0] as string)} joined the team.`
+                : `${n} people joined the project.`,
+            );
+          break;
+        }
         case 'mail.changed':
           void refreshMail(pid);
           break;

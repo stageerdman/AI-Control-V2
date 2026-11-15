@@ -72,6 +72,12 @@ export const EVENT_SCHEMAS = {
     change: z.enum(['arrived', 'triaged', 'filed', 'reopened']),
     status: z.enum(['new', 'board', 'discussed', 'filed']),
   }),
+  /** The director (re)staffed the project from chat: its teams + specialists now, and who just joined. */
+  'staff.changed': z.strictObject({
+    teamIds: z.array(id).max(40),
+    agentIds: z.array(id).max(40),
+    added: z.array(id).max(60),
+  }),
   /** The setup plan changed (ids only; GET /drafts/:id/chat has the whole plan). */
   'plan.changed': z.strictObject({
     summary: text(1000),

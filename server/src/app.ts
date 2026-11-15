@@ -8,7 +8,7 @@ import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
-import { createCreatorChat } from './crew/creator-chat.ts';
+import { createCreatorChat, proposeTool } from './crew/creator-chat.ts';
 import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
@@ -33,6 +33,7 @@ import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
 import { createPortraits } from './office/portrait.ts';
 import { createPrinciples } from './office/principles.ts';
+import { createStaffing } from './office/staffing.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
@@ -291,6 +292,8 @@ export function buildApp({
     reports,
     secretValues: secretValuesOf(secrets),
     orchestratorCaps: caps.orchestrator,
+    /* the director staffs the project from chat (existing Cast agents only) */
+    staffing: createStaffing({ store, events }),
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
   });
@@ -311,10 +314,26 @@ export function buildApp({
     say: (projectId, directorId, text, goalId) =>
       threads.record(projectId, directorId, { sender: 'agent', text, goalId: goalId ?? null }),
   });
-  /* every agent run's studio tools: the room (call_agent, comms_log) + mail when it may */
+  /* Tinker's design chats; HQ's agents may propose new agents into them */
+  const creatorChats = createCreatorChat({
+    db,
+    store,
+    crew,
+    creator,
+    scratchDir: join(config.home, 'scratch'),
+  });
+  /* every agent run's studio tools: the room (call_agent, comms_log) + mail when it may (+ propose_agent at HQ) */
   runtime.setStudioTools(({ projectId, agentId }) => [
     ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
     ...mail.tools(projectId, agentId),
+    ...(hq.get() === projectId
+      ? [
+          proposeTool(creatorChats, () => ({
+            name: store.agents.get(agentId)?.name ?? 'An agent',
+            projectName: store.projects.get(projectId)?.name ?? 'HQ',
+          })),
+        ]
+      : []),
   ]);
   /* the project's own app (its dev server), on the user's Mac; stopped with the server */
   const apps = createAppRunner({
@@ -366,11 +385,7 @@ export function buildApp({
   app.register(githubRoutes({ github }));
   app.register(settingsRoutes({ github, autoApprove, hq, store }));
   app.register(mailRoutes({ mail }));
-  app.register(
-    creatorChatRoutes({
-      chats: createCreatorChat({ db, store, crew, creator, scratchDir: join(config.home, 'scratch') }),
-    }),
-  );
+  app.register(creatorChatRoutes({ chats: creatorChats }));
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );

@@ -218,6 +218,28 @@ export function createCreatorChat(deps: {
       });
       return store.agents.require(agent.id);
     },
+    /** An agent's design proposal (HQ's `propose_agent`): a new draft chat in the Cast, for the user to review. */
+    propose(by: { name: string; projectName: string }, input: unknown, note?: string): Session {
+      const r = DraftSchema.safeParse(input);
+      if (!r.success)
+        throw new Error(
+          `Not yet — fix this and call again:\n${r.error.issues.map((i) => `- ${i.path.join('.') || '(root)'}: ${i.message}`).join('\n')}`,
+        );
+      const issues = agentDefIssues(r.data, { agentNames: taken(), teamNames: [], agent: () => null });
+      if (issues.length) throw new Error(`Not yet — ${issues.join('; ')}`);
+      const id = randomUUID();
+      const t = now();
+      const chat: ChatLine[] = [
+        {
+          from: 'creator',
+          text: `${by.name} sent this design over from ${by.projectName}${note ? ` — ${note}` : ''}. Tell me what to change, or add them to the Cast.`,
+        },
+      ];
+      db.prepare(
+        'INSERT INTO creator_sessions (id, chat, draft, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      ).run(id, JSON.stringify(chat), JSON.stringify(r.data), t, t);
+      return read(id);
+    },
     drop(id: string): void {
       read(id);
       db.prepare('DELETE FROM creator_sessions WHERE id = ?').run(id);
@@ -225,3 +247,24 @@ export function createCreatorChat(deps: {
   };
 }
 export type CreatorChat = ReturnType<typeof createCreatorChat>;
+
+/** propose_agent: HQ agents design new agents for the Cast — they wait as Tinker drafts until the user adds them. */
+export function proposeTool(chats: CreatorChat, by: () => { name: string; projectName: string }) {
+  return {
+    name: 'propose_agent',
+    description: `Propose a new agent for the AI Studio Cast: it appears in the Cast as a draft the user reviews with Tinker and adds (or not). Original characters only — no real people's names or likenesses, no characters, names or art from films, games or studios; capture a spirit, not a copy. Shape: ${JSON.stringify(EXAMPLE.draft)}. Look options: ${JSON.stringify({ hat: AGENT_HATS, tool: AGENT_TOOLS, body: BODIES, antenna: ANTENNAS, face: FACES, hue: HUES })}.`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        draft: { type: 'object', description: 'The agent: {name, role, summary, prompt, look}.' },
+        note: { type: 'string', description: 'One line for the user: why this agent.' },
+      },
+      required: ['draft'],
+    },
+    run: async (a: Record<string, unknown>) => {
+      const draft = typeof a.draft === 'string' ? (JSON.parse(a.draft) as unknown) : a.draft;
+      const s = chats.propose(by(), draft, typeof a.note === 'string' ? a.note : undefined);
+      return `Proposed ${String((s.draft as { name?: string })?.name)} — it waits in the Cast as a draft for the user.`;
+    },
+  };
+}

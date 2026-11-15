@@ -31,6 +31,7 @@ import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { DIRECTOR_ANSWER, parseDirectorReply } from './director-reply.ts';
 import type { Features } from './features.ts';
+import { castAvailable, type Staffing } from './staffing.ts';
 
 export type ThreadMessage = {
   id: string;
@@ -94,6 +95,8 @@ export function createThreads(deps: {
   /** Make a goal exactly as `POST /work` would (dispatch.start), without its own thread lines. Absent → the
       director's work answers are replies only. */
   startWork?: (projectId: string, goal: string) => Promise<Goal>;
+  /** The director staffs the project from chat (office/staffing.ts). */
+  staffing?: Staffing;
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
@@ -258,6 +261,8 @@ export function createThreads(deps: {
           ];
         }),
         specialists: p.agentIds.map(person),
+        /* who the director may staff the project with (by name; never invent anyone) */
+        castAvailable: castAvailable(store, p.id),
         howWeWork: p.collaboration?.summary ?? 'You brief the team captains; no review gates.',
       },
       /* active goals only, with their items (G1: finished ones made the orchestrator count old goals as current) */
@@ -395,6 +400,19 @@ export function createThreads(deps: {
         text: d.reply,
         runId: run.id,
       });
+      if (d.staff && deps.staffing) {
+        try {
+          deps.staffing.apply(t.projectId, d.staff, t.agentId);
+        } catch (e) {
+          insert(t.projectId, t.agentId, {
+            sender: 'agent',
+            kind: 'error',
+            text: `I couldn’t set up the people: ${clip(e instanceof Error ? e.message : String(e), 2000)}`,
+            runId: null,
+          });
+          return; // no work on a team that isn't there
+        }
+      }
       if (d.goal && deps.startWork) startWork(t, d.goal, [t.messageId, reply.id]);
       return;
     }
