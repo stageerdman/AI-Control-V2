@@ -29,6 +29,8 @@ export const agentRoutes =
       const { id } = parse(IdParams, req.params);
       return store.tx(() => store.agents.update(id, parse(AgentPatch, req.body)));
     });
-    /* leaves its teams (captaincy passes on) and hands its projects to another orchestrator; restorable */
+    /* lets the app block Delete before anyone clicks; the delete itself checks again */
+    app.get('/agents/:id/busy', async (req) => store.trash.agentBusy(parse(IdParams, req.params).id));
+    /* refused (409 agent_busy) while in a running session; else leaves its teams (captaincy passes on) and hands its projects to another orchestrator; restorable */
     app.delete('/agents/:id', async (req) => store.trash.trashAgent(parse(IdParams, req.params).id));
   };

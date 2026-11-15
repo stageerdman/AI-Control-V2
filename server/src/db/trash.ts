@@ -12,6 +12,7 @@ import { type Db, tx } from './connection.ts';
 import type { DraftRecord, DraftsRepo } from './drafts.ts';
 import type { ProjectsRepo } from './projects.ts';
 import type { RoleRecord, RolesRepo } from './roles.ts';
+import type { RunsRepo } from './runs.ts';
 import type { TeamRecord, TeamsRepo } from './teams.ts';
 import { exists, now, row } from './util.ts';
 
@@ -30,6 +31,9 @@ type DraftSnap = { draft: DraftRecord };
 
 export type Deleted = { deleted: { kind: Kind; id: string }; restoreToken: string };
 export type Restored = { restored: { kind: Kind; id: string } };
+/** A running session that keeps an agent from being deleted. */
+export type BusySession = { runId: string; projectId: string; projectName: string; task: string; startedAt: string };
+export type AgentBusy = { busy: boolean; sessions: BusySession[] };
 
 type Repos = {
   roles: RolesRepo;
@@ -37,6 +41,7 @@ type Repos = {
   teams: TeamsRepo;
   projects: ProjectsRepo;
   drafts: DraftsRepo;
+  runs: RunsRepo;
 };
 
 export function trashRepo(db: Db, r: Repos) {
@@ -69,11 +74,39 @@ export function trashRepo(db: Db, r: Repos) {
     }
   };
 
+  /* ------------------------------------------------------------ busy */
+  const busySessions = (agentId: string): BusySession[] =>
+    r.runs.runningForAgent(agentId).map((run) => ({
+      runId: run.id,
+      projectId: run.projectId,
+      projectName: r.projects.get(run.projectId)?.name ?? run.projectId,
+      task: run.task,
+      startedAt: run.startedAt,
+    }));
+
+  const agentBusy = (id: string): AgentBusy => {
+    if (!r.agents.record(id)) throw notFound('Agent', id);
+    const sessions = busySessions(id);
+    return { busy: sessions.length > 0, sessions };
+  };
+
+  /* checked before anything moves, so a busy agent is never partly trashed */
+  const assertNotBusy = (agent: AgentRecord) => {
+    const sessions = busySessions(agent.id);
+    if (sessions.length === 0) return;
+    throw new AppError(
+      'agent_busy',
+      `${agent.name} is working in a running session right now. You can delete them when it ends.`,
+      { sessions },
+    );
+  };
+
   /* ------------------------------------------------------------ delete */
   const trashAgent = (id: string): Deleted =>
     tx(db, () => {
       const agent = r.agents.record(id);
       if (!agent) throw notFound('Agent', id);
+      assertNotBusy(agent);
       const cast = r.agents.records();
       assertCanDelete(agent, cast);
 
@@ -198,6 +231,6 @@ export function trashRepo(db: Db, r: Repos) {
       return { restored: { kind: t.kind, id: t.item_id } };
     });
 
-  return { trashAgent, trashRole, trashTeam, trashDraft, restore };
+  return { agentBusy, trashAgent, trashRole, trashTeam, trashDraft, restore };
 }
 export type TrashRepo = ReturnType<typeof trashRepo>;

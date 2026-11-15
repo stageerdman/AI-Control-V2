@@ -136,6 +136,13 @@ export function runsRepo(db: Db) {
         .get(projectId, agentId) as RunRow | undefined;
       return r ? toRun(r) : null;
     },
+    /** The agent's live runs in every project (chat turns are runs too), oldest first. */
+    runningForAgent: (agentId: string): Run[] =>
+      (
+        db
+          .prepare("SELECT * FROM runs WHERE agent_id = ? AND status = 'running' ORDER BY started_at, rowid")
+          .all(agentId) as RunRow[]
+      ).map(toRun),
     setSession: (id: string, sessionId: string) =>
       db.prepare('UPDATE runs SET session_id = ? WHERE id = ?').run(sessionId, id),
     finish(

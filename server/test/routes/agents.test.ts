@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { runsRepo } from '../../src/db/runs.ts';
 import { testApp } from '../helpers.ts';
 
 const look = { hat: 'beret', tool: 'palette', body: 'lanky', antenna: 'curl', face: 'none', hue: 'coral' };
@@ -150,6 +151,68 @@ describe('agents API', () => {
     expect((await h.call('POST', `/trash/${d.body.restoreToken}/restore`)).status).toBe(200);
     expect((await h.call('GET', '/agents/a-baron')).body.teamIds).toEqual([]);
     expect((await h.call('GET', '/teams/engine')).body.members).toHaveLength(7);
+  });
+
+  describe('a busy agent (in a running session) cannot be deleted', () => {
+    const startRun = (id: string) =>
+      runsRepo(h.db).insert({
+        id,
+        projectId: 'aurora',
+        agentId: 'a-pete',
+        teamId: null,
+        task: 'Polish the landing page',
+        runner: 'stub',
+        model: null,
+        caps: { maxTurns: 1, maxBudgetUsd: 1 },
+      });
+    const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+    it('refuses with 409 agent_busy and the session, and moves nothing', async () => {
+      const run = startRun('run-1');
+      const teamsBefore = (await h.call('GET', '/teams/ship-it')).body;
+
+      const busy = await h.call('GET', '/agents/a-pete/busy');
+      const session = {
+        runId: 'run-1',
+        projectId: 'aurora',
+        projectName: (await h.call('GET', '/projects/aurora')).body.name,
+        task: 'Polish the landing page',
+        startedAt: run.startedAt,
+      };
+      expect(busy.body).toEqual({ busy: true, sessions: [session] });
+
+      const d = await h.call('DELETE', '/agents/a-pete');
+      expect(d.status).toBe(409);
+      expect(d.body.error).toEqual({
+        code: 'agent_busy',
+        message: 'Pixel Pete is working in a running session right now. You can delete them when it ends.',
+        details: { sessions: [session] },
+      });
+      expect((await h.call('GET', '/agents/a-pete')).body.teamIds).toEqual(['ship-it']);
+      expect((await h.call('GET', '/teams/ship-it')).body).toEqual(teamsBefore);
+    });
+
+    it('deletes and restores as usual once the run has finished', async () => {
+      startRun('run-2');
+      runsRepo(h.db).finish('run-2', { status: 'succeeded', usage, turns: 1 });
+      expect((await h.call('GET', '/agents/a-pete/busy')).body).toEqual({ busy: false, sessions: [] });
+
+      const d = await h.call('DELETE', '/agents/a-pete');
+      expect(d.status).toBe(200);
+      expect(d.body.deleted).toEqual({ kind: 'agent', id: 'a-pete' });
+      expect((await h.call('POST', `/trash/${d.body.restoreToken}/restore`)).status).toBe(200);
+      expect((await h.call('GET', '/agents/a-pete')).body.teamIds).toEqual(['ship-it']);
+    });
+
+    it('is free again after a restart clears stuck runs', async () => {
+      startRun('run-3');
+      runsRepo(h.db).failInterrupted();
+      expect((await h.call('DELETE', '/agents/a-pete')).status).toBe(200);
+    });
+
+    it('busy is 404 for an unknown agent', async () => {
+      expect((await h.call('GET', '/agents/a-ghost/busy')).status).toBe(404);
+    });
   });
 
   it('agents are shared definitions: one record used by many projects, edits show everywhere', async () => {

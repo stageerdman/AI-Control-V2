@@ -6,6 +6,7 @@ import { draftsRepo } from './drafts.ts';
 import { guestsRepo } from './guests.ts';
 import { projectsRepo } from './projects.ts';
 import { rolesRepo } from './roles.ts';
+import { runsRepo } from './runs.ts';
 import { teamsRepo } from './teams.ts';
 import { trashRepo } from './trash.ts';
 
@@ -15,7 +16,7 @@ export function createStore(db: Db, opts: { sandbox: string }) {
   const teams = teamsRepo(db, agents);
   const projects = projectsRepo(db, { agents, teams, sandbox: opts.sandbox });
   const drafts = draftsRepo(db, { agents, teams, sandbox: opts.sandbox });
-  const trash = trashRepo(db, { roles, agents, teams, projects, drafts });
+  const trash = trashRepo(db, { roles, agents, teams, projects, drafts, runs: runsRepo(db) });
   const accesses = accessesRepo(db);
   const guests = guestsRepo(db);
   return {
