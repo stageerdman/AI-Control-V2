@@ -8,6 +8,9 @@ const TokenParams = z.object({ token: z.uuid() });
 export const trashRoutes =
   (store: Store): FastifyPluginAsync =>
   async (app) => {
+    /* the Cast's "Recently deleted": agents still restorable, newest first */
+    app.get('/trash/agents', async () => ({ items: store.trash.deletedAgents() }));
+
     /* undo a delete: the token comes from DELETE /agents|roles|teams|drafts/:id */
     app.post('/trash/:token/restore', async (req) =>
       store.trash.restore(parse(TokenParams, req.params).token),

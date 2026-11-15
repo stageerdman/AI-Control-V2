@@ -47,7 +47,11 @@ function failedItem(agentId: string, runId: string) {
   work.setGoalStatus(g.id, 'failed');
   return `i-${agentId}`;
 }
-const deleteTrashRows = (id: string) => h.store.db.prepare('DELETE FROM trash WHERE item_id = ?').run(id);
+/** As if the agent was hard-deleted with no snapshot left: the trash rows and the hidden agent row go. */
+const deleteTrashRows = (id: string) => {
+  h.store.db.prepare('DELETE FROM trash WHERE item_id = ?').run(id);
+  h.store.agents.deleteRecord(id);
+};
 
 describe('restore missing agents', () => {
   it('restores from the trash snapshot: same id, setup, tools and team seat', () => {

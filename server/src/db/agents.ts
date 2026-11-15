@@ -30,6 +30,8 @@ export type AgentRecord = {
   can_mail?: number;
   /** JSON Toolset, NULL = the studio's full kit (absent on rows read before migration 32). */
   tools?: string | null;
+  /** Set while the agent sits in the trash (absent on rows read before migration 33). */
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -71,9 +73,15 @@ export type AgentPatch = Partial<Omit<AgentCreate, 'kind' | 'tools'>> & { canMai
 const kindRank = (a: { kind: AgentKind; position: number }) => KIND_ORDER[a.kind] * 1e9 + a.position;
 
 export function agentsRepo(db: Db, roles: RolesRepo) {
+  /* Every read goes through these two, so a hidden (trashed) agent is invisible everywhere. */
   const records = () =>
-    rows<AgentRecord>(db.prepare('SELECT * FROM agents').all()).sort((a, b) => kindRank(a) - kindRank(b));
-  const record = (id: string) => row<AgentRecord>(db.prepare('SELECT * FROM agents WHERE id = ?').get(id));
+    rows<AgentRecord>(db.prepare('SELECT * FROM agents WHERE deleted_at IS NULL').all()).sort(
+      (a, b) => kindRank(a) - kindRank(b),
+    );
+  const record = (id: string) =>
+    row<AgentRecord>(db.prepare('SELECT * FROM agents WHERE id = ? AND deleted_at IS NULL').get(id));
+  const hiddenRecord = (id: string) =>
+    row<AgentRecord>(db.prepare('SELECT * FROM agents WHERE id = ? AND deleted_at IS NOT NULL').get(id));
 
   const teamIds = (id: string) =>
     rows<{ team_id: string }>(
@@ -95,31 +103,35 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         .all(id),
     ).map((r) => r.id);
 
-  const toAgent = (r: AgentRecord, cast: AgentRecord[]): Agent => {
+  /** Display role: the user role's name; system agents fall back to their kind label. */
+  const roleLabel = (r: Pick<AgentRecord, 'kind' | 'role_id'>): string => {
     const roleName = r.role_id ? (roles.get(r.role_id)?.name ?? '') : '';
-    return {
-      id: r.id,
-      kind: r.kind,
-      system: isSystemKind(r.kind),
-      name: r.name,
-      nick: r.nick,
-      roleId: r.role_id,
-      role: roleName || (isSystemKind(r.kind) ? KIND_LABEL[r.kind] : ''),
-      look: JSON.parse(r.look) as Look,
-      prompt: r.prompt,
-      canMail: r.can_mail !== 0,
-      tools: r.tools ? (JSON.parse(r.tools) as Toolset) : null,
-      teamIds: teamIds(r.id),
-      projectIds: projectIds(r.id),
-      canDelete: canDelete(r, cast),
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-    };
+    return roleName || (isSystemKind(r.kind) ? KIND_LABEL[r.kind] : '');
   };
+
+  const toAgent = (r: AgentRecord, cast: AgentRecord[]): Agent => ({
+    id: r.id,
+    kind: r.kind,
+    system: isSystemKind(r.kind),
+    name: r.name,
+    nick: r.nick,
+    roleId: r.role_id,
+    role: roleLabel(r),
+    look: JSON.parse(r.look) as Look,
+    prompt: r.prompt,
+    canMail: r.can_mail !== 0,
+    tools: r.tools ? (JSON.parse(r.tools) as Toolset) : null,
+    teamIds: teamIds(r.id),
+    projectIds: projectIds(r.id),
+    canDelete: canDelete(r, cast),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  });
 
   const repo = {
     records,
     record,
+    roleLabel,
     list(): Agent[] {
       const cast = records();
       return cast.map((r) => toAgent(r, cast));
@@ -203,7 +215,11 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         r.updated_at,
       );
     },
-    /** Raw delete (team seats + specialist links cascade). Use trash.trashAgent for the rules + undo. */
+    hiddenRecord,
+    /** Raw soft delete: the row stays, so nothing cascades. Use trash.trashAgent for the rules + undo. */
+    hide: (id: string, at: string) => db.prepare('UPDATE agents SET deleted_at = ? WHERE id = ?').run(at, id),
+    unhide: (id: string) => db.prepare('UPDATE agents SET deleted_at = NULL WHERE id = ?').run(id),
+    /** Raw hard delete (seats, links, guest spots cascade). Only the trash purge calls it, after the keep time. */
     deleteRecord: (id: string) => db.prepare('DELETE FROM agents WHERE id = ?').run(id),
   };
   return repo;

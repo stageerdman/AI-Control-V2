@@ -25,17 +25,20 @@ const toGuest = (r: Row): Guest => ({
   addedAt: r.added_at,
 });
 
+/* A guest whose agent sits in the trash is kept (it comes back on restore) but not seen. */
+const LIVE = 'agent_id NOT IN (SELECT id FROM agents WHERE deleted_at IS NOT NULL)';
+
 export function guestsRepo(db: Db) {
   return {
     list: (projectId: string): Guest[] =>
       rows<Row>(
         db
-          .prepare('SELECT * FROM project_guests WHERE project_id = ? ORDER BY added_at, rowid')
+          .prepare(`SELECT * FROM project_guests WHERE project_id = ? AND ${LIVE} ORDER BY added_at, rowid`)
           .all(projectId),
       ).map(toGuest),
     get(projectId: string, agentId: string): Guest | null {
       const r = db
-        .prepare('SELECT * FROM project_guests WHERE project_id = ? AND agent_id = ?')
+        .prepare(`SELECT * FROM project_guests WHERE project_id = ? AND agent_id = ? AND ${LIVE}`)
         .get(projectId, agentId) as Row | undefined;
       return r ? toGuest(r) : null;
     },
@@ -44,7 +47,7 @@ export function guestsRepo(db: Db) {
       rows<{ agent_id: string }>(
         db
           .prepare(
-            `SELECT agent_id FROM project_guests WHERE project_id = ?${onlyOrchestratorMay ? ' AND orchestrator_may = 1' : ''} ORDER BY added_at, rowid`,
+            `SELECT agent_id FROM project_guests WHERE project_id = ? AND ${LIVE}${onlyOrchestratorMay ? ' AND orchestrator_may = 1' : ''} ORDER BY added_at, rowid`,
           )
           .all(projectId),
       ).map((r) => r.agent_id),

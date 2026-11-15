@@ -567,6 +567,9 @@ export const MIGRATIONS: readonly string[] = [
   /* 32 — working tools per agent: JSON Toolset (src/domain/toolset.ts) — what it may edit and run.
      NULL = the studio's full kit, as every agent had before. */
   `ALTER TABLE agents ADD COLUMN tools TEXT;`,
+  /* 33 — soft delete: a deleted agent is hidden (deleted_at set) for the trash's keep time, so nothing
+     cascades and its chats, work and comms stay linked to the same id. Every agent read skips these rows. */
+  `ALTER TABLE agents ADD COLUMN deleted_at TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {
