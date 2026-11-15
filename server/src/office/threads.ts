@@ -86,7 +86,15 @@ export function orchestratorChatPrompt(
     ? 'The user is chatting with you in the project’s office, mostly by voice. Every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work. Your only tools are the whiteboard tools.'
     : 'The user is chatting with you in the project’s office, mostly by voice. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.';
   const board = boardTools
-    ? 'Whiteboard tools: `whiteboard` shows every goal and task with its id; `add_goal` puts a goal with tasks you choose yourself on it; `add_task`, `edit_goal` and `edit_task` change text, brief, owner, order or status; `remove_from_board` and `clean_board` take things off. Use them when the user asks to change, reorder, reassign, fix or tidy the board. Tasks go to team captains or specialists. A change that touches running work is refused unless you pass force: true — do that only when the user clearly wants the work stopped, and say whose work you stopped.'
+    ? [
+        'Whiteboard tools — every change shows on the board at once and is logged under your name. Look with `whiteboard` first to get ids.',
+        '- New work the user wants: `add_goal` (1–8 tasks you choose, in order, each for a team captain or specialist). A step missing from a goal: `add_task`.',
+        '- Wording, brief, owner, order, parallel or status of something already there: `edit_task` / `edit_goal`. A failed task to try again: `edit_task` status todo. A goal to stop: `edit_goal` status cancelled.',
+        '- Something wrong, duplicate or no longer wanted: `remove_from_board`.',
+        '- Tidying: after a goal ships, or when finished or stopped goals crowd the board, `clean_board` (finished or stopped; all only when the user asks for a fresh board).',
+        '- Took off the wrong thing, or the user wants it back: `undo_board` (within a day); `board_history` shows who changed what and when.',
+        'A change that touches running work is refused unless you pass force: true — do that only when the user clearly wants the work stopped, and say whose work you stopped.',
+      ].join('\n')
     : '';
   return [
     `# ${orch.name}`,
@@ -134,7 +142,7 @@ export function createThreads(deps: {
   /** The director sees what is running and stops it (one agent, or everything). Absent → it can't. */
   stops?: DirectorStopper;
   /** The director's whiteboard tools for this project (src/whiteboard/tools.ts). Absent → it has none. */
-  boardTools?: (projectId: string) => BridgeTool[];
+  boardTools?: (projectId: string, directorId: string) => BridgeTool[];
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
@@ -668,7 +676,7 @@ export function createThreads(deps: {
               caps: deps.orchestratorCaps ?? CREW_CAPS,
               bigPicture: {
                 systemPrompt: orchestratorChatPrompt(s.agent, p.name, !!deps.boardTools),
-                ...(deps.boardTools ? { tools: deps.boardTools(projectId) } : {}),
+                ...(deps.boardTools ? { tools: deps.boardTools(projectId, s.agent.id) } : {}),
               },
             }
           : {}),

@@ -1,7 +1,8 @@
 /* The director's hands on the whiteboard: add goals and tasks, edit them, take them off, clean up.
    Rules: text/brief/order changes to running work apply with a warning; changing who owns it, its status, or
    removing it is refused unless `force` — then the running work is stopped first and the reply says whose.
-   A goal that gains open tasks runs again. Every change is announced (dispatch's board port). */
+   A goal that gains open tasks runs again. Every change is announced (dispatch's board port), so the office
+   redraws at once, and logged with who made it (`by`); removals can be undone for a day (history.ts). */
 import { randomUUID } from 'node:crypto';
 import type { createDispatch } from '../crew/dispatch.ts';
 import type { Db } from '../db/connection.ts';
@@ -9,6 +10,7 @@ import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type NewItem, workRepo } from '../db/work.ts';
 import { conflict, invalid } from '../errors.ts';
 import { boardText, goalBlock } from './board-text.ts';
+import { createHistory } from './history.ts';
 import { type Roster, resolveOwner } from './owner.ts';
 
 export type BoardPort = ReturnType<typeof createDispatch>['board'];
@@ -40,6 +42,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   const { store, port } = deps;
   const work = workRepo(deps.db);
   const name = (id: string) => store.agents.get(id)?.name ?? id;
+  const history = createHistory({ db: deps.db, store, name });
 
   function roster(projectId: string): Roster {
     const p = store.projects.require(projectId);
@@ -145,11 +148,22 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     const shown = goalIds.map((id) => work.goal(id)).filter((g): g is Goal => !!g);
     return [lead.trim(), ...shown.map((g) => goalBlock(g, name))].join('\n\n');
   };
+  /** The parts of an edit that were asked for, for the log line. */
+  const changed = (e: object) =>
+    Object.entries(e)
+      .filter(([k, v]) => k !== 'force' && v !== undefined)
+      .map(([k]) => k)
+      .join(', ');
 
   return {
     view: (projectId: string) => boardText(work.goals(projectId), name),
+    history: (projectId: string) => history.text(projectId),
 
-    addGoal(projectId: string, a: { text: string; summary?: string; tasks: TaskInput[] }): string {
+    addGoal(
+      projectId: string,
+      by: string,
+      a: { text: string; summary?: string; tasks: TaskInput[] },
+    ): string {
       const p = store.projects.require(projectId);
       if (!p.folder) throw conflict('This project has no folder yet — set it up first.');
       if (!a.text?.trim()) throw invalid('A goal needs "text".');
@@ -161,15 +175,17 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
           items,
         ),
       );
+      history.record(projectId, by, 'add', `Added goal '${goal.text}' with ${items.length} task(s)`);
       return reply(projectId, [goal.id], 'Added to the whiteboard; the work starts in order.');
     },
 
-    addTask(projectId: string, a: TaskInput & { goal: string; position?: number }): string {
+    addTask(projectId: string, by: string, a: TaskInput & { goal: string; position?: number }): string {
       const g = goalOf(projectId, a.goal);
       const item = newItem(projectId, a);
       work.appendItems(g, [item]);
       if (a.position !== undefined) work.moveItem(item.id, a.position - 1);
       wake(g.id);
+      history.record(projectId, by, 'add', `Added '${item.text}' to '${g.text}' for ${name(item.agentId)}`);
       return reply(
         projectId,
         [g.id],
@@ -177,7 +193,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       );
     },
 
-    async editGoal(projectId: string, id: string, e: GoalEdit): Promise<string> {
+    async editGoal(projectId: string, by: string, id: string, e: GoalEdit): Promise<string> {
       const g = goalOf(projectId, id);
       work.editGoal(id, {
         ...(e.text?.trim() ? { text: e.text.trim() } : {}),
@@ -198,10 +214,11 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         work.setGoalStatus(id, e.status);
         lead = `${stopped}Goal marked ${e.status}.`;
       }
+      history.record(projectId, by, 'edit', `Edited goal '${g.text}' (${changed(e)})`);
       return reply(projectId, [id], lead);
     },
 
-    async editTask(projectId: string, id: string, e: TaskEdit): Promise<string> {
+    async editTask(projectId: string, by: string, id: string, e: TaskEdit): Promise<string> {
       const it = taskOf(projectId, id);
       const owner = e.owner ? resolveOwner(roster(projectId), e.owner, e.team) : null;
       const newOwner = !!owner && (owner.agentId !== it.agentId || owner.teamId !== it.teamId);
@@ -237,6 +254,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       if (newOwner && owner) notes.push(`Now ${name(owner.agentId)}'s.`);
       keepRunning(wasRunning);
       wake(it.goalId);
+      history.record(projectId, by, 'edit', `Edited '${it.text}' (${changed(e)})`);
       return reply(
         projectId,
         [it.goalId],
@@ -246,36 +264,43 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
 
     async remove(
       projectId: string,
+      by: string,
       a: { goals?: string[]; tasks?: string[]; force?: boolean },
     ): Promise<string> {
       const goals = (a.goals ?? []).map((id) => goalOf(projectId, id));
       const tasks = (a.tasks ?? []).map((id) => taskOf(projectId, id));
       if (!goals.length && !tasks.length) throw invalid('Say which "goals" or "tasks" to take off.');
-      const wasRunning = runningNow([...new Set(tasks.map((t) => t.goalId))]);
+      const taskIds = new Set(tasks.map((t) => t.id));
+      const taskGoals = [...new Set(tasks.map((t) => t.goalId))];
+      /* a goal left without tasks goes too: an empty goal would read as done */
+      const emptied = taskGoals.filter((gid) => work.goal(gid)?.items.every((i) => taskIds.has(i.id)));
+      const gone = [...new Set([...goals.map((g) => g.id), ...emptied])];
+      const wasRunning = runningNow(taskGoals);
       const stopped = await clearRunning(
         projectId,
         [...goals.flatMap((g) => g.items), ...tasks],
         a.force,
         'take them off',
       );
+      const snapshot = work.snapshot(gone, [...taskIds]);
       for (const t of tasks) work.removeItem(t.id);
-      /* a goal left without tasks goes too: an empty goal would read as done */
-      const emptied = [...new Set(tasks.map((t) => t.goalId))].filter(
-        (gid) => work.goal(gid)?.items.length === 0,
-      );
-      const gone = [...new Set([...goals.map((g) => g.id), ...emptied])];
       for (const gid of gone) work.removeGoal(gid);
       keepRunning(wasRunning);
-      const touched = [...new Set([...gone, ...tasks.map((t) => t.goalId)])];
       const counts = [
         tasks.length ? `${tasks.length} task(s)` : '',
         gone.length ? `${gone.length} goal(s)` : '',
-      ];
-      return reply(projectId, touched, `${stopped}Took off ${counts.filter(Boolean).join(' and ')}.`);
+      ]
+        .filter(Boolean)
+        .join(' and ');
+      const what = [...goals.map((g) => g.text), ...tasks.map((t) => t.text)].map((t) => `'${t}'`).join(', ');
+      history.record(projectId, by, 'remove', `Took off ${what}`, snapshot);
+      const touched = [...new Set([...gone, ...taskGoals])];
+      return reply(projectId, touched, `${stopped}Took off ${counts}. undo_board puts it back.`);
     },
 
     async clean(
       projectId: string,
+      by: string,
       a: { which: CleanWhich; olderThanDays?: number; force?: boolean },
     ): Promise<string> {
       const statuses: Goal['status'][] =
@@ -299,12 +324,30 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         projectId,
         goals.flatMap((g) => g.items.filter(isOpen).map((i) => i.id)),
       );
-      for (const g of goals) work.removeGoal(g.id);
-      port.changed(
+      const ids = goals.map((g) => g.id);
+      const snapshot = work.snapshot(ids, []);
+      for (const id of ids) work.removeGoal(id);
+      history.record(
         projectId,
-        goals.map((g) => g.id),
+        by,
+        'clean',
+        `Cleaned ${a.which} goals off: ${goals.map((g) => `'${g.text}'`).join(', ')}`,
+        snapshot,
       );
-      return `${stopped}Cleaned ${goals.length} goal(s) off the whiteboard.`;
+      port.changed(projectId, ids);
+      return `${stopped}Cleaned ${goals.length} goal(s) off the whiteboard. undo_board puts them back.`;
+    },
+
+    /** Puts back a removal or clean-up (the latest if no id). Stopped work comes back stopped. */
+    undo(projectId: string, by: string, changeId?: string): string {
+      const { change, snapshot } = history.putBack(projectId, changeId);
+      const touched = [...new Set(snapshot.items.map((i) => i.goal_id as string))];
+      for (const id of touched) wake(id);
+      history.record(projectId, by, 'undo', `Undid: ${change.summary}`);
+      const stopped = snapshot.items.some((i) => i.status === 'cancelled')
+        ? ' Tasks that were stopped stay stopped — edit_task with status todo runs one again.'
+        : '';
+      return reply(projectId, touched, `Put back: ${change.summary}.${stopped}`);
     },
   };
 }

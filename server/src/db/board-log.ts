@@ -48,7 +48,15 @@ export function boardLog(db: Db) {
       const id = randomUUID();
       db.prepare(
         'INSERT INTO board_changes (id, project_id, actor, action, summary, snapshot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      ).run(id, c.projectId, c.actor, c.action, c.summary, c.snapshot ? JSON.stringify(c.snapshot) : null, now());
+      ).run(
+        id,
+        c.projectId,
+        c.actor,
+        c.action,
+        c.summary,
+        c.snapshot ? JSON.stringify(c.snapshot) : null,
+        now(),
+      );
       return log.get(id) as BoardChange;
     },
     get(id: string): BoardChange | null {
@@ -69,9 +77,9 @@ export function boardLog(db: Db) {
     /** The rows a removal took off, while it can still be undone. */
     snapshotOf(id: string): BoardSnapshot | null {
       expire();
-      const r = db
-        .prepare('SELECT snapshot FROM board_changes WHERE id = ? AND undone_at IS NULL')
-        .get(id) as { snapshot: string | null } | undefined;
+      const r = db.prepare('SELECT snapshot FROM board_changes WHERE id = ? AND undone_at IS NULL').get(id) as
+        | { snapshot: string | null }
+        | undefined;
       return r?.snapshot ? (JSON.parse(r.snapshot) as BoardSnapshot) : null;
     },
     markUndone: (id: string) =>

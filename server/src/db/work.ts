@@ -317,8 +317,7 @@ export function workRepo(db: Db) {
         (id) => db.prepare('SELECT * FROM checklist_items WHERE goal_id = ?').all(id) as Row[],
       );
       const byItem = itemIds.flatMap(
-        (id) =>
-          db.prepare('SELECT * FROM checklist_items WHERE id = ?1 OR parent_id = ?1').all(id) as Row[],
+        (id) => db.prepare('SELECT * FROM checklist_items WHERE id = ?1 OR parent_id = ?1').all(id) as Row[],
       );
       const items = [...new Map([...byGoal, ...byItem].map((r) => [r.id as string, r])).values()];
       /* parents first: a sub-task's row points at its team item */

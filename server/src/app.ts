@@ -356,7 +356,7 @@ export function buildApp({
   /* the director edits and tidies the whiteboard itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board });
   const threads = createThreads({
-    boardTools: (projectId) => whiteboardTools(board, projectId),
+    boardTools: (projectId, directorId) => whiteboardTools(board, projectId, directorId),
     db,
     store,
     events,

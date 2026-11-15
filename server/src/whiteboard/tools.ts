@@ -42,7 +42,7 @@ const FORCE = {
   description: 'Stop running work first. Without it, a change that touches running work is refused.',
 };
 
-export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
+export function whiteboardTools(board: Board, projectId: string, by: string): BridgeTool[] {
   return [
     {
       name: 'whiteboard',
@@ -67,7 +67,7 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
         required: ['text', 'tasks'],
       },
       run: async (a) =>
-        board.addGoal(projectId, {
+        board.addGoal(projectId, by, {
           text: need(a, 'text'),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),
           tasks: Array.isArray(a.tasks) ? (a.tasks as Args[]).map(task) : [],
@@ -87,7 +87,7 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
       },
       run: async (a) => {
         const position = num(a, 'position');
-        return board.addTask(projectId, {
+        return board.addTask(projectId, by, {
           goal: need(a, 'goal'),
           ...task(a),
           ...(position ? { position } : {}),
@@ -111,7 +111,7 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
       },
       run: async (a) => {
         const status = oneOf(a, 'status', ['running', 'done', 'cancelled'] as const);
-        return board.editGoal(projectId, need(a, 'goal'), {
+        return board.editGoal(projectId, by, need(a, 'goal'), {
           ...(str(a, 'text') ? { text: str(a, 'text') } : {}),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),
           ...(status ? { status } : {}),
@@ -138,7 +138,7 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
         const status = oneOf(a, 'status', ['todo', 'done', 'cancelled'] as const);
         const position = num(a, 'position');
         const parallel = bool(a, 'parallel');
-        return board.editTask(projectId, need(a, 'task'), {
+        return board.editTask(projectId, by, need(a, 'task'), {
           ...(str(a, 'text') ? { text: str(a, 'text') } : {}),
           ...(str(a, 'brief') ? { brief: str(a, 'brief') } : {}),
           ...(str(a, 'owner') ? { owner: str(a, 'owner') } : {}),
@@ -152,7 +152,8 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
     },
     {
       name: 'remove_from_board',
-      description: 'Take goals and/or tasks off the whiteboard for good.',
+      description:
+        'Take goals and/or tasks off the whiteboard (wrong, duplicate or no longer wanted). undo_board puts them back within a day.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -162,7 +163,7 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
         },
       },
       run: async (a) =>
-        board.remove(projectId, {
+        board.remove(projectId, by, {
           ...(ids(a, 'goals') ? { goals: ids(a, 'goals') } : {}),
           ...(ids(a, 'tasks') ? { tasks: ids(a, 'tasks') } : {}),
           force: bool(a, 'force') === true,
@@ -171,7 +172,7 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
     {
       name: 'clean_board',
       description:
-        'Clear old goals off the whiteboard: finished (done), stopped (failed or cancelled), or all.',
+        'Clear old goals off the whiteboard: finished (done), stopped (failed or cancelled), or all. undo_board puts them back within a day.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -188,12 +189,29 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
         const which = oneOf(a, 'which', ['finished', 'stopped', 'all'] as const) as CleanWhich | undefined;
         if (!which) throw invalid('"which" is required: finished, stopped or all.');
         const olderThanDays = num(a, 'olderThanDays');
-        return board.clean(projectId, {
+        return board.clean(projectId, by, {
           which,
           ...(olderThanDays ? { olderThanDays } : {}),
           force: bool(a, 'force') === true,
         });
       },
+    },
+    {
+      name: 'board_history',
+      description:
+        'The latest whiteboard changes, newest first: when, who, what — with the undo id of removals that can still be put back.',
+      inputSchema: { type: 'object', properties: {} },
+      run: async () => board.history(projectId),
+    },
+    {
+      name: 'undo_board',
+      description:
+        'Put back what remove_from_board or clean_board took off (the latest, or "change" from board_history). Works for a day.',
+      inputSchema: {
+        type: 'object',
+        properties: { change: { type: 'string', description: 'The undo id; leave out for the latest.' } },
+      },
+      run: async (a) => board.undo(projectId, by, str(a, 'change')?.trim() || undefined),
     },
   ];
 }
