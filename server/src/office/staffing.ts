@@ -9,6 +9,9 @@ import { EMBLEM_IDS, HUES } from '../domain/catalog.ts';
 import { TEAM_MAX } from '../domain/teams.ts';
 import { invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
+import { formerStaff, staffIds } from './former.ts';
+
+export type BringBack = { ok: true; name: string } | { ok: false; error: string };
 
 const Name = z.string().trim().min(1).max(80);
 export const StaffSchema = z.object({
@@ -28,16 +31,17 @@ export const StaffSchema = z.object({
 });
 export type Staff = z.output<typeof StaffSchema>;
 
-/** Who the director may add: Cast agents and teams not on the project yet (names, for its prompt). */
+/** Who the director may add: Cast agents and teams not on the project yet (names, for its prompt).
+    `wasHere`: they used to be on this project and can be brought back. */
 export function castAvailable(store: Store, projectId: string) {
   const p = store.projects.require(projectId);
-  const onTeam = new Set(p.teamIds.flatMap((t) => store.teams.get(t)?.members.map((m) => m.agentId) ?? []));
-  const here = (id: string) => onTeam.has(id) || p.agentIds.includes(id);
+  const here = staffIds(store, projectId);
+  const former = new Set(formerStaff(store, projectId).map((a) => a.id));
   return {
     agents: store.agents
       .list()
-      .filter((a) => a.kind === 'agent' && !here(a.id))
-      .map((a) => ({ name: a.name, role: a.role })),
+      .filter((a) => a.kind === 'agent' && !here.has(a.id))
+      .map((a) => ({ name: a.name, role: a.role, ...(former.has(a.id) ? { wasHere: true } : {}) })),
     teams: store.teams
       .list()
       .filter((t) => !p.teamIds.includes(t.id))
@@ -54,7 +58,7 @@ export function createStaffing(deps: { store: Store; events: EventLog }) {
   const agentNamed = (n: string): Agent => {
     const a = store.agents
       .list()
-      .find((x) => x.kind === 'agent' && (key(x.name) === key(n) || (x.nick && key(x.nick) === key(n))));
+      .find((x) => x.kind === 'agent' && (x.id === n || key(x.name) === key(n) || (x.nick && key(x.nick) === key(n))));
     if (!a)
       throw invalid(`There's nobody called "${n}" in the Cast — new agents are designed with Tinker first`);
     return a;
@@ -139,6 +143,18 @@ export function createStaffing(deps: { store: Store; events: EventLog }) {
     });
     return { added: fresh, teamNames };
   }
-  return { apply };
+
+  /** Bring one Cast agent (back) onto the project as a solo specialist — adding someone needs no confirm. */
+  function bringBack(projectId: string, agentId: string): BringBack {
+    const p = store.projects.require(projectId);
+    const a = store.agents.get(agentId);
+    if (a?.kind !== 'agent') return { ok: false, error: `${a?.name ?? 'That agent'} is not in the Cast` };
+    const team = p.teamIds.map((t) => store.teams.get(t)).find((t) => t?.members.some((m) => m.agentId === a.id));
+    if (team) return { ok: false, error: `${a.name} is already on this project, on ${team.name} — move them with Rearrange instead` };
+    if (p.agentIds.includes(a.id)) return { ok: false, error: `${a.name} is already on this project` };
+    apply(projectId, { specialists: [a.id] }, p.orchestratorId); // by id: two agents may share a name
+    return { ok: true, name: a.name };
+  }
+  return { apply, bringBack };
 }
 export type Staffing = ReturnType<typeof createStaffing>;

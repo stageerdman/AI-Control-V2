@@ -302,6 +302,8 @@ export function buildApp({
       }
     },
   });
+  /* the director staffs the project from chat (existing Cast agents only); Rearrange brings people back */
+  const staffing = createStaffing({ store, events });
   const threads = createThreads({
     db,
     store,
@@ -312,8 +314,7 @@ export function buildApp({
     reports,
     secretValues: secretValuesOf(secrets),
     orchestratorCaps: caps.orchestrator,
-    /* the director staffs the project from chat (existing Cast agents only) */
-    staffing: createStaffing({ store, events }),
+    staffing,
     rebuilds,
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
@@ -429,7 +430,7 @@ export function buildApp({
   app.register(recapRoutes({ db, store, recapChat: createRecapper(crew) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
-  app.register(rebuildRoutes({ rebuilds, store }));
+  app.register(rebuildRoutes({ rebuilds, staffing, store }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));

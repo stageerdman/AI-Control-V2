@@ -5,15 +5,21 @@ import type { Store } from '../db/store.ts';
 import { parse } from '../errors.ts';
 import { OverridesSchema, projectLineup, RebuildSchema } from '../office/rebuild.ts';
 import type { Rebuilds } from '../office/rebuild-service.ts';
+import type { Staffing } from '../office/staffing.ts';
 import { Id, IdParams } from './schemas.ts';
 
 const TokenParams = z.object({ token: Id });
 const PlanParams = z.object({ planId: Id });
+const BringBackBody = z.object({ agentId: Id });
 
 export const rebuildRoutes =
-  ({ rebuilds, store }: { rebuilds: Rebuilds; store: Store }): FastifyPluginAsync =>
+  ({ rebuilds, staffing, store }: { rebuilds: Rebuilds; staffing: Staffing; store: Store }): FastifyPluginAsync =>
   async (app) => {
     app.get('/projects/:id/lineup', async (req) => projectLineup(store, parse(IdParams, req.params).id));
+    /* bring someone (back) as a solo specialist: adding a person happens at once, no card */
+    app.post('/projects/:id/specialists', async (req) =>
+      staffing.bringBack(parse(IdParams, req.params).id, parse(BringBackBody, req.body ?? {}).agentId),
+    );
     app.post('/projects/:id/rebuild/plan', async (req) => ({
       ok: true,
       ...rebuilds.plan(parse(IdParams, req.params).id, parse(RebuildSchema, req.body ?? {})),
