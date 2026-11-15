@@ -51,7 +51,7 @@ export const OverridesSchema = z.object({
   handover: HandoverList.optional(),
   captain: CaptainList.optional(),
   lone: z
-    .array(z.object({ agentId: Name, to: z.enum(['specialist', 'remove']) }))
+    .array(z.object({ agent: Name, to: z.enum(['specialist', 'remove']) }))
     .max(20)
     .optional(),
 });
@@ -59,6 +59,8 @@ export type Overrides = z.output<typeof OverridesSchema>;
 /** A rebuild with the card's picks folded in (apply re-plans with it). */
 export type RebuildInput = Rebuild & { lone?: Overrides['lone'] };
 
+type Person_ = { id: string; name: string };
+/** The confirm card (the app's rebuild/api.ts reads the same shape). */
 export type RebuildCard = {
   planId: string;
   projectId: string;
@@ -69,13 +71,15 @@ export type RebuildCard = {
     name: string;
     openItems: { id: string; title: string; to: Handover; toName: string }[];
     running: boolean;
+    members?: Person_[];
   }[];
-  specialists: { id: string; name: string }[];
+  specialists: Person_[];
   moves: { agentId: string; name: string; fromTeam: string; toTeam: string }[];
-  newTeams: { name: string; captainId: string; captainName: string; memberIds: string[] }[];
-  captainChanges: { team: string; newCaptainId: string; newCaptainName: string }[];
-  sharedCopies: { teamName: string; otherProjects: string[] }[];
-  loneMembers: { teamId: string; agentId: string; name: string }[];
+  newTeams: { name: string; captainId: string; captainName: string; members: Person_[] }[];
+  /** A team whose captain changed (left, moved, or named): who now, and who else could. `teamId` = what to send back. */
+  captains: { teamId: string; teamName: string; agentId: string; name: string; choices: Person_[] }[];
+  copies: { teamId: string; teamName: string; otherProjects: string[] }[];
+  lone: { teamId: string; teamName: string; agentId: string; name: string; pick: 'specialist' | 'remove' }[];
 };
 
 /** What applying does, in order. `key` is a Cast team id, or `new:n` for a team this rebuild creates. */
@@ -231,8 +235,8 @@ type Draft = {
   leftPeople: string[];
   solo: string[];
   moves: { agentId: string; fromName: string; to: Table }[];
-  lone: { table: Table; agentId: string }[];
-  copies: { teamName: string; otherProjects: string[] }[];
+  lone: { table: Table; agentId: string; pick: 'specialist' | 'remove' }[];
+  copies: { teamId: string; teamName: string; otherProjects: string[] }[];
   fresh: number;
 };
 
@@ -252,8 +256,12 @@ function simulator(w: World) {
   };
   const nameOf = (id: string) => w.people.get(id)?.name ?? id;
   const person = (n: string): string => {
-    for (const p of w.people.values())
-      if (p.id === n || key(p.name) === key(n) || (p.nick && key(p.nick) === key(n))) return p.id;
+    if (w.people.has(n)) return n;
+    const hits = [...w.people.values()].filter(
+      (p) => key(p.name) === key(n) || (p.nick && key(p.nick) === key(n)),
+    );
+    if (hits.length > 1) throw invalid(`two people are called "${n}" — say which`);
+    if (hits[0]) return hits[0].id;
     throw invalid(`"${n}" isn't on this project`);
   };
   const table = (n: string): Table => {
@@ -335,13 +343,15 @@ function simulator(w: World) {
           placed.add(id);
         }
         if (ids.length > TEAM_MAX) throw invalid(`${part.name} would have ${ids.length} people — a team has at most ${TEAM_MAX}`);
+        if (ids.length < 2)
+          throw invalid(`${part.name} would have one person — that's a specialist, not a team`);
         return { name: part.name, captainId, members: ids.map((id) => seat.get(id) as Member) };
       });
       const missing = t.members.find((m) => !placed.has(m.agentId));
       if (missing)
         throw invalid(`${nameOf(missing.agentId)} isn't in any of the new teams — everyone keeps a seat in a split`);
       const shared = t.sharedWith.length > 0;
-      if (shared) d.copies.push({ teamName: t.name, otherProjects: t.sharedWith });
+      if (shared) d.copies.push({ teamId: t.origin, teamName: t.name, otherProjects: t.sharedWith });
       const seen = new Set<string>();
       const made = parts.map((p, i): Table => {
         const reuse = !shared && i === 0; // a team used only here is edited directly
@@ -404,15 +414,20 @@ function simulator(w: World) {
 
   /** A changed team left with nobody leaves the project; with one person it isn't a team (specialist by default). */
   function settleSmallTeams(lone: RebuildInput['lone']) {
-    const picks = new Map((lone ?? []).map((l) => [person(l.agentId), l.to]));
+    const picks = new Map((lone ?? []).map((l) => [person(l.agent), l.to]));
     for (const t of [...d.tables]) {
       if (!t.touched || t.members.length > 1) continue;
       drop(t);
       const id = t.members[0]?.agentId;
       if (!id) continue;
-      d.lone.push({ table: t, agentId: id });
-      if (picks.get(id) === 'remove') d.leftPeople.push(id);
-      else d.specialists.push(id);
+      const pick = picks.get(id) === 'remove' ? 'remove' : 'specialist';
+      d.lone.push({ table: t, agentId: id, pick });
+      if (pick === 'remove') {
+        /* they leave the project: off every other table and desk too, so the card and the lineup agree */
+        for (const other of tablesOf(id)) unseat(other, id);
+        d.specialists = d.specialists.filter((x) => x !== id);
+        if (!d.leftPeople.includes(id)) d.leftPeople.push(id);
+      } else if (!tablesOf(id).length && !d.specialists.includes(id)) d.specialists.push(id);
     }
   }
 
@@ -420,7 +435,7 @@ function simulator(w: World) {
   function copyShared() {
     for (const t of d.tables) {
       if (!t.touched || t.split || !t.sharedWith.length) continue;
-      d.copies.push({ teamName: t.name, otherProjects: t.sharedWith });
+      d.copies.push({ teamId: t.origin, teamName: t.name, otherProjects: t.sharedWith });
       t.name = unique(`${t.name} · ${w.projectName}`);
       t.key = newKey();
       t.color = freeHue(t.emblem, t.color);
@@ -443,14 +458,26 @@ function simulator(w: World) {
 
 /* ---------------------------------------------------------------- open work: who carries it now */
 
-type Handed = OpenItem & { to: Handover; toName: string; receiver: string | null };
+type Handed = OpenItem & { to: Handover; toName: string; receiver: string };
 
 function handOver(w: World, d: Draft, rb: RebuildInput, person: (n: string) => string, nameOf: (id: string) => string) {
-  const picks = new Map((rb.handover ?? []).map((h) => [person(h.agent), h.to]));
+  /* a pick names a leaver: a person, or a whole team leaving (its id or name) */
+  const picks = new Map<string, Handover>();
+  const teamPicks = new Map<string, Handover>();
+  for (const h of rb.handover ?? []) {
+    const team = d.leftTeams.find((t) => t.origin === h.agent || key(t.name) === key(h.agent));
+    if (team) teamPicks.set(team.origin, h.to);
+    else picks.set(person(h.agent), h.to);
+  }
   const onTeams = new Set(d.tables.flatMap((t) => t.members.map((m) => m.agentId)));
   const kept: { item: OpenItem; table: Table | null }[] = [];
   const handed: Handed[] = [];
   for (const it of w.items) {
+    /* the director already holds it (handed back by an earlier rebuild): it stays with them */
+    if (it.agentId === w.directorId) {
+      kept.push({ item: it, table: null });
+      continue;
+    }
     const heirs = it.teamId ? d.tables.filter((t) => t.origin === it.teamId) : [];
     const home = heirs.find((t) => seated(t, it.agentId)) ?? null;
     const solo = d.specialists.includes(it.agentId) && !onTeams.has(it.agentId);
@@ -463,14 +490,16 @@ function handOver(w: World, d: Draft, rb: RebuildInput, person: (n: string) => s
     const teamLeft = !!it.teamId && d.leftTeams.some((t) => t.origin === it.teamId);
     /* rule 2.3: a member's work goes to their captain; a whole team's or a specialist's back to the director */
     const fallback = !it.teamId || teamLeft || !captainId ? 'director' : 'captain';
-    const pick = picks.get(it.agentId);
+    const pick = (teamLeft && it.teamId ? teamPicks.get(it.teamId) : undefined) ?? picks.get(it.agentId);
     let to: Handover;
     if (it.running) to = pick ?? 'finish-first';
     else to = pick === 'captain' || pick === 'director' ? pick : fallback;
     if (to === 'captain' && !captainId) to = 'director';
-    const goesTo = to === 'finish-first' ? null : to === 'stop-now' ? fallback : to;
-    const receiver = goesTo === null ? null : goesTo === 'captain' ? captainId : w.directorId;
-    handed.push({ ...it, to, receiver, toName: nameOf(receiver ?? it.agentId) });
+    /* finish-first: the run goes on, but the item gets its new owner now — if the run fails or comes back,
+       somebody on the project holds it (never someone who left) */
+    const goesTo = to === 'finish-first' || to === 'stop-now' ? fallback : to;
+    const receiver = goesTo === 'captain' && captainId ? captainId : w.directorId;
+    handed.push({ ...it, to, receiver, toName: nameOf(receiver) });
   }
   return { kept, handed };
 }
@@ -511,7 +540,6 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
       if (item.teamId && tableKey(table) !== item.teamId)
         steps.push({ kind: 'item.assign', itemId: item.id, agentId: item.agentId, teamKey: tableKey(table), stopRunId: null, note: null });
     for (const h of handed) {
-      if (!h.receiver) continue; // finish first: the run ends where it started
       const teamKey = h.receiver === w.directorId ? null : heirKey(h.teamId, h.receiver);
       const who = nameOf(h.agentId);
       steps.push({
@@ -519,7 +547,7 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
         itemId: h.id,
         agentId: h.receiver,
         teamKey,
-        stopRunId: h.running ? h.runId : null,
+        stopRunId: h.running && h.to === 'stop-now' ? h.runId : null,
         note: h.receiver === w.directorId ? `Needs a new owner — ${who} left` : `Handed over from ${who}`,
       });
     }
@@ -531,12 +559,19 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
         running: list.some((h) => h.running),
       };
     };
+    const people = (ms: Member[]) => ms.map((m) => ({ id: m.agentId, name: nameOf(m.agentId) }));
     const card: RebuildCard = {
       planId,
       projectId,
       stale: false,
       leaves: [
-        ...d.leftTeams.map((t) => ({ kind: 'team' as const, id: t.origin, name: t.name, ...owned((h) => h.teamId === t.origin) })),
+        ...d.leftTeams.map((t) => ({
+          kind: 'team' as const,
+          id: t.origin,
+          name: t.name,
+          members: people(t.members),
+          ...owned((h) => h.teamId === t.origin),
+        })),
         ...d.leftPeople.map((id) => ({ kind: 'agent' as const, id, name: nameOf(id), ...owned((h) => h.agentId === id && !d.leftTeams.some((t) => t.origin === h.teamId)) })),
       ],
       specialists: d.solo.map((id) => ({ id, name: nameOf(id) })),
@@ -547,18 +582,29 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
           name: t.name,
           captainId: t.captainId as string,
           captainName: nameOf(t.captainId as string),
-          memberIds: t.members.map((m) => m.agentId),
+          members: people(t.members),
         })),
-      captainChanges: d.tables
+      captains: d.tables
         .filter((t) => !t.split && t.captainId && t.captainId !== original.get(t.origin)?.captainId)
-        .map((t) => ({ team: t.name, newCaptainId: t.captainId as string, newCaptainName: nameOf(t.captainId as string) })),
-      sharedCopies: d.copies,
-      loneMembers: d.lone.map((l) => ({ teamId: l.table.origin, agentId: l.agentId, name: nameOf(l.agentId) })),
+        .map((t) => ({
+          teamId: t.origin, // the captain pick resolves the team by its project id, before any copy
+          teamName: t.name,
+          agentId: t.captainId as string,
+          name: nameOf(t.captainId as string),
+          choices: people(t.members),
+        })),
+      copies: d.copies,
+      lone: d.lone.map((l) => ({
+        teamId: l.table.origin,
+        teamName: l.table.name,
+        agentId: l.agentId,
+        name: nameOf(l.agentId),
+        pick: l.pick,
+      })),
     };
     const before = [...w.people.keys()];
     const after = [...onTeams, ...agentIds];
-    const needsConfirm =
-      card.leaves.length > 0 || handed.length > 0 || card.sharedCopies.length > 0 || card.loneMembers.length > 0;
+    const needsConfirm = card.leaves.length > 0 || handed.length > 0 || card.copies.length > 0 || card.lone.length > 0;
     return { ok: true, planId, steps, needsConfirm, card, before, after };
   } catch (e) {
     if (e instanceof AppError) return { ok: false, error: e.message };
@@ -572,10 +618,10 @@ export function summaryOf(card: RebuildCard): string {
   const parts: string[] = [];
   const left = card.leaves.map((l) => l.name);
   if (left.length) parts.push(`${and(left)} left`);
-  const solo = [...card.specialists.map((s) => s.name), ...card.loneMembers.filter((l) => !left.includes(l.name)).map((l) => l.name)];
+  const solo = [...card.specialists.map((s) => s.name), ...card.lone.filter((l) => !left.includes(l.name)).map((l) => l.name)];
   if (solo.length) parts.push(`${and(solo)} ${solo.length > 1 ? 'work' : 'works'} solo`);
   if (card.newTeams.length) parts.push(`the new teams are ${and(card.newTeams.map((t) => t.name))}`);
   for (const m of card.moves) parts.push(`${m.name} joined ${m.toTeam}`);
-  for (const c of card.captainChanges) parts.push(`${c.newCaptainName} captains ${c.team}`);
+  for (const c of card.captains) parts.push(`${c.name} captains ${c.teamName}`);
   return parts.length ? `Done — ${and(parts)}.` : 'Nothing to change — the lineup already looks like that.';
 }
