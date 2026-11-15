@@ -13,8 +13,8 @@ import {
   mergeMessage,
   reduce,
   stoppedGoals,
+  taskCard,
   taskHover,
-  taskStage,
   threadMessageOf,
 } from './state';
 
@@ -269,28 +269,97 @@ describe('the wall', () => {
     });
     expect(boardFacts({ goals: [], progress: p }).overall).toBe(64);
   });
-  it('task stages: in review / sent back n× / merging / stopped; hover says who and what', () => {
-    const it = (o: Partial<ChecklistItem>) =>
-      ({ id: 'i', agentId: 'a', status: 'running', stage: 'build', ...o }) as ChecklistItem;
+  describe('task cards: one mark, the people on it, a word only when it adds something', () => {
+    const it_ = (o: Partial<ChecklistItem>) =>
+      ({ id: 'i', agentId: 'a', status: 'running', stage: 'build', note: null, ...o }) as ChecklistItem;
     const names = (id: string) => ({ a: 'Pete', r: 'Scarlett' })[id] ?? id;
+    const look = { hue: 'teal' } as never;
+    const pete = { id: 'a', name: 'Pete', look };
+    const scar = { id: 'r', name: 'Scarlett', look };
     const gates = [{ reviewer: 'r', kind: 'quality' as const, why: 'tidy' }];
-    expect(taskStage(it({})).tag).toBeNull();
-    const rev = it({ stage: 'review', gates, gateIndex: 0 });
-    expect(taskStage(rev)).toEqual({ tag: 'in review', tone: null, sr: 'In review:' });
-    expect(holderOf(rev)).toBe('r');
-    expect(taskHover(rev, names)).toBe('Scarlett is reviewing (quality)');
-    const back = it({
-      sendBacks: 2,
-      gates,
-      notes: 'split the filter hook out',
-      reviews: [{ reviewer: 'r', gate: 0, verdict: 'changes', notes: 'x', runId: null, at: '' }],
+
+    it('building: who is on it, no word', () => {
+      expect(taskCard(it_({ workingNow: [pete] }), names)).toEqual({
+        mark: 'active',
+        people: [pete],
+        status: null,
+        tone: null,
+        problem: null,
+        sr: 'In progress, Pete working:',
+      });
     });
-    expect(taskStage(back)).toEqual({ tag: 'sent back 2×', tone: 'sun', sr: 'Sent back:' });
-    expect(holderOf(back)).toBe('a');
-    expect(taskHover(back, names)).toBe('Scarlett: “split the filter hook out”');
-    expect(taskStage(it({ stage: 'merge' })).tag).toBe('merging');
-    expect(taskStage(it({ status: 'failed' })).tag).toBe('stopped');
-    expect(taskStage(it({ status: 'done', stage: 'review' })).tag).toBeNull();
+    it('review / merge / sent back: the word follows the person', () => {
+      const rev = it_({ stage: 'review', gates, gateIndex: 0, workingNow: [scar] });
+      expect(taskCard(rev, names)).toMatchObject({
+        people: [scar],
+        status: 'reviewing',
+        sr: 'In progress, Scarlett reviewing:',
+      });
+      expect(holderOf(rev)).toBe('r');
+      expect(taskHover(rev, names)).toBe('Scarlett is reviewing (quality)');
+      expect(taskCard(it_({ stage: 'merge', workingNow: [pete] }), names).status).toBe('merging');
+      const back = it_({
+        sendBacks: 2,
+        gates,
+        notes: 'split the filter hook out',
+        reviews: [{ reviewer: 'r', gate: 0, verdict: 'changes', notes: 'x', runId: null, at: '' }],
+        workingNow: [pete],
+      });
+      expect(taskCard(back, names)).toMatchObject({ status: 'sent back 2×', tone: 'sun' });
+      expect(taskHover(back, names)).toBe('Scarlett: “split the filter hook out”');
+    });
+    it('a team split: everyone working on a part', () => {
+      const v = taskCard(it_({ workingNow: [pete, scar, { ...pete, id: 'c', name: 'Ava' }] }), names);
+      expect(v.people).toHaveLength(3);
+      expect(v.sr).toBe('In progress, Pete and 2 others working:');
+    });
+    it('done: who finished it; no hover with the raw note', () => {
+      const done = it_({
+        status: 'done',
+        stage: 'review',
+        finishedBy: pete,
+        note: 'Committed on my branch.',
+      });
+      expect(taskCard(done, names)).toMatchObject({
+        mark: 'done',
+        people: [pete],
+        status: null,
+        sr: 'Done, finished by Pete:',
+      });
+      expect(taskHover(done, names)).toBeNull();
+    });
+    it('to do: nobody on it yet', () => {
+      expect(taskCard(it_({ status: 'todo' }), names)).toMatchObject({
+        mark: 'todo',
+        people: [],
+        sr: 'To do:',
+      });
+    });
+    it('failed: the plain message; raw note only as details', () => {
+      const raw = 'Claude Code exited: error_max_turns after 80 turns';
+      const v = taskCard(
+        it_({ status: 'failed', note: raw, problem: { message: 'Ran out of steps.', details: raw } }),
+        names,
+      );
+      expect(v).toMatchObject({
+        mark: 'failed',
+        people: [],
+        problem: { message: 'Ran out of steps.', details: raw },
+      });
+      expect(v.sr).toBe('Stopped: Ran out of steps.');
+      expect(taskCard(it_({ status: 'cancelled', problem: { message: 'Stopped.' } }), names)).toMatchObject({
+        mark: 'stopped',
+        problem: { message: 'Stopped.', details: null },
+      });
+    });
+    it('older server (no people / problem fields): falls back to the builder and a generic line', () => {
+      expect(taskCard(it_({}), names).people).toEqual([{ id: 'a', name: 'Pete' }]);
+      expect(taskCard(it_({ status: 'done' }), names).people).toEqual([{ id: 'a', name: 'Pete' }]);
+      expect(taskCard(it_({ status: 'failed', note: 'boom\n at x.ts:1' }), names).problem).toEqual({
+        message: 'Something went wrong.',
+        details: 'boom\n at x.ts:1',
+      });
+    });
   });
   it('facts: % + in-progress features + tasks + grades + unread sheets', () => {
     const f = boardFacts({
@@ -332,15 +401,6 @@ describe('F4 — app view, notes, new work', () => {
     expect(appView({ ...base, command: null, status: 'stopped', url: null, exitCode: null }).label).toBe(
       'no run command yet',
     );
-  });
-  it('notes: first sentence, clipped, ellipsis when there is more', async () => {
-    const { noteLine } = await import('./state');
-    expect(noteLine("It's committed on my branch and not pushed. Tests pass: 24/24.")).toBe(
-      "It's committed on my branch and not pushed. …",
-    );
-    expect(noteLine('Short.')).toBe('Short.');
-    expect(noteLine('x'.repeat(300))?.length).toBe(140);
-    expect(noteLine('  ')).toBeNull();
   });
   it('progress: a follow-up on a new feature reads as new work added', async () => {
     const { boardProgress } = await import('./state');

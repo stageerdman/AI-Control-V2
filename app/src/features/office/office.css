@@ -232,12 +232,30 @@
 .ob-track{grid-column:1/-1;display:block;height:8px;border-radius:9px;background:#ece8f5;overflow:hidden}
 .ob-track i{display:block;height:100%;background:var(--teal);border-radius:9px}
 .ob-track.blocked i{background:var(--coral)}
-.ob-tasks{display:flex;flex-direction:column;gap:8px}
-.ob-tasks li{display:flex;align-items:center;gap:10px;font-size:14.5px;font-weight:600}
-.ob-tasks li.done{color:var(--ink-soft)}
-.ob-box{width:18px;height:18px;border-radius:5px;box-shadow:inset 0 0 0 2px rgba(36,26,68,.35);display:grid;place-items:center;flex:none}
-.ob-tasks li.done .ob-box{background:var(--teal);box-shadow:none}
+.ob-tasks{display:flex;flex-direction:column;gap:12px}
+/* task card (TaskCard.tsx · design/whiteboard-task-card.md): mark · title · people, then problem / parts */
+.ob-task{display:grid;grid-template-columns:18px minmax(0,1fr) auto;column-gap:10px;row-gap:4px;align-items:center;font-size:14.5px;font-weight:600}
+.ob-task>.ob-problem,.ob-task>.ob-sub{grid-column:2/-1}
+.ob-task.m-done>.ob-tt{color:var(--ink-soft)}
+.ob-tt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
+.ob-box{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(36,26,68,.3);display:grid;place-items:center;flex:none;font-size:12px;font-weight:900;color:#fff;line-height:1}
 .ob-box svg{width:14px;height:14px}
+.m-active>.ob-box{box-shadow:inset 0 0 0 2px var(--sky);background:radial-gradient(circle,var(--sky) 0 3.5px,transparent 4.5px)}
+.m-done>.ob-box{background:var(--teal);box-shadow:none}
+.m-failed>.ob-box{background:var(--coral);box-shadow:none}
+.m-stopped>.ob-box{background:linear-gradient(rgba(36,26,68,.35),rgba(36,26,68,.35)) center/8px 2px no-repeat}
+.ob-people{display:inline-flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
+.ob-faces{display:inline-flex}
+.ob-face{width:22px;height:22px;border-radius:50%;overflow:hidden;display:inline-grid;place-items:center;background:#f3f0fa;box-shadow:0 0 0 2px #fff}
+.ob-face+.ob-face{margin-left:-6px}
+.ob-pn{font-size:13px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.ob-people .ob-stage{margin-left:0}
+.ob-problem p{margin:0;font-size:13px;font-weight:600;line-height:1.4;color:var(--ink-soft)}
+.ob-problem.bad p{color:#a3242c}
+.ob-more{appearance:none;border:0;background:none;font:inherit;font-size:12.5px;font-weight:800;color:var(--ink-soft);cursor:pointer;padding:2px 6px;margin-left:4px;border-radius:8px}
+.ob-more:hover{color:var(--ink);background:rgba(36,26,68,.06)}
+.ob-more:focus-visible{outline:3px solid var(--grape);outline-offset:1px}
+.ob-raw{margin:6px 0 0;max-height:160px;overflow:auto;padding:8px 10px;border-radius:10px;background:rgba(36,26,68,.05);color:var(--ink);font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word}
 .ob-empty{color:var(--ink-soft);font-size:14px}
 /* health */
 .ob-health{display:flex;flex-direction:column;gap:18px}
@@ -419,8 +437,7 @@
 .ob-target:hover,.ob-target:focus-visible{opacity:1;background:rgba(36,26,68,.06)}
 .ob-target:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
 .ob-target-in{width:140px;font:inherit;font-size:13px;font-weight:700;text-align:center;padding:4px 8px;border-radius:10px;border:2px solid var(--line);color:var(--ink);background:#fff}
-.ob-tasks li .ob-tt{flex:1;min-width:0}
-.ob-stage{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--ink-soft);white-space:nowrap}
+.ob-stage{font-size:12.5px;font-weight:800;color:var(--ink-soft);white-space:nowrap}
 .ob-stage.t-sun{color:#b07a00}
 .ob-how{grid-column:1/-1;justify-self:end}
 .ob-card.ob-k-how{width:min(600px,calc(100% - 32px))}
@@ -442,19 +459,15 @@
 .ob-app-cmd{width:100%;box-sizing:border-box;font-family:var(--mono);font-size:13px;padding:7px 10px;border-radius:10px;border:2px solid var(--line);background:#fff;color:var(--ink)}
 .ob-app-log{margin:10px 0 0;max-height:180px;overflow:auto;padding:10px 12px;border-radius:10px;background:#241a44;color:#e9e4f7;font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word}
 /* team sub-tasks under their item */
-.ob-tasks li.ob-team{flex-wrap:wrap}
-.ob-plan{flex-basis:100%;margin:-2px 0 0 30px;font-size:12.5px;font-weight:600;color:var(--ink-soft)}
-.ob-sub{flex-basis:100%;list-style:none;margin:2px 0 0 30px;padding:0;display:flex;flex-direction:column;gap:5px}
-.ob-sub li{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600}
-.ob-sub .ob-box{width:15px;height:15px}
-.ob-who{color:var(--ink-soft);font-weight:700}
+.ob-sub{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.ob-sub .ob-task{grid-template-columns:15px minmax(0,1fr) auto;column-gap:8px;font-size:13.5px}
+.ob-sub .ob-box{width:15px;height:15px;font-size:10px}
+.ob-sub .ob-box svg{width:11px;height:11px}
 .ob-ships{appearance:none;border:0;background:none;padding:0;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink-soft);cursor:pointer;margin:-4px 0 8px}
 .ob-ships:hover{color:var(--ink);text-decoration:underline}
 .ob-stopped{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12.5px;font-weight:700;color:var(--ink-soft)}
 .ob-stopped span{margin-right:auto}
 .o-openapp{text-decoration:none}
-.ob-note{flex-basis:100%;margin:-2px 0 0 30px;font-size:12.5px;font-weight:600;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ob-plan{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .ob-proj .ob-bad{color:#a3242c;font-weight:800}
 .ob-port{font-family:var(--mono);font-size:12.5px}
 .ob-app-out{margin:8px 0 2px 36px;max-height:140px}

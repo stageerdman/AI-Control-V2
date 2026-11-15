@@ -10,7 +10,6 @@
    card fades in. Esc / Back = one layer. */
 import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react';
 import {
-  type ChecklistItem,
   type Goal,
   invalidate,
   isApiError,
@@ -28,17 +27,8 @@ import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
 import { GithubRow } from './GithubRow';
-import {
-  ASPECTS,
-  appView,
-  boardProgress,
-  boardTasks,
-  noteLine,
-  nowFeatures,
-  stoppedGoals,
-  taskHover,
-  taskStage,
-} from './state';
+import { ASPECTS, appView, boardProgress, boardTasks, nowFeatures, stoppedGoals } from './state';
+import { TaskCard } from './TaskCard';
 import { ago } from './time';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
@@ -311,7 +301,7 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
               <li className="ob-empty">No tasks yet — {dir} writes them here as the plan takes shape.</li>
             )}
             {tasks.map((t) => (
-              <TaskRow key={t.id} item={t.item} nameOf={nameOf} />
+              <TaskCard key={t.id} item={t.item} nameOf={nameOf} />
             ))}
           </ul>
         </section>
@@ -320,67 +310,6 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
         How we work →
       </button>
     </div>
-  );
-}
-
-const Tick = () => (
-  <svg viewBox="0 0 16 16" aria-hidden="true">
-    <path
-      d="M3.5 8.5l3 3L12.5 5"
-      fill="none"
-      stroke="#fff"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-/** A whiteboard task: its stage in a few words; a team item carries the captain's plan in one quiet
-    line and its members' sub-tasks indented under it (who + stage). */
-function TaskRow({
-  item,
-  nameOf,
-  sub,
-}: {
-  item: ChecklistItem;
-  nameOf: (id: string) => string;
-  sub?: boolean;
-}) {
-  const st = taskStage(item);
-  const hover = taskHover(item, nameOf);
-  const done = item.status === 'done';
-  const kids = item.subtasks ?? [];
-  const who = sub ? nameOf(item.agentId) : null;
-  return (
-    <li
-      className={`${done ? 'done' : ''}${kids.length || item.teamPlan ? ' ob-team' : ''}`}
-      title={hover ?? undefined}
-    >
-      <span className="ob-box" aria-hidden="true">
-        {done && <Tick />}
-      </span>
-      <span className="sr-only">{st.sr}</span>{' '}
-      <span className="ob-tt">
-        {who && <span className="ob-who">{who} · </span>}
-        {item.text}
-      </span>
-      {st.tag && <span className={`ob-stage${st.tone ? ` t-${st.tone}` : ''}`}>{st.tag}</span>}
-      {hover && <span className="sr-only"> — {hover}</span>}
-      {item.status === 'failed' && noteLine(item.note) && (
-        <span className="ob-note" aria-hidden="true">
-          {noteLine(item.note)}
-        </span>
-      )}
-      {!sub && item.teamPlan && <span className="ob-plan">{item.teamPlan}</span>}
-      {!sub && kids.length > 0 && (
-        <ul className="ob-sub" aria-label={`${item.text} — the team’s parts`}>
-          {kids.map((k) => (
-            <TaskRow key={k.id} item={k} nameOf={nameOf} sub />
-          ))}
-        </ul>
-      )}
-    </li>
   );
 }
 

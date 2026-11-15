@@ -8,6 +8,7 @@ import {
   type ProjectApp,
   type ProjectHealth,
   type StudioEvent,
+  type TaskPerson,
 } from '../../api';
 import type { Pose } from '../../characters';
 import type { AgentStatus, Feature, OfficeProgress, OfficeView, ThreadMessage, WorkTime } from './api';
@@ -218,27 +219,64 @@ export function boardProgress(
   return { pct, target, shipped, aria: target ? `${pct}% to ${target}` : `${pct}% done` };
 }
 
-/** An agent's note, clipped for the board: its first sentence (≤ 140 chars) with an ellipsis when
-    there's more — the full text stays on hover. Agents often open with process talk. */
-export function noteLine(note: string | null | undefined): string | null {
-  const t = (note ?? '').replace(/\s+/g, ' ').trim();
-  if (!t) return null;
-  const m = /^(.+?[.!?])(\s|$)/.exec(t);
-  let first = m ? m[1] : t;
-  if (first.length > 140) first = `${first.slice(0, 139).trimEnd()}…`;
-  else if (first.length < t.length) first = `${first} …`;
-  return first;
-}
+/** A whiteboard task card, as the user reads it (design/whiteboard-task-card.md): one status mark,
+    the people on it (now, or who finished it), one status word only when it adds something, and for a
+    stopped task the plain message with the raw note kept as details. Falls back gracefully for an
+    older server without `workingNow` / `finishedBy` / `problem`. */
+export type CardMark = 'todo' | 'active' | 'done' | 'failed' | 'stopped';
+export type TaskCardView = {
+  mark: CardMark;
+  people: { id: string; name: string; look?: TaskPerson['look'] }[];
+  status: string | null;
+  tone: 'sun' | null;
+  problem: { message: string; details: string | null } | null;
+  /** Screen-reader lead-in ("Done, finished by Pete:"). */
+  sr: string;
+};
+const FALLBACK_PROBLEM = { failed: 'Something went wrong.', cancelled: 'Stopped.' } as const;
 
-/** A whiteboard task row's stage, in a few calm words (none while building or done). */
-export function taskStage(i: ChecklistItem): { tag: string | null; tone: 'sun' | null; sr: string } {
-  if (i.status === 'done') return { tag: null, tone: null, sr: 'Done:' };
-  if (i.status === 'failed') return { tag: 'stopped', tone: null, sr: 'Stopped:' };
-  if (i.status === 'cancelled') return { tag: 'stopped', tone: null, sr: 'Stopped:' };
-  if (i.stage === 'review') return { tag: 'in review', tone: null, sr: 'In review:' };
-  if (i.stage === 'merge') return { tag: 'merging', tone: null, sr: 'Merging:' };
-  if ((i.sendBacks ?? 0) > 0) return { tag: `sent back ${i.sendBacks}×`, tone: 'sun', sr: 'Sent back:' };
-  return { tag: null, tone: null, sr: 'To do:' };
+export function taskCard(i: ChecklistItem, nameOf: (id: string) => string): TaskCardView {
+  const names = (ps: { name: string }[]) =>
+    ps.length > 2 ? `${ps[0].name} and ${ps.length - 1} others` : ps.map((p) => p.name).join(' and ');
+  if (i.status === 'done') {
+    const by =
+      i.finishedBy ?? (i.finishedBy === undefined ? { id: i.agentId, name: nameOf(i.agentId) } : null);
+    const people = by ? [by] : [];
+    return {
+      mark: 'done',
+      people,
+      status: null,
+      tone: null,
+      problem: null,
+      sr: by ? `Done, finished by ${by.name}:` : 'Done:',
+    };
+  }
+  if (i.status === 'failed' || i.status === 'cancelled') {
+    const message = i.problem?.message ?? FALLBACK_PROBLEM[i.status];
+    const details = (i.problem ? i.problem.details : i.note)?.trim() || null;
+    return {
+      mark: i.status === 'failed' ? 'failed' : 'stopped',
+      people: [],
+      status: null,
+      tone: null,
+      problem: { message, details },
+      sr: `Stopped: ${message}`,
+    };
+  }
+  if (i.status === 'todo')
+    return { mark: 'todo', people: [], status: null, tone: null, problem: null, sr: 'To do:' };
+  const people: TaskCardView['people'] = i.workingNow ?? [{ id: holderOf(i), name: nameOf(holderOf(i)) }];
+  const back = (i.sendBacks ?? 0) > 0;
+  const [status, tone]: [string | null, 'sun' | null] =
+    i.stage === 'review'
+      ? ['reviewing', null]
+      : i.stage === 'merge'
+        ? ['merging', null]
+        : back
+          ? [`sent back ${i.sendBacks}×`, 'sun']
+          : [null, null];
+  const who = people.length ? `, ${names(people)}${status ? ` ${status}` : ' working'}` : '';
+  return { mark: 'active', people, status, tone, problem: null, sr: `In progress${who}:` };
 }
 
 /** Who has the item now: the reviewer while in review, else its builder. */
@@ -254,9 +292,10 @@ const KIND_WORD: Record<string, string> = {
 };
 export const gateKindWord = (k: string) => KIND_WORD[k] ?? k;
 
-/** The hover line of a task row: who is reviewing, or what the reviewer said. */
+/** The hover line of a running task: what kind of review it's in, or what the reviewer said.
+    (A stopped task's raw note lives behind its Details toggle, never in a hover.) */
 export function taskHover(i: ChecklistItem, nameOf: (id: string) => string): string | null {
-  if (i.status === 'done' || i.status === 'failed') return i.note ?? null; // full text (title)
+  if (i.status !== 'running') return null;
   if (i.stage === 'review') {
     const g = i.gates?.[i.gateIndex ?? 0];
     return g ? `${nameOf(g.reviewer)} is reviewing (${gateKindWord(g.kind)})` : null;
