@@ -85,7 +85,15 @@ describe('dispatch: goal → checklist → runs', () => {
       'todo',
     ]);
     expect(r.body.items.map((i: { parallel: boolean }) => i.parallel)).toEqual([false, false, true, false]);
+    // every task carries its people: who is on it now, who finished it (name + look for the avatar)
+    expect(r.body.items[0]).toMatchObject({
+      workingNow: [{ id: 'a-semic', name: 'Captain Semicolon', look: { body: expect.any(String) } }],
+      finishedBy: null,
+      problem: null,
+    });
+    expect(r.body.items[1].workingNow).toEqual([]);
     const done = await settled(h, r.body.id);
+    expect(done.items[3]).toMatchObject({ workingNow: [], finishedBy: { id: 'a-baron' }, problem: null });
     expect(done.status).toBe('done');
     expect(done.pct).toBe(100);
     expect(done.items.every((i: { status: string; runId: string }) => i.status === 'done' && i.runId)).toBe(
@@ -170,6 +178,8 @@ describe('dispatch: goal → checklist → runs', () => {
     expect(g.items.map((i: { status: string }) => i.status)).toEqual(['done', 'failed', 'done', 'cancelled']);
     expect(g.items[1].note).toBe('tests are red');
     expect(g.items[3].note).toBe('Skipped: an earlier item did not succeed');
+    expect(g.items[1].problem).toEqual({ message: 'Something went wrong.', details: 'tests are red' });
+    expect(g.items[3].problem.message).toBe("Skipped, because an earlier step didn't finish.");
     expect(g.pct).toBe(50);
     const runs = (await h.call('GET', '/projects/aurora/runs')).body as { caps: { maxTurns: number } }[];
     expect(runs).toHaveLength(3);
@@ -239,6 +249,10 @@ describe('dispatch: goal → checklist → runs', () => {
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('failed');
     expect(runs).toBe(1 + MAX_CONTINUES);
+    expect(g.items[0].problem).toEqual({
+      message: 'Ran out of steps. The work is saved and can continue.',
+      details: 'Stopped: reached the turn cap (30)',
+    });
   });
 
   it('a stopped goal continues: its items queue again and the started one resumes its session', async () => {

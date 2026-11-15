@@ -5,7 +5,9 @@ import { z } from 'zod';
 import type { Creator } from '../crew/creator.ts';
 import type { Dispatch } from '../crew/dispatch.ts';
 import type { SetupChat } from '../crew/setup-chat.ts';
+import type { Goal } from '../db/work.ts';
 import { parse } from '../errors.ts';
+import { type FindAgent, presentGoal } from '../whiteboard/present.ts';
 import { Id, IdParams } from './schemas.ts';
 
 const ChatBody = z.strictObject({ text: z.string().trim().min(1).max(4000).optional() });
@@ -26,12 +28,15 @@ export const crewRoutes =
     chat,
     creator,
     dispatch,
+    findAgent,
   }: {
     chat: SetupChat;
     creator: Creator;
     dispatch: Dispatch;
+    findAgent: FindAgent;
   }): FastifyPluginAsync =>
   async (app) => {
+    const view = (g: Goal) => presentGoal(g, findAgent);
     app.get('/drafts/:id/chat', async (req) => chat.history(parse(IdParams, req.params).id));
     /* one orchestrator turn: {text} from the user, or no text → the orchestrator opens with a proposal */
     app.post('/drafts/:id/chat', async (req) => {
@@ -47,20 +52,20 @@ export const crewRoutes =
       const { id } = parse(IdParams, req.params);
       const { goal, caps } = parse(WorkBody, req.body);
       const clean = caps && Object.fromEntries(Object.entries(caps).filter(([, v]) => v !== undefined));
-      return reply.status(201).send(await dispatch.start(id, goal, clean));
+      return reply.status(201).send(view(await dispatch.start(id, goal, clean)));
     });
-    app.get('/projects/:id/work', async (req) => dispatch.list(parse(IdParams, req.params).id));
+    app.get('/projects/:id/work', async (req) => dispatch.list(parse(IdParams, req.params).id).map(view));
     app.get('/projects/:id/work/:goalId', async (req) => {
       const { id, goalId } = parse(GoalParams, req.params);
-      return dispatch.get(id, goalId);
+      return view(dispatch.get(id, goalId));
     });
     app.post('/projects/:id/work/:goalId/cancel', async (req, reply) => {
       const { id, goalId } = parse(GoalParams, req.params);
-      return reply.status(202).send(dispatch.cancel(id, goalId));
+      return reply.status(202).send(view(dispatch.cancel(id, goalId)));
     });
     /* continue a stopped goal: its unfinished items carry on where they were */
     app.post('/projects/:id/work/:goalId/resume', async (req, reply) => {
       const { id, goalId } = parse(GoalParams, req.params);
-      return reply.status(202).send(dispatch.resume(id, goalId));
+      return reply.status(202).send(view(dispatch.resume(id, goalId)));
     });
   };

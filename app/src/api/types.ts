@@ -465,9 +465,17 @@ export type ChecklistItem = {
   /** The captain's split in one sentence (also for "self"). */
   teamPlan?: string | null;
   subtasks?: ChecklistItem[];
+  /** Who is on it right now (members on their parts of a split team item; the reviewer during a review). */
+  workingNow?: TaskPerson[];
+  /** Who finished it (done items only). */
+  finishedBy?: TaskPerson | null;
+  /** Why it stopped, in plain words (failed / cancelled only); `details` is the raw note. */
+  problem?: { message: string; details?: string } | null;
   createdAt: string;
   updatedAt: string;
 };
+/** A person on a whiteboard task: name + avatar (their look). */
+export type TaskPerson = { id: string; name: string; look: Look };
 export type Goal = {
   id: string;
   projectId: string;

@@ -38,6 +38,7 @@ import type { Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
+import { holder } from '../whiteboard/people.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
 import { type Crew, validateWith } from './structured.ts';
@@ -208,9 +209,6 @@ export function createDispatch(deps: {
       /* a bad progress line never breaks the whiteboard */
     }
   };
-  /** Who holds the item right now: the reviewer during a review, else the builder. */
-  const holder = (it: ChecklistItem) =>
-    it.stage === 'review' ? (it.gates[it.gateIndex]?.reviewer ?? it.agentId) : it.agentId;
   const announce = (it: ChecklistItem) =>
     emit(it.projectId, {
       type: 'checklist.item',

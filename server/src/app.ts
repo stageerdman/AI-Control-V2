@@ -487,7 +487,7 @@ export function buildApp({
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(crewRoutes({ chat, creator, dispatch }));
+  app.register(crewRoutes({ chat, creator, dispatch, findAgent: (id) => store.agents.get(id) ?? null }));
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
   app.register(runningRoutes({ running, stopper, store }));
