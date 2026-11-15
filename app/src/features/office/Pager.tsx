@@ -15,10 +15,12 @@ import {
   askKey,
   freshIndex,
   leftOffice,
+  loadPagerDown,
   officeOf,
   pagerEntries,
   pagerHidden,
   pagerLine,
+  savePagerDown,
   stoppedAsks,
 } from './pager-logic';
 import './office.css';
@@ -54,6 +56,12 @@ export const Pager: PagerComponent = ({ route }: { route: Route }) => {
   const [idx, setIdx] = useState(0);
   const [wiggle, setWiggle] = useState(0);
   const [live, setLive] = useState('');
+  const [down, setDown] = useState(loadPagerDown);
+  const toggle = () =>
+    setDown((d) => {
+      savePagerDown(!d);
+      return !d;
+    });
   const shown = useRef<Set<string> | null>(null);
   const prevRoute = useRef<Route | null>(null);
   const wheelAt = useRef(0);
@@ -143,7 +151,7 @@ export const Pager: PagerComponent = ({ route }: { route: Route }) => {
   const p = e ? projects.data?.find((x) => x.id === e.projectId) : undefined;
   const line = e ? pagerLine(e) : '';
   return (
-    <div className={`o-pagerwrap${here ? ' in-office' : ''}`} id="pager">
+    <div className={`o-pagerwrap${here ? ' in-office' : ''}${down ? ' down' : ''}`} id="pager">
       {/* biome-ignore lint/a11y/useSemanticElements: the pager device is a labelled group of controls */}
       <div
         key={wiggle}
@@ -172,65 +180,80 @@ export const Pager: PagerComponent = ({ route }: { route: Route }) => {
           step(ev.deltaY > 0 ? 1 : -1);
         }}
       >
-        <span className="o-pg-led" aria-hidden="true" />
+        {/* the top edge: press it to tuck the pager away (only this strip stays) or bring it back */}
         <button
           type="button"
-          className="o-pg-screen"
-          disabled={!e}
-          aria-label={e ? `Go to the ${e.projectName} office — ${line}. Page ${i + 1} of ${n}.` : undefined}
-          onClick={() => e && go({ name: 'office', projectId: e.projectId, sub: 'room' })}
-        >
-          {e ? (
-            <>
-              <span className="o-pg-top">
-                <span>
-                  {n} OFFICE{n === 1 ? '' : 'S'}
-                </span>
-                <span>
-                  {i + 1}/{n}
-                </span>
-              </span>
-              <b className="o-pg-name">
-                {p && (
-                  <span
-                    className="o-pg-tile"
-                    aria-hidden="true"
-                    style={{ background: `linear-gradient(145deg,${p.tile.g1},${p.tile.g2})` }}
-                  />
-                )}
-                <span>{e.projectName}</span>
-              </b>
-              <span className="o-pg-what">{line}</span>
-            </>
-          ) : (
-            <>
-              <span className="o-pg-top">
-                <span>PAGER</span>
-              </span>
-              <b className="o-pg-name">All quiet</b>
-              <span className="o-pg-what">Nobody needs you</span>
-            </>
-          )}
-        </button>
-        <div className="o-pg-keys">
+          className="o-pg-tab"
+          aria-expanded={!down}
+          aria-label={
+            down
+              ? `Show the pager${n ? ` — ${n} ${n === 1 ? 'office needs' : 'offices need'} you` : ''}`
+              : 'Tuck the pager away'
+          }
+          title={down ? 'Show the pager' : 'Tuck the pager away'}
+          onClick={toggle}
+        />
+        <span className="o-pg-led" aria-hidden="true" />
+        <div className="o-pg-body" inert={down}>
           <button
             type="button"
-            className="o-pg-btn"
-            aria-label="Previous page"
-            disabled={n < 2}
-            onClick={() => step(-1)}
+            className="o-pg-screen"
+            disabled={!e}
+            aria-label={e ? `Go to the ${e.projectName} office — ${line}. Page ${i + 1} of ${n}.` : undefined}
+            onClick={() => e && go({ name: 'office', projectId: e.projectId, sub: 'room' })}
           >
-            ▲
+            {e ? (
+              <>
+                <span className="o-pg-top">
+                  <span>
+                    {n} OFFICE{n === 1 ? '' : 'S'}
+                  </span>
+                  <span>
+                    {i + 1}/{n}
+                  </span>
+                </span>
+                <b className="o-pg-name">
+                  {p && (
+                    <span
+                      className="o-pg-tile"
+                      aria-hidden="true"
+                      style={{ background: `linear-gradient(145deg,${p.tile.g1},${p.tile.g2})` }}
+                    />
+                  )}
+                  <span>{e.projectName}</span>
+                </b>
+                <span className="o-pg-what">{line}</span>
+              </>
+            ) : (
+              <>
+                <span className="o-pg-top">
+                  <span>PAGER</span>
+                </span>
+                <b className="o-pg-name">All quiet</b>
+                <span className="o-pg-what">Nobody needs you</span>
+              </>
+            )}
           </button>
-          <button
-            type="button"
-            className="o-pg-btn"
-            aria-label="Next page"
-            disabled={n < 2}
-            onClick={() => step(1)}
-          >
-            ▼
-          </button>
+          <div className="o-pg-keys">
+            <button
+              type="button"
+              className="o-pg-btn"
+              aria-label="Previous page"
+              disabled={n < 2}
+              onClick={() => step(-1)}
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              className="o-pg-btn"
+              aria-label="Next page"
+              disabled={n < 2}
+              onClick={() => step(1)}
+            >
+              ▼
+            </button>
+          </div>
         </div>
         <span className="sr-only" aria-live="polite">
           {live}

@@ -308,9 +308,16 @@
 
 
 /* ---------------- the pager (global, bottom-left; office-pager.js) ---------------- */
-.o-pagerwrap{position:fixed;left:14px;bottom:14px;z-index:60}
+.o-pagerwrap{--pg-bottom:14px;position:fixed;left:14px;bottom:var(--pg-bottom);z-index:60;transition:transform .28s var(--ease-out)}
 .o-pagerwrap[hidden]{display:none}
-@media (max-width:899px){.o-pagerwrap.in-office{bottom:84px}}
+@media (max-width:899px){.o-pagerwrap.in-office{--pg-bottom:84px}}
+/* tucked away: only the top strip (clip + light) peeks above the bottom edge */
+.o-pagerwrap.down{transform:translateY(calc(100% + var(--pg-bottom) - 20px))}
+.o-pg-body{display:contents}
+.o-pg-tab{position:absolute;left:0;right:0;top:-12px;height:24px;z-index:2;appearance:none;border:0;padding:0;background:transparent;cursor:pointer;border-radius:20px 20px 0 0}
+.o-pg-tab:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.o-pagerwrap.down .o-pg-tab{height:32px}
+@media (prefers-reduced-motion:reduce){.o-pagerwrap{transition:none}}
 .o-pager{position:relative;width:248px;display:flex;align-items:stretch;gap:8px;padding:10px 10px 10px 12px;border-radius:20px;
   background:linear-gradient(180deg,#3a2f5c,#241a44);box-shadow:0 0 0 2px var(--ink),inset 0 2px 0 rgba(255,255,255,.12),0 10px 24px rgba(10,4,30,.45)}
 .o-pager::before{content:"";position:absolute;left:18px;top:-9px;width:18px;height:11px;border-radius:5px 5px 0 0;background:#3a2f5c;box-shadow:0 0 0 2px var(--ink)}

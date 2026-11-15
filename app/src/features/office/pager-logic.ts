@@ -84,3 +84,20 @@ export function stoppedAsks(
       }
   return out;
 }
+
+/* Tucked away: pressing the pager's top slides it down to a slim strip (and back). Remembered per browser. */
+const DOWN_KEY = 'aistudio.pager.down';
+export function loadPagerDown(): boolean {
+  try {
+    return localStorage.getItem(DOWN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function savePagerDown(down: boolean): void {
+  try {
+    localStorage.setItem(DOWN_KEY, down ? '1' : '0');
+  } catch {
+    /* private mode: for this session only */
+  }
+}
