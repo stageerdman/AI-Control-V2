@@ -39,6 +39,7 @@ import type { Features } from '../office/features.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
+import { requeuePatch } from './requeue.ts';
 import { type Crew, validateWith } from './structured.ts';
 import {
   integrateTask,
@@ -1298,15 +1299,7 @@ export function createDispatch(deps: {
       if (g.status === 'running' || g.status === 'done') throw conflict(`This goal is already ${g.status}`);
       for (const it of g.items) {
         if (it.status !== 'failed' && it.status !== 'cancelled') continue;
-        const again = it.stage !== 'review' && !!sessionOf(it.runId);
-        work.setItem(it.id, {
-          status: 'todo',
-          runId: null,
-          note: null,
-          resumeRunId: again ? it.runId : null,
-          continues: 0,
-          ...(it.teamPhase === 'members' ? { teamPhase: null } : {}),
-        });
+        work.setItem(it.id, requeuePatch(it, !!sessionOf(it.runId)));
         announce(work.item(it.id) as ChecklistItem);
       }
       work.setGoalStatus(goalId, 'running');
