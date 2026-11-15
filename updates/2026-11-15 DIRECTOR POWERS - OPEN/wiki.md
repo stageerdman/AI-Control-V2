@@ -6,4 +6,7 @@
   todo items wait in order. Put the *why* (waitsFor) in the data, not in hopes.
 - **Reuse room.call for director → agent.** It already logs comms, emits office events and needs no approval when the
   caller is the orchestrator.
+- **Report-in is a decision, not a broadcast.** Every finish reaches the Director, but the user only hears what the
+  Director chooses (page sparingly / chat / keep). The whiteboard is updated by dispatch regardless.
+- **Prefer an existing free-form table over a migration** when another branch is mid-flight on the same DB.
 - **Voice mangles names** ("Ivy"): tell the Director to map to the closest person and say so.

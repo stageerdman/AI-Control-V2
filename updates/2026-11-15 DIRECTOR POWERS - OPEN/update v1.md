@@ -23,3 +23,10 @@ confirm card, undo (Blair's spec-ux-team-rebuild.md, Jony + Uncle Bob's goal in 
 ## Status
 - Phases 1–3: tests (director-ask.test.ts) + a real Director turn in a throwaway studio: asked "have you asked
   Twinkle?" → it set `ask` on its own, Twinkle's answer was relayed.
+- Phase 4: report-in.test.ts + a real goal in the throwaway studio: Twinkle finished → delivered to Pixel → Pixel
+  paged ("…That goal is done, so tell me what you'd like next.") → in the chat and on `GET /asks` as news.
+
+## Next
+- Restart the backend + reinstall /Applications/AI Studio.app to get all of this (front end: room.call bubbles,
+  "has news" pager line). Wait until the studio's team-rebuild goal has merged so no run is cut off.
+- Each finished step costs one small Director call (plan usage). If it gets chatty, batch per goal.
