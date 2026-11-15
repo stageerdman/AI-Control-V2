@@ -6,7 +6,13 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Store } from '../../src/db/store.ts';
 import { createBus, type StoredEvent } from '../../src/events/bus.ts';
-import { createSelfInstall, installedBehind, markerFile, studioProject } from '../../src/self-install/self-install.ts';
+import {
+  createSelfInstall,
+  installedBehind,
+  markerFile,
+  readMarker,
+  studioProject,
+} from '../../src/self-install/self-install.ts';
 
 const merged = (scopeId: string, type = 'item.merged'): StoredEvent => ({
   id: 1,
@@ -109,6 +115,35 @@ describe('self-install', () => {
     expect(behind()).toBe(true);
     writeFileSync(file, JSON.stringify({ commit: 'abc' }));
     expect(behind()).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  /* /health reports this, so a stale window can say why without anyone opening the log on the Mac */
+  it('status() tells installing, installed and failed (with the reason)', async () => {
+    const ok = harness();
+    expect(ok.si.status()).toBeNull();
+    ok.bus.publish(merged('p-studio'));
+    expect(ok.si.status()?.state).toBe('installing');
+    ok.finish();
+    await ok.tick();
+    expect(ok.si.status()?.state).toBe('installed');
+
+    const failed = harness(2);
+    failed.bus.publish(merged('p-studio'));
+    failed.finish();
+    await failed.tick();
+    expect(failed.si.status()).toMatchObject({ state: 'failed', error: 'the installer exited with 2' });
+  });
+
+  it('readMarker returns the installed commit, or null for a missing or torn marker', () => {
+    const dir = join(tmpdir(), `ais-read-${process.pid}`);
+    mkdirSync(dir, { recursive: true });
+    const file = markerFile(dir);
+    expect(readMarker(file)).toBeNull();
+    writeFileSync(file, '{"comm');
+    expect(readMarker(file)).toBeNull();
+    writeFileSync(file, JSON.stringify({ commit: 'abc', at: '2026-11-15T00:00:00Z', target: '/x' }));
+    expect(readMarker(file)).toEqual({ commit: 'abc', at: '2026-11-15T00:00:00Z' });
     rmSync(dir, { recursive: true, force: true });
   });
 

@@ -93,7 +93,13 @@ import { createRuntime, type Runtime } from './runtime/service.ts';
 import { cabinet } from './secrets/cabinet.ts';
 import { projectAccess } from './secrets/projectAccess.ts';
 import { fileSecretStore, type SecretStore } from './secrets/secretStore.ts';
-import { createSelfInstall, type Installer, studioProject } from './self-install/self-install.ts';
+import {
+  type BuildReport,
+  createSelfInstall,
+  type InstalledBuild,
+  type Installer,
+  studioProject,
+} from './self-install/self-install.ts';
 
 export type AppDeps = {
   config: Config;
@@ -129,7 +135,14 @@ export type AppDeps = {
   /** Turn/budget caps per kind of run (default: loadCaps() — env overridable). */
   caps?: StudioCaps;
   /** Rebuild + reinstall the Mac app after merges into this checkout (`repo`). Default null = never. */
-  selfInstall?: { repo: string; install: Installer; isBehind: () => boolean } | null;
+  selfInstall?: {
+    repo: string;
+    install: Installer;
+    isBehind: () => boolean;
+    /** The commit this backend runs, and what the installer says is in /Applications (for /health). */
+    running: string;
+    installed: () => InstalledBuild | null;
+  } | null;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -315,6 +328,14 @@ export function buildApp({
         log: app.log,
       })
     : null;
+  const build =
+    selfInstall && installer
+      ? (): BuildReport => ({
+          running: selfInstall.running,
+          installed: selfInstall.installed(),
+          install: installer.status(),
+        })
+      : null;
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
   /* team rebuilds: plan → confirm card → apply (one tx) → Undo */
   const rebuilds = createRebuilds({
@@ -441,7 +462,7 @@ export function buildApp({
     reply.status(404).send({ error: { code: 'not_found', message: `No route ${req.method} ${req.url}` } }),
   );
 
-  app.register(healthRoutes({ config, db }));
+  app.register(healthRoutes({ config, db, build }));
   for (const routes of [roleRoutes, agentRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
   app.register(blueprintRoutes({ config }));

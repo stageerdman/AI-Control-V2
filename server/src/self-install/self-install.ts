@@ -17,6 +17,12 @@ import { resolveInSandbox } from '../fs/sandbox.ts';
 
 /** Runs one install; resolves with its exit code. */
 export type Installer = () => Promise<number | null>;
+/** The installer's marker: which commit is in /Applications, and when it was installed. */
+export type InstalledBuild = { commit: string; at?: string };
+/** The latest install this backend ran (null: none since it started). */
+export type InstallStatus = { state: 'installing' | 'installed' | 'failed'; at: string; error?: string };
+/** What /health says about builds, so the window (and anyone without access to the Mac) can tell if it is stale. */
+export type BuildReport = { running: string; installed: InstalledBuild | null; install: InstallStatus | null };
 type Log = {
   info: (ctx: object, msg: string) => void;
   error: (ctx: object, msg: string) => void;
@@ -32,15 +38,25 @@ export function createSelfInstall(deps: {
 }) {
   let running = false;
   let again = false;
+  let last: InstallStatus | null = null;
+  const mark = (state: InstallStatus['state'], error?: string) => {
+    last = { state, at: new Date().toISOString(), ...(error ? { error } : {}) };
+  };
 
   async function runOnce() {
+    mark('installing');
     try {
       const code = await deps.install();
-      if (code === 0) deps.log.info({ module: 'self-install' }, 'Installed the newest AI Studio build');
-      else
+      if (code === 0) {
+        mark('installed');
+        deps.log.info({ module: 'self-install' }, 'Installed the newest AI Studio build');
+      } else {
+        mark('failed', `the installer exited with ${code}`);
         deps.log.error({ module: 'self-install', code }, 'AI Studio install failed — see logs/self-install.log');
+      }
     } catch (e) {
       const err = (e as Error).message;
+      mark('failed', err);
       deps.log.error({ module: 'self-install', err }, 'Could not start the AI Studio install');
     }
   }
@@ -71,7 +87,7 @@ export function createSelfInstall(deps: {
     const err = (e as Error).message;
     deps.log.error({ module: 'self-install', err }, 'Could not tell whether the installed AI Studio is current');
   }
-  return { kick, stop };
+  return { kick, stop, status: (): InstallStatus | null => last };
 }
 
 /** The installer's marker in the data dir (the installer writes it under $AI_STUDIO_HOME, set by spawnInstaller). */
@@ -80,15 +96,18 @@ export const markerFile = (studioHome: string) => join(studioHome, 'installed-bu
 /** The installed app is behind when the installer's marker (`{commit}`, written by app/scripts/install-mac
     after a good install) is missing, unreadable, or names another commit than `head()`. */
 export function installedBehind(markerFile: string, head: () => string): () => boolean {
-  return () => {
-    let installed: unknown;
-    try {
-      installed = JSON.parse(readFileSync(markerFile, 'utf8')).commit;
-    } catch {
-      return true; // never installed by the installer (or a torn marker): install to be sure
-    }
-    return installed !== head();
-  };
+  /* no marker = never installed by the installer (or a torn one): install to be sure */
+  return () => readMarker(markerFile)?.commit !== head();
+}
+
+/** The installer's marker, or null when it is missing or torn. */
+export function readMarker(markerFile: string): InstalledBuild | null {
+  try {
+    const m = JSON.parse(readFileSync(markerFile, 'utf8'));
+    return typeof m?.commit === 'string' ? { commit: m.commit, ...(typeof m.at === 'string' ? { at: m.at } : {}) } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** A main checkout has a `.git` folder; a worktree has a `.git` file (and is deleted after its merge). */
@@ -103,6 +122,15 @@ export function isMainCheckout(repo: string): boolean {
 /** The commit checked out in `repo`. */
 export const headCommit = (repo: string) => () =>
   execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+
+/** The commit checked out right now, or 'unknown' (a report line must never stop the backend from starting). */
+export function runningCommit(repo: string): string {
+  try {
+    return headCommit(repo)();
+  } catch {
+    return 'unknown';
+  }
+}
 
 /** Is this project AI Studio itself, i.e. its folder is the checkout `repo`? */
 export function studioProject(store: Store, sandbox: string, repo: string) {

@@ -24,6 +24,8 @@ import {
   installedBehind,
   isMainCheckout,
   markerFile,
+  readMarker,
+  runningCommit,
   spawnInstaller,
 } from './self-install/self-install.ts';
 
@@ -77,6 +79,9 @@ const selfInstall =
         repo: studioRepo,
         install: spawnInstaller(studioRepo, config.home),
         isBehind: installedBehind(markerFile(config.home), headCommit(studioRepo)),
+        /* the code this backend loaded: a merge doesn't change it until the backend restarts */
+        running: runningCommit(studioRepo),
+        installed: () => readMarker(markerFile(config.home)),
       }
     : null;
 const app = buildApp({
