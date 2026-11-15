@@ -23,6 +23,8 @@ export type RunSpec = {
   tools?: readonly string[];
   /** Pre-approved permission patterns (e.g. `Bash(git log *)`); defaults to `tools`. Ignored without `tools`. */
   allowedTools?: readonly string[];
+  /** With `tools`: the run has the whole studio shell, so the setting-prefix hook (`PORT=… node …`) applies too. */
+  fullShell?: boolean;
   /** Where the ask_user MCP tool reaches the backend (CLI runner only). `reportUrl` is set only for
       reporter runs: then the same MCP server also offers `file_report`. */
   askBridge?: { url: string; token: string; reportUrl?: string };
@@ -31,7 +33,7 @@ export type RunSpec = {
   studioTools?: { names: readonly string[]; remote?: { url: string; token: string } };
   /** Extra directories the file tools may reach (`--add-dir`): a toolsmith's own toolkit folder, nothing else. */
   addDirs?: readonly string[];
-  /** Web research tools (WebSearch, WebFetch) — reporter runs only. */
+  /** Web research tools (WebSearch, WebFetch) — reporter runs and agents whose toolset grants the web. */
   web?: boolean;
 };
 

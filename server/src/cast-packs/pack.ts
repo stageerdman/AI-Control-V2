@@ -41,9 +41,7 @@ export function installPackIfNeeded(store: Store, pack: CastPack): boolean {
       if (store.agents.get(id)) continue; // an agent the user already has keeps its id and its edits
       store.agents.create({ ...agent, roleId: roleIds.get(roleId) ?? null }, id);
     }
-    store.db
-      .prepare('INSERT INTO meta (key, value) VALUES (?, ?)')
-      .run(flag(pack), new Date().toISOString());
+    store.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(flag(pack), new Date().toISOString());
   });
   return true;
 }

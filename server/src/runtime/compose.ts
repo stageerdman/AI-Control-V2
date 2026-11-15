@@ -1,6 +1,7 @@
 /* Prompt composer (pure). What an agent is told, most personal first:
    brain ▸ what the team does ▸ how the team codes ▸ its job on this team ▸ project rules.
    The project's CLAUDE.md is NOT pasted in: Claude Code reads it itself from cwd. */
+import type { EditScope } from '../domain/toolset.ts';
 
 export type ComposeInput = {
   agent: { name: string; prompt: string; role: string };
@@ -10,7 +11,10 @@ export type ComposeInput = {
   toolkit?: { dir: string; projectDir: string } | null;
   /** Shell commands pre-approved for this run (default: git, ls, cat, pwd). */
   shell?: readonly string[];
-  /** The project's granted accesses (G1): what each provides, by label + env var — never a value. */
+  /** Where the agent may edit (its toolset; default anywhere). */
+  edit?: EditScope;
+  /** `NAME=value <command>` is approved (the setting-prefix hook runs). Default true. */
+  settingsPrefix?: boolean;
   /** G1: this run's PORT, the project's app port and its spares. */
   ports?: { port: number; app: number; spares: readonly number[] } | null;
   /** AGENT MCP: the run has `room` + `call_agent` — say how to work with the others. */
@@ -19,6 +23,7 @@ export type ComposeInput = {
   principles?: string | null;
   /** STUDIO LIFE: the run may `forget` — how to use it. */
   memory?: string | null;
+  /** The project's granted accesses (G1): what each provides, by label + env var — never a value. */
   access?: readonly {
     name: string;
     serves: string;
@@ -29,20 +34,40 @@ export type ComposeInput = {
 
 const section = (title: string, body: string) => (body.trim() ? `## ${title}\n\n${body.trim()}` : '');
 
+const code = (s: string) => `\`${s}\``;
+const list = (xs: readonly string[]) =>
+  xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
+
+function editLine(edit: EditScope): string {
+  if (edit === 'none') return '- You can read files but not change them: report what you find instead.';
+  if (edit === 'any') return '- Create and change files with the Write and Edit tools.';
+  return `- Create and change files with the Write and Edit tools, only under ${list(edit.map(code))}; edits anywhere else are refused.`;
+}
+
+function shellLine(cmds: readonly string[], settingsPrefix: boolean, port: number): string {
+  if (!cmds.length) return '- You have no shell.';
+  const verb = cmds.length === 1 ? 'is' : 'are';
+  const prefix = settingsPrefix
+    ? ` You may put literal settings in front of one: \`NAME=value <command>\` (e.g. \`PORT=${port} node server.js\`) — literal values only (no \`$\`, backticks or \`$(…)\`).`
+    : '';
+  return `- In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${list(cmds.map(code))} ${verb} pre-approved, anything else is refused.${prefix}`;
+}
+
 export function composePrompt({
   agent,
   team,
   project,
   toolkit,
   shell,
+  edit,
+  settingsPrefix,
   access,
   ports,
   room,
   memory,
   principles,
 }: ComposeInput): string {
-  const cmds = (shell ?? ['git', 'ls', 'cat', 'pwd']).map((c) => `\`${c}\``);
-  const approved = `${cmds.slice(0, -1).join(', ')} and ${cmds.at(-1)}`;
+  const cmds = shell ?? ['git', 'ls', 'cat', 'pwd'];
   const who = `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`;
   return [
     `# ${agent.name}`,
@@ -90,13 +115,16 @@ export function composePrompt({
       'How to work here',
       [
         '- Work only inside this project folder.',
-        `- Create and change files with the Write and Edit tools. In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${approved} are pre-approved, anything else is refused. You may put literal settings in front of one: \`NAME=value <command>\` (e.g. \`PORT=${ports?.port ?? 3000} node server.js\`) — literal values only (no \`$\`, backticks or \`$(…)\`).`,
+        editLine(edit ?? 'any'),
+        shellLine(cmds, settingsPrefix !== false, ports?.port ?? 3000),
         ...(ports
           ? [
               `- Ports: your PORT is ${ports.port} (already in your environment; this project's spares are ${ports.spares.join(', ')} in AI_STUDIO_PORTS). ${ports.app} is the project's app port — the studio's "Run the app" uses it; don't bind it. Servers read their port from PORT. Stop any server you start before you finish.`,
             ]
           : []),
-        '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).',
+        cmds.includes('git')
+          ? '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).'
+          : '- The studio commits your changes when you finish.',
         '- You are pre-approved for anything your tools allow in this project. Never ask the user for permission or confirmation (deleting, overwriting, installing packages, resetting, rewriting files). Decide and proceed.',
         '- Use `ask_user` only for information only the user has, e.g. a missing credential or a genuine product choice with no sensible default — then wait for the answer. Never guess credentials.',
         '- Finish with a short plain-words summary of what you did.',

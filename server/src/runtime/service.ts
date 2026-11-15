@@ -28,9 +28,10 @@ import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import { FORGET_NUDGE, WORKING_WITH_OTHERS, YOUR_MEMORY } from '../room/context.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
-import { DEFAULT_CAPS } from './config.ts';
+import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
+import { runPermissions } from './permissions.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL } from './stream.ts';
 
@@ -430,6 +431,8 @@ export function createRuntime(deps: RuntimeDeps) {
       },
     });
 
+    /* an agent with its own toolset gets exactly those tools; null = the full studio kit */
+    const perms = !big && agent.tools ? runPermissions(agent.tools, deps.shell ?? AGENT_SHELL.dev) : null;
     const spec: RunSpec = {
       runId,
       cwd,
@@ -440,7 +443,11 @@ export function createRuntime(deps: RuntimeDeps) {
           team,
           project: { name: project.name },
           toolkit,
-          ...(deps.shell ? { shell: deps.shell } : {}),
+          ...(perms
+            ? { shell: perms.shell, edit: perms.edit, settingsPrefix: perms.fullShell }
+            : deps.shell
+              ? { shell: deps.shell }
+              : {}),
           ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
           ...(ports ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } } : {}),
           room: bridge && studioToolsFor ? WORKING_WITH_OTHERS : null,
@@ -465,8 +472,9 @@ export function createRuntime(deps: RuntimeDeps) {
       }),
       secretValues: secrets,
       ...(big ? { tools: [] } : {}),
+      ...(perms ? { tools: perms.tools, allowedTools: perms.allowedTools, fullShell: perms.fullShell } : {}),
       ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
-      ...(reporter ? { web: true } : {}),
+      ...(reporter || perms?.web ? { web: true } : {}),
       ...(resumeSessionId ? { resumeSessionId } : {}),
       ...(bridge
         ? { studioTools: { names: bridge.names, ...(bridge.remote ? { remote: bridge.remote } : {}) } }
