@@ -12,7 +12,10 @@
 ## What they do (observed)
 - They accidentally deleted Health Analyst, an agent with chats and a team seat, and running work was blocked (Nov 2026). Getting them back needed manual recovery.
 
+- They found whiteboard tasks hard to read, especially errors shown as raw technical text, and wanted to see who is on each task and who finished it (Nov 2026). The board now shows a status mark, an avatar and name, and one plain line when something goes wrong (design/whiteboard-task-card.md).
+
 ## Assumptions (guesses — check)
+- Raw error text is rarely needed. It sits behind "Details". Check: do people open Details often? If they do, the plain messages aren't saying enough.
 - Most restores happen within minutes (Undo) or within a few days (Recently deleted). 30 days is enough.
 - "Stop all agents" should leave the project's app running (it's the user's, not an agent's). Check: do people stop the app right after Stop all?
 - People restore one agent at a time, so no bulk restore is needed.
