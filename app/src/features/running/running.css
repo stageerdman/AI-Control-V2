@@ -1,0 +1,113 @@
+/* RUNNING (design/running/running.md): the stage pill and the Running now sheet. */
+.rn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.rn-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: pulse 1.4s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rn-dot {
+    animation: none;
+  }
+}
+
+.rn-body h2 {
+  margin: 0 0 4px;
+}
+.rn-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rn-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.rn-row:first-child {
+  border-top: 0;
+}
+.rn-app {
+  width: 32px;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.rn-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rn-what b {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rn-doing {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rn-cmds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+.rn-cmds code {
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rn-empty {
+  margin: 10px 0 0;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.rn-err {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff1f1;
+  color: #a3242c;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.rn-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.rn-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  font-weight: 700;
+}
+.rn-confirm span {
+  margin-right: auto;
+}

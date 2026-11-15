@@ -29,6 +29,7 @@ import { ErrorState, Loading, toast } from '../../ui';
 import { refreshProjectAccess, useNewAccessCount } from '../access';
 import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
+import { RunningPill, RunningSheet, runningKey, useRunning } from '../running';
 import { AccessSheet } from './AccessSheet';
 import { type ChatSummary, keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
@@ -137,6 +138,8 @@ const CLOCK_EVENTS = new Set([
   'health.checked',
   'collaboration.changed',
 ]);
+/* events that start or stop something: the running list reads again (crew calls send none: it also polls) */
+const RUNNING_EVENTS = new Set(['run.started', 'run.finished', 'app.status', 'goal.changed']);
 const SUB_OF: Partial<Record<ObjectId, OfficeSub>> = {
   dossier: 'features',
   whiteboard: 'board',
@@ -199,6 +202,8 @@ function Office({
   const features = useFeatures(pid);
   const health = useHealth(pid);
   const time = useWorkTime(pid, 60_000);
+  const running = useRunning(pid, 5000);
+  const [runningOpen, setRunningOpen] = useState(false);
   /* the project as the portrait shows it (display name + picture); `project.changed` reads it again */
   const project = useQuery<Project>(keys.project(pid), () => studio.projects.get(pid));
   const name = project.data?.name ?? office.name;
@@ -416,6 +421,7 @@ function Office({
       dispatch(ev);
       const e = engine.current;
       if (CLOCK_EVENTS.has(ev.type)) void invalidate(keys.time(pid));
+      if (RUNNING_EVENTS.has(ev.type)) void invalidate(runningKey(pid));
       if (ev.type === 'project.changed') void invalidate(keys.project(pid));
       switch (ev.type) {
         case 'goal.changed':
@@ -949,6 +955,7 @@ function Office({
           )}
         </div>
         <div className="o-stagectl">
+          <RunningPill items={running.data} pressed={runningOpen} onClick={() => setRunningOpen(true)} />
           {app.data?.status === 'running' && app.data.url && (
             <a
               className="o-ctl o-openapp"
@@ -1039,6 +1046,7 @@ function Office({
           }}
         />
       )}
+      <RunningSheet pid={pid} open={runningOpen} onClose={() => setRunningOpen(false)} agents={agentsById} />
       <TimeSheet
         pid={pid}
         name={name}
