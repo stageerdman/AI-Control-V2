@@ -41,6 +41,7 @@ import { MailSheet, refreshMail } from './MailSheet';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
+import { RecapSheet } from './RecapSheet';
 import {
   activityOf,
   boardFacts,
@@ -629,16 +630,15 @@ function Office({
 
   /* ---------- robots: click + keyboard */
   const pokeN = useRef(0);
+  /* the director and anyone asking you something open the chat; everyone else tells you what they did */
+  const [recapFor, setRecapFor] = useState<string | null>(null);
   const clickActor = (a: string) => {
     const e = engine.current;
     if (!e) return;
-    if (deriveActor(liveRef.current, a).kind === 'sleeping') {
-      e.react(a, POKES[pokeN.current++ % POKES.length]);
-      e.chip(a, 'Chat anyway', () => openThread(a, 'chat'));
-      announce(`${nameOf(a)} is asleep — off shift. Chat anyway is available.`);
-      return;
-    }
-    openThread(a, 'scene');
+    const kind = deriveActor(liveRef.current, a).kind;
+    if (a === director || kind === 'needs-input') return openThread(a, 'scene');
+    if (kind === 'sleeping') e.react(a, POKES[pokeN.current++ % POKES.length]);
+    setRecapFor(a);
   };
   const focusKey = useRef(director);
   const elOf = (k: string) =>
@@ -1040,6 +1040,21 @@ function Office({
         open={!!noteFor}
         onClose={() => setNoteFor(null)}
         onSeen={markSeen}
+      />
+      <RecapSheet
+        agentId={recapFor}
+        name={recapFor ? nameOf(recapFor) : ''}
+        open={!!recapFor}
+        onClose={() => {
+          setRecapFor(null);
+          opener.current?.focus({ preventScroll: true });
+        }}
+        /* the saved-chat page isn't in yet: Open chat = their live chat in the panel */
+        onOpenChat={() => {
+          const a = recapFor;
+          setRecapFor(null);
+          if (a) openThread(a, 'chat');
+        }}
       />
       <PrinciplesSheet
         pid={pid}

@@ -4,6 +4,7 @@ import {
   type Collaboration,
   type CollaborationView,
   http,
+  isApiError,
   type ProjectApp,
   type ProjectStatus,
 } from '../../api';
@@ -118,7 +119,35 @@ export type WorkTime = {
   live: number;
 };
 
+/** One saved chat (a run) — server/src/db/chats.ts. */
+export type ChatSummary = {
+  runId: string;
+  agentId: string;
+  projectId: string;
+  task: string;
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
+  sessionId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  messageCount: number;
+  lastText: string | null;
+};
+/** GET /agents/:id/recap — the agent's own words about its last chat. */
+export type Recap = { recap: string | null; chat: ChatSummary | null; cached: boolean };
+
+/* Until /recap lands on the server (an unknown route, not an unknown agent), the recap is the last chat's
+   own last words. Remove this once the endpoint ships. */
+const noRoute = (err: unknown) =>
+  isApiError(err) && err.status === 404 && err.message.startsWith('No route');
+const recap = (agentId: string): Promise<Recap> =>
+  http.get<Recap>(`/agents/${e(agentId)}/recap`).catch(async (err) => {
+    if (!noRoute(err)) throw err;
+    const chat = await http.get<ChatSummary | null>(`/agents/${e(agentId)}/chats/latest`);
+    return { recap: chat?.lastText ?? null, chat: chat ?? null, cached: false };
+  });
+
 export const officeApi = {
+  recap,
   office: (pid: string) => http.get<OfficeView>(`/projects/${e(pid)}/office`),
   features: (pid: string) => http.get<Feature[]>(`/projects/${e(pid)}/features`),
   createFeature: (pid: string, body: FeatureCreate) =>
@@ -171,6 +200,7 @@ export const keys = {
   /* STUDIO LIFE */
   deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,
   principles: (pid: string) => `office:${pid}:principles`,
+  recap: (agentId: string) => `recap:${agentId}`,
   principle: (pid: string, teamId: string, file: string) => `office:${pid}:principles:${teamId}:${file}`,
   mail: (pid: string, box: 'in' | 'sent' = 'in') => `office:${pid}:mail:${box}`,
   pager: 'pager:asks',
