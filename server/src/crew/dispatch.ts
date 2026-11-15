@@ -1065,7 +1065,83 @@ export function createDispatch(deps: {
     pump(run.projectId);
   });
 
+  /** Stop these items (and their sub-tasks): queued ones are cancelled now, live runs are stopped (their
+      items follow when the runs end), a split team item waits for its members' parts (teamCheck). */
+  function halt(projectId: string, list: ChecklistItem[]) {
+    const split: string[] = [];
+    for (const it of list.flatMap((i) => [...i.subtasks, i])) {
+      if (it.status === 'running' && it.teamPhase === 'members') {
+        stopping.add(it.id);
+        split.push(it.id);
+      } else if (it.status === 'todo' || (it.status === 'running' && !it.runId)) {
+        /* queued, or its checkout is still being made (launch notices and puts it away) */
+        work.setItem(it.id, { status: 'cancelled' });
+        announce(work.item(it.id) as ChecklistItem);
+        if (it.status === 'todo') void shelve(it);
+      } else if (it.status === 'running' && it.runId) {
+        try {
+          runtime.cancel(projectId, it.runId);
+        } catch {
+          /* already ended */
+        }
+      }
+    }
+    for (const id of split) teamCheck(id);
+  }
+
+  /** The review gates a new item gets for its owner (reviewers who left the project are skipped). */
+  function gatesOf(projectId: string, owner: { agentId: string; teamId: string | null }): ItemGate[] {
+    const p = store.projects.require(projectId);
+    const onProject = (id: string) =>
+      p.agentIds.includes(id) ||
+      store.guests.ids(projectId).includes(id) ||
+      p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
+    return gatesFor(p.collaboration, owner).filter((g) => onProject(g.reviewer));
+  }
+
+  const STOP_WAIT_MS = 60_000;
+  /** The director's whiteboard tools (src/whiteboard) change the board through this port. */
+  const board = {
+    crewing,
+    gatesOf,
+    /** Stops these items and resolves once none of them is running any more. */
+    async stopItems(projectId: string, ids: string[]): Promise<void> {
+      const list = ids.map((id) => work.item(id)).filter((i): i is ChecklistItem => !!i);
+      halt(projectId, list);
+      const live = () => ids.some((id) => work.item(id)?.status === 'running');
+      const until = Date.now() + STOP_WAIT_MS;
+      while (live()) {
+        if (Date.now() > until) throw conflict('The stopped work did not end within a minute — try again');
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    },
+    /** Queue a finished or stopped item again (it carries on in its own session when it had one). */
+    reopen(itemId: string) {
+      const it = work.item(itemId);
+      if (it) work.setItem(it.id, requeuePatch(it, !!sessionOf(it.runId)));
+    },
+    /** The board changed under these goals: tell the screen, settle them and start what may start. */
+    changed(projectId: string, goalIds: string[]) {
+      for (const goalId of goalIds) {
+        const g = work.goal(goalId);
+        if (!g) {
+          /* removed: the screen reads the board again */
+          emit(projectId, { type: 'goal.changed', payload: { goalId, status: 'cancelled' } });
+          continue;
+        }
+        emit(projectId, {
+          type: 'goal.changed',
+          payload: { goalId, status: g.status, text: clip(g.text, 2000), summary: clip(g.summary, 1000) },
+        });
+        for (const it of g.items) announce(it);
+        refreshGoal(goalId);
+      }
+      pump(projectId);
+    },
+  };
+
   return {
+    board,
     list: (projectId: string) => {
       store.projects.require(projectId);
       return work.goals(projectId);
@@ -1132,11 +1208,6 @@ export function createDispatch(deps: {
         const collab = p.collaboration;
         /* a git project: every item gets its own worktree, so independent items may run side by side */
         const isolated = !!deps.worktrees && (await deps.worktrees.usable(repoOf(projectId)));
-        /* a reviewer who left the project since the design: that gate is skipped */
-        const onProject = (id: string) =>
-          p.agentIds.includes(id) ||
-          store.guests.ids(projectId).includes(id) ||
-          p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
         const everyone = collab?.orchestratorTalksTo === 'everyone';
         const state = projectState(repoOf(projectId));
         const features = deps.features
@@ -1233,7 +1304,7 @@ export function createDispatch(deps: {
                 parallel: i.parallel === true,
                 report: i.report === true,
                 /* report items ask for knowledge, not change: no review gates */
-                gates: i.report ? [] : gatesFor(collab, item).filter((g) => onProject(g.reviewer)),
+                gates: i.report ? [] : gatesOf(projectId, item),
               };
             }),
           ),
@@ -1270,26 +1341,7 @@ export function createDispatch(deps: {
         return work.goal(goalId) as Goal;
       }
       if (g.status !== 'running') throw conflict(`This goal is already ${g.status}`);
-      const split: string[] = [];
-      for (const it of g.items.flatMap((i) => [...i.subtasks, i])) {
-        if (it.status === 'running' && it.teamPhase === 'members') {
-          /* its members' parts stop first; it follows (teamCheck) */
-          stopping.add(it.id);
-          split.push(it.id);
-        } else if (it.status === 'todo' || (it.status === 'running' && !it.runId)) {
-          /* queued, or its checkout is still being made (launch notices and puts it away) */
-          work.setItem(it.id, { status: 'cancelled' });
-          announce(work.item(it.id) as ChecklistItem);
-          if (it.status === 'todo') void shelve(it);
-        } else if (it.status === 'running' && it.runId) {
-          try {
-            runtime.cancel(projectId, it.runId);
-          } catch {
-            /* already ended */
-          }
-        }
-      }
-      for (const id of split) teamCheck(id);
+      halt(projectId, g.items);
       refreshGoal(goalId);
       return work.goal(goalId) as Goal;
     },

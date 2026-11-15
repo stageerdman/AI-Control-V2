@@ -105,6 +105,13 @@ export type Goal = {
   updatedAt: string;
 };
 
+export type NewItem = Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'> & {
+  parallel?: boolean;
+  report?: boolean;
+  gates?: ItemGate[];
+};
+export type ItemEdit = Partial<Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel'>>;
+
 type Row = Record<string, unknown>;
 const toItem = (r: Row): ChecklistItem => ({
   id: r.id as string,
@@ -188,6 +195,35 @@ export function workRepo(db: Db) {
     };
   };
 
+  function insertItems(goalId: string, projectId: string, start: number, list: NewItem[]) {
+    const t = now();
+    const ins = db.prepare(
+      `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
+    );
+    list.forEach((i, n) => {
+      ins.run(
+        i.id,
+        goalId,
+        projectId,
+        start + n,
+        i.text,
+        i.brief,
+        i.agentId,
+        i.teamId,
+        i.parallel ? 1 : 0,
+        i.report ? 1 : 0,
+        JSON.stringify(i.gates ?? []),
+        t,
+        t,
+      );
+    });
+  }
+  const renumber = (ids: string[]) => {
+    const set = db.prepare('UPDATE checklist_items SET position = ? WHERE id = ?');
+    ids.forEach((id, n) => set.run(n, id));
+  };
+
   const repo = {
     goal(id: string): Goal | null {
       const r = db.prepare('SELECT * FROM goals WHERE id = ?').get(id) as Row | undefined;
@@ -201,39 +237,56 @@ export function workRepo(db: Db) {
       ).map(toGoal),
     insertGoal(
       g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps'] },
-      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 'teamId'> & {
-        parallel?: boolean;
-        report?: boolean;
-        gates?: ItemGate[];
-      })[],
+      list: NewItem[],
     ): Goal {
       const t = now();
       db.prepare(
         `INSERT INTO goals (id, project_id, text, summary, status, caps, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
       ).run(g.id, g.projectId, g.text, g.summary, g.caps ? JSON.stringify(g.caps) : null, t, t);
-      const ins = db.prepare(
-        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
-      );
-      list.forEach((i, n) => {
-        ins.run(
-          i.id,
-          g.id,
-          g.projectId,
-          n,
-          i.text,
-          i.brief,
-          i.agentId,
-          i.teamId,
-          i.parallel ? 1 : 0,
-          i.report ? 1 : 0,
-          JSON.stringify(i.gates ?? []),
-          t,
-          t,
-        );
-      });
+      insertItems(g.id, g.projectId, 0, list);
       return repo.goal(g.id) as Goal;
     },
+    /** New whiteboard items after the goal's last one. */
+    appendItems(goal: Pick<Goal, 'id' | 'projectId'>, list: NewItem[]): Goal {
+      insertItems(goal.id, goal.projectId, items(goal.id).length, list);
+      return repo.goal(goal.id) as Goal;
+    },
+    editGoal(id: string, change: { text?: string; summary?: string }) {
+      const cur = repo.goal(id);
+      if (!cur) return;
+      db.prepare('UPDATE goals SET text = ?, summary = ?, updated_at = ? WHERE id = ?').run(
+        change.text ?? cur.text,
+        change.summary ?? cur.summary,
+        now(),
+        id,
+      );
+    },
+    editItem(id: string, change: ItemEdit) {
+      const cur = repo.item(id);
+      if (!cur) return;
+      const given = Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined));
+      const next = { ...cur, ...given };
+      db.prepare(
+        'UPDATE checklist_items SET text = ?, brief = ?, agent_id = ?, team_id = ?, parallel = ?, updated_at = ? WHERE id = ?',
+      ).run(next.text, next.brief, next.agentId, next.teamId, next.parallel ? 1 : 0, now(), id);
+    },
+    /** Moves a whiteboard item to a 0-based place; positions stay 0..n-1 (dispatch indexes the list by them). */
+    moveItem(id: string, to: number) {
+      const cur = repo.item(id);
+      if (!cur) return;
+      const order = items(cur.goalId).filter((i) => i.id !== id);
+      order.splice(Math.max(0, Math.min(to, order.length)), 0, cur);
+      renumber(order.map((i) => i.id));
+    },
+    /** Deletes an item (its sub-tasks cascade) and closes the gap in its goal. */
+    removeItem(id: string) {
+      const cur = repo.item(id);
+      if (!cur) return;
+      db.prepare('DELETE FROM checklist_items WHERE id = ?').run(id);
+      if (!cur.parentId) renumber(items(cur.goalId).map((i) => i.id));
+    },
+    /** Deletes a goal and every item under it. */
+    removeGoal: (id: string) => db.prepare('DELETE FROM goals WHERE id = ?').run(id),
     /** F1c: link a goal to a feature. */
     setGoalFeature: (id: string, featureId: string | null, ships: boolean) =>
       db
