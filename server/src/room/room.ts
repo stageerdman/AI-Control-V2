@@ -78,14 +78,23 @@ export function createRoom(deps: {
           .filter((t) => !!t)
       : [];
 
-  const joined = (scope: RoomScope, ownerId: string) =>
-    rows<{ payload: string }>(
+  /** Who joined and hasn't left since (a team rebuild's `room.left` takes them out again). */
+  const joined = (scope: RoomScope, ownerId: string): string[] => {
+    const here = new Set<string>();
+    const evs = rows<{ type: string; payload: string }>(
       db
         .prepare(
-          "SELECT payload FROM events WHERE scope = ? AND scope_id = ? AND type = 'room.joined' ORDER BY id",
+          "SELECT type, payload FROM events WHERE scope = ? AND scope_id = ? AND type IN ('room.joined', 'room.left') ORDER BY id",
         )
         .all(scope, ownerId),
-    ).map((r) => JSON.parse(r.payload) as { agentId: string; by?: string; why?: string });
+    );
+    for (const e of evs) {
+      const { agentId } = JSON.parse(e.payload) as { agentId: string };
+      if (e.type === 'room.joined') here.add(agentId);
+      else here.delete(agentId);
+    }
+    return [...here];
+  };
 
   /** Everyone present, in order: the orchestrator, the project's staff, then whoever joined. */
   function present(scope: RoomScope, ownerId: string): string[] {
@@ -99,7 +108,7 @@ export function createRoom(deps: {
       for (const id of store.projects.require(ownerId).agentIds) add(id);
       for (const id of store.guests.ids(ownerId)) add(id); // brought in by the user
     }
-    for (const j of joined(scope, ownerId)) add(j.agentId);
+    for (const id of joined(scope, ownerId)) add(id);
     return ids.filter((id) => store.agents.get(id));
   }
 
