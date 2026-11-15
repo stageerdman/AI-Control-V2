@@ -29,7 +29,9 @@ const nameOf = (r: Roster, id: string | null) => r.people.find((p) => p.id === i
 
 /** Everyone a task can go to, for the refusal message. */
 function onIt(r: Roster): string {
-  const leads = r.teams.filter((t) => t.captainId).map((t) => `${nameOf(r, t.captainId)} (captain of ${t.name})`);
+  const leads = r.teams
+    .filter((t) => t.captainId)
+    .map((t) => `${nameOf(r, t.captainId)} (captain of ${t.name})`);
   const members = r.everyone
     ? r.teams.flatMap((t) => t.memberIds.map((m) => `${nameOf(r, m)} (${t.name})`))
     : [];
@@ -41,9 +43,7 @@ function onIt(r: Roster): string {
 export function resolveOwner(r: Roster, who: string, team?: string): Owner {
   const p = find(r, who);
   if (!p) throw invalid(`Nobody called '${who}' works on this project. On it: ${onIt(r)}.`);
-  const wanted = team
-    ? r.teams.find((t) => t.id === team.trim() || key(t.name) === key(team))
-    : undefined;
+  const wanted = team ? r.teams.find((t) => t.id === team.trim() || key(t.name) === key(team)) : undefined;
   if (team && !wanted) throw invalid(`There is no team called '${team}' on this project.`);
   const led = r.teams.filter((t) => t.captainId === p.id && (!wanted || t.id === wanted.id));
   const seats = r.teams.filter((t) => t.memberIds.includes(p.id) && (!wanted || t.id === wanted.id));

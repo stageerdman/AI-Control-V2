@@ -29,7 +29,10 @@ const task = (a: Args): TaskInput => ({
 
 const TASK_PROPS = {
   text: { type: 'string', description: 'The short whiteboard line.' },
-  owner: { type: 'string', description: 'Who does it: a team captain or a specialist (name, nickname or id).' },
+  owner: {
+    type: 'string',
+    description: 'Who does it: a team captain or a specialist (name, nickname or id).',
+  },
   team: { type: 'string', description: 'The team, when the owner is on more than one.' },
   brief: { type: 'string', description: 'What to do and what done looks like.' },
   parallel: { type: 'boolean', description: 'May run alongside the task before it.' },
@@ -49,13 +52,17 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
     },
     {
       name: 'add_goal',
-      description: 'Put a new goal on the whiteboard with 1–8 tasks, in the order they should happen. The work starts right away.',
+      description:
+        'Put a new goal on the whiteboard with 1–8 tasks, in the order they should happen. The work starts right away.',
       inputSchema: {
         type: 'object',
         properties: {
           text: { type: 'string', description: 'The goal, as the user would say it.' },
           summary: { type: 'string', description: 'The plan in one sentence.' },
-          tasks: { type: 'array', items: { type: 'object', properties: TASK_PROPS, required: ['text', 'owner'] } },
+          tasks: {
+            type: 'array',
+            items: { type: 'object', properties: TASK_PROPS, required: ['text', 'owner'] },
+          },
         },
         required: ['text', 'tasks'],
       },
@@ -80,12 +87,17 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
       },
       run: async (a) => {
         const position = num(a, 'position');
-        return board.addTask(projectId, { goal: need(a, 'goal'), ...task(a), ...(position ? { position } : {}) });
+        return board.addTask(projectId, {
+          goal: need(a, 'goal'),
+          ...task(a),
+          ...(position ? { position } : {}),
+        });
       },
     },
     {
       name: 'edit_goal',
-      description: 'Change a goal: its text or plan, or its status (running = continue its unfinished tasks; done or cancelled = stop what is left).',
+      description:
+        'Change a goal: its text or plan, or its status (running = continue its unfinished tasks; done or cancelled = stop what is left).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -109,7 +121,8 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
     },
     {
       name: 'edit_task',
-      description: 'Change a task: text, brief, owner, place, parallel, or status (todo = do it again, done, cancelled).',
+      description:
+        'Change a task: text, brief, owner, place, parallel, or status (todo = do it again, done, cancelled).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -157,12 +170,16 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
     },
     {
       name: 'clean_board',
-      description: 'Clear old goals off the whiteboard: finished (done), stopped (failed or cancelled), or all.',
+      description:
+        'Clear old goals off the whiteboard: finished (done), stopped (failed or cancelled), or all.',
       inputSchema: {
         type: 'object',
         properties: {
           which: { type: 'string', enum: ['finished', 'stopped', 'all'] },
-          olderThanDays: { type: 'number', description: 'Only goals last touched more than this many days ago.' },
+          olderThanDays: {
+            type: 'number',
+            description: 'Only goals last touched more than this many days ago.',
+          },
           force: FORCE,
         },
         required: ['which'],
@@ -171,7 +188,11 @@ export function whiteboardTools(board: Board, projectId: string): BridgeTool[] {
         const which = oneOf(a, 'which', ['finished', 'stopped', 'all'] as const) as CleanWhich | undefined;
         if (!which) throw invalid('"which" is required: finished, stopped or all.');
         const olderThanDays = num(a, 'olderThanDays');
-        return board.clean(projectId, { which, ...(olderThanDays ? { olderThanDays } : {}), force: bool(a, 'force') === true });
+        return board.clean(projectId, {
+          which,
+          ...(olderThanDays ? { olderThanDays } : {}),
+          force: bool(a, 'force') === true,
+        });
       },
     },
   ];

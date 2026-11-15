@@ -49,8 +49,6 @@ import { agentRoutes } from './routes/agents.ts';
 import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
 import { bridgeRoutes } from './routes/bridges.ts';
-import { createBoard } from './whiteboard/board.ts';
-import { whiteboardTools } from './whiteboard/tools.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
@@ -102,6 +100,8 @@ import {
   type Installer,
   studioProject,
 } from './self-install/self-install.ts';
+import { createBoard } from './whiteboard/board.ts';
+import { whiteboardTools } from './whiteboard/tools.ts';
 
 export type AppDeps = {
   config: Config;

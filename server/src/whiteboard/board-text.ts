@@ -1,5 +1,5 @@
-/* The whiteboard as the director reads it: goals with their ids, each task with its place, owner and status.
-   Pure text, no store access. */
+/* The whiteboard as the director's tools answer it (text, for the model): goals with their ids, each task
+   with its place, owner and status. present.ts is the screens' JSON view. */
 import type { ChecklistItem, Goal } from '../db/work.ts';
 
 const STATUS: Record<ChecklistItem['status'], string> = {

@@ -110,7 +110,9 @@ export type NewItem = Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 
   report?: boolean;
   gates?: ItemGate[];
 };
-export type ItemEdit = Partial<Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel' | 'gates'>>;
+export type ItemEdit = Partial<
+  Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel' | 'gates'>
+>;
 
 type Row = Record<string, unknown>;
 const toItem = (r: Row): ChecklistItem => ({
@@ -221,7 +223,9 @@ export function workRepo(db: Db) {
   }
   const renumber = (ids: string[]) => {
     const set = db.prepare('UPDATE checklist_items SET position = ? WHERE id = ?');
-    ids.forEach((id, n) => set.run(n, id));
+    ids.forEach((id, n) => {
+      set.run(n, id);
+    });
   };
 
   const repo = {
@@ -387,7 +391,9 @@ export function workRepo(db: Db) {
     /** A team rebuild hands an item to someone else (its status is set separately with setItem). */
     reassign: (id: string, to: { agentId: string; teamId: string | null; note: string | null }) =>
       db
-        .prepare('UPDATE checklist_items SET agent_id = ?, team_id = ?, note = ?, updated_at = ? WHERE id = ?')
+        .prepare(
+          'UPDATE checklist_items SET agent_id = ?, team_id = ?, note = ?, updated_at = ? WHERE id = ?',
+        )
         .run(to.agentId, to.teamId, to.note, now(), id),
     /** Projects with checklist work in flight or queued. */
     activeProjects: (): string[] =>
