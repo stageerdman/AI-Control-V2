@@ -3,8 +3,10 @@
    One mounted page for all of them so the zooms animate in place (camera push / FLIP) between
    the list and the detail, like the prototype's renderCast(). */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useQuery } from '../../api';
 import type { Route } from '../../shell/router';
 import { ErrorState, Loading } from '../../ui';
+import { castApi, KEYS } from './api';
 import { HeroZoom } from './HeroZoom';
 import { Lineup } from './Lineup';
 import { RollCall } from './RollCall';
@@ -46,6 +48,7 @@ export function CastPage({
   route: Extract<Route, { name: 'cast' | 'cast.agent' | 'cast.tinker' | 'cast.team' }>;
 }) {
   const { agents, roles, teams, loading, error, retry } = useCast();
+  const drafts = useQuery(KEYS.tinker, castApi.tinker.list).data?.sessions;
   const tab = tabOf(route);
   const [z, setZ] = useState<Zoom | null>(() => {
     const w = zoomOf(route);
@@ -157,6 +160,7 @@ export function CastPage({
           ) : tab === 'agents' ? (
             <Lineup
               agents={agents}
+              drafts={drafts ?? []}
               q={q}
               hidden={!!z && !z.closing}
               onRecruit={(name) => {

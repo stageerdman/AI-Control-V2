@@ -69,6 +69,8 @@
 .slot-ghost .slot-name{color:var(--cream-60)}
 .slot-ghost .slot-role{color:var(--sun)}
 .slot-ghost .slot-pool{background:radial-gradient(closest-side,rgba(255,246,233,.06),transparent)}
+.slot-draft .slot-name{color:var(--cream)}
+.slot-draft .slot-fig .hero{opacity:.6}
 .slot-li.away .slot{opacity:.18;transform:scale(.92)}
 .lineup-none{margin:28px 0 0;text-align:center;color:var(--cream-72);font-weight:700}
 .recruit-q{appearance:none;border:0;background:none;font:inherit;font-weight:900;color:var(--sun);cursor:pointer;text-decoration:underline;text-underline-offset:3px}

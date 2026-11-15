@@ -1,23 +1,27 @@
 /* Cast → Agents: the character-select lineup on the dark stage. Studio crew row(s) first
    ("Studio crew · Required"), then everyone else in balanced rows, characters facing inward,
-   then the recruit ghost. Hover / keyboard focus = spotlight cone, the bot turns front + hops,
+   then Tinker's open drafts, then the recruit ghost. Hover / keyboard focus = spotlight cone, the bot turns front + hops,
    the rest of the lineup dims. Arrows move between slots (roving tabindex). */
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Agent } from '../../api/types';
+import type { Agent, CreatorSession } from '../../api/types';
 import { Hero, type HeroHandle } from '../../characters';
 import { go } from '../../shell/router';
 import { announce, hop } from './fx';
-import { castOrder, inwardFacing, isCrew, lineupCols, lineupRows, roleText } from './model';
+import { castOrder, inwardFacing, isCrew, lineupCols, lineupRows, roleText, shortName } from './model';
 
-type Item = { id: string; agent: Agent | null };
+/** A cast member, one of Tinker's drafts, or the recruit ghost. */
+type Item = { id: string; agent: Agent | null; draft?: CreatorSession };
 
 export function Lineup({
   agents,
+  drafts = [],
   q,
   onRecruit,
   hidden,
 }: {
   agents: Agent[];
+  /** Design chats with Tinker still open — each waits as a draft slot before the ghost. */
+  drafts?: CreatorSession[];
   q: string;
   onRecruit: (name: string) => void;
   /** The zoom is open: keep the lineup (for the camera move) but out of the tab order. */
@@ -47,9 +51,12 @@ export function Lineup({
   const rows = useMemo(() => {
     const crew: Item[] = order.filter(isCrew).map((a) => ({ id: a.id, agent: a }));
     const rest: Item[] = order.filter((a) => !isCrew(a)).map((a) => ({ id: a.id, agent: a }));
+    for (const d of drafts) rest.push({ id: `tinker:${d.id}`, agent: null, draft: d });
     rest.push({ id: 'new', agent: null });
     return lineupRows(crew, rest, cols || 6);
-  }, [order, cols]);
+  }, [order, drafts, cols]);
+  const creator = agents.find((a) => a.kind === 'creator');
+  const tName = creator ? shortName(creator) : 'Tinker';
   const nCrew = rows.filter((r) => r.crew).length;
 
   /* visible slots in DOM order — roving focus + arrow keys */
@@ -131,6 +138,8 @@ export function Lineup({
                   <Slot
                     key={it.id}
                     agent={it.agent}
+                    draft={it.draft}
+                    tinker={tName}
                     face={inwardFacing(i, row.items.length)}
                     row={ri}
                     col={i}
@@ -161,6 +170,8 @@ export function Lineup({
 
 const Slot = memo(function Slot({
   agent,
+  draft,
+  tinker,
   face,
   row,
   col,
@@ -171,6 +182,8 @@ const Slot = memo(function Slot({
   onFocusSlot,
 }: {
   agent: Agent | null;
+  draft?: CreatorSession | undefined;
+  tinker: string;
   face: { facing: 'front' | 'three-quarter'; dir: 'left' | 'right' };
   row: number;
   col: number;
@@ -187,8 +200,9 @@ const Slot = memo(function Slot({
     if (hot && !ghost) hop(h.current?.el);
   }, [hot, ghost]);
   const crew = agent ? isCrew(agent) : false;
-  const id = agent?.id ?? 'new';
-  const rt = agent ? roleText(agent) : '+ Recruit';
+  const id = agent?.id ?? (draft ? `tinker:${draft.id}` : 'new');
+  const dName = draft?.draft?.name?.trim() || 'New agent';
+  const rt = agent ? roleText(agent) : draft ? `Draft · ${tinker}` : '+ Recruit';
   return (
     // biome-ignore lint/a11y/useSemanticElements: the prototype's list markup
     <div
@@ -199,7 +213,7 @@ const Slot = memo(function Slot({
       <button
         ref={btn}
         type="button"
-        className={`slot${ghost ? ' slot-ghost' : ''}${hot ? ' hot' : ''}`}
+        className={`slot${ghost ? ' slot-ghost' : ''}${draft ? ' slot-draft' : ''}${hot ? ' hot' : ''}`}
         data-id={id}
         data-row={row}
         data-col={col}
@@ -209,7 +223,9 @@ const Slot = memo(function Slot({
         aria-label={
           agent
             ? `${agent.name}, ${rt}${crew ? ', studio crew, required' : ''}. Open details`
-            : 'Create a new agent'
+            : draft
+              ? `${dName}, draft with ${tinker}. Resume`
+              : 'Create a new agent'
         }
         onMouseEnter={() => setHot(true)}
         onMouseLeave={() => {
@@ -221,18 +237,22 @@ const Slot = memo(function Slot({
           if (btn.current?.matches(':focus-visible')) setHot(true);
         }}
         onBlur={() => setHot(false)}
-        onClick={() => go(`cast/agent/${id}`)}
+        onClick={() =>
+          go(draft ? { name: 'cast.tinker', sid: draft.id } : { name: 'cast.agent', id: agent?.id ?? 'new' })
+        }
       >
         <span className="slot-cone" aria-hidden="true" />
         <span className="slot-fig">
           <span className="slot-pool" aria-hidden="true" />
           {agent ? (
             <Hero ref={h} agent={agent} size="md" facing={hot ? 'front' : face.facing} dir={face.dir} />
+          ) : draft?.draft?.look ? (
+            <Hero agent={{ name: dName, look: draft.draft.look }} size="md" facing="front" />
           ) : (
             <Hero ghost agent={{ hue: 'sun' }} size="md" facing="front" />
           )}
         </span>
-        <span className="slot-name">{agent ? agent.name : 'New agent'}</span>
+        <span className="slot-name">{agent ? agent.name : dName}</span>
         <span className={`slot-role${agent && !crew && !agent.roleId ? ' none' : ''}`}>{rt}</span>
       </button>
     </div>
