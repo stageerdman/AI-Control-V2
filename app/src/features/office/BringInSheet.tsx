@@ -70,12 +70,14 @@ export function BringInBody({ pid, roster, here, guests, director, onBrought }: 
           </ul>
         </>
       )}
-      <form onSubmit={submit}>
-        <h2 style={{ marginTop: guests.length ? 22 : 0 }}>Bring someone in</h2>
-        {/* native radios (arrow keys move, Space picks); each card is the radio's label */}
-        <fieldset className="bi-who-set">
-          <legend className="bi-lbl">Who</legend>
-          {pick.length ? (
+      <h2 style={{ marginTop: guests.length ? 22 : 0 }}>Bring someone in</h2>
+      {!pick.length ? (
+        <p className="rp-empty">Everyone in the Cast is already here.</p>
+      ) : (
+        <form onSubmit={submit}>
+          {/* native radios (arrow keys move, Space picks); each card is the radio's label */}
+          <fieldset className="bi-who-set">
+            <legend className="bi-lbl">Who</legend>
             <div className="bi-pick">
               {pick.map((a) => (
                 <label key={a.id} className={who === a.id ? 'on' : undefined}>
@@ -93,37 +95,40 @@ export function BringInBody({ pid, roster, here, guests, director, onBrought }: 
                 </label>
               ))}
             </div>
-          ) : (
-            <p className="rp-empty">Everyone in the Cast is already here.</p>
-          )}
-        </fieldset>
-        <TextArea
-          label="Their brief"
-          placeholder="Analyze the team’s communication and report to HQ"
-          required
-          value={brief}
-          onChange={(e) => setBrief(e.target.value)}
-        />
-        <div className="bi-switch">
-          <div>
-            <b>Director may give them work</b>
-            <p className="hint" id={hintId}>
-              {may ? `${director} can plan work with them too.` : 'They work only on your brief.'}
-            </p>
+          </fieldset>
+          <TextArea
+            label="Their brief"
+            placeholder="Analyze the team’s communication and report to HQ"
+            required
+            value={brief}
+            onChange={(e) => setBrief(e.target.value)}
+          />
+          <div className="bi-switch">
+            <div>
+              <b>Director may give them work</b>
+              <p className="hint" id={hintId}>
+                {may ? `${director} can plan work with them too.` : 'They work only on your brief.'}
+              </p>
+            </div>
+            <Switch
+              checked={may}
+              onChange={setMay}
+              label="Director may give them work"
+              describedBy={hintId}
+            />
           </div>
-          <Switch checked={may} onChange={setMay} label="Director may give them work" describedBy={hintId} />
-        </div>
-        {err && (
-          <p className="bi-err" role="alert">
-            {err}
-          </p>
-        )}
-        <footer className="lf-foot">
-          <Button type="submit" variant="hero" disabled={!chosen || !brief.trim() || busy}>
-            {busy ? `Calling ${nick}…` : chosen ? `Bring ${nick} in` : 'Bring them in'}
-          </Button>
-        </footer>
-      </form>
+          {err && (
+            <p className="bi-err" role="alert">
+              {err}
+            </p>
+          )}
+          <footer className="lf-foot">
+            <Button type="submit" variant="hero" disabled={!chosen || !brief.trim() || busy}>
+              {busy ? `Calling ${nick}…` : chosen ? `Bring ${nick} in` : 'Bring them in'}
+            </Button>
+          </footer>
+        </form>
+      )}
     </div>
   );
 }
