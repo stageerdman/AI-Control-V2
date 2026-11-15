@@ -1,6 +1,7 @@
 /* Chat history repository: every message of a run, kept after it ends (plain SQL, no rules —
    the runtime decides what is said; secrets are scrubbed before they get here). A chat = one run. */
 import { randomUUID } from 'node:crypto';
+import { redactSecrets } from '../events/redact.ts';
 import type { Db } from './connection.ts';
 import type { RunStatus } from './runs.ts';
 import { now, type Row } from './util.ts';
@@ -53,17 +54,19 @@ const toMessage = (r: Row): ChatMessage => ({
   meta: r.meta ? JSON.parse(r.meta as string) : null,
   createdAt: r.created_at as string,
 });
+/* task and the legacy lastText come raw from `runs` (never scrubbed there): mask API-key shapes on the way out. */
+const shapes = (s: string | null) => (s === null ? null : redactSecrets(s, []).value);
 const toSummary = (r: Row): ChatSummary => ({
   runId: r.id as string,
   agentId: r.agent_id as string,
   projectId: r.project_id as string,
-  task: r.task as string,
+  task: shapes(r.task as string) as string,
   status: r.status as RunStatus,
   sessionId: (r.session_id as string) ?? null,
   startedAt: r.started_at as string,
   endedAt: (r.ended_at as string) ?? null,
   messageCount: r.message_count as number,
-  lastText: (r.last_text as string) ?? null,
+  lastText: shapes((r.last_text as string) ?? null),
 });
 
 /** Appends to the run's chat under the next seq (the opening task is seq 0). */

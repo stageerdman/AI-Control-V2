@@ -103,7 +103,9 @@ describe('chat history (runs keep every message)', () => {
       await new Promise((r) => setTimeout(r, 10));
       ask = (await h.call('GET', '/projects/aurora/asks?status=open')).body[0];
     }
-    expect((await h.call('POST', `/projects/aurora/asks/${ask?.id}/answer`, { answer: 'blue' })).status).toBe(200);
+    expect((await h.call('POST', `/projects/aurora/asks/${ask?.id}/answer`, { answer: 'blue' })).status).toBe(
+      200,
+    );
     await h.runtime.settled(id);
     const msgs = await messages(id);
     expect(lines(msgs)).toEqual([

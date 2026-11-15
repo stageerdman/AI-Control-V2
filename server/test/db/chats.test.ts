@@ -1,23 +1,21 @@
-import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from 'vitest';
-import {
-  appendChatMessage,
-  getChatMessages,
-  latestAgentChat,
-  listAgentChats,
-} from '../../src/db/chats.ts';
+import { appendChatMessage, getChatMessages, latestAgentChat, listAgentChats } from '../../src/db/chats.ts';
 import { type Db, openDb } from '../../src/db/connection.ts';
 import { MIGRATIONS, migrate } from '../../src/db/migrations.ts';
 import { runsRepo } from '../../src/db/runs.ts';
 import { tempDir } from '../helpers.ts';
 
-const addProject = (db: DatabaseSync, id = 'kite') =>
-  db
-    .prepare(
-      "INSERT INTO projects (id, name, status, orchestrator_id, tile, position, created_at, updated_at) VALUES (?, 'Kite', 'live', 'o', '{}', 0, '', '')",
-    )
-    .run(id);
+/* The project's orchestrator must exist (projects.orchestrator_id is a foreign key). */
+const addProject = (db: DatabaseSync, id = 'kite') => {
+  db.prepare(
+    "INSERT OR IGNORE INTO agents (id, kind, name, look, position, created_at, updated_at) VALUES ('o', 'orchestrator', 'O', '{}', 0, '', '')",
+  ).run();
+  db.prepare(
+    "INSERT INTO projects (id, name, status, orchestrator_id, tile, position, created_at, updated_at) VALUES (?, 'Kite', 'live', 'o', '{}', 0, '', '')",
+  ).run(id);
+};
 const addRun = (db: Db, id: string, agentId = 'a-pete', task = 'Make hello.txt') =>
   runsRepo(db).insert({
     id,
@@ -29,8 +27,21 @@ const addRun = (db: Db, id: string, agentId = 'a-pete', task = 'Make hello.txt')
     model: null,
     caps: { maxTurns: 1, maxBudgetUsd: 1 },
   });
-const say = (db: Db, runId: string, role: 'user' | 'assistant' | 'tool' | 'system', text: string, meta?: Record<string, unknown>) =>
-  appendChatMessage(db, { runId, projectId: 'kite', agentId: 'a-pete', role, text, ...(meta ? { meta } : {}) });
+const say = (
+  db: Db,
+  runId: string,
+  role: 'user' | 'assistant' | 'tool' | 'system',
+  text: string,
+  meta?: Record<string, unknown>,
+) =>
+  appendChatMessage(db, {
+    runId,
+    projectId: 'kite',
+    agentId: 'a-pete',
+    role,
+    text,
+    ...(meta ? { meta } : {}),
+  });
 
 describe('chat history (db)', () => {
   const tmp = tempDir();
@@ -43,7 +54,11 @@ describe('chat history (db)', () => {
     expect(say(db, 'r1', 'user', 'Make hello.txt').seq).toBe(0);
     say(db, 'r1', 'tool', 'Writing hello.txt', { tool: 'Write', summary: 'Writing hello.txt' });
     expect(say(db, 'r1', 'assistant', 'Done.').seq).toBe(2);
-    runsRepo(db).finish('r1', { status: 'succeeded', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, turns: 1 });
+    runsRepo(db).finish('r1', {
+      status: 'succeeded',
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      turns: 1,
+    });
     addRun(db, 'r2', 'a-pete', 'Second task');
 
     const msgs = getChatMessages(db, 'r1');
@@ -77,6 +92,12 @@ describe('chat history (db)', () => {
     addProject(db);
     addRun(db, 'old');
     db.prepare("UPDATE runs SET started_at = '2026-01-01T00:00:00.000Z' WHERE id = 'old'").run();
+    // one live run per agent per project: end the old one first
+    runsRepo(db).finish('old', {
+      status: 'succeeded',
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      turns: 1,
+    });
     addRun(db, 'new');
     expect(listAgentChats(db, 'a-pete', { before: '2026-06-01T00:00:00.000Z' }).map((c) => c.runId)).toEqual([
       'old',
@@ -120,6 +141,23 @@ describe('chat history (db)', () => {
       expect.objectContaining({ runId: 'legacy', messageCount: 0, lastText: 'Old answer' }),
     ]);
     expect(say(db, 'legacy', 'user', 'a follow-up').seq).toBe(0);
+    db.close();
+  });
+
+  it('a summary never shows an API key from the raw runs row (task, old result)', () => {
+    const key = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz';
+    const db = openDb(':memory:');
+    addProject(db);
+    addRun(db, 'r1', 'a-pete', `Deploy with ${key}`);
+    runsRepo(db).finish('r1', {
+      status: 'succeeded',
+      result: `Used ${key}`,
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      turns: 1,
+    });
+    const raw = JSON.stringify(listAgentChats(db, 'a-pete'));
+    expect(raw).not.toContain(key);
+    expect(latestAgentChat(db, 'a-pete')).toMatchObject({ task: 'Deploy with ••••', lastText: 'Used ••••' });
     db.close();
   });
 
