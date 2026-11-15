@@ -214,6 +214,15 @@ export type ScaffoldReport = {
 
 /* ---------- delete / undo ---------- */
 export type Deleted = { deleted: { kind: string; id: string }; restoreToken: string };
+/** A running session an agent is part of (GET /agents/:id/busy, and the 409 'agent_busy' details). */
+export type BusySession = {
+  runId: string;
+  projectId: string;
+  projectName: string;
+  task: string;
+  startedAt: string;
+};
+export type AgentBusy = { busy: boolean; sessions: BusySession[] };
 export type Restored = { restored: { kind: string; id: string } };
 
 /* ---------- Access (Key Cabinet, G1) — an access is a named bundle of fields. Secret values never

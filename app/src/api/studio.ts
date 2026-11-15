@@ -9,6 +9,7 @@ import type {
   AccessMeta,
   AccessSync,
   Agent,
+  AgentBusy,
   AgentCreate,
   AgentPatch,
   Ask,
@@ -67,6 +68,8 @@ export const studio = {
     create: (body: AgentCreate) => http.post<Agent>('/agents', body),
     update: (id: string, body: AgentPatch) => http.patch<Agent>(`/agents/${e(id)}`, body),
     remove: (id: string) => http.del<Deleted>(`/agents/${e(id)}`),
+    /** In a running session right now? (Delete is refused with 409 'agent_busy' while it is.) */
+    busy: (id: string) => http.get<AgentBusy>(`/agents/${e(id)}/busy`),
   },
   teams: {
     list: () => http.get<Team[]>('/teams'),
