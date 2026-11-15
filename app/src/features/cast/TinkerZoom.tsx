@@ -595,7 +595,7 @@ export function TinkerZoom(p: TinkerZoomProps) {
               onSaved={() => pingSaved(panel.current)}
             />
           ) : (
-            <p className="tk-empty">{tName} sketches here as you talk.</p>
+            <p className="tk-empty">Details show up once {tName} has a first sketch.</p>
           )}
         </div>
         {session && (
