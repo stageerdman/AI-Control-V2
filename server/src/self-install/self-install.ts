@@ -9,7 +9,7 @@
    - The installer runs detached in its own process group: quitting the app (which stops this server) never
      kills a build halfway. Its output goes to <data dir>/logs/self-install.log. */
 import { execFileSync, spawn } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Store } from '../db/store.ts';
 import type { EventBus } from '../events/bus.ts';
@@ -18,7 +18,7 @@ import { resolveInSandbox } from '../fs/sandbox.ts';
 /** Runs one install; resolves with its exit code. */
 export type Installer = () => Promise<number | null>;
 /** The installer's marker: which commit is in /Applications, and when it was installed. */
-export type InstalledBuild = { commit: string; at?: string };
+export type InstalledBuild = { commit: string; at?: string; target?: string };
 /** The latest install this backend ran (null: none since it started). */
 export type InstallStatus = { state: 'installing' | 'installed' | 'failed'; at: string; error?: string };
 /** What /health says about builds, so the window (and anyone without access to the Mac) can tell if it is stale. */
@@ -100,18 +100,24 @@ export function createSelfInstall(deps: {
 /** The installer's marker in the data dir (the installer writes it under $AI_STUDIO_HOME, set by spawnInstaller). */
 export const markerFile = (studioHome: string) => join(studioHome, 'installed-build.json');
 
-/** The installed app is behind when the installer's marker (`{commit}`, written by app/scripts/install-mac
-    after a good install) is missing, unreadable, or names another commit than `head()`. */
+/** The installed app is behind when the installer's marker (`{commit, target}`, written by app/scripts/install-mac
+    after a good install) is missing, unreadable, names another commit than `head()`, or its app is gone. */
 export function installedBehind(markerFile: string, head: () => string): () => boolean {
   /* no marker = never installed by the installer (or a torn one): install to be sure */
-  return () => readMarker(markerFile)?.commit !== head();
+  return () => {
+    const m = readMarker(markerFile);
+    if (m?.commit !== head()) return true;
+    return Boolean(m.target && !existsSync(m.target)); // trashed after the install: the marker alone lies
+  };
 }
 
 /** The installer's marker, or null when it is missing or torn. */
 export function readMarker(markerFile: string): InstalledBuild | null {
   try {
     const m = JSON.parse(readFileSync(markerFile, 'utf8'));
-    return typeof m?.commit === 'string' ? { commit: m.commit, ...(typeof m.at === 'string' ? { at: m.at } : {}) } : null;
+    if (typeof m?.commit !== 'string') return null;
+    const str = (k: 'at' | 'target') => (typeof m[k] === 'string' ? { [k]: m[k] as string } : {});
+    return { commit: m.commit, ...str('at'), ...str('target') };
   } catch {
     return null;
   }

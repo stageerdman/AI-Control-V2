@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { buildPath, freshBundle, installPath, needsDeps, staleCopies, targetDirs } from './plan.mjs';
+import {
+  buildPath,
+  commitVerdict,
+  freshBundle,
+  installPath,
+  namesProduct,
+  needsDeps,
+  parseLsDump,
+  targetDirs,
+  trashName,
+  uniqueCopies,
+} from './plan.mjs';
 
 describe('Mac installer plan', () => {
   it('installs into /Applications under the product name', () => {
@@ -22,19 +33,54 @@ describe('Mac installer plan', () => {
     expect(freshBundle(c, 200)).toBeNull();
   });
 
-  it('marks every other copy stale: old builds, duplicates, repeats once, never the installed one', () => {
+  it('names copies of the product, whatever the version suffix or spacing, and nothing else', () => {
+    for (const n of ['AI Studio.app', 'AI Studio 2.app', 'ai-studio.app', 'AI Studio_0.1.0_aarch64.dmg'])
+      expect(namesProduct(n, 'AI Studio')).toBe(true);
+    for (const n of ['AI Studio notes.txt', 'Visual Studio Code.app', 'Studio AI.app'])
+      expect(namesProduct(n, 'AI Studio')).toBe(false);
+  });
+
+  it('reads the registered paths for the bundle id out of an lsregister dump', () => {
+    const dump = [
+      'path:                       /Applications/AI Studio.app (0x7610)\nidentifier:                 xyz.erdman.aistudio',
+      'path:                       /Applications/Other.app (0x11)\nidentifier:                 xyz.erdman.aistudio.helper',
+      'path:                       /Users/u/old/AI Studio.app (0x2a)\nname: AI Studio\nidentifier:   xyz.erdman.aistudio',
+    ].join('\n--------------------------------------------------------------------------------\n');
+    expect(parseLsDump(dump, 'xyz.erdman.aistudio')).toEqual(['/Applications/AI Studio.app', '/Users/u/old/AI Studio.app']);
+  });
+
+  it('sorts found paths into apps, disk images, mounted volumes and ghosts, once each', () => {
+    const present = new Set(['/Applications/AI Studio.app', '/u/Downloads/AI Studio.dmg']);
+    const ctx = { exists: (p) => present.has(p), trash: '/u/.Trash' };
     const found = [
       '/Applications/AI Studio.app',
-      '/Users/u/.cargo-shared-target/release/bundle/macos/AI Studio.app',
-      '/Users/u/Applications/AI Studio.app',
-      '/Users/u/Applications/AI Studio.app',
-      '',
-      '/Users/u/Downloads/notes.txt',
+      '/Applications/AI Studio.app/',
+      '/Applications/AI Studio.app/Contents/Resources/AI Studio.app',
+      '/u/Downloads/AI Studio.dmg',
+      '/u/Downloads/gone.dmg',
+      '/Volumes/AI Studio/AI Studio.app',
+      '/Volumes/AI Studio',
+      '/u/old/AI Studio.app',
+      '/u/.Trash/AI Studio.app',
+      '/u/notes.txt',
     ];
-    expect(staleCopies(found, ['/Applications/AI Studio.app'])).toEqual([
-      '/Users/u/.cargo-shared-target/release/bundle/macos/AI Studio.app',
-      '/Users/u/Applications/AI Studio.app',
+    expect(uniqueCopies(found, ctx)).toEqual([
+      { kind: 'app', path: '/Applications/AI Studio.app' },
+      { kind: 'dmg', path: '/u/Downloads/AI Studio.dmg' },
+      { kind: 'volume', path: '/Volumes/AI Studio' },
+      { kind: 'ghost', path: '/u/old/AI Studio.app' },
     ]);
+  });
+
+  it('never clobbers something already in the Trash', () => {
+    expect(trashName('/A/AI Studio.app', () => false, '1.2.3')).toBe('AI Studio.app');
+    expect(trashName('/A/AI Studio.app', () => true, '1.2.3')).toBe('AI Studio 1.2.3.app');
+  });
+
+  it('calls MATCH only for the same commit', () => {
+    expect(commitVerdict('abc', 'abc')).toBe('MATCH');
+    expect(commitVerdict('abc', 'def')).toBe('MISMATCH');
+    expect(commitVerdict('', '')).toBe('MISMATCH');
   });
 
   it('builds with cargo and Homebrew on PATH even from a bare Spotlight PATH, without repeats', () => {

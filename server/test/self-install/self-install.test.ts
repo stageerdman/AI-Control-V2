@@ -115,6 +115,11 @@ describe('self-install', () => {
     expect(behind()).toBe(true);
     writeFileSync(file, JSON.stringify({ commit: 'abc' }));
     expect(behind()).toBe(false);
+    /* the app was trashed (by hand or by the clean-up) while the marker still names HEAD */
+    writeFileSync(file, JSON.stringify({ commit: 'abc', target: join(dir, 'gone.app') }));
+    expect(behind()).toBe(true);
+    writeFileSync(file, JSON.stringify({ commit: 'abc', target: dir }));
+    expect(behind()).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -143,7 +148,7 @@ describe('self-install', () => {
     writeFileSync(file, '{"comm');
     expect(readMarker(file)).toBeNull();
     writeFileSync(file, JSON.stringify({ commit: 'abc', at: '2026-11-15T00:00:00Z', target: '/x' }));
-    expect(readMarker(file)).toEqual({ commit: 'abc', at: '2026-11-15T00:00:00Z' });
+    expect(readMarker(file)).toEqual({ commit: 'abc', at: '2026-11-15T00:00:00Z', target: '/x' });
     rmSync(dir, { recursive: true, force: true });
   });
 
