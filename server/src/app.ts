@@ -31,8 +31,10 @@ import { createGuests } from './office/guests.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
+import { createPages } from './office/pages.ts';
 import { createPortraits } from './office/portrait.ts';
 import { createPrinciples } from './office/principles.ts';
+import { createReportIn } from './office/report-in.ts';
 import { createStaffing } from './office/staffing.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
@@ -304,6 +306,9 @@ export function buildApp({
       ),
   });
   threadsRef = threads;
+  /* someone finished a step → they tell the director, who decides what the user hears (chat, page or keep) */
+  const reportIn = createReportIn({ db, store, events, crew, threads, comms });
+  const pages = createPages({ db, store });
   /* STUDIO LIFE: the mailbox — HQ is the project in meta 'hq_project'; the director triages new mail on its own */
   const hq = metaValue(db, 'hq_project');
   const mail = createMail({
@@ -361,6 +366,7 @@ export function buildApp({
   app.addHook('preClose', async () => {
     lifecycle.stop();
     comms.stop();
+    reportIn.stop();
     github.stop();
     for (const res of open) res.end();
     await Promise.all([runtime.shutdown(), apps.stopAll()]);
@@ -397,7 +403,7 @@ export function buildApp({
   );
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
-  app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
+  app.register(runRoutes({ runtime, pages, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));

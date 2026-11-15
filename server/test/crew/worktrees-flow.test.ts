@@ -131,7 +131,9 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
     expect(g.status).toBe('done');
     expect(readFileSync(join(s.repo, 'shared.txt'), 'utf8')).toBe('A and B\n');
     expect(g.items[1]).toMatchObject({ mergeTries: 1, status: 'done' });
-    const fix = h.events.after('project', 'aurora').find((e) => e.type === 'handoff');
+    const fix = h.events
+      .after('project', 'aurora')
+      .find((e) => e.type === 'handoff' && (e.payload as { kind: string }).kind === 'merge-fix');
     expect(fix?.payload).toMatchObject({ kind: 'merge-fix', from: 'a-lint', to: 'a-lint' });
     expect((fix?.payload as { note?: string } | undefined)?.note).toMatch(/conflicts in shared\.txt/);
   });

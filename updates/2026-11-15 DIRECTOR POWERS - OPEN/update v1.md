@@ -15,8 +15,10 @@ confirm card, undo (Blair's spec-ux-team-rebuild.md, Jony + Uncle Bob's goal in 
    sub-tasks; the prompt explains briefed = running, todo = waiting its turn.
 3. ✅ **Capabilities + voice.** Prompt lists what the Director can do (do it, don't offer it); misheard names map to
    the closest person on the project.
-4. ⏳ **Report-in.** When someone finishes, they tell their captain / the Director (office shows it); the Director
-   decides: tell the user in chat, page them, or keep it.
+4. ✅ **Report-in.** A whiteboard step done/failed → its owner tells the Director (`deliver` handoff — the office walks
+   it over; members already deliver to their captain). The Director decides in one crew call (`report-in`): **page**
+   (chat line + pager "Pixel has news", until the office is visited), **chat** (a line), or **keep** (comms note).
+   Pages live in `comms` (kind `page`) — no migration, so it can't collide with the studio's rebuild branch.
 
 ## Status
 - Phases 1–3: tests (director-ask.test.ts) + a real Director turn in a throwaway studio: asked "have you asked

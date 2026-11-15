@@ -101,6 +101,8 @@ export type StudioAsk = {
   status: 'open' | 'answered' | 'cancelled';
   since: string;
   seen: boolean;
+  /** A page from the director (news about finished work), not a question — clears when you visit the office. */
+  news?: boolean;
 };
 
 /** The office's work clock (GET /projects/:id/time): agent time, by kind and by agent; runs and turns, no money. */

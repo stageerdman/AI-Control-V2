@@ -227,6 +227,19 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
     /* AGENT MCP: an approver always says yes; a helper answers with a costume */
     case 'allow-call':
       return answer({ allow: true, reply: 'Yes — go ahead.' });
+    /* DIRECTOR POWERS: a finished step → a chat line; a finished goal or a failed step → a page */
+    case 'report-in': {
+      const failed = t.includes(' FAILED.');
+      const whole = t.includes('every step is done now');
+      return answer({
+        tell: failed || whole ? 'page' : 'chat',
+        say: failed
+          ? 'A step failed — have a look when you can.'
+          : whole
+            ? 'The goal is done.'
+            : 'One step landed.',
+      });
+    }
     case 'help':
       return answer({
         answer: `Costume: ${JSON.stringify(LOOKS[2])} — a beret, a palette and a rose finish read as "maker".`,

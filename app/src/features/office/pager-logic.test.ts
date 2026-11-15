@@ -59,6 +59,12 @@ describe('pager — offices that need you', () => {
     expect(pagerLine({ projectId: 'p', projectName: 'P', asks: [ask('1', 'p'), ask('2', 'p')] })).toBe(
       '2 need you',
     );
+    // the director's pages are news; a real question still wins the line
+    const news = ask('3', 'p', 'Pixel', { news: true });
+    expect(pagerLine({ projectId: 'p', projectName: 'P', asks: [news] })).toBe('Pixel has news');
+    expect(
+      pagerLine({ projectId: 'p', projectName: 'P', asks: [news, ask('4', 'p', 'Sir Lint-a-Lot')] }),
+    ).toBe('Lint-a-Lot needs you');
   });
 
   it('a NEW ask turns the pager to its office; already-shown asks do not', () => {
