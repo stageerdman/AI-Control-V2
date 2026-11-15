@@ -4,11 +4,12 @@
    office is the switcher (click a robot). "!" asks arrive as cards in the agent's thread and are
    answered on the asks endpoint. One Send (OFFICE): the director decides — a clear ask becomes a goal on the
    whiteboard (the server posts it, the board follows its events), a question or a maybe gets a reply. */
-import { type FormEvent, Fragment, useEffect, useRef, useState } from 'react';
+import { type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
 import { Button } from '../../ui';
-import { keys, officeApi, type Thread, type ThreadMessage } from './api';
+import { type ChatSummary, keys, officeApi, type Thread, type ThreadMessage } from './api';
+import { CHAT_COPY, ChatList, ChatView } from './ChatHistorySheet';
 import { answerByVoice, RebuildCard, UndoLine } from './rebuild/RebuildCard';
 import { type Actor, activityOf, mergeMessage, type PendingAsk } from './state';
 
@@ -35,7 +36,15 @@ export type PanelProps = {
   /** An ask answered here (the page drops it from the scene right away). */
   answered: (askId: string) => void;
   onGrab: () => void;
+  /** Narrow screens: raise the drawer (History opens on a raised drawer). */
+  raise?: () => void;
+  /** Open this agent's history from outside (the recap's Open chat): a run = that past chat, null = the list.
+      A new object each time, so the same run can be asked for twice. */
+  show?: { agentId: string; chat: ChatSummary | null } | null;
 };
+
+/** What the panel body shows under the header (spec-ux-chat-history §1). */
+export type PanelView = 'live' | 'history' | { run: ChatSummary };
 
 /** A follow-up on a report (`reportId`), or just a subject (a letter, a team's principles): the message says
     `About “{title}”: …` so the agent knows what it's about. */
@@ -68,6 +77,15 @@ export function Panel(p: PanelProps) {
   const [text, setText] = useState('');
   const [, bump] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  /* the history view belongs to one agent, so switching agent is back to live at once */
+  const [nav, setNav] = useState<{ for: string; view: PanelView }>({ for: id, view: 'live' });
+  /* reset during render (not an effect): coming back to an agent never brings back its old history view */
+  if (nav.for !== id) setNav({ for: id, view: 'live' });
+  const view: PanelView = nav.for === id ? nav.view : 'live';
+  const pill = useRef<HTMLButtonElement>(null);
+  const hist = useRef<HTMLDivElement>(null);
+  /** Where focus goes after the next view change. */
+  const focusTo = useRef<'pill' | 'input' | 'first' | { run: string } | null>(null);
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const openedAt = useRef(Date.now());
@@ -83,17 +101,85 @@ export function Panel(p: PanelProps) {
   const typing = !!t.data?.busy;
   const asks = p.asks.filter((a) => a.agentId === id);
 
+  const live = view === 'live';
+  /** Where the live log was when you left for history (null: at the bottom). */
+  const keptScroll = useRef<number | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the newest line
   useEffect(() => {
     const el = log.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && live) el.scrollTop = el.scrollHeight;
   }, [messages.length, typing, asks.length, id]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only leaving or coming back to live
+  useLayoutEffect(() => {
+    const el = log.current;
+    if (!el || !live) return;
+    /* coming back: land where you left, unless you were at the bottom (then follow new lines) */
+    el.scrollTop = keptScroll.current ?? el.scrollHeight;
+    keptScroll.current = null;
+  }, [live]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new context moves you
   useEffect(() => {
-    if (p.context) input.current?.focus({ preventScroll: true });
+    if (!p.context) return;
+    /* a follow-up is written in the live chat */
+    if (view !== 'live') {
+      focusTo.current = 'input';
+      setNav({ for: id, view: 'live' });
+    } else input.current?.focus({ preventScroll: true });
   }, [p.context]);
 
   const short = shortOf(ag);
   const dirShort = shortOf(p.agents[director]);
+
+  /* ---------- history */
+  const go = (v: PanelView, focus: typeof focusTo.current) => {
+    const el = log.current;
+    if (live && v !== 'live' && el)
+      keptScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24 ? null : el.scrollTop;
+    focusTo.current = focus;
+    setNav({ for: id, view: v });
+  };
+  const openHistory = () => {
+    p.raise?.();
+    go('history', 'first');
+  };
+  const backToLive = () => go('live', 'pill');
+  const backOne = () => {
+    if (view === 'history') backToLive();
+    else if (typeof view === 'object') go('history', { run: view.run.runId });
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new request opens it
+  useEffect(() => {
+    if (p.show && p.show.agentId === id)
+      go(p.show.chat ? { run: p.show.chat } : 'history', p.show.chat ? null : 'first');
+  }, [p.show]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: after the view swaps in
+  useEffect(() => {
+    const f = focusTo.current;
+    focusTo.current = null;
+    if (!f) return;
+    if (f === 'pill') return pill.current?.focus({ preventScroll: true });
+    if (f === 'input') return input.current?.focus({ preventScroll: true });
+    const box = hist.current;
+    const row =
+      (typeof f === 'object' && box?.querySelector<HTMLElement>(`[data-run="${CSS.escape(f.run)}"]`)) ||
+      box?.querySelector<HTMLElement>('.ch-row');
+    row?.focus({ preventScroll: true });
+  }, [nav]);
+
+  /* a new line in the live thread while you're away: a coral dot on Back to chat, said politely */
+  const last = messages[messages.length - 1];
+  const seen = useRef<string | undefined>(last?.id);
+  const [fresh, setFresh] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the newest line and the view
+  useEffect(() => {
+    if (view === 'live') {
+      seen.current = last?.id;
+      setFresh(false);
+    } else if (last && last.id !== seen.current) {
+      seen.current = last.id;
+      if (last.from !== 'user') setFresh(true);
+    }
+  }, [last?.id, view === 'live', id]);
 
   const send = async (raw: string) => {
     const v = raw.trim();
@@ -167,101 +253,212 @@ export function Panel(p: PanelProps) {
           </span>
           <span className="op-status">{status}</span>
         </div>
-        {!isDir && (
-          <button
-            type="button"
-            className="op-backpix"
-            aria-label={`Back to ${dirShort}`}
-            onClick={() => p.open(director)}
-          >
-            ← {dirShort}
-          </button>
-        )}
-      </header>
-      <div className="op-log" ref={log} role="log" aria-live="polite">
-        {t.loading && <p className="op-note">…</p>}
-        {t.error && !t.data && <p className="op-note">Couldn’t load this conversation.</p>}
-        {t.data && !messages.length && !asks.length && (
-          <p className="op-note">
-            {isDir
-              ? `${short} keeps the big picture. Say what you want built and it goes on the whiteboard.`
-              : `Ask ${short} about their work.`}
-          </p>
-        )}
-        {messages.map((m, i) => (
-          <Fragment key={m.id}>
-            <Bubble
-              m={m}
-              who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
-              openReport={p.openReport}
-            />
-            {isDir && m.rebuild && (
-              <div className="op-rebuild">
-                {m.rebuild.undoToken ? (
-                  <UndoLine token={m.rebuild.undoToken} summary={m.rebuild.summary} since={Date.parse(m.at)} />
-                ) : (
-                  <RebuildCard
-                    card={m.rebuild.card}
-                    faceOf={(aid) => p.agents[aid] ?? null}
-                    director={dirShort}
-                    /* a newer message to the director: this card is out of date (spec §3) */
-                    stale={messages.slice(i + 1).some((x) => x.from === 'user')}
-                    /* only a card that just arrived takes focus — not one in the history */
-                    focus={Date.parse(m.at) > openedAt.current}
-                  />
-                )}
-              </div>
+        {view === 'live' && (
+          <div className="op-tools">
+            <button
+              ref={pill}
+              type="button"
+              className="op-pill"
+              data-testid="history-pill"
+              onClick={openHistory}
+            >
+              <span className="op-pill-v">
+                <span aria-hidden="true">🕘 </span>
+                {CHAT_COPY.historyTitle}
+              </span>
+            </button>
+            {!isDir && (
+              <button
+                type="button"
+                className="op-pill"
+                aria-label={`Back to ${dirShort}`}
+                onClick={() => p.open(director)}
+              >
+                <span className="op-pill-v">← {dirShort}</span>
+              </button>
             )}
-          </Fragment>
-        ))}
-        {asks.map((a) => (
-          <AskCard
-            key={a.id}
-            ask={a}
-            answered={answers[a.id]}
-            onAnswer={(v) => void answer(a, v)}
-            who={ag.name}
-          />
-        ))}
-        {typing && (
-          <div className="bubble them">
-            <span className="sr-only">{short} is typing</span>
-            <span className="typing" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
           </div>
         )}
-      </div>
-      {p.context && (
-        <div className="op-ctx">
-          <span>About: {p.context.title}</span>
-          <button type="button" aria-label="Drop the context" onClick={p.clearContext}>
-            ✕
-          </button>
+      </header>
+      <p className="sr-only" role="status" aria-live="polite">
+        {fresh ? `New message from ${ag.name}` : ''}
+      </p>
+      {view !== 'live' && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: Esc steps back one level from anywhere in history
+        <div
+          className="op-hist"
+          ref={hist}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return;
+            const tg = e.target as HTMLElement;
+            if (tg instanceof HTMLTextAreaElement && tg.value) return;
+            e.stopPropagation();
+            e.preventDefault();
+            backOne();
+          }}
+        >
+          <nav className="op-nav" data-testid="history-nav" aria-label={`${ag.name}’s history`}>
+            {view === 'history' ? (
+              <>
+                <BackToChat fresh={fresh} onClick={backToLive} />
+                <span className="ch-sub op-nav-l">{CHAT_COPY.historyTitle}</span>
+              </>
+            ) : (
+              <>
+                <button type="button" className="ch-back op-nav-back" onClick={backOne}>
+                  <span aria-hidden="true">‹ </span>
+                  {CHAT_COPY.historyTitle}
+                </button>
+                <BackToChat fresh={fresh} onClick={backToLive} hero />
+              </>
+            )}
+          </nav>
+          <div className="op-hist-body">
+            {view === 'history' ? (
+              <ChatList
+                agentId={id}
+                name={short}
+                onOpen={(c) => go({ run: c }, null)}
+                current={{
+                  preview: last ? last.text : null,
+                  needsYou: asks.some((a) => !answers[a.id]),
+                  onSelect: backToLive,
+                }}
+              />
+            ) : (
+              <ChatView
+                key={view.run.runId}
+                agentId={id}
+                name={ag.name}
+                chat={view.run}
+                onBack={backOne}
+                inPanel
+              />
+            )}
+          </div>
         </div>
       )}
-      <form className="op-composer" onSubmit={submit}>
-        <input
-          ref={input}
-          autoComplete="off"
-          value={text}
-          placeholder={`Message ${short}…`}
-          aria-label={`Message ${ag.name}`}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape' && !text && !isDir) {
-              e.stopPropagation();
-              p.open(director);
-            }
-          }}
-        />
-        <Button small variant="hero" type="submit">
-          Send
-        </Button>
-      </form>
+      {/* the live chat stays mounted while you're in history, so drafts in its cards survive */}
+      <>
+          <div className="op-log" ref={log} role="log" aria-live="polite" hidden={!live}>
+            {t.loading && <p className="op-note">…</p>}
+            {t.error && !t.data && <p className="op-note">Couldn’t load this conversation.</p>}
+            {t.data && !messages.length && !asks.length && (
+              <p className="op-note">
+                {isDir
+                  ? `${short} keeps the big picture. Say what you want built and it goes on the whiteboard.`
+                  : `Ask ${short} about their work.`}
+              </p>
+            )}
+            {messages.map((m, i) => (
+              <Fragment key={m.id}>
+                <Bubble
+                  m={m}
+                  who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
+                  openReport={p.openReport}
+                />
+                {isDir && m.rebuild && (
+                  <div className="op-rebuild">
+                    {m.rebuild.undoToken ? (
+                      <UndoLine
+                        token={m.rebuild.undoToken}
+                        summary={m.rebuild.summary}
+                        since={Date.parse(m.at)}
+                      />
+                    ) : (
+                      <RebuildCard
+                        card={m.rebuild.card}
+                        faceOf={(aid) => p.agents[aid] ?? null}
+                        director={dirShort}
+                        /* a newer message to the director: this card is out of date (spec §3) */
+                        stale={messages.slice(i + 1).some((x) => x.from === 'user')}
+                        /* only a card that just arrived takes focus — not one in the history */
+                        focus={Date.parse(m.at) > openedAt.current}
+                      />
+                    )}
+                  </div>
+                )}
+              </Fragment>
+            ))}
+            {asks.map((a) => (
+              <AskCard
+                key={a.id}
+                ask={a}
+                answered={answers[a.id]}
+                onAnswer={(v) => void answer(a, v)}
+                who={ag.name}
+              />
+            ))}
+            {typing && (
+              <div className="bubble them">
+                <span className="sr-only">{short} is typing</span>
+                <span className="typing" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </div>
+            )}
+          </div>
+          {p.context && (
+            <div className="op-ctx" hidden={!live}>
+              <span>About: {p.context.title}</span>
+              <button type="button" aria-label="Drop the context" onClick={p.clearContext}>
+                ✕
+              </button>
+            </div>
+          )}
+          <form className="op-composer" onSubmit={submit} hidden={!live}>
+            <input
+              ref={input}
+              autoComplete="off"
+              value={text}
+              placeholder={`Message ${short}…`}
+              aria-label={`Message ${ag.name}`}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && !text && !isDir) {
+                  e.stopPropagation();
+                  p.open(director);
+                }
+              }}
+            />
+            <Button small variant="hero" type="submit">
+              Send
+            </Button>
+          </form>
+      </>
     </>
+  );
+}
+
+/** The way home from history; a coral dot when the live chat has a new line. */
+function BackToChat({ fresh, onClick, hero }: { fresh: boolean; onClick: () => void; hero?: boolean }) {
+  const label = `${CHAT_COPY.backToChat}${fresh ? ', new message' : ''}`;
+  return hero ? (
+    <Button
+      small
+      variant="hero"
+      className="op-nav-home"
+      data-testid="back-to-chat"
+      aria-label={label}
+      onClick={onClick}
+    >
+      {CHAT_COPY.backToChat}
+      {fresh && <i className="op-dot" aria-hidden="true" />}
+    </Button>
+  ) : (
+    <button
+      type="button"
+      className="ch-back op-nav-back"
+      data-testid="back-to-chat"
+      aria-label={label}
+      onClick={onClick}
+    >
+      <span aria-hidden="true">‹ </span>
+      {CHAT_COPY.backToChat}
+      {fresh && <i className="op-dot" aria-hidden="true" />}
+    </button>
   );
 }
 

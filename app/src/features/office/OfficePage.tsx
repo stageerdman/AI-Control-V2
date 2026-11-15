@@ -33,7 +33,6 @@ import { AccessSheet } from './AccessSheet';
 import { type ChatSummary, keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
-import { ChatHistorySheet } from './ChatHistorySheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
@@ -42,8 +41,8 @@ import { MailSheet, refreshMail } from './MailSheet';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
-import { Rearrange } from './rebuild/Rearrange';
 import { RecapSheet } from './RecapSheet';
+import { Rearrange } from './rebuild/Rearrange';
 import {
   activityOf,
   boardFacts,
@@ -642,7 +641,7 @@ function Office({
   const pokeN = useRef(0);
   /* the director and anyone asking you something open the chat; everyone else tells you what they did */
   const [recapFor, setRecapFor] = useState<string | null>(null);
-  /* Open chat in the recap → that saved chat (null chat = their list of chats) */
+  /* Open chat in the recap → that saved chat in the panel (null chat = their history list) */
   const [chatsFor, setChatsFor] = useState<{ agentId: string; chat: ChatSummary | null } | null>(null);
   const clickActor = (a: string) => {
     const e = engine.current;
@@ -1024,6 +1023,8 @@ function Office({
             officeEl()?.classList.toggle('drawer-up');
             setTimeout(() => engine.current?.fit(), 340);
           }}
+          raise={showPanel}
+          show={chatsFor}
         />
       </aside>
       <AccessSheet pid={pid} name={name} open={accessOpen} onClose={() => setAccessOpen(false)} />
@@ -1064,17 +1065,10 @@ function Office({
         onOpenChat={(chat) => {
           const a = recapFor;
           setRecapFor(null);
-          if (a) setChatsFor({ agentId: a, chat });
-        }}
-      />
-      <ChatHistorySheet
-        agentId={chatsFor?.agentId ?? null}
-        name={chatsFor ? nameOf(chatsFor.agentId) : ''}
-        chat={chatsFor?.chat ?? null}
-        open={!!chatsFor}
-        onClose={() => {
-          setChatsFor(null);
-          opener.current?.focus({ preventScroll: true });
+          if (!a) return;
+          /* one history, in one place: the panel's past chat view */
+          openThread(a, 'report');
+          setChatsFor({ agentId: a, chat });
         }}
       />
       <PrinciplesSheet
