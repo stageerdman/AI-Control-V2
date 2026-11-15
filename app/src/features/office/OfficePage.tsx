@@ -41,6 +41,7 @@ import { MailSheet, refreshMail } from './MailSheet';
 import { type FollowUpContext, Panel, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
+import { Rearrange } from './rebuild/Rearrange';
 import {
   activityOf,
   boardFacts,
@@ -596,6 +597,7 @@ function Office({
   const [bellOpen, setBellOpen] = useState(false);
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [binderFor, setBinderFor] = useState<string | null>(null);
+  const [rearranging, setRearranging] = useState(false);
   const newAccess = useNewAccessCount(pid);
   const leave = () => {
     if (reducedMotion()) {
@@ -1049,7 +1051,19 @@ function Office({
           setContext({ title: `${binderTeam.name.replace(/^The /, '')} principles` });
           openThread(binderCaptain, 'chat');
         }}
+        onRearrange={() => {
+          setBinderFor(null);
+          setRearranging(true);
+        }}
       />
+      {rearranging && (
+        <Rearrange
+          pid={pid}
+          faceOf={(a) => agentsById[a] ?? null}
+          director={nickOf(director)}
+          onClose={() => setRearranging(false)}
+        />
+      )}
       <MailSheet
         pid={pid}
         hq={hq}

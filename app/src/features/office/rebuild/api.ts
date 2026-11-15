@@ -78,7 +78,18 @@ const plain = async <T extends { ok: boolean }>(p: Promise<T>, fallback: string)
   }
 };
 
+/** GET /projects/:id/lineup — who sits where on this project (server/src/office/rebuild.ts projectLineup). */
+export type LineupWire = {
+  teams: { id: string; name: string; captainId: string | null; members: { id: string; name: string; role: string }[] }[];
+  specialists: { id: string; name: string; role: string }[];
+};
+export const lineupOf = (w: LineupWire): Lineup => ({
+  teams: w.teams.map((t) => ({ id: t.id, name: t.name, captain: t.captainId, members: t.members.map((m) => m.id) })),
+  solo: w.specialists.map((s) => s.id),
+});
+
 export const rebuildApi = {
+  lineup: (pid: string) => http.get<LineupWire>(`/projects/${e(pid)}/lineup`),
   plan: (pid: string, body: Rebuild) =>
     plain(http.post<PlanResult>(`/projects/${e(pid)}/rebuild/plan`, body), 'Couldn’t plan that.'),
   apply: (planId: string, body: ApplyBody = {}) =>
