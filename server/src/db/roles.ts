@@ -18,7 +18,7 @@ export type RoleRecord = {
   toolsmith?: number;
 };
 
-const SELECT = `SELECT r.id, r.name, r.reporter, r.toolsmith, (SELECT COUNT(*) FROM agents a WHERE a.role_id = r.id) AS agentCount FROM roles r`;
+const SELECT = `SELECT r.id, r.name, r.reporter, r.toolsmith, (SELECT COUNT(*) FROM agents a WHERE a.role_id = r.id AND a.deleted_at IS NULL) AS agentCount FROM roles r`;
 type RoleRow = Omit<Role, 'reporter' | 'toolsmith'> & { reporter: number; toolsmith: number };
 const toRole = (r: RoleRow): Role => ({ ...r, reporter: r.reporter === 1, toolsmith: r.toolsmith === 1 });
 

@@ -79,7 +79,9 @@ export function featuresRepo(db: Db) {
     if (!owner) return;
     const known =
       db
-        .prepare('SELECT 1 FROM agents WHERE id = ? UNION SELECT 1 FROM teams WHERE id = ?')
+        .prepare(
+          'SELECT 1 FROM agents WHERE id = ? AND deleted_at IS NULL UNION SELECT 1 FROM teams WHERE id = ?',
+        )
         .get(owner, owner) !== undefined;
     if (!known) throw invalid(`Unknown owner '${owner}' (an agent or team id)`, { owner });
   };

@@ -1,10 +1,14 @@
-/* Delete-with-undo. Deleting an agent, role, team or draft hard-deletes it (so
-   every other query stays simple) and files a JSON snapshot under a one-shot
-   restore token. POST /trash/:token/restore puts it back as far as the studio's
-   rules still allow (e.g. a seat on a team that has since filled up is skipped).
-   Tokens expire after TRASH_TTL_MS. */
+/* Delete-with-undo. Deleting a role, team or draft hard-deletes it (so every
+   other query stays simple). Deleting an AGENT only hides its row (deleted_at),
+   so nothing cascades and its chats, work and comms stay linked to the same id;
+   every agent read skips hidden rows. Each delete files a JSON snapshot under a
+   one-shot restore token. POST /trash/:token/restore puts it back as far as the
+   studio's rules still allow (e.g. a seat on a team that has since filled up is
+   skipped). Tokens expire after TRASH_TTL_MS; only then is a hidden agent row
+   hard-deleted. */
 import { randomUUID } from 'node:crypto';
 import { assertCanDelete, replacementOrchestrator } from '../domain/cast.ts';
+import type { Look } from '../domain/look.ts';
 import { addMember, buildRoster, type Member, removeMember } from '../domain/teams.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { AgentRecord, AgentsRepo } from './agents.ts';
@@ -12,10 +16,26 @@ import { type Db, tx } from './connection.ts';
 import type { DraftRecord, DraftsRepo } from './drafts.ts';
 import type { ProjectsRepo } from './projects.ts';
 import type { RoleRecord, RolesRepo } from './roles.ts';
+import { runsRepo } from './runs.ts';
 import type { TeamRecord, TeamsRepo } from './teams.ts';
-import { exists, now, row } from './util.ts';
+import { exists, now, row, rows } from './util.ts';
 
-export const TRASH_TTL_MS = 7 * 24 * 3600 * 1000;
+export const TRASH_TTL_MS = 30 * 24 * 3600 * 1000;
+
+/** A row of the Cast's "Recently deleted" list. */
+export type DeletedAgent = {
+  token: string;
+  id: string;
+  name: string;
+  role: string;
+  look: Look;
+  deletedAt: string;
+  /** deletedAt + TRASH_TTL_MS: when the agent and its chats are gone for good. */
+  expiresAt: string;
+  /** How many chats (runs) come back with it. */
+  chats: number;
+};
+type TrashRow = { token: string; kind: Kind; item_id: string; payload: string; created_at: string };
 
 type Kind = 'agent' | 'role' | 'team' | 'draft';
 export type AgentSnap = {
@@ -40,10 +60,26 @@ type Repos = {
 };
 
 export function trashRepo(db: Db, r: Repos) {
-  const file = (kind: Kind, id: string, payload: unknown): Deleted => {
-    db.prepare('DELETE FROM trash WHERE created_at < ?').run(
-      new Date(Date.now() - TRASH_TTL_MS).toISOString(),
+  const cutoff = () => new Date(Date.now() - TRASH_TTL_MS).toISOString();
+  const isLive = (t: Pick<TrashRow, 'created_at'>) => t.created_at >= cutoff();
+
+  /** Expired tokens go, and with them the hidden agent rows they kept — unless a newer token still keeps it. */
+  const purge = () => {
+    const before = cutoff();
+    const expired = rows<{ item_id: string }>(
+      db
+        .prepare(
+          `SELECT item_id FROM trash WHERE kind = 'agent' AND created_at < ?1
+           AND item_id NOT IN (SELECT item_id FROM trash WHERE kind = 'agent' AND created_at >= ?1)`,
+        )
+        .all(before),
     );
+    for (const { item_id } of expired) if (r.agents.hiddenRecord(item_id)) r.agents.deleteRecord(item_id);
+    db.prepare('DELETE FROM trash WHERE created_at < ?').run(before);
+  };
+
+  const file = (kind: Kind, id: string, payload: unknown): Deleted => {
+    purge();
     const token = randomUUID();
     db.prepare('INSERT INTO trash (token, kind, item_id, payload, created_at) VALUES (?, ?, ?, ?, ?)').run(
       token,
@@ -67,6 +103,14 @@ export function trashRepo(db: Db, r: Repos) {
       ids.splice(Math.min(index, ids.length), 0, id);
       r.projects.setLinks(projectId, kind, ids);
     }
+  };
+  const unlink = (kind: 'teams' | 'agents', id: string, at: { projectId: string }[]) => {
+    for (const { projectId } of at)
+      r.projects.setLinks(
+        projectId,
+        kind,
+        r.projects.links(projectId, kind).filter((x) => x !== id),
+      );
   };
 
   /* ------------------------------------------------------------ delete */
@@ -94,7 +138,8 @@ export function trashRepo(db: Db, r: Repos) {
         seats.push({ teamId: t.id, index: rem.index, member: rem.member, wasCaptain: rem.wasCaptain });
       }
       const specialistOn = projectsWith('agents', id);
-      r.agents.deleteRecord(id);
+      unlink('agents', id, specialistOn);
+      r.agents.hide(id, now());
       return file('agent', id, { agent, seats, specialistOn, handedOver } satisfies AgentSnap);
     });
 
@@ -102,10 +147,10 @@ export function trashRepo(db: Db, r: Repos) {
     tx(db, () => {
       const role = r.roles.record(id);
       if (!role) throw notFound('Role', id);
-      const agentIds = r.agents
-        .records()
-        .filter((a) => a.role_id === id)
-        .map((a) => a.id);
+      // hidden agents too, so a trashed agent restored later still gets its role back
+      const agentIds = rows<{ id: string }>(
+        db.prepare('SELECT id FROM agents WHERE role_id = ?').all(id),
+      ).map((a) => a.id);
       r.roles.deleteRecord(id);
       return file('role', id, { role, agentIds } satisfies RoleSnap);
     });
@@ -132,10 +177,16 @@ export function trashRepo(db: Db, r: Repos) {
     });
 
   /* ------------------------------------------------------------ restore */
-  const restoreAgent = ({ agent, seats, specialistOn, handedOver }: AgentSnap) => {
+  /** Un-hide the row; a snapshot filed before soft delete (row hard-deleted) is re-inserted instead. */
+  const bringBackRecord = (agent: AgentRecord) => {
+    if (r.agents.hiddenRecord(agent.id)) return r.agents.unhide(agent.id);
     if (exists(db, 'agents', agent.id)) throw conflict(`An agent with id '${agent.id}' exists again`);
     const roleId = agent.role_id && exists(db, 'roles', agent.role_id) ? agent.role_id : null;
     r.agents.insertRecord({ ...agent, role_id: roleId });
+  };
+
+  const restoreAgent = ({ agent, seats, specialistOn, handedOver }: AgentSnap) => {
+    bringBackRecord(agent);
     const ref = { id: agent.id, kind: agent.kind };
     for (const s of seats) {
       if (!exists(db, 'teams', s.teamId)) continue;
@@ -185,10 +236,8 @@ export function trashRepo(db: Db, r: Repos) {
 
   const restore = (token: string): Restored =>
     tx(db, () => {
-      const t = row<{ kind: Kind; item_id: string; payload: string; created_at: string }>(
-        db.prepare('SELECT kind, item_id, payload, created_at FROM trash WHERE token = ?').get(token),
-      );
-      if (!t || Date.parse(t.created_at) < Date.now() - TRASH_TTL_MS) throw notFound('Restore token', token);
+      const t = row<TrashRow>(db.prepare('SELECT * FROM trash WHERE token = ?').get(token));
+      if (!t || !isLive(t)) throw notFound('Restore token', token);
       const p = JSON.parse(t.payload);
       if (t.kind === 'agent') restoreAgent(p);
       else if (t.kind === 'role') restoreRole(p);
@@ -198,6 +247,33 @@ export function trashRepo(db: Db, r: Repos) {
       return { restored: { kind: t.kind, id: t.item_id } };
     });
 
-  return { trashAgent, trashRole, trashTeam, trashDraft, restore };
+  /* ------------------------------------------------------------ list */
+  const toDeletedAgent = (t: TrashRow): DeletedAgent => {
+    const { agent } = JSON.parse(t.payload) as AgentSnap;
+    return {
+      token: t.token,
+      id: agent.id,
+      name: agent.name,
+      role: r.agents.roleLabel(agent),
+      look: JSON.parse(agent.look) as Look,
+      deletedAt: t.created_at,
+      expiresAt: new Date(Date.parse(t.created_at) + TRASH_TTL_MS).toISOString(),
+      chats: runsRepo(db).countByAgent(agent.id),
+    };
+  };
+
+  /** Agents in the trash that can still come back, newest first (one already back in the Cast is left out). */
+  const deletedAgents = (): DeletedAgent[] =>
+    rows<TrashRow>(
+      db
+        .prepare(
+          "SELECT * FROM trash WHERE kind = 'agent' AND created_at >= ? ORDER BY created_at DESC, rowid DESC",
+        )
+        .all(cutoff()),
+    )
+      .filter((t) => !r.agents.record(t.item_id))
+      .map(toDeletedAgent);
+
+  return { trashAgent, trashRole, trashTeam, trashDraft, restore, deletedAgents };
 }
 export type TrashRepo = ReturnType<typeof trashRepo>;

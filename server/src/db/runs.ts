@@ -130,6 +130,9 @@ export function runsRepo(db: Db) {
           .prepare('SELECT * FROM runs WHERE project_id = ? ORDER BY started_at DESC, rowid DESC')
           .all(projectId) as RunRow[]
       ).map(toRun),
+    /** How many chats (runs) an agent has had, across every project. */
+    countByAgent: (agentId: string): number =>
+      (db.prepare('SELECT COUNT(*) AS n FROM runs WHERE agent_id = ?').get(agentId) as { n: number }).n,
     live: (projectId: string, agentId: string): Run | null => {
       const r = db
         .prepare("SELECT * FROM runs WHERE project_id = ? AND agent_id = ? AND status = 'running'")
