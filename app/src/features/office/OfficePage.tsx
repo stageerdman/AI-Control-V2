@@ -31,7 +31,7 @@ import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
 import { RunningPill, RunningSheet, runningKey, useRunning } from '../running';
 import { AccessSheet } from './AccessSheet';
-import { type ChatSummary, keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
+import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
@@ -647,8 +647,6 @@ function Office({
   const pokeN = useRef(0);
   /* the director and anyone asking you something open the chat; everyone else tells you what they did */
   const [recapFor, setRecapFor] = useState<string | null>(null);
-  /* Open chat in the recap → that saved chat in the panel (null chat = their history list) */
-  const [chatsFor, setChatsFor] = useState<{ agentId: string; chat: ChatSummary | null } | null>(null);
   const clickActor = (a: string) => {
     const e = engine.current;
     if (!e) return;
@@ -1031,7 +1029,6 @@ function Office({
             setTimeout(() => engine.current?.fit(), 340);
           }}
           raise={showPanel}
-          show={chatsFor}
         />
       </aside>
       <AccessSheet pid={pid} name={name} open={accessOpen} onClose={() => setAccessOpen(false)} />
@@ -1070,13 +1067,11 @@ function Office({
           setRecapFor(null);
           opener.current?.focus({ preventScroll: true });
         }}
-        onOpenChat={(chat) => {
+        onOpenChat={() => {
           const a = recapFor;
           setRecapFor(null);
-          if (!a) return;
-          /* one history, in one place: the panel's past chat view */
-          openThread(a, 'report');
-          setChatsFor({ agentId: a, chat });
+          /* their chat, as always, in the panel; past chats are one tap away under History */
+          if (a) openThread(a, 'report');
         }}
       />
       <PrinciplesSheet

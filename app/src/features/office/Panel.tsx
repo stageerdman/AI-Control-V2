@@ -38,9 +38,6 @@ export type PanelProps = {
   onGrab: () => void;
   /** Narrow screens: raise the drawer (History opens on a raised drawer). */
   raise?: () => void;
-  /** Open this agent's history from outside (the recap's Open chat): a run = that past chat, null = the list.
-      A new object each time, so the same run can be asked for twice. */
-  show?: { agentId: string; chat: ChatSummary | null } | null;
 };
 
 /** What the panel body shows under the header (spec-ux-chat-history §1). */
@@ -147,11 +144,6 @@ export function Panel(p: PanelProps) {
     if (view === 'history') backToLive();
     else if (typeof view === 'object') go('history', { run: view.run.runId });
   };
-  // biome-ignore lint/correctness/useExhaustiveDependencies: only a new request opens it
-  useEffect(() => {
-    if (p.show && p.show.agentId === id)
-      go(p.show.chat ? { run: p.show.chat } : 'history', p.show.chat ? null : 'first');
-  }, [p.show]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: after the view swaps in
   useEffect(() => {
     const f = focusTo.current;
