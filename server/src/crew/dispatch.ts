@@ -1115,10 +1115,26 @@ export function createDispatch(deps: {
         await new Promise((r) => setTimeout(r, 50));
       }
     },
-    /** Queue a finished or stopped item again (it carries on in its own session when it had one). */
-    reopen(itemId: string) {
+    /** Queue a finished or stopped item again: it carries on in its own session when it had one, or
+        (`fresh`: done work redone, or a new owner) starts its build over. */
+    reopen(itemId: string, fresh: boolean) {
       const it = work.item(itemId);
-      if (it) work.setItem(it.id, requeuePatch(it, !!sessionOf(it.runId)));
+      if (!it) return;
+      work.setItem(
+        it.id,
+        fresh
+          ? {
+              ...requeuePatch(it, false),
+              stage: 'build',
+              gateIndex: 0,
+              sendBacks: 0,
+              notes: null,
+              buildRunId: null,
+              mergeTries: 0,
+              teamPhase: null,
+            }
+          : requeuePatch(it, !!sessionOf(it.runId)),
+      );
     },
     /** The board changed under these goals: tell the screen, settle them and start what may start. */
     changed(projectId: string, goalIds: string[]) {

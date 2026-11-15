@@ -110,7 +110,7 @@ export type NewItem = Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 
   report?: boolean;
   gates?: ItemGate[];
 };
-export type ItemEdit = Partial<Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel'>>;
+export type ItemEdit = Partial<Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel' | 'gates'>>;
 
 type Row = Record<string, unknown>;
 const toItem = (r: Row): ChecklistItem => ({
@@ -267,8 +267,17 @@ export function workRepo(db: Db) {
       const given = Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined));
       const next = { ...cur, ...given };
       db.prepare(
-        'UPDATE checklist_items SET text = ?, brief = ?, agent_id = ?, team_id = ?, parallel = ?, updated_at = ? WHERE id = ?',
-      ).run(next.text, next.brief, next.agentId, next.teamId, next.parallel ? 1 : 0, now(), id);
+        'UPDATE checklist_items SET text = ?, brief = ?, agent_id = ?, team_id = ?, parallel = ?, gates = ?, updated_at = ? WHERE id = ?',
+      ).run(
+        next.text,
+        next.brief,
+        next.agentId,
+        next.teamId,
+        next.parallel ? 1 : 0,
+        JSON.stringify(next.gates),
+        now(),
+        id,
+      );
     },
     /** Moves a whiteboard item to a 0-based place; positions stay 0..n-1 (dispatch indexes the list by them). */
     moveItem(id: string, to: number) {
