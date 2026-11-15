@@ -12,7 +12,7 @@
    on its branch. Local git only — no remotes, no network. */
 import { execFile } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { slugify } from '../domain/ids.ts';
 import { identityEnv } from '../setter/git.ts';
@@ -101,6 +101,29 @@ export function worktrees(root: string) {
         chmodSync(join(dir, '.env'), 0o600);
       }
       return { cwd: dir, branch, base, main };
+    },
+
+    /** The item's checkout again, where it was (so a resumed session finds its files): kept as-is when it's
+        still there, else re-added on its branch — or on a fresh branch from main when nothing was kept. */
+    async ensure(repo: string, ws: Workspace): Promise<Workspace> {
+      if (existsSync(join(ws.cwd, '.git'))) return ws;
+      await tryGit(repo, ['worktree', 'prune']);
+      const has = (await tryGit(repo, ['rev-parse', '--verify', '-q', `refs/heads/${ws.branch}`])) !== null;
+      /* the branch it merged into may be gone (a team item that already landed): fall back to the project's own */
+      const mainOk = (await tryGit(repo, ['rev-parse', '--verify', '-q', `refs/heads/${ws.main}`])) !== null;
+      const main = mainOk ? ws.main : await git(repo, ['symbolic-ref', '--short', 'HEAD']);
+      mkdirSync(dirname(ws.cwd), { recursive: true, mode: 0o700 });
+      let base = ws.base;
+      if (has) await git(repo, ['worktree', 'add', '-q', ws.cwd, ws.branch]);
+      else {
+        base = await git(repo, ['rev-parse', `refs/heads/${main}`]);
+        await git(repo, ['worktree', 'add', '-q', '-b', ws.branch, ws.cwd, base]);
+      }
+      if (existsSync(join(repo, '.env'))) {
+        copyFileSync(join(repo, '.env'), join(ws.cwd, '.env'));
+        chmodSync(join(ws.cwd, '.env'), 0o600);
+      }
+      return { ...ws, main, base };
     },
 
     commitAll,

@@ -184,6 +184,7 @@ describe('collaboration: design + enforcement', () => {
       'review',
       'rework',
       'review',
+      'deliver', // done → the builder reports in to the director
     ]);
   });
 

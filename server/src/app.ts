@@ -31,9 +31,11 @@ import { createGuests } from './office/guests.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
+import { createPages } from './office/pages.ts';
 import { createPortraits } from './office/portrait.ts';
 import { createPrinciples } from './office/principles.ts';
 import { createRebuilds } from './office/rebuild-service.ts';
+import { createReportIn } from './office/report-in.ts';
 import { createStaffing } from './office/staffing.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
@@ -45,6 +47,7 @@ import { agentRoutes } from './routes/agents.ts';
 import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
 import { bridgeRoutes } from './routes/bridges.ts';
+import { chatRoutes } from './routes/chats.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
 import { creatorChatRoutes } from './routes/creator-chat.ts';
@@ -65,6 +68,7 @@ import { portRoutes } from './routes/ports.ts';
 import { principlesRoutes } from './routes/principles.ts';
 import { projectHealthRoutes } from './routes/project-health.ts';
 import { projectRoutes } from './routes/projects.ts';
+import { recapRoutes } from './routes/recap.ts';
 import { reportRoutes } from './routes/reports.ts';
 import { roleRoutes } from './routes/roles.ts';
 import { runRoutes } from './routes/runs.ts';
@@ -74,8 +78,10 @@ import { teamRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
 import { trashRoutes } from './routes/trash.ts';
+import { createChatReplier } from './runtime/chat-reply.ts';
 import { AGENT_SHELL, loadCaps, type StudioCaps } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
+import { createRecapper } from './runtime/recap.ts';
 import type { Runner } from './runtime/runner.ts';
 import { createRuntime, type Runtime } from './runtime/service.ts';
 import { cabinet } from './secrets/cabinet.ts';
@@ -311,8 +317,19 @@ export function buildApp({
     rebuilds,
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
+    /* "carry on": the director continues a stopped goal where it was */
+    resumeGoal: (projectId, goalId) => dispatch.resume(projectId, goalId),
+    /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
+    ask: (projectId, directorId, to, request) =>
+      room.call(
+        { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
+        { agent: to, request, why: 'answer a question for the user' },
+      ),
   });
   threadsRef = threads;
+  /* someone finished a step → they tell the director, who decides what the user hears (chat, page or keep) */
+  const reportIn = createReportIn({ db, store, events, crew, threads, comms });
+  const pages = createPages({ db, store });
   /* STUDIO LIFE: the mailbox — HQ is the project in meta 'hq_project'; the director triages new mail on its own */
   const hq = metaValue(db, 'hq_project');
   const mail = createMail({
@@ -370,6 +387,7 @@ export function buildApp({
   app.addHook('preClose', async () => {
     lifecycle.stop();
     comms.stop();
+    reportIn.stop();
     github.stop();
     for (const res of open) res.end();
     await Promise.all([runtime.shutdown(), apps.stopAll()]);
@@ -406,7 +424,9 @@ export function buildApp({
   );
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
-  app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
+  app.register(runRoutes({ runtime, pages, ...(longPollMs === undefined ? {} : { longPollMs }) }));
+  app.register(chatRoutes({ db, store, replyInChat: createChatReplier(crew) }));
+  app.register(recapRoutes({ db, store, recapChat: createRecapper(crew) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
   app.register(rebuildRoutes({ rebuilds, store }));

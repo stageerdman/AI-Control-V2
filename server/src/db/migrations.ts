@@ -539,7 +539,30 @@ export const MIGRATIONS: readonly string[] = [
   );
   ALTER TABLE agents ADD COLUMN can_mail INTEGER NOT NULL DEFAULT 1;
   `,
-  // Team rebuild: a director reply may carry a rebuild offer (plan id, card, undo token).
+  /* 29 — chat history: every message of a run (its opening task = seq 0, the agent's words, short tool lines,
+     the user's answers, how it ended), kept after the run ends so the user can read it back or ask about it. */
+  `
+  CREATE TABLE chat_messages (
+    id         TEXT PRIMARY KEY,
+    run_id     TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
+    agent_id   TEXT NOT NULL,
+    seq        INTEGER NOT NULL,
+    role       TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'tool', 'system')),
+    text       TEXT NOT NULL,
+    meta       TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX chat_messages_agent ON chat_messages(agent_id, created_at);
+  CREATE UNIQUE INDEX chat_messages_run ON chat_messages(run_id, seq);
+  `,
+  /* 30 — carry on: an item stopped at its turn cap (or by a restart) picks up where it was.
+     resume_run_id = the stopped run whose session the next run resumes; continues = turn-cap pick-ups so far. */
+  `
+  ALTER TABLE checklist_items ADD COLUMN resume_run_id TEXT;
+  ALTER TABLE checklist_items ADD COLUMN continues INTEGER NOT NULL DEFAULT 0;
+  `,
+  /* 31 — team rebuild: a director reply may carry a rebuild offer (plan id, card, undo token). */
   `ALTER TABLE thread_messages ADD COLUMN rebuild TEXT;`,
 ];
 

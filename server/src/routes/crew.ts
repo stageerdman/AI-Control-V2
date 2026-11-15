@@ -58,4 +58,9 @@ export const crewRoutes =
       const { id, goalId } = parse(GoalParams, req.params);
       return reply.status(202).send(dispatch.cancel(id, goalId));
     });
+    /* continue a stopped goal: its unfinished items carry on where they were */
+    app.post('/projects/:id/work/:goalId/resume', async (req, reply) => {
+      const { id, goalId } = parse(GoalParams, req.params);
+      return reply.status(202).send(dispatch.resume(id, goalId));
+    });
   };

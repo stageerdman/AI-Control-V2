@@ -27,8 +27,10 @@ export function pagerEntries(asks: StudioAsk[], here: string | null): PagerEntry
 const shortName = (name: string) => name.replace(/^(Sir|Dr\.?|The)\s+/i, '').split(/\s+/)[0] || name;
 /** One calm line per office. */
 export function pagerLine(e: PagerEntry): string {
-  if (e.asks.length > 1) return `${e.asks.length} need you`;
-  return `${shortName(e.asks[0]?.agentName || 'Someone')} needs you`;
+  const questions = e.asks.filter((a) => !a.news);
+  if (questions.length > 1) return `${questions.length} need you`;
+  if (questions.length === 1) return `${shortName(questions[0]?.agentName || 'Someone')} needs you`;
+  return `${shortName(e.asks[0]?.agentName || 'Someone')} has news`; // only the director's pages
 }
 
 export const askKey = (a: Pick<StudioAsk, 'projectId' | 'id'>) => `${a.projectId}:${a.id}`;

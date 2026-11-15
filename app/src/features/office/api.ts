@@ -104,6 +104,8 @@ export type StudioAsk = {
   status: 'open' | 'answered' | 'cancelled';
   since: string;
   seen: boolean;
+  /** A page from the director (news about finished work), not a question — clears when you visit the office. */
+  news?: boolean;
 };
 
 /** The office's work clock (GET /projects/:id/time): agent time, by kind and by agent; runs and turns, no money. */
@@ -119,7 +121,50 @@ export type WorkTime = {
   live: number;
 };
 
+/** One saved chat (a run) — server/src/db/chats.ts. */
+export type ChatSummary = {
+  runId: string;
+  agentId: string;
+  projectId: string;
+  task: string;
+  status: 'running' | 'succeeded' | 'failed' | 'cancelled';
+  sessionId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  messageCount: number;
+  lastText: string | null;
+};
+/** GET /agents/:id/recap — the agent's own words about its last chat. */
+export type Recap = { recap: string | null; chat: ChatSummary | null; cached: boolean };
+
+/** One saved line of a chat — server/src/db/chats.ts. */
+export type ChatMessage = {
+  id: string;
+  runId: string;
+  projectId: string;
+  agentId: string;
+  seq: number;
+  role: 'user' | 'assistant' | 'tool' | 'system';
+  text: string;
+  meta: Record<string, unknown> | null;
+  createdAt: string;
+};
+/** POST /chats/:runId/messages — my line and the agent's answer, both saved. */
+export type ChatReply = { sent: ChatMessage; reply: ChatMessage };
+
+const recap = (agentId: string) => http.get<Recap>(`/agents/${e(agentId)}/recap`);
+/** Newest first. */
+export const listAgentChats = (agentId: string) => http.get<ChatSummary[]>(`/agents/${e(agentId)}/chats`);
+export const getChatMessages = (runId: string) => http.get<ChatMessage[]>(`/chats/${e(runId)}/messages`);
+/** Keep writing in a finished chat. 409 `chat_running` (live run), 502 `agent_error` (model failed). */
+export const sendChatMessage = (runId: string, text: string) =>
+  http.post<ChatReply>(`/chats/${e(runId)}/messages`, { text });
+
 export const officeApi = {
+  recap,
+  listAgentChats,
+  getChatMessages,
+  sendChatMessage,
   office: (pid: string) => http.get<OfficeView>(`/projects/${e(pid)}/office`),
   features: (pid: string) => http.get<Feature[]>(`/projects/${e(pid)}/features`),
   createFeature: (pid: string, body: FeatureCreate) =>
@@ -172,6 +217,9 @@ export const keys = {
   /* STUDIO LIFE */
   deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,
   principles: (pid: string) => `office:${pid}:principles`,
+  recap: (agentId: string) => `recap:${agentId}`,
+  chats: (agentId: string) => `chats:${agentId}`,
+  chat: (runId: string) => `chat:${runId}`,
   principle: (pid: string, teamId: string, file: string) => `office:${pid}:principles:${teamId}:${file}`,
   mail: (pid: string, box: 'in' | 'sent' = 'in') => `office:${pid}:mail:${box}`,
   pager: 'pager:asks',

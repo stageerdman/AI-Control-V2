@@ -227,6 +227,35 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
     /* AGENT MCP: an approver always says yes; a helper answers with a costume */
     case 'allow-call':
       return answer({ allow: true, reply: 'Yes — go ahead.' });
+    /* DIRECTOR POWERS: a finished step → a chat line; a finished goal or a failed step → a page */
+    case 'report-in': {
+      const failed = t.includes(' FAILED.');
+      const whole = t.includes('every step is done now');
+      return answer({
+        tell: failed || whole ? 'page' : 'chat',
+        say: failed
+          ? 'A step failed — have a look when you can.'
+          : whole
+            ? 'The goal is done.'
+            : 'One step landed.',
+      });
+    }
+    /* chat history: the agent says what it did, from the task line the recap prompt carries */
+    case 'agent-recap': {
+      const task = field<string>(t, 'Task line:') ?? 'a task';
+      const status = field<string>(t, 'Status:');
+      return answer({
+        recap: `I was asked to ${task.replace(/\.$/, '').toLowerCase()}. ${status === 'running' ? 'I am still working on it.' : `It ended ${status ?? 'quietly'}.`} (A scripted recap: AI_STUDIO_RUNNER=fake.)`,
+      });
+    }
+    /* chat history: a follow-up in a past chat gets a short reply that echoes the new message */
+    case 'agent-chat-reply': {
+      const asked =
+        t.split("The user's new message:\n")[1]?.split('\n\nReply with ONLY')[0]?.trim() || 'that';
+      return answer({
+        reply: `You asked: "${asked.slice(0, 200)}". I remember this chat. (A scripted reply: AI_STUDIO_RUNNER=fake.)`,
+      });
+    }
     case 'help':
       return answer({
         answer: `Costume: ${JSON.stringify(LOOKS[2])} — a beret, a palette and a rose finish read as "maker".`,

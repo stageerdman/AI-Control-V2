@@ -3,7 +3,7 @@
 import type { Activity, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 
 export type FakeStep =
-  | { activity: Activity; status?: 'working' | 'waiting' }
+  | { activity: Activity; status?: 'working' | 'waiting'; tool?: string }
   | { tokens: { input: number; output: number } }
   | { text: string }
   | { ask: string; options?: string[] }
@@ -53,7 +53,12 @@ export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT
         for (const step of steps) {
           if (cancelled) return end({ status: 'cancelled' });
           if ('activity' in step)
-            io.emit({ kind: 'activity', status: step.status ?? 'working', activity: step.activity });
+            io.emit({
+              kind: 'activity',
+              status: step.status ?? 'working',
+              activity: step.activity,
+              ...(step.tool ? { tool: step.tool } : {}),
+            });
           else if ('tokens' in step) {
             turns++;
             usage.input += step.tokens.input;

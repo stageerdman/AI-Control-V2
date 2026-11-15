@@ -119,4 +119,23 @@ describe('worktrees (temp git repos)', () => {
     expect(r).toMatchObject({ ok: false, conflict: false });
     expect((r as { reason: string }).reason).toMatch(/on 'other', not 'main'/);
   });
+
+  it('ensure re-makes a put-away checkout on its kept branch (or a fresh one), at the same place', async () => {
+    const ws = await wt.open(repo, 'proj', 'item-1234abcd', 'Build the page');
+    if (!ws) throw new Error('no checkout');
+    expect(await wt.ensure(repo, ws)).toEqual(ws); // still there: as-is
+    writeFileSync(join(ws.cwd, 'b.txt'), 'two\n');
+    expect((await wt.close(repo, ws, { deleteBranch: true })).kept).toBe(true);
+    expect(existsSync(ws.cwd)).toBe(false);
+    const back = await wt.ensure(repo, ws);
+    expect(back.cwd).toBe(ws.cwd);
+    expect(readFileSync(join(back.cwd, 'b.txt'), 'utf8')).toBe('two\n'); // the kept work
+    expect(git(back.cwd, 'branch', '--show-current')).toBe(ws.branch);
+    /* nothing kept (branch deleted) and its merge target gone: a fresh branch from the project's own */
+    await wt.close(repo, back, { deleteBranch: false });
+    git(repo, 'branch', '-q', '-D', ws.branch);
+    const fresh = await wt.ensure(repo, { ...ws, main: 'studio/gone' });
+    expect(fresh.main).toBe('main');
+    expect(git(fresh.cwd, 'branch', '--show-current')).toBe(ws.branch);
+  });
 });

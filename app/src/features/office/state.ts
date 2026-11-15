@@ -182,12 +182,15 @@ export function mergeMessage(list: ThreadMessage[], m: ThreadMessage): ThreadMes
 }
 
 /* ------------------------------------------------------------ the wall */
-/** The tasks the whiteboard lists: every running goal's items, else the newest goal's (oldest first). */
+/** Goals that stopped partway (not finished, not dropped): they stay on the board until continued or dropped. */
+export const stoppedGoals = (goals: Goal[]): Goal[] => goals.filter((g) => g.status === 'failed');
+
+/** The tasks the whiteboard lists: every running or stopped goal's items, else the newest goal's (oldest first). */
 export function boardTasks(
   goals: Goal[],
 ): { id: string; text: string; done: boolean; status: string; item: ChecklistItem }[] {
-  const running = goals.filter((g) => g.status === 'running');
-  const shown = running.length ? running : goals.slice(0, 1);
+  const open = goals.filter((g) => g.status === 'running' || g.status === 'failed');
+  const shown = open.length ? open : goals.slice(0, 1);
   return shown
     .slice()
     .reverse()

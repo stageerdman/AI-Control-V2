@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { parse } from '../errors.ts';
+import type { Pages } from '../office/pages.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { Id, IdParams } from './schemas.ts';
 
@@ -42,7 +43,16 @@ const strip = <T extends { caps?: Record<string, unknown> | undefined }>(b: T) =
 };
 
 export const runRoutes =
-  ({ runtime, longPollMs = LONG_POLL_MS }: { runtime: Runtime; longPollMs?: number }): FastifyPluginAsync =>
+  ({
+    runtime,
+    longPollMs = LONG_POLL_MS,
+    pages,
+  }: {
+    runtime: Runtime;
+    longPollMs?: number;
+    /** The director's pages for the pager (office/pages.ts). */
+    pages?: Pages;
+  }): FastifyPluginAsync =>
   async (app) => {
     app.post('/projects/:id/runs', async (req, reply) => {
       const { id } = parse(IdParams, req.params);
@@ -80,12 +90,19 @@ export const runRoutes =
     /* the pager: open asks across every project (+ which ones you already went to see) */
     app.get('/asks', async (req) => {
       const q = parse(StudioAsksQuery, req.query);
-      return runtime.studioAsks(
+      const asks = runtime.studioAsks(
         q.status === 'all' ? undefined : q.status,
         q.unseen === 'true' || q.unseen === '1',
       );
+      /* the director's pages ride along (news, not questions) */
+      return q.status === 'open' || q.status === 'all' ? [...asks, ...(pages?.list() ?? [])] : asks;
     });
-    app.post('/asks/seen', async (req) => runtime.markSeen(parse(SeenBody, req.body).projectId));
+    app.post('/asks/seen', async (req) => {
+      const { projectId } = parse(SeenBody, req.body);
+      const r = runtime.markSeen(projectId);
+      pages?.seen(projectId);
+      return r;
+    });
 
     /* the ask_user MCP server's side door: per-run token, unknown/ended runs look like 404 */
     const token = (h: unknown) => (typeof h === 'string' ? h : undefined);

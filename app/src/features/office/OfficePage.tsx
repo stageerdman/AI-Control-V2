@@ -30,9 +30,10 @@ import { refreshProjectAccess, useNewAccessCount } from '../access';
 import type { Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
 import { AccessSheet } from './AccessSheet';
-import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
+import { type ChatSummary, keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
 import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
+import { ChatHistorySheet } from './ChatHistorySheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
@@ -42,6 +43,7 @@ import { type FollowUpContext, Panel, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
 import { Rearrange } from './rebuild/Rearrange';
+import { RecapSheet } from './RecapSheet';
 import {
   activityOf,
   boardFacts,
@@ -498,6 +500,17 @@ function Office({
           if (ev.payload.agentId !== director && liveRef.current.ids.includes(ev.payload.agentId))
             void e?.say(director, { to: ev.payload.agentId, ms: 1300 });
           break;
+        case 'room.call': {
+          /* someone asks someone (the director checking with Jony): "…" toward them, and back when they answer */
+          const { from, to, status } = ev.payload;
+          if (!liveRef.current.ids.includes(from) || !liveRef.current.ids.includes(to)) break;
+          if (status === 'working') {
+            void e?.say(from, { to, ms: 1300 });
+            announce(`Asking ${nickOf(to)}…`);
+          } else if (status === 'answered') void e?.say(to, { to: from, ms: 1300 });
+          else if (status === 'failed') announce(`Couldn’t reach ${nickOf(to)}.`);
+          break;
+        }
         case 'run.finished':
           if (ev.payload.status === 'succeeded') e?.react(ev.payload.agentId, 'hop');
           break;
@@ -627,16 +640,17 @@ function Office({
 
   /* ---------- robots: click + keyboard */
   const pokeN = useRef(0);
+  /* the director and anyone asking you something open the chat; everyone else tells you what they did */
+  const [recapFor, setRecapFor] = useState<string | null>(null);
+  /* Open chat in the recap → that saved chat (null chat = their list of chats) */
+  const [chatsFor, setChatsFor] = useState<{ agentId: string; chat: ChatSummary | null } | null>(null);
   const clickActor = (a: string) => {
     const e = engine.current;
     if (!e) return;
-    if (deriveActor(liveRef.current, a).kind === 'sleeping') {
-      e.react(a, POKES[pokeN.current++ % POKES.length]);
-      e.chip(a, 'Chat anyway', () => openThread(a, 'chat'));
-      announce(`${nameOf(a)} is asleep — off shift. Chat anyway is available.`);
-      return;
-    }
-    openThread(a, 'scene');
+    const kind = deriveActor(liveRef.current, a).kind;
+    if (a === director || kind === 'needs-input') return openThread(a, 'scene');
+    if (kind === 'sleeping') e.react(a, POKES[pokeN.current++ % POKES.length]);
+    setRecapFor(a);
   };
   const focusKey = useRef(director);
   const elOf = (k: string) =>
@@ -1038,6 +1052,30 @@ function Office({
         open={!!noteFor}
         onClose={() => setNoteFor(null)}
         onSeen={markSeen}
+      />
+      <RecapSheet
+        agentId={recapFor}
+        name={recapFor ? nameOf(recapFor) : ''}
+        open={!!recapFor}
+        onClose={() => {
+          setRecapFor(null);
+          opener.current?.focus({ preventScroll: true });
+        }}
+        onOpenChat={(chat) => {
+          const a = recapFor;
+          setRecapFor(null);
+          if (a) setChatsFor({ agentId: a, chat });
+        }}
+      />
+      <ChatHistorySheet
+        agentId={chatsFor?.agentId ?? null}
+        name={chatsFor ? nameOf(chatsFor.agentId) : ''}
+        chat={chatsFor?.chat ?? null}
+        open={!!chatsFor}
+        onClose={() => {
+          setChatsFor(null);
+          opener.current?.focus({ preventScroll: true });
+        }}
       />
       <PrinciplesSheet
         pid={pid}
