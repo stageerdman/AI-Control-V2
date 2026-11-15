@@ -59,7 +59,11 @@ describe('the director decides: one Send', () => {
     await until(async () => (await messages()).length === 3);
     const [g] = await goals();
     expect(g?.text).toBe('Add a dark mode toggle in Settings');
-    expect(s.crew.crewCalls().map((c) => c.task.split('\n')[0])).toEqual(['AI Studio contract: dispatch']);
+    /* one dispatch; the step may already be done, so the director's report-in can follow (a race, not a bug) */
+    const contracts = s.crew.crewCalls().map((c) => c.task.split('\n')[0]);
+    expect(contracts.filter((c) => c !== 'AI Studio contract: report-in')).toEqual([
+      'AI Studio contract: dispatch',
+    ]);
     const m = await messages();
     expect(m.map((x) => [x.from, x.text, x.goalId])).toEqual([
       ['user', 'Add dark mode please', g?.id],
