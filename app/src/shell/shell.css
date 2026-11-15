@@ -36,6 +36,11 @@
   font-weight: 700;
   font-size: 14px;
 }
+/* the stale-build note sits at the bottom, out of the way of the lost-server bar */
+.stale-note {
+  top: auto;
+  bottom: 14px;
+}
 .gate-lost-why {
   font-weight: 500;
   font-size: 12px;

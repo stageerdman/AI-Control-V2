@@ -38,7 +38,8 @@ export function parseHealth(raw: string): Health {
   ) {
     throw new Error('The server answered with an unexpected health format.');
   }
-  return { ok: d.ok, version: d.version, paths: { ...p } as Health['paths'] };
+  const build = d.build && isStr(d.build.running) ? { build: d.build } : {};
+  return { ok: d.ok, version: d.version, paths: { ...p } as Health['paths'], ...build };
 }
 
 /** Start (or reuse) the backend and report the resulting status. Never throws. */

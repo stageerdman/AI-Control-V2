@@ -7,6 +7,13 @@ export type ServerHealth = {
   ok: boolean;
   version: string;
   paths: { home: string; sandbox: string; controlHome: string; db: string };
+  /** Only from a backend that keeps the Mac app current: its commit, what's installed, the last install. */
+  build?: BuildReport;
+};
+export type BuildReport = {
+  running: string;
+  installed: { commit: string; at?: string } | null;
+  install: { state: 'installing' | 'installed' | 'failed'; at: string; error?: string } | null;
 };
 
 /* ---------- the Cast ---------- */

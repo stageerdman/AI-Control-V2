@@ -6,7 +6,15 @@ import { VERSION } from '../version.ts';
 
 /** `build` is reported only by a backend that keeps the Mac app current (the main checkout on a Mac). */
 export const healthRoutes =
-  ({ config, db, build }: { config: Config; db: Db; build?: (() => BuildReport) | null }): FastifyPluginAsync =>
+  ({
+    config,
+    db,
+    build,
+  }: {
+    config: Config;
+    db: Db;
+    build?: (() => BuildReport) | null;
+  }): FastifyPluginAsync =>
   async (app) => {
     app.get('/health', async (_req, reply) => {
       const dbOk = dbHealthy(db);
