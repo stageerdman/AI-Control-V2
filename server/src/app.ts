@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { createAppRunner } from './apps/app-runner.ts';
 import { createPorts } from './apps/ports.ts';
+import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
@@ -38,6 +39,7 @@ import { appRoutes } from './routes/app.ts';
 import { blueprintRoutes } from './routes/blueprint.ts';
 import { bridgeRoutes } from './routes/bridges.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
+import { commsRoutes } from './routes/comms.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { draftRoutes } from './routes/drafts.ts';
@@ -200,7 +202,9 @@ export function buildApp({
   });
   const chat = createSetupChat({ store, events, crew });
   /* AGENT MCP: who is in the room, and agents calling each other into it */
-  const room = createRoom({ db, store, events, crew, sandbox: config.sandbox, helpCaps: caps.review });
+  /* STUDIO LIFE: every message between agents, kept whole */
+  const comms = createComms({ db, events, secretValues: secretValuesOf(secrets) });
+  const room = createRoom({ db, store, events, crew, sandbox: config.sandbox, helpCaps: caps.review, comms });
   runtime.setStudioTools(({ projectId, agentId }) =>
     room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
   );
@@ -299,6 +303,7 @@ export function buildApp({
   });
   app.addHook('preClose', async () => {
     lifecycle.stop();
+    comms.stop();
     github.stop();
     for (const res of open) res.end();
     await Promise.all([runtime.shutdown(), apps.stopAll()]);
@@ -334,6 +339,7 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
+  app.register(commsRoutes({ comms }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(crewRoutes({ chat, creator, dispatch }));
   app.register(projectHealthRoutes({ health, apps, github }));

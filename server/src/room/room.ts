@@ -9,6 +9,7 @@
    in a draft the spoken lines also land in the setup chat. Joins are events, so the room survives reloads. */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import type { Comms } from '../comms/comms.ts';
 import { json } from '../crew/prompts.ts';
 import { type Crew, validateWith } from '../crew/structured.ts';
 import type { Agent } from '../db/agents.ts';
@@ -50,6 +51,8 @@ export function createRoom(deps: {
   sandbox: string;
   /** Caps for a helper's run (a project helper reads files; a setup helper only thinks). */
   helpCaps?: Caps;
+  /** STUDIO LIFE: every call, verdict and answer is kept whole here. */
+  comms?: Comms;
 }) {
   const { db, store, events, crew } = deps;
 
@@ -193,6 +196,8 @@ export function createRoom(deps: {
     });
     const why = clip((args.why?.trim() || request).replace(/[.?!\s]+$/, ''), 80);
     const callId = randomUUID();
+    const log = (kind: 'call' | 'answer' | 'allow', from: string, to: string, text: string) =>
+      deps.comms?.record({ scope: ctx.scope, scopeId: ctx.ownerId, kind, from, to, text, refs: { callId } });
     const step = (s: 'asking' | 'approved' | 'declined' | 'working' | 'answered' | 'failed', note?: string) =>
       emit(ctx, {
         type: 'room.call',
@@ -210,6 +215,7 @@ export function createRoom(deps: {
       const approver = store.agents.require(approverId);
       step('asking');
       say(ctx, caller.id, `${nick(approver)}, may I bring in ${nick(callee)} to ${why}?`, approver.id);
+      log('allow', caller.id, approver.id, `May I bring in ${callee.name} to ${why}? Request: ${request}`);
       status(ctx, approver.id, `Deciding on ${nick(callee)}`);
       let verdict: z.output<typeof AllowSchema>;
       try {
@@ -238,6 +244,7 @@ export function createRoom(deps: {
         throw new Error(`${approver.name} couldn’t decide (${(e as Error).message}). Do it yourself.`);
       }
       status(ctx, approver.id);
+      log('allow', approver.id, caller.id, `${verdict.allow ? 'Yes' : 'No'}: ${verdict.reply}`);
       if (!verdict.allow) {
         step('declined', verdict.reply);
         say(
@@ -259,6 +266,7 @@ export function createRoom(deps: {
     } else say(ctx, caller.id, `${nick(callee)}, could you ${why}?`, callee.id);
 
     join(ctx, callee.id, caller.id, why);
+    log('call', caller.id, callee.id, request);
     step('working');
     status(ctx, callee.id, `For ${nick(caller)}`);
     const project = ctx.scope === 'project' ? store.projects.require(ctx.ownerId) : null;
@@ -282,6 +290,7 @@ export function createRoom(deps: {
         ...(folder ? { workspace: { cwd: folder, tools: READ_ONLY, allowedTools: READ_ONLY } } : {}),
         ...(deps.helpCaps ? { caps: deps.helpCaps } : {}),
       });
+      log('answer', callee.id, caller.id, value.answer);
       step('answered', value.say);
       say(ctx, callee.id, `Done — ${value.say}`, caller.id);
       return value.answer;
@@ -329,7 +338,47 @@ export function createRoom(deps: {
       },
     ];
     if (opts.catalog && catalogTool) list.push(catalogTool);
+    if (ctx.scope === 'project' && deps.comms) list.push(commsTool(ctx));
     return list;
+  }
+
+  /** comms_log: the record of what agents said to each other — this project, or the whole studio. */
+  function commsTool(ctx: RoomCtx): BridgeTool {
+    const name = (id: string | null) => (id ? (store.agents.get(id)?.name ?? id) : null);
+    return {
+      name: 'comms_log',
+      description:
+        'Read the record of what agents said to each other (calls, answers, approvals, handoffs, reviews, splits, mail, desk notes), oldest first. For analysing how the team works together.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'How many of the latest entries (1–500, default 100).' },
+          everywhere: {
+            type: 'boolean',
+            description: 'true = every project in the studio, not just this one.',
+          },
+        },
+      },
+      run: async (a) => {
+        const n = Math.max(1, Math.min(500, Number(a.limit) || 100));
+        const list =
+          a.everywhere === true
+            ? deps.comms?.latest(null, null, n)
+            : deps.comms?.latest('project', ctx.ownerId, n);
+        return (list ?? [])
+          .map((c) =>
+            JSON.stringify({
+              at: c.at,
+              where: c.scope === 'project' ? (store.projects.get(c.scopeId)?.name ?? c.scopeId) : c.scope,
+              kind: c.kind,
+              from: name(c.from),
+              to: name(c.to),
+              text: c.text,
+            }),
+          )
+          .join('\n');
+      },
+    };
   }
 
   /** A crew system prompt for a helper or an approver: own brain + the room rules (+ its tools). */

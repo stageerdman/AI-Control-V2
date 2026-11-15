@@ -201,7 +201,7 @@ describe('calls inside a project', () => {
     ]);
     expect(rest[0]?.cwd).toBe(join(h.config.sandbox, 'aurora')); // a project helper reads the folder…
     expect(rest[0]?.tools).toEqual(['Read', 'Glob', 'Grep']); // …and changes nothing
-    expect(rest[0]?.studioTools?.names).toEqual(['room', 'call_agent', 'studio_catalog']);
+    expect(rest[0]?.studioTools?.names).toEqual(['room', 'call_agent', 'studio_catalog', 'comms_log']);
     const evs = h.events.after('project', 'aurora') as Ev[];
     expect(of(evs, 'room.joined')).toEqual([{ agentId: 'a-prof', by: 'a-pete', why: 'find sources' }]);
     expect(of(evs, 'room.call').map((c) => c.status)).toEqual([
@@ -215,7 +215,7 @@ describe('calls inside a project', () => {
     // the agent's own prompt says how to work with the others
     const agentRun = s.calls.find((c) => !c.task.startsWith('AI Studio contract'));
     expect(agentRun?.systemPrompt).toContain('## Working with others');
-    expect(agentRun?.studioTools?.names).toEqual(['room', 'call_agent']);
+    expect(agentRun?.studioTools?.names).toEqual(['room', 'call_agent', 'comms_log']);
   });
 
   it('a captain bringing in someone new asks the orchestrator', async () => {

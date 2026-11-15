@@ -483,6 +483,62 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE asks ADD COLUMN answered_by TEXT;
   `,
+  /* 28 — STUDIO LIFE: the comms log (every agent-to-agent message, for later analysis), desk notes (willing forget),
+     guests the user brought in, inter-project mail (HQ = the project in meta 'hq_project'), Tinker design chats,
+     and who may send mail. */
+  `
+  CREATE TABLE comms (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope    TEXT NOT NULL CHECK (scope IN ('project', 'draft', 'studio')),
+    scope_id TEXT NOT NULL,
+    kind     TEXT NOT NULL,
+    from_id  TEXT,
+    to_id    TEXT,
+    text     TEXT NOT NULL,
+    refs     TEXT NOT NULL DEFAULT '{}',
+    at       TEXT NOT NULL
+  );
+  CREATE INDEX comms_scope ON comms(scope, scope_id, id);
+  CREATE TABLE desk_notes (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id   TEXT NOT NULL,
+    run_id     TEXT,
+    body       TEXT NOT NULL,
+    at         TEXT NOT NULL
+  );
+  CREATE INDEX desk_notes_agent ON desk_notes(project_id, agent_id, at);
+  CREATE TABLE project_guests (
+    project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id         TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    brief            TEXT NOT NULL,
+    orchestrator_may INTEGER NOT NULL DEFAULT 0,
+    added_at         TEXT NOT NULL,
+    PRIMARY KEY (project_id, agent_id)
+  );
+  CREATE TABLE mail (
+    id           TEXT PRIMARY KEY,
+    from_project TEXT,
+    from_agent   TEXT,
+    to_project   TEXT NOT NULL,
+    kind         TEXT NOT NULL CHECK (kind IN ('mail', 'ticket', 'idea')),
+    subject      TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'board', 'discussed', 'filed')),
+    goal_id      TEXT,
+    note         TEXT,
+    at           TEXT NOT NULL
+  );
+  CREATE INDEX mail_to ON mail(to_project, at);
+  CREATE TABLE creator_sessions (
+    id         TEXT PRIMARY KEY,
+    chat       TEXT NOT NULL DEFAULT '[]',
+    draft      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  ALTER TABLE agents ADD COLUMN can_mail INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
