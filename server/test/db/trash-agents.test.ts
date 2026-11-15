@@ -5,6 +5,7 @@ import { appendChatMessage, listAgentChats } from '../../src/db/chats.ts';
 import { runsRepo } from '../../src/db/runs.ts';
 import { TRASH_TTL_MS } from '../../src/db/trash.ts';
 import { exists } from '../../src/db/util.ts';
+import { addMember, TEAM_MAX } from '../../src/domain/teams.ts';
 import { testApp } from '../helpers.ts';
 
 let h: ReturnType<typeof testApp>;
@@ -111,5 +112,28 @@ describe('deleted agents: hidden, listed, restored unchanged', () => {
     expect(ids((await h.call('GET', '/trash/agents')).body.items)).toEqual(['a-doc', 'a-scar']);
     expect((await h.call('POST', `/trash/${recent.body.restoreToken}/restore`)).status).toBe(200);
     expect(h.store.agents.record('a-scar')).toBeDefined();
+  });
+
+  it('listing purges expired agents too, so 30 days means 30 days even with no new deletes', async () => {
+    h = testApp({ seed: true });
+    const old = await h.call('DELETE', '/agents/a-pete');
+    backdate(old.body.restoreToken, 31);
+    expect((await h.call('GET', '/trash/agents')).body.items).toEqual([]);
+    expect(exists(h.db, 'agents', 'a-pete')).toBe(false);
+  });
+
+  it('a seat that filled up meanwhile is named in the restore reply', async () => {
+    h = testApp({ seed: true });
+    const del = await h.call('DELETE', '/agents/a-pete');
+    let roster = h.store.teams.roster('ship-it');
+    for (const a of h.store.agents.records()) {
+      if (roster.members.length >= TEAM_MAX) break;
+      if (a.kind !== 'agent' || roster.members.some((m) => m.agentId === a.id)) continue;
+      roster = addMember(roster, { id: a.id, kind: a.kind }, '', roster.members.length);
+    }
+    expect(roster.members).toHaveLength(TEAM_MAX);
+    h.store.teams.saveRoster('ship-it', roster);
+    const res = await h.call('POST', `/trash/${del.body.restoreToken}/restore`);
+    expect(res.body.seatsLost).toEqual([h.store.teams.get('ship-it')?.name]);
   });
 });

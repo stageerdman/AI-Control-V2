@@ -30,7 +30,7 @@ export type DeletedAgent = {
   role: string;
   look: Look;
   deletedAt: string;
-  /** deletedAt + TRASH_TTL_MS: when the agent and its chats are gone for good. */
+  /** deletedAt + TRASH_TTL_MS: when the agent can no longer be restored (its past chats stay as history). */
   expiresAt: string;
   /** How many chats (runs) come back with it. */
   chats: number;
@@ -49,7 +49,8 @@ type TeamSnap = { team: TeamRecord; members: Member[]; projects: { projectId: st
 type DraftSnap = { draft: DraftRecord };
 
 export type Deleted = { deleted: { kind: Kind; id: string }; restoreToken: string };
-export type Restored = { restored: { kind: Kind; id: string } };
+/** `seatsLost`: team names whose seat a restored agent could not get back (the team filled up). */
+export type Restored = { restored: { kind: Kind; id: string }; seatsLost?: string[] };
 
 type Repos = {
   roles: RolesRepo;
@@ -185,9 +186,11 @@ export function trashRepo(db: Db, r: Repos) {
     r.agents.insertRecord({ ...agent, role_id: roleId });
   };
 
-  const restoreAgent = ({ agent, seats, specialistOn, handedOver }: AgentSnap) => {
+  /** Returns the names of teams whose seat could not come back (the team filled up meanwhile). */
+  const restoreAgent = ({ agent, seats, specialistOn, handedOver }: AgentSnap): string[] => {
     bringBackRecord(agent);
     const ref = { id: agent.id, kind: agent.kind };
+    const seatsLost: string[] = [];
     for (const s of seats) {
       if (!exists(db, 'teams', s.teamId)) continue;
       const roster = r.teams.roster(s.teamId);
@@ -197,6 +200,7 @@ export function trashRepo(db: Db, r: Repos) {
         r.teams.saveRoster(s.teamId, next);
       } catch (e) {
         if (!(e instanceof AppError)) throw e; // team filled up meanwhile → seat skipped
+        seatsLost.push(r.teams.record(s.teamId)?.name ?? s.teamId);
       }
     }
     relink('agents', agent.id, specialistOn);
@@ -204,6 +208,7 @@ export function trashRepo(db: Db, r: Repos) {
       r.projects.reassignOrchestrator(handedOver.to, agent.id, handedOver.projects);
       r.drafts.reassignOrchestrator(handedOver.to, agent.id, handedOver.drafts);
     }
+    return seatsLost;
   };
 
   const restoreRole = ({ role, agentIds }: RoleSnap) => {
@@ -236,15 +241,18 @@ export function trashRepo(db: Db, r: Repos) {
 
   const restore = (token: string): Restored =>
     tx(db, () => {
+      purge();
       const t = row<TrashRow>(db.prepare('SELECT * FROM trash WHERE token = ?').get(token));
       if (!t || !isLive(t)) throw notFound('Restore token', token);
       const p = JSON.parse(t.payload);
-      if (t.kind === 'agent') restoreAgent(p);
+      let seatsLost: string[] = [];
+      if (t.kind === 'agent') seatsLost = restoreAgent(p);
       else if (t.kind === 'role') restoreRole(p);
       else if (t.kind === 'team') restoreTeam(p);
       else restoreDraft(p);
       db.prepare('DELETE FROM trash WHERE token = ?').run(token);
-      return { restored: { kind: t.kind, id: t.item_id } };
+      const restored = { kind: t.kind, id: t.item_id };
+      return seatsLost.length ? { restored, seatsLost } : { restored };
     });
 
   /* ------------------------------------------------------------ list */
@@ -263,8 +271,9 @@ export function trashRepo(db: Db, r: Repos) {
   };
 
   /** Agents in the trash that can still come back, newest first (one already back in the Cast is left out). */
-  const deletedAgents = (): DeletedAgent[] =>
-    rows<TrashRow>(
+  const deletedAgents = (): DeletedAgent[] => {
+    purge();
+    return rows<TrashRow>(
       db
         .prepare(
           "SELECT * FROM trash WHERE kind = 'agent' AND created_at >= ? ORDER BY created_at DESC, rowid DESC",
@@ -273,7 +282,8 @@ export function trashRepo(db: Db, r: Repos) {
     )
       .filter((t) => !r.agents.record(t.item_id))
       .map(toDeletedAgent);
+  };
 
-  return { trashAgent, trashRole, trashTeam, trashDraft, restore, deletedAgents };
+  return { trashAgent, trashRole, trashTeam, trashDraft, restore, deletedAgents, purge };
 }
 export type TrashRepo = ReturnType<typeof trashRepo>;

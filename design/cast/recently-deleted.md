@@ -42,7 +42,8 @@
 ## API (built in `app/src/features/cast/api.ts`)
 - `listDeletedAgents()` → `GET /trash/agents` → `DeletedAgent[]` (query key `trash-agents`).
 - `restoreAgent(token)` → `POST /trash/:token/restore`, using the existing `studio.restore` client.
-- Optional `seatsLost?: string[]` (team names) on the restore reply drives the seat-taken toast. If the server leaves it out, the toast just says "<Name> is back".
+- `seatsLost?: string[]` (team names) on the restore reply drives the seat-taken toast. The server sends it only when a seat was skipped because the team filled up. Otherwise the toast just says "<Name> is back".
+- Expired entries are purged when the list loads, on restore and at server start, so "kept 30 days" means exactly that. Past chats stay as history after the purge.
 
 ## Code
 `RecentlyDeleted.tsx`, `recently-deleted.css`, and `bringBack(token, name)` in `store.ts`, which both Undo and the list use. Tests are in `RecentlyDeleted.test.tsx`.

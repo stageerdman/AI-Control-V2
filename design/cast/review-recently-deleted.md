@@ -69,7 +69,16 @@ cast-pack install, not the Cast's own delete and restore.
        Then "kept 30 days" really means 30 days, and an expired hidden row can't linger.
      - Add a test for each case.
 
+**Resolved at integration (Jony):**
+- Both fixes (a) and (b) are in. `fromPack` clears an expired hidden row before it recreates the agent.
+- `installPackIfNeeded` skips ids that are in Recently deleted.
+- `trash.purge()` now also runs at server start, on list and on restore.
+- There are tests for the expired-token case, the case with no trash row, the pack collision and purge-on-list.
+
 ## Nice-to-have
+
+*Resolved at integration:* item 1 (the restore reply now carries `seatsLost`; there's a test for it) and item 2
+(chats are kept; the comment is fixed). The rest stay open.
 
 1. **The "seat was taken" toast never fires.** The UI reads `seatsLost` from the restore reply
    (`app/src/features/cast/store.ts:189`, spec state "Seat taken meanwhile"). The server returns only

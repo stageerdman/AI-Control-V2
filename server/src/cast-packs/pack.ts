@@ -39,6 +39,7 @@ export function installPackIfNeeded(store: Store, pack: CastPack): boolean {
     const roleIds = new Map(pack.roles.map((r) => [r.id, ensureRole(store, r)]));
     for (const { id, roleId, ...agent } of pack.agents) {
       if (store.agents.get(id)) continue; // an agent the user already has keeps its id and its edits
+      if (store.agents.hiddenRecord(id)) continue; // one the user deleted stays in Recently deleted
       store.agents.create({ ...agent, roleId: roleIds.get(roleId) ?? null }, id);
     }
     store.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?)').run(flag(pack), new Date().toISOString());
