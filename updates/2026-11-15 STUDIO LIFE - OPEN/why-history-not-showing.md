@@ -13,3 +13,5 @@
 - **Dev build:** `npm --prefix app run dev` from the master checkout. It always serves the current source.
 - **Installed app:** rebuild with `npm run build` in `app/`. Copy `~/.cargo-shared-target/release/bundle/macos/AI Studio.app`
   over `/Applications/AI Studio.app`, then quit and reopen. Until then, the installed app predates History.
+  A fresh bundle with History and the all-chats fix was built on 2026-11-15 at that path. It isn't copied into
+  /Applications because overwriting a running app's binary can crash it. Quit the app first, then copy it.
