@@ -539,6 +539,8 @@ export const MIGRATIONS: readonly string[] = [
   );
   ALTER TABLE agents ADD COLUMN can_mail INTEGER NOT NULL DEFAULT 1;
   `,
+  // Team rebuild: a director reply may carry a rebuild offer (plan id, card, undo token).
+  `ALTER TABLE thread_messages ADD COLUMN rebuild TEXT;`,
 ];
 
 export function migrate(db: DatabaseSync): number {

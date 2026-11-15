@@ -246,6 +246,16 @@ export const EVENT_SCHEMAS = {
     reportId: id.optional(),
     /** A goal posted to the orchestrator (the user's goal line and the orchestrator's plan reply). */
     goalId: id.optional(),
+    /** A team rebuild the director's reply carries: the confirm card, or (applied at once) its Undo. */
+    rebuild: z
+      .strictObject({
+        planId: id,
+        needsConfirm: z.boolean(),
+        card: z.record(z.string(), z.unknown()),
+        undoToken: id.optional(),
+        summary: text(2000).optional(),
+      })
+      .optional(),
   }),
   /** Reports (U1): a reporter filed one — title only, never the body (GET the report for it). */
   'report.filed': z.strictObject({ reportId: id, projectId: id, authorAgentId: id, title: text(80) }),

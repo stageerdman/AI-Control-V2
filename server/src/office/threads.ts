@@ -403,12 +403,35 @@ export function createThreads(deps: {
     const ok = run.status === 'succeeded' && !!run.result?.trim();
     if (ok && t.orchestrator) {
       const d = parseDirectorReply(run.result as string);
+      /* a rebuild rides on the reply: a confirm card, or (nothing to decide) applied at once with its Undo */
+      let rebuild: Offer | null = null;
+      let rebuildError: string | null = null;
+      if (d.rebuild && deps.rebuilds) {
+        try {
+          const offer = deps.rebuilds.plan(t.projectId, d.rebuild);
+          if (offer.needsConfirm) rebuild = offer;
+          else {
+            const done = deps.rebuilds.apply(offer.planId, {}, t.agentId);
+            rebuild = { ...offer, card: done.card, undoToken: done.undoToken, summary: done.summary };
+          }
+        } catch (e) {
+          rebuildError = clip(e instanceof Error ? e.message : String(e), 2000);
+        }
+      }
       const reply = insert(t.projectId, t.agentId, {
         sender: 'agent',
         kind: 'text',
         text: d.reply,
         runId: run.id,
+        rebuild,
       });
+      if (rebuildError)
+        insert(t.projectId, t.agentId, {
+          sender: 'agent',
+          kind: 'error',
+          text: `I couldn’t change the teams: ${rebuildError}`,
+          runId: null,
+        });
       if (d.staff && deps.staffing) {
         try {
           deps.staffing.apply(t.projectId, d.staff, t.agentId);
@@ -478,6 +501,8 @@ export function createThreads(deps: {
       const task = taskFor(p, s, text, opts.reportId, recap); // an unknown report is a 404 before anything starts
       const k = key(projectId, s.agent.id);
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
+      /* a newer message to the director: any open rebuild card goes stale (spec §3) */
+      if (s.orchestrator) deps.rebuilds?.staleAll(projectId);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
       const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
       const run = runtime.start(projectId, {
