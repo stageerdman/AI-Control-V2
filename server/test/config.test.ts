@@ -9,7 +9,7 @@ describe('loadConfig', () => {
     const c = loadConfig({}, '/Users/x');
     expect(c).toEqual({
       home: '/Users/x/.ai-studio',
-      sandbox: '/Users/x/dev/AI-Studio-Sandbox',
+      sandbox: '/Users/x/dev',
       controlHome: '/Users/x/.ai-control',
       dbPath: '/Users/x/.ai-studio/studio.db',
       port: 4319,

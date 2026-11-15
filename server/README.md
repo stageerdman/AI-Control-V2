@@ -23,7 +23,7 @@ brings back things you deleted.
 | Var | Default | What |
 |---|---|---|
 | `AI_STUDIO_HOME` | `~/.ai-studio` | data dir (`studio.db`), created 0700 |
-| `AI_STUDIO_SANDBOX` | `~/dev/AI-Studio-Sandbox` | every project folder must resolve inside it |
+| `AI_STUDIO_SANDBOX` | `~/dev` | the project root: new projects are created here, adoptable folders are listed from here; every project path must resolve inside it |
 | `AI_CONTROL_HOME` | `~/.ai-control` | global modules (read only) + secrets: `.env` is the one file we write here (0600, atomic, other lines kept) |
 | `PORT` | `4319` | |
 | `HOST` | `127.0.0.1` | local only by default |

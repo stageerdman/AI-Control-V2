@@ -11,14 +11,14 @@ git project on your Mac. The agents run on your Claude Code subscription, using 
   running on your data, the app reuses it. If the backend crashes, the app restarts it.
   - Logs: `~/.ai-studio/logs/`
   - Data: `~/.ai-studio/`
-- **Projects:** they live only in `~/dev/AI-Studio-Sandbox/`.
+- **Projects:** they live in `~/dev/`. A new project gets a new folder there; every `~/dev` folder not yet under AI Studio shows on Projects under **Not adopted**.
 - **Needs:** Node, with `npm install` done once in `server/`, and the `claude` CLI logged in.
 - **Free practice mode:** start the backend with `AI_STUDIO_RUNNER=fake` to try the whole flow without using your plan.
 
 ## Make a project
 
 **Projects → New** walks you through **Start · Name · Orchestrator · Setup · Team**.
-- **Start** — begin from scratch or *Adopt* an existing folder in the sandbox. Adopting never changes your files on its own.
+- **Start** — begin from scratch or *Adopt* an existing folder in `~/dev` (it stays where it is). Adopting never changes your files on its own.
 - **Orchestrator** — pick the director. Directors see the big picture only.
 - **Name** — the **GitHub · private repo** switch is on by default: setup creates a private repo named after the folder and
   pushes `main`. Switch it off to stay local. An adopted folder that already has a remote keeps it ("keeps origin").

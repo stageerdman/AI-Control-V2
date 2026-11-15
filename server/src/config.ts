@@ -19,7 +19,7 @@ export type Config = {
 
 const EnvSchema = z.object({
   AI_STUDIO_HOME: z.string().trim().min(1).default('~/.ai-studio'),
-  AI_STUDIO_SANDBOX: z.string().trim().min(1).default('~/dev/AI-Studio-Sandbox'),
+  AI_STUDIO_SANDBOX: z.string().trim().min(1).default('~/dev'),
   AI_CONTROL_HOME: z.string().trim().min(1).default('~/.ai-control'),
   PORT: z.coerce.number().int().min(0).max(65535).default(4319),
   /* local-only by default: this server can touch the file system */
