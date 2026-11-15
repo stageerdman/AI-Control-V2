@@ -112,7 +112,8 @@ export function cliArgs(
     ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
     ...(tools.includes('Bash') ? ['--disallowed-tools', DENIED.join(',')] : []),
     ...(() => {
-      const shell = tools.includes('Bash') && opts.shellHook && !spec.tools ? opts.shellHook : null;
+      const shell =
+        tools.includes('Bash') && opts.shellHook && (!spec.tools || spec.fullShell) ? opts.shellHook : null;
       const nudge = opts.nudgeHook && spec.env.AI_STUDIO_NUDGE_URL ? opts.nudgeHook : null;
       return shell || nudge ? ['--settings', JSON.stringify(hookSettings(shell, nudge))] : [];
     })(),

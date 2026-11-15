@@ -1,6 +1,8 @@
 /* Entry point: config → dirs → db → app → listen. */
 import { join } from 'node:path';
 import { buildApp } from './app.ts';
+import { CAST_PACKS } from './cast-packs/index.ts';
+import { installPackIfNeeded } from './cast-packs/pack.ts';
 import { ensureDirs, loadConfig } from './config.ts';
 import { pacedBrain } from './crew/fake-brain.ts';
 import { acquireDataLock } from './data-lock.ts';
@@ -77,6 +79,8 @@ app.log.info(
   'Agent runtime',
 );
 if (seedIfNeeded(store)) app.log.info('Seeded the studio with the starter cast and projects');
+for (const pack of CAST_PACKS)
+  if (installPackIfNeeded(store, pack)) app.log.info({ pack: pack.key }, 'Added a cast pack to the studio');
 /* existing keys in the global .env show up in the cabinet (masked) */
 const { imported, refreshed } = cabinet(store, secrets).importFromEnv();
 app.log.info(
