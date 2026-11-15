@@ -33,6 +33,7 @@ import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
 import { createPortraits } from './office/portrait.ts';
 import { createPrinciples } from './office/principles.ts';
+import { createRebuilds } from './office/rebuild-service.ts';
 import { createStaffing } from './office/staffing.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
@@ -55,6 +56,7 @@ import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
 import { githubRoutes } from './routes/github.ts';
 import { guestRoutes } from './routes/guests.ts';
+import { rebuildRoutes } from './routes/rebuild.ts';
 import { healthRoutes } from './routes/health.ts';
 import { mailRoutes } from './routes/mail.ts';
 import { officeRoutes } from './routes/office.ts';
@@ -282,6 +284,18 @@ export function buildApp({
     ...(gitEnv ? { gitEnv } : {}),
   });
   const health = createHealth({ db, store, events, crew, sandbox: config.sandbox, gh });
+  /* team rebuilds: plan → confirm card → apply (one tx) → Undo */
+  const rebuilds = createRebuilds({
+    store,
+    events,
+    stopRun: (projectId, runId) => {
+      try {
+        runtime.cancel(projectId, runId);
+      } catch {
+        /* already ended */
+      }
+    },
+  });
   const threads = createThreads({
     db,
     store,
@@ -294,6 +308,7 @@ export function buildApp({
     orchestratorCaps: caps.orchestrator,
     /* the director staffs the project from chat (existing Cast agents only) */
     staffing: createStaffing({ store, events }),
+    rebuilds,
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
   });
@@ -394,6 +409,7 @@ export function buildApp({
   app.register(runRoutes({ runtime, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
+  app.register(rebuildRoutes({ rebuilds, store }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));

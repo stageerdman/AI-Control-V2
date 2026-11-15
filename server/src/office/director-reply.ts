@@ -6,6 +6,7 @@
    is a plain reply and never starts work: a question must never auto-start. */
 import { z } from 'zod';
 import { extractJson, validateWith } from '../crew/structured.ts';
+import { type Rebuild, RebuildSchema } from './rebuild.ts';
 import { type Staff, StaffSchema } from './staffing.ts';
 
 const json = (v: unknown) => JSON.stringify(v);
@@ -17,16 +18,18 @@ export const DirectorReplySchema = z.object({
     .nullable()
     .optional(),
   staff: StaffSchema.nullable().optional(),
+  rebuild: RebuildSchema.nullable().optional(),
 });
 const validate = validateWith(DirectorReplySchema);
 
-export type DirectorReply = { reply: string; goal: string | null; staff?: Staff | null };
+export type DirectorReply = { reply: string; goal: string | null; staff?: Staff | null; rebuild?: Rebuild | null };
 
 /** The last block of every orchestrator chat task: how to answer, and when it's work. */
 export const DIRECTOR_ANSWER = [
   'Decide what this message is, then answer.',
   '- WORK: the user clearly asks for something to be done now (build, add, fix, change, remove, research, compare, write up…), or says yes to work you offered. Set "work": {"goal": "…"} — ONE whiteboard goal in the user’s words, complete on its own (resolve "yes, do it" from this chat). The studio posts it on the whiteboard and you break it into checklist items right after. "reply" says in one or two sentences what will happen and who you will brief — no checklist here.',
   '- STAFF: the user asks you to set up a team or bring people onto this project. Set "staff" using ONLY names from `castAvailable` (people and teams already in the Cast): "team" = a NEW team made of those agents {name, captain, members: [{agent, job}]}, "teams" = whole Cast teams by name, "specialists" = single agents by name. Never invent people — new agents are designed with Tinker in the Cast (say so if the user wants someone who doesn’t exist). The studio adds them before any work in the same answer; "reply" says who joined. Combine with "work" when the user also asked for work.',
+  '- REBUILD: the user asks to take people or teams off this project, split, merge or reshuffle teams, move someone to another team, make someone a solo specialist, or change a captain. Set "rebuild" using ONLY names of the summary’s teams and specialists (who is on this project now): {"remove": [people], "removeTeams": [teams], "move": [{agent, to: team name or "specialist", job?}], "split": [{team, into: [{name, captain, members}]}], "captain": [{team, agent}]}. Removing never deletes anyone from the Cast. Never claim it is done when it needs a confirm — say "Here’s the plan — confirm below." (the studio shows the card; plain moves with no open work apply at once with an Undo).',
   '- NOT WORK: a question, an idea, a maybe ("maybe we could add dark mode?", "should we…?", "what about…?"), status, priorities, small talk, or anything unclear. Set "work": null. Answer it; for an idea, ask whether they want it on the whiteboard. Never start work on a question.',
   `Answer with ONE JSON object and nothing else, shaped like ${json({ reply: 'Plain, friendly words.', work: null })} or ${json({ reply: 'On it — I’ll brief the Ship-It Squad.', work: { goal: 'Add a dark mode toggle in Settings' } })} or ${json(
     {
@@ -63,6 +66,7 @@ export function parseDirectorReply(raw: string): DirectorReply {
       reply: v.value.reply,
       goal: v.value.work?.goal ?? null,
       ...(v.value.staff ? { staff: v.value.staff } : {}),
+      ...(v.value.rebuild ? { rebuild: v.value.rebuild } : {}),
     };
   const reply = (parsed as { reply?: unknown } | null)?.reply;
   return { reply: typeof reply === 'string' && reply.trim() ? reply.trim() : text, goal: null };
