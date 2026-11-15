@@ -60,6 +60,21 @@ export function activityFor(
         },
       };
     }
+    /* STUDIO LIFE: research shows what is being looked up (Tinker's design chat, reporters) */
+    case 'WebSearch':
+      return {
+        status: 'working',
+        activity: { kind: 'research', label: clip(`Looking up “${s('query')}”`, 120) },
+      };
+    case 'WebFetch': {
+      let host = s('url');
+      try {
+        host = new URL(host).host;
+      } catch {
+        /* keep it as given */
+      }
+      return { status: 'working', activity: { kind: 'research', label: clip(`Reading ${host}`, 120) } };
+    }
     case REPORT_TOOL:
       return {
         status: 'working',

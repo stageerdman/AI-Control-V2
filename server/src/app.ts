@@ -8,6 +8,7 @@ import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
+import { createCreatorChat } from './crew/creator-chat.ts';
 import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
@@ -44,6 +45,7 @@ import { blueprintRoutes } from './routes/blueprint.ts';
 import { bridgeRoutes } from './routes/bridges.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
+import { creatorChatRoutes } from './routes/creator-chat.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { deskRoutes } from './routes/desk.ts';
@@ -364,6 +366,11 @@ export function buildApp({
   app.register(githubRoutes({ github }));
   app.register(settingsRoutes({ github, autoApprove, hq, store }));
   app.register(mailRoutes({ mail }));
+  app.register(
+    creatorChatRoutes({
+      chats: createCreatorChat({ db, store, crew, creator, scratchDir: join(config.home, 'scratch') }),
+    }),
+  );
   app.register(
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );

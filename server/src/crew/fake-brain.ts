@@ -156,6 +156,35 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
       };
       return [...viaTools(spec, 'create_team', team, lead.name), ...answer(team)];
     }
+    /* STUDIO LIFE: designing with Tinker — a draft from what the user said, changes on later turns */
+    case 'creator-chat': {
+      const said = field<string>(t, 'The user now says:') ?? '';
+      const now = field<Record<string, unknown> | null>(
+        t,
+        'The draft now (the user may have edited it by hand):',
+      );
+      const base: Record<string, unknown> = now?.name
+        ? now
+        : { ...agentDef(said, field<string[]>(t, 'Agent names already taken:') ?? []), summary: '' };
+      const playful = /playful|fun/i.test(said);
+      const draft = {
+        ...base,
+        summary:
+          (playful ? 'A playful ' : 'A ') +
+          String(base.role ?? 'specialist').toLowerCase() +
+          ' who keeps it simple.',
+        ...(playful ? { look: { ...(base.look as object), face: 'freckles', hue: 'rose' } } : {}),
+      };
+      return [
+        ...(/research|look up|latest/i.test(said)
+          ? [{ activity: { kind: 'research', label: `Looking up “${said.slice(0, 40)}”` } }]
+          : []),
+        ...answer({
+          reply: playful ? 'Done — more playful now.' : `Here’s a first sketch: ${String(base.name)}.`,
+          draft,
+        }),
+      ];
+    }
     /* AGENT MCP: an approver always says yes; a helper answers with a costume */
     case 'allow-call':
       return answer({ allow: true, reply: 'Yes — go ahead.' });
