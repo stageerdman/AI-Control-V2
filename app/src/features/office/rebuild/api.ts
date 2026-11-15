@@ -82,11 +82,16 @@ const plain = async <T extends { ok: boolean }>(p: Promise<T>, fallback: string)
 export type LineupWire = {
   teams: { id: string; name: string; captainId: string | null; members: { id: string; name: string; role: string }[] }[];
   specialists: { id: string; name: string; role: string }[];
+  /** Who left this project (still in the Cast): they can be brought back as specialists. */
+  left?: Leaver[];
 };
+export type Leaver = { id: string; name: string; role: string };
 export const lineupOf = (w: LineupWire): Lineup => ({
   teams: w.teams.map((t) => ({ id: t.id, name: t.name, captain: t.captainId, members: t.members.map((m) => m.id) })),
   solo: w.specialists.map((s) => s.id),
+  left: w.left ?? [],
 });
+export type BringBackResult = { ok: true; name: string } | { ok: false; error: string };
 
 export const rebuildApi = {
   lineup: (pid: string) => http.get<LineupWire>(`/projects/${e(pid)}/lineup`),
@@ -96,6 +101,9 @@ export const rebuildApi = {
     plain(http.post<ApplyResult>(`/rebuild/${e(planId)}/apply`, body), 'The rebuild didn’t go through.'),
   undo: (token: string) =>
     plain(http.post<UndoResult>(`/rebuild/undo/${e(token)}`, {}), 'Couldn’t undo that.'),
+  /** Runs at once — not part of a Rearrange draft. */
+  bringBack: (pid: string, agentId: string) =>
+    plain(http.post<BringBackResult>(`/projects/${e(pid)}/specialists`, { agentId }), 'Couldn’t bring them back.'),
 };
 
 /** A plan that went stale on the server (a newer message, the lineup changed) — the card greys out. */
@@ -107,6 +115,7 @@ export type Place = { kind: 'team'; teamId: string } | { kind: 'solo' } | { kind
 export type Lineup = {
   teams: { id: string; name: string; captain: string | null; members: string[] }[];
   solo: string[];
+  left: Leaver[];
 };
 export const MAX_TEAM = 7;
 
