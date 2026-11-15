@@ -9,6 +9,7 @@ import { ErrorState, Loading } from '../../ui';
 import { castApi, KEYS } from './api';
 import { HeroZoom } from './HeroZoom';
 import { Lineup } from './Lineup';
+import { RecentlyDeleted } from './RecentlyDeleted';
 import { RollCall } from './RollCall';
 import { SquadZoom } from './SquadZoom';
 import { useCast } from './store';
@@ -158,16 +159,19 @@ export function CastPage({
               <Loading />
             </div>
           ) : tab === 'agents' ? (
-            <Lineup
-              agents={agents}
-              drafts={drafts ?? []}
-              q={q}
-              hidden={!!z && !z.closing}
-              onRecruit={(name) => {
-                prefill.current = { name };
-                location.hash = '#cast/agent/new';
-              }}
-            />
+            <>
+              <Lineup
+                agents={agents}
+                drafts={drafts ?? []}
+                q={q}
+                hidden={!!z && !z.closing}
+                onRecruit={(name) => {
+                  prefill.current = { name };
+                  location.hash = '#cast/agent/new';
+                }}
+              />
+              <RecentlyDeleted hidden={!!z && !z.closing} />
+            </>
           ) : (
             <RollCall teams={teams} agents={agents} hidden={!!z && !z.closing} />
           )}

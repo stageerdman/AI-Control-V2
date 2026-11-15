@@ -78,6 +78,7 @@ app.log.info(
   { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, ghBin, error: rt.binError },
   'Agent runtime',
 );
+store.trash.purge(); // "kept 30 days" means 30 days, even when nothing is deleted for a while
 if (seedIfNeeded(store)) app.log.info('Seeded the studio with the starter cast and projects');
 for (const pack of CAST_PACKS)
   if (installPackIfNeeded(store, pack)) app.log.info({ pack: pack.key }, 'Added a cast pack to the studio');

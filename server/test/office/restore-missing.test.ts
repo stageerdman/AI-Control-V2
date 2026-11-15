@@ -47,7 +47,11 @@ function failedItem(agentId: string, runId: string) {
   work.setGoalStatus(g.id, 'failed');
   return `i-${agentId}`;
 }
-const deleteTrashRows = (id: string) => h.store.db.prepare('DELETE FROM trash WHERE item_id = ?').run(id);
+/** As if the agent was hard-deleted with no snapshot left: the trash rows and the hidden agent row go. */
+const deleteTrashRows = (id: string) => {
+  h.store.db.prepare('DELETE FROM trash WHERE item_id = ?').run(id);
+  h.store.agents.deleteRecord(id);
+};
 
 describe('restore missing agents', () => {
   it('restores from the trash snapshot: same id, setup, tools and team seat', () => {
@@ -90,6 +94,35 @@ describe('restore missing agents', () => {
       prompt: pack?.prompt,
       roleId: pack?.roleId,
     });
+  });
+
+  it('rebuilds from the pack when the snapshot expired but the hidden row was never purged', () => {
+    h = testApp({ seed: true });
+    installPackIfNeeded(h.store, ARCHETYPES);
+    h.store.trash.trashAgent('a-sola');
+    h.store.db
+      .prepare("UPDATE trash SET created_at = ? WHERE item_id = 'a-sola'")
+      .run(new Date(Date.now() - 31 * 24 * 3600 * 1000).toISOString());
+
+    expect(() => restoreAgent(h.store, 'a-sola')).not.toThrow();
+    expect(h.store.agents.record('a-sola')).toBeDefined();
+  });
+
+  it('rebuilds from the pack when a hidden row has no trash row at all', () => {
+    h = testApp({ seed: true });
+    installPackIfNeeded(h.store, ARCHETYPES);
+    h.store.trash.trashAgent('a-sola');
+    h.store.db.prepare("DELETE FROM trash WHERE item_id = 'a-sola'").run();
+
+    expect(restoreAgent(h.store, 'a-sola')).toMatchObject({ restored: true, setupFrom: 'pack' });
+  });
+
+  it('a new cast pack skips an id the user has in Recently deleted', () => {
+    h = testApp({ seed: true });
+    h.store.trash.trashAgent('a-pete');
+    const pack = { key: 'probe', roles: [], agents: [{ ...ARCHETYPES.agents[0], id: 'a-pete' }] } as never;
+    expect(() => installPackIfNeeded(h.store, pack)).not.toThrow();
+    expect(h.store.agents.record('a-pete')).toBeUndefined();
   });
 
   it('is safe to run twice: an agent in the Cast is never overwritten', () => {

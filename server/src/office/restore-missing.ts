@@ -141,6 +141,8 @@ function fromTrash(store: Store, t: Trashed): PutBack {
 function fromPack(store: Store, { pack, agent }: { pack: CastPack; agent: PackAgent }): PutBack {
   const { id, roleId, ...setup } = agent;
   store.tx(() => {
+    // a hidden row whose keep time ran out (no live snapshot) is past restoring: clear it so the id is free
+    if (store.agents.hiddenRecord(id)) store.agents.deleteRecord(id);
     const role = pack.roles.find((r) => r.id === roleId);
     store.agents.create({ ...setup, roleId: role ? ensureRole(store, role) : null }, id);
   });
