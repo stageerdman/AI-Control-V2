@@ -45,8 +45,9 @@ export type StartRun = {
   /** Work in this checkout instead of the project folder: an item's own git worktree (must be under `worktreesRoot`). */
   workdir?: string;
   /** A big-picture run (the orchestrator's office chat): this system prompt instead of the composed one,
-      no tools at all, no secrets, no ask tool — it answers in its reply. */
-  bigPicture?: { systemPrompt: string };
+      no built-in tools, no secrets, no ask tool — it answers in its reply. `tools`: the only studio tools it
+      gets (the director's whiteboard tools); absent → none. */
+  bigPicture?: { systemPrompt: string; tools?: readonly BridgeTool[] };
   /** What kind of work this is, for the office's work clock (office/work-time.ts). Absent → read from the row. */
   kind?: WorkKind;
 };
@@ -415,6 +416,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const studioTools = [
       ...(!big && studioToolsFor ? studioToolsFor({ projectId, agentId: agent.id, runId }) : []),
       ...(forgetTool ? [forgetTool] : []),
+      ...(big?.tools ?? []),
     ];
     const bridge = studioTools.length && deps.bridges ? deps.bridges.open(studioTools) : null;
     const l: Live = {
