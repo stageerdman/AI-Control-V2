@@ -36,7 +36,9 @@ export type PanelProps = {
   onGrab: () => void;
 };
 
-export type FollowUpContext = { title: string; reportId: string };
+/** A follow-up on a report (`reportId`), or just a subject (a letter, a team's principles): the message says
+    `About “{title}”: …` so the agent knows what it's about. */
+export type FollowUpContext = { title: string; reportId?: string };
 /* titles of reports followed up here (a user message keeps only the reportId) */
 const aboutTitles = new Map<string, string>();
 
@@ -99,10 +101,11 @@ export function Panel(p: PanelProps) {
     }
     setText('');
     const ctx = p.context;
-    if (ctx) aboutTitles.set(ctx.reportId, ctx.title);
+    if (ctx?.reportId) aboutTitles.set(ctx.reportId, ctx.title);
     p.clearContext();
+    const said = ctx && !ctx.reportId ? `About “${ctx.title}”: ${v}` : v;
     try {
-      const r = await officeApi.say(pid, id, v, ctx?.reportId);
+      const r = await officeApi.say(pid, id, said, ctx?.reportId);
       setQueryData<Thread>(key, (prev) => ({
         projectId: pid,
         agentId: id,
@@ -110,7 +113,7 @@ export function Panel(p: PanelProps) {
         messages: mergeMessage(prev?.messages ?? [], r.message),
       }));
     } catch (e) {
-      addLocal({ ...note('user', v), reportId: ctx?.reportId ?? null });
+      addLocal({ ...note('user', said), reportId: ctx?.reportId ?? null });
       addLocal(note(id, isApiError(e) ? e.message : 'That message didn’t go through.', 'error'));
     }
   };
@@ -212,7 +215,7 @@ export function Panel(p: PanelProps) {
       {p.context && (
         <div className="op-ctx">
           <span>About: {p.context.title}</span>
-          <button type="button" aria-label="Drop the report context" onClick={p.clearContext}>
+          <button type="button" aria-label="Drop the context" onClick={p.clearContext}>
             ✕
           </button>
         </div>
@@ -243,7 +246,7 @@ export function Panel(p: PanelProps) {
 function Bubble({ m, who, openReport }: { m: ThreadMessage; who: string; openReport: (id: string) => void }) {
   const me = m.from === 'user';
   /* a follow-up: the message keeps its reportId (older ones carried a text prefix) */
-  const legacy = me ? /^About the report “(.+?)”: /.exec(m.text) : null;
+  const legacy = me ? /^About (?:the report )?“(.+?)”: /.exec(m.text) : null;
   const aboutTitle = me && m.reportId ? (aboutTitles.get(m.reportId) ?? 'a report') : legacy?.[1];
   return (
     <div className={`bubble ${me ? 'me' : 'them'}${m.kind === 'error' ? ' err' : ''}`}>

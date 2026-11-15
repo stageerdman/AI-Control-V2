@@ -24,6 +24,8 @@ export const ACTIVITY = {
   reviewing: { icon: '🔍', tag: 'Reviewing', pose: 'writing', holding: 'pen', glyph: 'diff', seated: true },
   idle: { icon: '☕', tag: 'Free', pose: 'chilling', holding: 'mug', glyph: 'emblem', seated: true },
   sleeping: { icon: '💤', tag: 'Off shift', pose: 'sleeping', glyph: 'off', seated: true },
+  /* STUDIO LIFE: the director triaging the mail (he thinks at his desk; he doesn't walk) */
+  mail: { icon: '✉', tag: 'Reading the mail', pose: 'thinking', glyph: 'read', seated: true },
 } as const satisfies Record<
   string,
   { icon: string; tag: string; pose: Pose; holding?: string; glyph: string; seated: boolean }
@@ -64,6 +66,7 @@ const KIND: Record<string, ActKind> = {
   thinking: 'planning',
   starting: 'planning',
   asking: 'needs-input',
+  mail: 'mail',
 };
 
 /** What one robot shows, from its latest status and whether it has an open ask. */
@@ -275,6 +278,7 @@ export function boardFacts(d: {
   features?: Feature[];
   health?: ProjectHealth;
   unreadReports?: number;
+  newMail?: number;
   progress?: OfficeProgress | null;
   time?: WorkTime | null;
   /** The project as the portrait shows it (name, picture, tile). */
@@ -292,6 +296,7 @@ export function boardFacts(d: {
     fresh: d.health?.git ? d.health.git.clean !== false : true,
     grades: latest ? ASPECTS.map(([key, name]) => ({ key, name, grade: latest[key].grade })) : [],
     unreadReports: d.unreadReports ?? 0,
+    newMail: d.newMail ?? 0,
     live: d.time?.live ?? 0,
     portrait: d.project
       ? { name: d.project.name, image: apiUrl(d.project.imageUrl), tile: d.project.tile }

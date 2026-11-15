@@ -12,7 +12,8 @@
    animation) waits until the camera lands. */
 import { emblemSVG, type HeroAgent, hero, setFacing, setPose } from '../../characters';
 import { escapeHtml, hueHex, reducedMotion } from '../../design/palette';
-import { depth, type ObjectId, type Plan, type Pt } from './layout';
+import { binderSeat, depth, deskSpot, type ObjectId, type Plan, type Pt } from './layout';
+import type { Tray } from './life';
 import { type Actor, activityOf } from './state';
 import { type BoardFacts, chair, couchFront, desk, deskSync, officeArt, setDoor, syncArt } from './theme';
 
@@ -28,6 +29,10 @@ export type SceneConfig = {
   teams: Record<string, SceneTeam>;
   /** agentId → teamId (null = solo / director). */
   teamOf: Record<string, string | null>;
+  /** STUDIO LIFE: guests the user brought in (agentId → their brief). */
+  guests?: Record<string, string>;
+  /** The HQ office (the mailbox wears a plaque). */
+  hq?: boolean;
   /** The stage wrapper (zoom state classes) and the chat panel (narrow-screen drawer height). */
   stage: () => HTMLElement | null;
   drawer: () => number;
@@ -49,8 +54,12 @@ type Rec = {
   cardKey?: string;
   rt?: ReturnType<typeof setTimeout>;
   question?: string;
+  /** Just forgot: the card says so until the next status. */
+  fresh?: boolean;
+  /** The monitor blinks off for a moment (the forget reset). */
+  blank?: boolean;
 };
-type DeskRec = { el: HTMLDivElement; chair: HTMLDivElement; hue: string | null };
+type DeskRec = { el: HTMLDivElement; chair: HTMLDivElement; hue: string | null; tray: Tray | null };
 
 const ROOM_H = 1062;
 const OBJECT_ANCHORS = new Set(['door', 'outbox', 'console', 'whiteboard', 'reports']);
@@ -70,12 +79,18 @@ export class OfficeEngine {
   private chipT?: ReturnType<typeof setTimeout>;
   private alive = true;
   zoom: { obj: ObjectId | null } = { obj: null };
+  /** teamId → the seat whose desk carries the team's principles binder. */
+  readonly binders: Record<string, string> = {};
 
   constructor(
     private box: HTMLElement,
     private cfg: SceneConfig,
   ) {
     this.plan = cfg.plan;
+    for (const t of Object.values(cfg.teams)) {
+      const seat = binderSeat(cfg.plan, t.id, t.captain);
+      if (seat) this.binders[t.id] = seat;
+    }
   }
 
   /* ---------------------------------------------------------- build */
@@ -86,7 +101,7 @@ export class OfficeEngine {
     const artTeams = Object.fromEntries(
       Object.values(cfg.teams).map((t) => [t.id, { name: t.name, color: t.color }]),
     );
-    box.innerHTML = `<div class="o-cam"><div class="o-world" style="width:${plan.W}px">${officeArt(plan, { teams: artTeams, title: cfg.title })}<div class="o-layer"></div><div class="o-fx"></div></div></div>`;
+    box.innerHTML = `<div class="o-cam"><div class="o-world" style="width:${plan.W}px">${officeArt(plan, { teams: artTeams, title: cfg.title, hq: cfg.hq })}<div class="o-layer"></div><div class="o-fx"></div></div></div>`;
     this.cam = box.querySelector('.o-cam') as HTMLDivElement;
     this.art = box.querySelector('.ot-art') as SVGSVGElement;
     this.layer = box.querySelector('.o-layer') as HTMLDivElement;
@@ -144,11 +159,15 @@ export class OfficeEngine {
     el.className = 'o-prop o-desk';
     el.dataset.seat = id;
     const items = ['mug', 'plant', null] as const;
-    el.innerHTML = desk(kind, {
-      hue,
-      accent: ag?.look?.hue,
-      item: id === 'director' ? 'telescope' : items[Object.keys(this.desks).length % 3],
-    });
+    const item =
+      id === 'director'
+        ? 'telescope'
+        : Object.values(this.binders).includes(id)
+          ? 'binder'
+          : owner && this.cfg.guests?.[owner] !== undefined
+            ? 'tent'
+            : items[Object.keys(this.desks).length % 3];
+    el.innerHTML = desk(kind, { hue, accent: ag?.look?.hue, item });
     const sc = depth(s.y);
     this.place(el, s.x, s.y, s.y + 7, sc);
     const ch = document.createElement('div');
@@ -157,7 +176,7 @@ export class OfficeEngine {
     ch.innerHTML = chair(ag?.look?.hue ?? hue ?? 'grape');
     this.place(ch, s.x, s.y, s.y - 3, sc);
     this.layer.append(ch, el);
-    this.desks[id] = { el, chair: ch, hue };
+    this.desks[id] = { el, chair: ch, hue, tray: null };
   }
   private place(el: HTMLElement, x: number, y: number, z: number, s = 1) {
     el.style.transform = `translate(${x}px,${y}px) scale(${s})`;
@@ -233,6 +252,7 @@ export class OfficeEngine {
     const was = rec.actor;
     rec.actor = a;
     rec.question = question;
+    rec.fresh = false;
     if (was.session === 'asleep' && a.session !== 'asleep' && rec.at !== rec.seat) {
       this.dress(rec); /* card + aria first; the pose waits until they sit */
       await this.walkTo(a.id, rec.seat);
@@ -271,16 +291,18 @@ export class OfficeEngine {
     const act = activityOf(a.kind);
     const team = this.teamOf(a.id);
     const director = a.id === this.cfg.director;
+    const brief = this.cfg.guests?.[a.id];
     const where = team
       ? `${emblemSVG(team, 16, { decorative: true })}<span>${escapeHtml(team.name.replace(/^The /, ''))}</span>`
-      : `<span>${director ? 'Director' : 'Solo'}</span>`;
+      : `<span>${director ? 'Director' : brief !== undefined ? 'Guest' : 'Solo'}</span>`;
     const doing = this.doing(rec);
-    const key = `${a.kind}|${doing}`;
+    const key = `${a.kind}|${doing}|${rec.fresh ? 1 : 0}`;
     if (rec.cardKey === key) return;
     rec.cardKey = key;
     const card = rec.btn.querySelector('.o-card');
+    const line = rec.fresh ? '↺ Fresh start — reading my note' : `${act.icon} ${doing}`;
     if (card)
-      card.innerHTML = `<b>${escapeHtml(ag.name)}</b><span class="o-cmeta">${escapeHtml(director ? 'Big picture' : ag.role || '')} · ${where}</span><span class="o-cact">${act.icon} ${escapeHtml(doing)}</span>`;
+      card.innerHTML = `<b>${escapeHtml(ag.name)}</b><span class="o-cmeta">${escapeHtml(director ? 'Big picture' : ag.role || '')} · ${where}</span>${brief ? `<span class="o-cbrief">“${escapeHtml(clip(brief, 80))}”</span>` : ''}<span class="o-cact">${escapeHtml(line)}</span>`;
   }
   private doing(rec: Rec): string {
     const a = rec.actor;
@@ -298,7 +320,9 @@ export class OfficeEngine {
     if (a.kind === 'needs-input') st = `needs your input${rec.question ? `: ${rec.question}` : ''}`;
     if (a.kind === 'sleeping')
       st = rec.at.startsWith('couch-') ? 'off shift, asleep on the couch' : 'off shift, asleep';
-    return `${ag.name}, ${director ? 'Director (orchestrator)' : ag.role || 'Agent'}, ${director ? 'Director' : team ? team.name : 'Solo'} — ${st}`;
+    const brief = this.cfg.guests?.[a.id];
+    const guest = brief !== undefined ? `, guest — brief: ${brief}` : '';
+    return `${ag.name}, ${director ? 'Director (orchestrator)' : ag.role || 'Agent'}, ${director ? 'Director' : team ? team.name : brief !== undefined ? 'Guest' : 'Solo'} — ${st}${guest}`;
   }
   private teamOf(id: string) {
     const t = this.cfg.teamOf[id];
@@ -320,14 +344,118 @@ export class OfficeEngine {
       const d = this.desks[sid];
       if (!d) continue;
       const owner = Object.values(this.actors).find((r) => r.seat === sid);
-      const s = { glyph: 'off', hue: d.hue ?? 'grape' };
+      const s = { glyph: 'off', hue: d.hue ?? 'grape', tray: d.tray };
       if (owner) {
         s.hue = this.cfg.agents[owner.id]?.look?.hue ?? s.hue;
-        s.glyph = owner.actor.session === 'asleep' ? 'off' : activityOf(owner.actor.kind).glyph;
+        s.glyph =
+          owner.actor.session === 'asleep' || owner.blank ? 'off' : activityOf(owner.actor.kind).glyph;
         d.chair.classList.toggle('empty', owner.at !== sid);
       } else d.chair.classList.add('empty');
       deskSync(d.el, s);
     }
+  }
+
+  /* ---------------------------------------------------------- STUDIO LIFE */
+  /** The paper on someone's desk: one sheet while they have notes here ('new' glows). */
+  setTray(id: string, tray: Tray | null): void {
+    const seat = this.plan.home[id]; /* the director's desk keeps no paper */
+    const d = seat ? this.desks[seat] : undefined;
+    if (!d || d.tray === tray) return;
+    d.tray = tray;
+    this.deskSync(seat);
+  }
+  /** The forget moment (≈ 2 s, seated): a line written, the paper drops onto the desk, a reset blink (monitor off,
+      a brief brightening — a reboot, not a faint), back to work. Walking / held / reduced motion: the paper just
+      appears and the glyph flips. */
+  async forgot(id: string): Promise<void> {
+    const rec = this.actors[id];
+    if (!rec) return;
+    const d = this.desks[rec.seat];
+    const calm = rec.walking || rec.held || reducedMotion();
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    rec.fresh = true;
+    this.card(rec);
+    if (!calm) {
+      setPose(rec.hero, 'writing', { seated: true, holding: 'pen', props: false, moving: false });
+      await wait(600);
+      if (!this.alive) return;
+    }
+    if (d) {
+      d.tray = 'new';
+      this.deskSync(rec.seat);
+      const t = d.el.querySelector('.d-tray');
+      if (t && !calm) {
+        t.classList.remove('drop');
+        void (t as SVGGraphicsElement).getBBox?.();
+        t.classList.add('drop');
+      }
+    }
+    rec.blank = true;
+    this.deskSync(rec.seat);
+    if (!calm) {
+      rec.wrap.classList.add('r-reset');
+      setTimeout(() => rec.wrap.classList.remove('r-reset'), 500);
+    }
+    await wait(400);
+    rec.blank = false;
+    if (!this.alive) return;
+    this.deskSync(rec.seat);
+    if (!calm) await wait(300);
+    if (this.alive && !rec.walking) this.dress(rec);
+  }
+  /** A guest came in: the door opens, they walk from the door to their desk, wave, then get to it. */
+  async arrive(id: string): Promise<void> {
+    const rec = this.actors[id];
+    if (!rec) return;
+    if (reducedMotion()) {
+      rec.wrap.classList.add('fade-in');
+      setTimeout(() => rec.wrap.classList.remove('fade-in'), 200);
+      return;
+    }
+    const door = this.anchor('door');
+    this.moveNow(rec, door.x, door.y);
+    rec.at = 'door';
+    this.door(true);
+    const ok = await this.walkTo(id, rec.seat);
+    this.door(false);
+    if (!ok) return;
+    setPose(rec.hero, 'waving', { seated: false, holding: 'none', props: false, moving: false });
+    setFacing(rec.hero, 'front');
+    await new Promise((r) => setTimeout(r, 900));
+    if (this.alive && !rec.walking) this.dress(rec);
+  }
+  /** A guest went home: they stand, walk to the door, the door opens and closes behind them. */
+  async depart(id: string): Promise<void> {
+    const rec = this.actors[id];
+    if (!rec) return;
+    if (reducedMotion()) {
+      rec.wrap.classList.add('blink-out');
+      await new Promise((r) => setTimeout(r, 160));
+      rec.wrap.classList.add('gone');
+      return;
+    }
+    const ok = await this.walkTo(id, 'door');
+    if (!ok || !this.alive) return;
+    this.door(true);
+    rec.wrap.classList.add('gone');
+    await new Promise((r) => setTimeout(r, 360));
+    this.door(false);
+  }
+  /** The bell plate wiggles once (art: reduced motion drops it). */
+  ringBell(): void {
+    const b = this.art?.querySelector('#otBell');
+    if (!b) return;
+    b.classList.remove('wiggle');
+    void (b as SVGGraphicsElement).getBBox?.();
+    b.classList.add('wiggle');
+  }
+  /** Desk-level hotspots: a note on someone's desk, a team's binder (world coordinates). */
+  deskSpot(key: string): { x: number; y: number; w: number; h: number; z: number } | null {
+    const m = /^(note|binder):(.+)$/.exec(key);
+    if (!m) return null;
+    const seat = m[1] === 'note' ? this.plan.home[m[2]] : this.binders[m[2]];
+    const b = seat ? deskSpot(this.plan, seat, m[1] as 'note' | 'binder') : null;
+    return b && seat ? { x: b.x, y: b.y, w: b.w, h: b.h, z: Math.round(this.plan.seats[seat].y) + 8 } : null;
   }
 
   /** The wall's live bits (whiteboard, health grades, outbox flag, work clock, tray sheets). */
@@ -657,7 +785,7 @@ export class OfficeEngine {
   /** Where a robot or object is (keyboard arrow navigation). */
   pos(key: string): Pt {
     if (key.startsWith('obj:')) {
-      const o = this.plan.objects[key.slice(4) as ObjectId];
+      const o = this.plan.objects[key.slice(4) as ObjectId] ?? this.deskSpot(key.slice(4));
       return o ? { x: o.x + o.w / 2, y: o.y + o.h / 2 } : { x: 0, y: 0 };
     }
     const r = this.actors[key];

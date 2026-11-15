@@ -33,7 +33,9 @@ export type ObjectId =
   | 'health'
   | 'reports'
   | 'safe'
-  | 'portrait';
+  | 'portrait'
+  | 'mailbox'
+  | 'bell';
 export type Plan = {
   W: number;
   rows: number[];
@@ -54,6 +56,8 @@ export type LayoutConfig = {
   solo: string[];
   /** Free solo desks (no owner yet). */
   spare?: number;
+  /** STUDIO LIFE: guests the user brought in — their own block of hot desks (seats `guest-N`). */
+  guests?: string[];
 };
 
 const OL = { DX: 124, RUG: 140, GAP: 72, LEFT: 50, RIGHT: 440, MIN_W: 1600, STEP: 40, PER_POD: 7 };
@@ -62,7 +66,7 @@ const OL = { DX: 124, RUG: 140, GAP: 72, LEFT: 50, RIGHT: 440, MIN_W: 1600, STEP
 const WALL = { MIN_X: 392, PLANNING: 776, TRAY_GAP: 56, TRAY_W: 92, TRAY_AIR: 44 };
 const TRAY_SPAN = WALL.TRAY_GAP + WALL.TRAY_W + WALL.TRAY_AIR;
 
-type Block = { teamId: string | null; members: (string | null)[]; w: number };
+type Block = { teamId: string | null; guest?: boolean; members: (string | null)[]; w: number };
 
 export function officeLayout(cfg: LayoutConfig): Plan {
   const blocks: Block[] = [];
@@ -72,6 +76,9 @@ export function officeLayout(cfg: LayoutConfig): Plan {
   const solo: (string | null)[] = [...(cfg.solo ?? []), ...Array(cfg.spare ?? 0).fill(null)];
   for (let i = 0; i < solo.length; i += OL.PER_POD)
     blocks.push({ teamId: null, members: solo.slice(i, i + OL.PER_POD), w: 0 });
+  const guests = cfg.guests ?? [];
+  for (let i = 0; i < guests.length; i += OL.PER_POD)
+    blocks.push({ teamId: null, guest: true, members: guests.slice(i, i + OL.PER_POD), w: 0 });
   for (const b of blocks) b.w = (b.members.length - 1) * OL.DX + OL.RUG;
 
   /* pack into ≤ 2 rows; widen the room until it fits */
@@ -132,7 +139,7 @@ export function officeLayout(cfg: LayoutConfig): Plan {
   rows.forEach((r, ri) => {
     let x = areaL + (areaR - areaL - rowW(r)) / 2;
     for (const b of r) {
-      const key = b.teamId ?? 'solo';
+      const key = b.teamId ?? (b.guest ? 'guest' : 'solo');
       count[key] = count[key] ?? 0;
       const y = rowY[ri];
       const pod: Pod = {
@@ -192,6 +199,9 @@ export function officeLayout(cfg: LayoutConfig): Plan {
     reports: { x: rx, y: 236, w: 92, h: 150, stand: { x: rx + 46, y: 424 }, label: 'Reports' },
     /* the Director's wall: the project's safe (Access) */
     safe: { x: W - 258, y: 112, w: 100, h: 104, label: 'Access' },
+    /* STUDIO LIFE: the letterbox above the outbox (no stand: nobody walks to it), the bell on the door frame */
+    mailbox: { x: 190, y: 128, w: 72, h: 96, label: 'Mail' },
+    bell: { x: 164, y: 216, w: 30, h: 48, label: 'Bring someone in' },
   };
   /* windows only where there's room after the tray (a narrow room drops them first) */
   for (let x = rx + WALL.TRAY_W + 40; x + 180 <= W - 440 && plan.windows.length < 2; x += 260)
@@ -199,6 +209,26 @@ export function officeLayout(cfg: LayoutConfig): Plan {
   const nl = Math.max(3, Math.round(W / 520));
   for (let i = 0; i < nl; i++) plan.lamps.push(Math.round((W * (i + 0.5)) / nl));
   return plan;
+}
+
+/** The seat whose desk carries a team's principles binder: the captain's, else the team's first seat. */
+export function binderSeat(plan: Plan, teamId: string, captain: string | null): string | null {
+  const pods = plan.pods.filter((p) => p.teamId === teamId);
+  if (!pods.length) return null;
+  const c = captain ? plan.home[captain] : undefined;
+  if (c && pods.some((p) => p.seats.includes(c))) return c;
+  return pods[0].seats[0] ?? null;
+}
+
+/* where the desk's paper (right, under the monitor) and the binder (left item slot) sit, in desk units (theme.desk) */
+const SPOT = { note: { x: 33, y: -44, w: 30, h: 26 }, binder: { x: -48, y: -64, w: 32, h: 40 } };
+/** The hit box of a desk item in world coordinates (desks are drawn at the seat, scaled by depth). */
+export function deskSpot(plan: Plan, seat: string, which: 'note' | 'binder'): Box | null {
+  const s = plan.seats[seat];
+  if (!s) return null;
+  const k = depth(s.y);
+  const b = SPOT[which];
+  return { x: s.x + b.x * k, y: s.y + b.y * k, w: b.w * k, h: b.h * k };
 }
 
 /** Actor/desk depth scale (spec-office §1.1): nearer the front = a touch bigger. */

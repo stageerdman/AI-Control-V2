@@ -7,13 +7,15 @@ import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Agent, Role, Team } from '../../api/types';
 import { Emblem } from '../../characters';
 import { go } from '../../shell/router';
+import { Switch } from '../../ui';
 import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
 import { Radios } from './Radios';
 import { RoleCombo } from './RoleCombo';
+import { saveAgent } from './store';
 
 export type PanelAgent = Pick<
   Agent,
-  'id' | 'kind' | 'name' | 'roleId' | 'role' | 'prompt' | 'teamIds' | 'projectIds' | 'canDelete'
+  'id' | 'kind' | 'name' | 'roleId' | 'role' | 'prompt' | 'teamIds' | 'projectIds' | 'canDelete' | 'canMail'
 >;
 
 export const AgentPanel = forwardRef<
@@ -173,6 +175,16 @@ export const AgentPanel = forwardRef<
             }}
           />
         </section>
+        {exists && !draft && (
+          <section className="zp-sec zp-reports">
+            <h3 className="zp-label">Can send mail</h3>
+            <Switch
+              checked={agent.canMail !== false}
+              label="Can send mail"
+              onChange={(on) => void saveAgent(agent.id, { canMail: on }, { onSaved })}
+            />
+          </section>
+        )}
         {!crew && !draft && (
           <section className="zp-sec zp-teams-sec">
             <h3 className="zp-label">Teams</h3>
