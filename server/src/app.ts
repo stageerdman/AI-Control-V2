@@ -76,6 +76,7 @@ import { teamRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
 import { trashRoutes } from './routes/trash.ts';
+import { createChatReplier } from './runtime/chat-reply.ts';
 import { AGENT_SHELL, loadCaps, type StudioCaps } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
 import { createRecapper } from './runtime/recap.ts';
@@ -409,7 +410,7 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, pages, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(chatRoutes({ db, store }));
+  app.register(chatRoutes({ db, store, replyInChat: createChatReplier(crew) }));
   app.register(recapRoutes({ db, store, recapChat: createRecapper(crew) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
