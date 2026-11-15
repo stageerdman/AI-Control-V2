@@ -212,7 +212,7 @@ export function applyBodyOf(c: Card, picks: Picks): ApplyBody {
 }
 
 function LiveCard(
-  p: RebuildCardProps & {
+  p: Omit<RebuildCardProps, 'onApplied' | 'onKept'> & {
     onApplied: (r: { undoToken: string; summary: string }, hadFocus: boolean) => void;
     onKept: (hadFocus: boolean) => void;
   },
@@ -577,13 +577,18 @@ export function UndoLine({
   token,
   summary,
   since = Date.now(),
+  grab = false,
   onUndone,
 }: {
   token: string;
   summary?: string;
   since?: number;
-  onUndone?: () => void;
+  /** Take focus when it appears (the user confirmed with the keyboard). */
+  grab?: boolean;
+  /** `hadFocus`: the Undo button held focus, so the next line should take it. */
+  onUndone?: (hadFocus: boolean) => void;
 }) {
+  const ref = useGrabFocus<HTMLParagraphElement>(grab);
   const [state, setState] = useState<'ready' | 'busy' | 'gone' | 'done' | 'late'>(() =>
     outcomes.get(`undo:${token}`) ? 'done' : Date.now() - since >= UNDO_MS ? 'gone' : 'ready',
   );
@@ -594,19 +599,21 @@ export function UndoLine({
     return () => clearTimeout(t);
   }, [state, since]);
   const undo = async () => {
+    const hadFocus = holdsFocus(ref.current, false);
     setState('busy');
     const r = await rebuildApi.undo(token);
     if (r.ok) {
       outcomes.set(`undo:${token}`, { kind: 'undone' });
       setState('done');
-      onUndone?.();
+      onUndone?.(hadFocus);
     } else {
       setMsg(r.error);
       setState('late');
+      if (hadFocus) ref.current?.focus({ preventScroll: true }); // the button went away: focus stays on the line
     }
   };
   return (
-    <p className="rb-line" role="status">
+    <p ref={ref} tabIndex={-1} className="rb-line" role="status">
       {state === 'done' ? (
         'Undone — the team is back as it was.'
       ) : (

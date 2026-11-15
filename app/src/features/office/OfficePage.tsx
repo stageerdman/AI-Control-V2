@@ -540,11 +540,18 @@ function Office({
             () => reload(ev.payload.added[0] ?? '', 'joined'),
           );
           const n = ev.payload.added.length;
+          const gone = ev.payload.removed ?? [];
           if (n)
             announce(
               n === 1
                 ? `${nickOf(ev.payload.added[0] as string)} joined the team.`
                 : `${n} people joined the project.`,
+            );
+          else if (gone.length)
+            announce(
+              gone.length === 1
+                ? `${nickOf(gone[0] as string)} left the project.`
+                : `${gone.length} people left the project.`,
             );
           break;
         }

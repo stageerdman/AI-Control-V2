@@ -59,9 +59,12 @@ describe('rebuild card — keyboard and screen readers', () => {
   it('a move reads in words, not as an arrow; lists are not named twice', () => {
     const { container } = render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" />);
     const line = screen.getByText('Uncle Bob').closest('li') as HTMLElement;
-    const spoken = [...line.querySelectorAll('*')]
-      .filter((n) => !n.closest('[aria-hidden="true"]') && n.childNodes.length)
-      .flatMap((n) => [...n.childNodes].filter((c) => c.nodeType === 3).map((c) => c.textContent))
+    /* every text node in reading (document) order, minus what is hidden from screen readers */
+    const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    const parts: string[] = [];
+    for (let n = walk.nextNode(); n; n = walk.nextNode())
+      if (!n.parentElement?.closest('[aria-hidden="true"]')) parts.push(n.textContent ?? '');
+    const spoken = parts
       .join('')
       .replace(/\s+/g, ' ')
       .trim();

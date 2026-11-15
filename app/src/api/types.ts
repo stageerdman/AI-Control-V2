@@ -548,7 +548,7 @@ export type EventPayloads = {
   'desk.note': { agentId: string; noteId: string; runId?: string };
   'guest.changed': { agentId: string; change: 'joined' | 'updated' | 'left' };
   /** The director staffed the project from chat. */
-  'staff.changed': { teamIds: string[]; agentIds: string[]; added: string[] };
+  'staff.changed': { teamIds: string[]; agentIds: string[]; added: string[]; removed?: string[]; moved?: string[] };
   'mail.changed': {
     mailId: string;
     change: 'arrived' | 'triaged' | 'filed' | 'reopened';
@@ -668,6 +668,8 @@ export type EventPayloads = {
     reportId?: string;
     /** The goal this line belongs to (the orchestrator's thread records every goal). */
     goalId?: string;
+    /** A team rebuild the director's reply carries (the card shape lives in features/office/rebuild/api.ts). */
+    rebuild?: { planId: string; needsConfirm: boolean; card: Record<string, unknown>; undoToken?: string; summary?: string };
   };
   /** Reports: title only, never the body. */
   'report.filed': { reportId: string; projectId: string; authorAgentId: string; title: string };

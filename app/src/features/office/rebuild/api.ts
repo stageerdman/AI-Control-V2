@@ -57,7 +57,14 @@ export type ApplyResult = { ok: true; undoToken: string; summary: string } | { o
 export type UndoResult = { ok: true; summary?: string } | { ok: false; error: string };
 
 /** What a director reply may carry (`ThreadMessage.rebuild`). */
-export type RebuildOffer = { needsConfirm: boolean; card: RebuildCard; planId: string; undoToken?: string };
+export type RebuildOffer = {
+  needsConfirm: boolean;
+  card: RebuildCard;
+  planId: string;
+  /** Applied at once (nothing to decide): the Undo line instead of the card. */
+  undoToken?: string;
+  summary?: string;
+};
 
 /** Undo lasts 10 minutes (spec §3) — the server is the judge; this only hides a dead link. */
 export const UNDO_MS = 10 * 60_000;

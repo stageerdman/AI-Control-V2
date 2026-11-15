@@ -1,6 +1,8 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  /** React 19: a ref is a plain prop (focus the button from outside). */
+  ref?: Ref<HTMLButtonElement>;
   /** hero = the one main action on a screen; ghost = everything else; dark = ink pill. */
   variant?: 'hero' | 'ghost' | 'dark';
   /** Ghost button sitting on the twilight background. */

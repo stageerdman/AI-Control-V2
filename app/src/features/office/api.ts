@@ -7,6 +7,7 @@ import {
   type ProjectApp,
   type ProjectStatus,
 } from '../../api';
+import type { RebuildOffer } from './rebuild/api';
 
 const e = encodeURIComponent;
 
@@ -84,6 +85,8 @@ export type ThreadMessage = {
   reportId: string | null;
   /** The goal this line belongs to (the orchestrator's thread records goals). */
   goalId?: string | null;
+  /** A team rebuild a director reply carries: the confirm card, or (applied at once) its Undo. */
+  rebuild?: RebuildOffer | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
