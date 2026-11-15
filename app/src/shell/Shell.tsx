@@ -3,6 +3,7 @@
 import { type ComponentType, Suspense, useEffect, useRef } from 'react';
 import { Loading, Toaster } from '../ui';
 import { Building } from './Building';
+import { BUILD, buildLabel } from './build';
 import { Motes } from './Motes';
 import type { PageRegistry, PagerComponent } from './pages';
 import { go, type Route, STAGES, stageOf, useRoute } from './router';
@@ -55,7 +56,7 @@ function Studio({ stage, children }: { stage: ReturnType<typeof stageOf>; childr
   return (
     <div id="studio">
       <header className="topbar">
-        <div className="brand">
+        <div className="brand" title={buildLabel(BUILD)}>
           <span className="logo" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle cx="12" cy="12" r="4" fill="#fff" />
