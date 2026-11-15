@@ -31,6 +31,7 @@ import type { Reports } from '../reports/reports.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { DIRECTOR_ANSWER, parseDirectorReply } from './director-reply.ts';
+import { agentByName, type DirectorStopper } from './director-stop.ts';
 import type { Features } from './features.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
 import { castAvailable, type Staffing } from './staffing.ts';
@@ -87,7 +88,7 @@ export function orchestratorChatPrompt(
       '## How you talk here',
       '',
       'The user is chatting with you in the project’s office, mostly by voice. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.',
-      'What you can do from here (each message says how): put work on the whiteboard, continue work that stopped partway, bring Cast people and teams onto the project, and ask anyone on the project a question — the studio relays their answer into this chat. When the user wants one of these, do it in this answer instead of saying you can’t or offering to. Only for something truly outside these, say so in one line and offer to put it on the whiteboard as a feature.',
+      'What you can do from here (each message says how): put work on the whiteboard, continue work that stopped partway, stop anyone’s work (or everything) at once, bring Cast people and teams onto the project, and ask anyone on the project a question — the studio relays their answer into this chat. When the user wants one of these, do it in this answer instead of saying you can’t or offering to. Only for something truly outside these, say so in one line and offer to put it on the whiteboard as a feature.',
       'How the whiteboard runs: items run in checklist order. An item is "running" once its owner has been briefed and is working; a "todo" item is waiting its turn — `waitsFor` names the step it waits on, and its owner is briefed automatically the moment that step is done. A captain splits a team item into `team` sub-tasks for members. Explain waiting and progress from this, plainly ("Jony starts when Blair’s design lands").',
       'Names come from voice and can be misheard ("Ivy" for "Ally", "Johnny" for "Jony"). Match an unknown name to the closest person on the project, say who you took it as, and carry on — ask only when two people fit.',
       'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
@@ -121,6 +122,8 @@ export function createThreads(deps: {
   resumeGoal?: (projectId: string, goalId: string) => Goal;
   /** The director asks someone a question (room.call from the director) → their answer. */
   ask?: (projectId: string, directorId: string, to: string, request: string) => Promise<string>;
+  /** The director sees what is running and stops it (one agent, or everything). Absent → it can't. */
+  stops?: DirectorStopper;
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
@@ -345,6 +348,8 @@ export function createThreads(deps: {
             when: health.createdAt,
           }
         : null,
+      /* who is working on what this moment — what the director can stop */
+      ...(deps.stops ? { runningNow: deps.stops.runningNow(p.id) } : {}),
       unreadReports: deps.reports.unreadTitles(p.id),
       openQuestions: runtime
         .asks(p.id, 'open')
@@ -458,10 +463,7 @@ export function createThreads(deps: {
     const p = store.projects.require(t.projectId);
     const fail = (why: string) =>
       insert(t.projectId, t.agentId, { sender: 'agent', kind: 'error', text: clip(why, 2000), runId: null });
-    const k = a.to.trim().toLowerCase();
-    const who = store.agents
-      .list()
-      .find((x) => x.name.toLowerCase() === k || x.nick?.toLowerCase() === k || x.id === a.to.trim());
+    const who = agentByName(store, a.to);
     let callee: Agent;
     try {
       if (!who || who.id === p.orchestratorId) throw new Error();
@@ -553,6 +555,9 @@ export function createThreads(deps: {
           text: `I couldn’t change the teams: ${rebuildError}`,
           runId: null,
         });
+      if (d.stop && deps.stops)
+        for (const line of deps.stops.apply(t.projectId, d.stop))
+          insert(t.projectId, t.agentId, { sender: 'agent', ...line, runId: null });
       if (d.staff && deps.staffing) {
         try {
           deps.staffing.apply(t.projectId, d.staff, t.agentId);

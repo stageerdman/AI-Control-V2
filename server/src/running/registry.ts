@@ -5,7 +5,8 @@
    - Code runs: the live OS processes under a session (servers, tests, builds an agent started). Never stored:
      read from the process table at each look, so a crashed or finished command simply isn't there.
    In memory only: after a restart nothing is running, so nothing can be stale. Cancel goes through the
-   source's own cancel (it records how the run ended); a code run is signalled directly. */
+   source's own cancel (it records how the run ended); a code run is signalled directly. `stop` does that
+   for everything matching a filter at once (one agent, or a whole project). */
 import { randomUUID } from 'node:crypto';
 import { notFound } from '../errors.ts';
 import { redactSecrets } from '../events/redact.ts';
@@ -130,6 +131,25 @@ export function createRunning(
     return code;
   }
 
-  return { add, watch, list, cancel, size: () => entries.size };
+  /** Stop every session and code run that matches, right now (apps are the user's own and stay up).
+      One that refuses to stop is reported and the rest still stop. Returns what was stopped. */
+  function stop(f: RunningFilter): RunningItem[] {
+    const hit = list(f).filter((i) => i.kind !== 'app');
+    const stopped: RunningItem[] = [];
+    for (const i of hit) {
+      try {
+        if (i.kind === 'code' && i.pid) stopTree(i.pid, STOP_GRACE_MS, { procs, kill });
+        else entries.get(i.id)?.source.cancel();
+        stopped.push(i);
+      } catch (e) {
+        console.error(
+          `[running] stop: could not stop ${i.kind} ${i.id} (project ${i.projectId}, agent ${i.agentId}): ${(e as Error).message}`,
+        );
+      }
+    }
+    return stopped;
+  }
+
+  return { add, watch, list, cancel, stop, size: () => entries.size };
 }
 export type Running = ReturnType<typeof createRunning>;
