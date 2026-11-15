@@ -139,6 +139,8 @@
 .zp-link{appearance:none;border:0;background:none;padding:0;font:inherit;font-weight:800;color:var(--sun);cursor:pointer;text-decoration:underline;text-underline-offset:3px;border-radius:4px}
 .zp-link.danger{color:var(--coral)}
 .zp-chip{appearance:none;font:inherit;font-size:12px;font-weight:800;color:var(--sun);background:rgba(255,194,75,.1);border:1px solid rgba(255,194,75,.3);border-radius:999px;padding:6px 12px;cursor:pointer;margin-top:10px}
+.zp-tool-list{margin:0;padding:0 0 0 18px;font-size:13.5px;line-height:1.55;font-weight:600;color:var(--cream-60)}
+.zp-tool-list li{padding:2px 0}
 .zp-empty{list-style:none;font-size:13px;font-weight:600;color:var(--cream-45);padding:4px 0}
 .zp-foot{margin:22px 0 0;font-size:13px;font-weight:600;color:var(--cream-60)}
 .zp-area,.zp-input{width:100%;font:inherit;font-size:14px;line-height:1.5;color:var(--cream);background:var(--well);

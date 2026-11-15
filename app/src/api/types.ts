@@ -19,6 +19,13 @@ export type Look = {
   hue: string;
   decal?: string;
 };
+export type Toolset = {
+  edit: 'any' | 'none' | string[];
+  shell: 'studio' | 'git' | 'none';
+  web: boolean;
+  /** What it works with, in plain words (the design card's "works with" line). */
+  works: string[];
+};
 export type AgentKind = 'agent' | 'setter' | 'orchestrator' | 'creator';
 export type DeleteVerdict = { ok: true; why: '' } | { ok: false; why: string };
 
@@ -40,6 +47,8 @@ export type Agent = {
   prompt: string;
   /** STUDIO LIFE: may send mail to other projects and HQ (default on). */
   canMail?: boolean;
+  /** Working tools (server domain/toolset.ts); null/absent = the studio's full kit. */
+  tools?: Toolset | null;
   teamIds: string[];
   projectIds: string[];
   canDelete: DeleteVerdict;

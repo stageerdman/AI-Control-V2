@@ -16,7 +16,8 @@ import { saveAgent } from './store';
 export type PanelAgent = Pick<
   Agent,
   'id' | 'kind' | 'name' | 'roleId' | 'role' | 'prompt' | 'teamIds' | 'projectIds' | 'canDelete' | 'canMail'
->;
+> &
+  Partial<Pick<Agent, 'tools'>>;
 
 export const AgentPanel = forwardRef<
   HTMLDivElement,
@@ -175,6 +176,18 @@ export const AgentPanel = forwardRef<
             }}
           />
         </section>
+        {exists && !draft && !!agent.tools?.works.length && (
+          <section className="zp-sec zp-tools" aria-labelledby="zpToolsLabel">
+            <h3 className="zp-label" id="zpToolsLabel">
+              Tools
+            </h3>
+            <ul className="zp-tool-list">
+              {agent.tools.works.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </section>
+        )}
         {exists && !draft && (
           <section className="zp-sec zp-reports">
             <h3 className="zp-label">Can send mail</h3>

@@ -5,18 +5,30 @@
    keyboard (real buttons, named, in tab order). */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Agent, Look } from '../../api/types';
+import type { Agent, Look, Toolset } from '../../api/types';
 import { HATS, hatDecal, heroSVG, lookSlot, ROLE_GEAR, TOOLS } from '../../characters/hero-svg';
+import { AgentPanel } from './AgentPanel';
 import { LookRig } from './LookRig';
 import { candidates, cycleLook, lookTag } from './model';
 
 afterEach(cleanup);
 
-/* The server's own pack, loaded at run time (a variable path keeps the server out of the app's typecheck). */
-type PackAgent = { id: string; name: string; nick?: string; roleId: string; look: Look; prompt: string };
+/* The server's own pack, loaded by Vite's glob (TypeScript doesn't follow it, so the server stays out of the app's typecheck). */
+type PackAgent = {
+  id: string;
+  name: string;
+  nick?: string;
+  roleId: string;
+  look: Look;
+  prompt: string;
+  tools: Toolset;
+};
 type Pack = { roles: { id: string; name: string }[]; agents: PackAgent[] };
-const PACK_PATH = new URL('../../../../server/src/cast-packs/archetypes.ts', import.meta.url).pathname;
-const { ARCHETYPES } = (await import(/* @vite-ignore */ PACK_PATH)) as { ARCHETYPES: Pack };
+const [mod] = Object.values(
+  import.meta.glob<{ ARCHETYPES: Pack }>('../../../../server/src/cast-packs/archetypes.ts', { eager: true }),
+);
+if (!mod) throw new Error('server/src/cast-packs/archetypes.ts not found');
+const { ARCHETYPES } = mod;
 
 const NINE = ARCHETYPES.agents;
 const team = (ids: string[]) => ({
@@ -76,6 +88,35 @@ describe('the nine archetype agents, server pack → app', () => {
     const two = team(['a-sola', 'a-bramble']);
     expect(candidates(agents, two).map((a) => a.id)).not.toContain('a-sola');
     expect(candidates(agents, two)).toHaveLength(7);
+  });
+});
+
+describe('the agent panel shows its working tools', () => {
+  it("lists every agent's 'works with' lines under Tools", () => {
+    for (const a of NINE) {
+      const agent = { ...asAgent(a), tools: a.tools };
+      const roles = ARCHETYPES.roles.map((r) => ({ ...r, agentCount: 1, reporter: false }));
+      const noop = () => {};
+      render(
+        <AgentPanel
+          agent={agent}
+          isNew={false}
+          roles={roles}
+          teams={[]}
+          onName={noop}
+          onRole={noop}
+          onPrompt={noop}
+          onDelete={noop}
+          onSaved={noop}
+        />,
+      );
+      const list = screen.getByRole('region', { name: 'Tools' });
+      const lines = within(list)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent);
+      expect(lines).toEqual(a.tools.works);
+      cleanup();
+    }
   });
 });
 
