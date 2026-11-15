@@ -141,7 +141,13 @@ export function createRuntime(deps: RuntimeDeps) {
   ) => {
     try {
       const clean = redactSecrets({ text, meta: meta ?? null }, secrets).value;
-      appendChatMessage(db, { runId: run.id, projectId: run.projectId, agentId: run.agentId, role, ...clean });
+      appendChatMessage(db, {
+        runId: run.id,
+        projectId: run.projectId,
+        agentId: run.agentId,
+        role,
+        ...clean,
+      });
     } catch (e) {
       console.error(`[chats] could not save a ${role} message of run ${run.id}: ${(e as Error).message}`);
     }
@@ -173,7 +179,11 @@ export function createRuntime(deps: RuntimeDeps) {
     const yes = deps.autoApprove?.() ? autoAnswer(ask.question, ask.options) : null;
     if (yes) {
       repo.answerAsk(ask.id, yes, 'auto');
-      record(l.run, l.secrets, 'system', `The studio answered for you: ${yes}`, { kind: 'answer', askId: ask.id, by: 'auto' });
+      record(l.run, l.secrets, 'system', `The studio answered for you: ${yes}`, {
+        kind: 'answer',
+        askId: ask.id,
+        by: 'auto',
+      });
       emit(l.run.projectId, { type: 'ask.answered', payload: { askId: ask.id, answer: yes } }, l.secrets);
       return repo.ask(ask.id) as Ask;
     }
@@ -255,7 +265,11 @@ export function createRuntime(deps: RuntimeDeps) {
   function recordEnd(l: Live, o: RunOutcome) {
     if (o.result && o.result !== l.said) record(l.run, l.secrets, 'assistant', o.result, { kind: 'result' });
     const text =
-      o.status === 'succeeded' ? 'Finished' : o.status === 'cancelled' ? 'Cancelled' : `Failed: ${o.error ?? 'error'}`;
+      o.status === 'succeeded'
+        ? 'Finished'
+        : o.status === 'cancelled'
+          ? 'Cancelled'
+          : `Failed: ${o.error ?? 'error'}`;
     record(l.run, l.secrets, 'system', text, { kind: 'end', status: o.status });
   }
 
@@ -641,11 +655,7 @@ export function createRuntime(deps: RuntimeDeps) {
       const done = repo.ask(askId) as Ask;
       const l = live.get(a.runId);
       if (l) record(l.run, l.secrets, 'user', answer, { kind: 'answer', askId, by: 'user' });
-      emit(
-        projectId,
-        { type: 'ask.answered', payload: { askId, answer: clip(answer, 2000) } },
-        l?.secrets,
-      );
+      emit(projectId, { type: 'ask.answered', payload: { askId, answer: clip(answer, 2000) } }, l?.secrets);
       settle(done);
       return done;
     },
