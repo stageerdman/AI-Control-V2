@@ -1,38 +1,73 @@
 /* The plan on stage: the orchestrator, then each team as a squad under its emblem (captains from
    the team's own design), the specialists, and — until accepted — the Agent Creator's briefs as
-   ghosts. While the Creator works it steps onto the stage. */
+   ghosts. AGENT MCP: the floor is the room — whoever is present (the orchestrator, then the Agent
+   Creator and any guest a call brought in) stands bare beside the lead; the cards are the plan. */
+import { useEffect, useState } from 'react';
 import type { Agent } from '../../api';
 import { Emblem } from '../../characters/Emblem';
 import { Hero } from '../../characters/Hero';
+import { reducedMotion } from '../../design/palette';
 import { nickOf } from '../projects/model';
-import type { PlanView } from './flow';
+import type { Doing, PlanView } from './flow';
 import { Actor } from './parts';
 
 const short = (name: string) => name.replace(/^The /, '');
 
+export type StageRoom = {
+  guests: { agent: Agent; why?: string }[];
+  doing: Record<string, Doing>;
+  /** Guests who joined while you watched (they walk in); the rest are simply there. */
+  entering: ReadonlySet<string>;
+  label: string;
+  announce: string;
+};
+const SHOWN = 3;
+
 export function PlanStage({
   view,
   orch,
-  creator,
   busy,
+  room,
 }: {
   view: PlanView | null;
   orch: Agent | undefined;
-  creator: Agent | undefined;
   busy: false | 'orch' | 'creator';
+  room: StageRoom;
 }) {
   const ghostAgents = view?.newAgents ?? [];
+  const shown = room.guests.slice(-SHOWN);
+  const hidden = room.guests.slice(0, -SHOWN);
+  const orchPose = orch && room.doing[orch.id]?.pose === 'thinking' ? 'thinking' : undefined;
   return (
     <>
-      <Actor
-        agent={orch}
-        pose={busy === 'orch' || !view ? 'thinking' : 'talking'}
-        dir="right"
-        size={116}
-        className="np-lead"
-        plate={orch?.name}
-        kind="Orchestrator"
-      />
+      <div className="np-room" role="group" aria-label={room.label}>
+        <Actor
+          agent={orch}
+          pose={orchPose ?? (busy === 'orch' || !view ? 'thinking' : 'talking')}
+          dir="right"
+          size={116}
+          className="np-lead"
+          plate={orch?.name}
+          kind="Orchestrator"
+        />
+        {hidden.length > 0 && (
+          <span className="np-plate np-more" title={hidden.map((g) => g.agent.name).join(', ')}>
+            +{hidden.length}
+          </span>
+        )}
+        {shown.map((g) => (
+          <Guest
+            key={g.agent.id}
+            agent={g.agent}
+            why={g.why}
+            doing={room.doing[g.agent.id]}
+            entering={room.entering.has(g.agent.id)}
+          />
+        ))}
+        <p className="sr-only" aria-live="polite">
+          {room.announce}
+        </p>
+      </div>
       <div className="np-groups">
         {view?.teams.map(({ team, why, members, fresh }) => (
           <div key={team.id} className={`np-group${fresh ? ' np-newteam' : ''}`} title={why}>
@@ -108,17 +143,45 @@ export function PlanStage({
             </div>
           </div>
         )}
-        {busy === 'creator' && (
-          <Actor
-            agent={creator}
-            size={84}
-            dir="left"
-            pose="pressing"
-            className="np-creator"
-            plate={creator ? nickOf(creator) : undefined}
-          />
-        )}
       </div>
     </>
+  );
+}
+
+/** A guest in the room: walks in and waves when they join while you watch, then shows what they're doing. */
+function Guest({
+  agent,
+  why,
+  doing,
+  entering,
+}: {
+  agent: Agent;
+  why?: string;
+  doing?: Doing;
+  entering: boolean;
+}) {
+  const [arrive, setArrive] = useState<'walking' | 'waving' | null>(() =>
+    entering && !reducedMotion() ? 'walking' : null,
+  );
+  useEffect(() => {
+    if (!arrive) return;
+    const t = setTimeout(
+      () => setArrive(arrive === 'walking' ? 'waving' : null),
+      arrive === 'walking' ? 600 : 900,
+    );
+    return () => clearTimeout(t);
+  }, [arrive]);
+  return (
+    <div title={why}>
+      <Actor
+        agent={agent}
+        size={84}
+        dir="left"
+        pose={arrive ?? doing?.pose ?? 'idle'}
+        className={`np-guest${entering ? ' is-joining' : ''}`}
+        plate={nickOf(agent)}
+        {...(doing?.label ? { kind: doing.label } : {})}
+      />
+    </div>
   );
 }

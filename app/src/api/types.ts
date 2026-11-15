@@ -154,7 +154,13 @@ export type Plan = {
   /** The orchestrator's collaboration design (`new-agent:N` / `new-team:N` before accept). */
   collaboration?: Collaboration | null;
 };
-export type ChatMessage = { from: 'user' | 'orchestrator' | 'creator'; text: string };
+/** `from: 'agent'` = a guest in the setup room (by agentId); `to` = an agent-to-agent line (AGENT MCP). */
+export type ChatMessage = {
+  from: 'user' | 'orchestrator' | 'creator' | 'agent';
+  agentId?: string;
+  to?: string;
+  text: string;
+};
 export type Draft = {
   id: string;
   mode: 'new' | 'adopt';
@@ -447,7 +453,23 @@ export type EventPayloads = {
     credentialId?: string;
   };
   'ask.answered': { askId: string; answer: string };
-  'chat.message': { from: 'user' | 'orchestrator' | 'creator'; agentId?: string; text: string };
+  'chat.message': {
+    from: 'user' | 'orchestrator' | 'creator' | 'agent';
+    agentId?: string;
+    to?: string;
+    text: string;
+  };
+  /** AGENT MCP: someone joined the room (`by` brought them in). */
+  'room.joined': { agentId: string; by?: string; why?: string };
+  /** AGENT MCP: one agent calling another. */
+  'room.call': {
+    callId: string;
+    from: string;
+    to: string;
+    status: 'asking' | 'approved' | 'declined' | 'working' | 'answered' | 'failed';
+    approver?: string;
+    note?: string;
+  };
   'plan.changed': {
     summary: string;
     teamIds: string[];
@@ -580,6 +602,8 @@ export const EVENT_TYPES = [
   'ask.opened',
   'ask.answered',
   'chat.message',
+  'room.joined',
+  'room.call',
   'plan.changed',
   'cast.created',
   'health.checked',

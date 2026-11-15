@@ -23,6 +23,7 @@ const DraftPatch = z.strictObject({
       z.strictObject({
         from: z.enum(['user', 'orchestrator', 'creator', 'agent']),
         agentId: z.string().max(80).optional(),
+        to: z.string().max(80).optional(),
         text: z.string().max(10_000),
       }),
     )

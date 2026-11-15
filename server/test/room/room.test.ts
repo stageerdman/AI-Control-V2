@@ -49,10 +49,19 @@ describe('the setup room (free runner)', () => {
     }[];
     const room = chat.slice(-5);
     expect(room).toEqual([
-      { from: 'orchestrator', text: 'Tinker, could you design a new team for this project?' },
-      { from: 'creator', text: 'Pixel, may I bring in Twinkle to design the costume?' },
-      { from: 'orchestrator', text: 'Yes — go ahead.' },
-      { from: 'agent', agentId: 'a-twinkle', text: 'Done — a beret, a palette and a rose finish' },
+      {
+        from: 'orchestrator',
+        to: 'a-creator',
+        text: 'Tinker, could you design a new team for this project?',
+      },
+      { from: 'creator', to: 'a-pixel', text: 'Pixel, may I bring in Twinkle to design the costume?' },
+      { from: 'orchestrator', to: 'a-creator', text: 'Yes — go ahead.' },
+      {
+        from: 'agent',
+        agentId: 'a-twinkle',
+        to: 'a-creator',
+        text: 'Done — a beret, a palette and a rose finish',
+      },
       { from: 'creator', text: expect.stringMatching(/^Here's The Night Shift/) },
     ]);
   });

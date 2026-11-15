@@ -2,7 +2,7 @@
    stage, and the Project Setter's checklist folded from live `setup.step` events.
    The user's order (v5): the Setter sets the project up first (POST /drafts/:id/setup), then the
    orchestrator enters and picks the team; Accept → finish creates the project. */
-import type { Agent, Draft, Plan, SetupStep, Team } from '../../api';
+import type { Agent, Draft, EventPayloads, Plan, SetupStep, Team } from '../../api';
 import { nickOf } from '../projects/model';
 
 export const STEPS = ['Start', 'Name', 'Orchestrator', 'Setup', 'Team'] as const;
@@ -293,3 +293,52 @@ export const setterPct = (st: SetterState): number =>
     : Math.round(
         (st.rows.filter((r) => r.state && r.state !== 'doing').length / Math.max(1, st.rows.length)) * 100,
       );
+
+/* ---------------- the room (AGENT MCP): who is here, and what they're doing ---------------- */
+export type RoomCall = EventPayloads['room.call'];
+export type RoomGuest = { agentId: string; by?: string; why?: string };
+export type RoomState = { guests: RoomGuest[]; calls: Record<string, RoomCall> };
+export const ROOM0: RoomState = { guests: [], calls: {} };
+
+/** Fold a draft's `room.joined` / `room.call` events (replayed or live) into the room. */
+export function roomFold(s: RoomState, e: { type: string; payload: unknown }): RoomState {
+  if (e.type === 'room.joined') {
+    const g = e.payload as RoomGuest;
+    return s.guests.some((x) => x.agentId === g.agentId) ? s : { ...s, guests: [...s.guests, g] };
+  }
+  if (e.type === 'room.call') {
+    const c = e.payload as RoomCall;
+    return { ...s, calls: { ...s.calls, [c.callId]: c } };
+  }
+  return s;
+}
+
+export type Doing = { pose: 'pressing' | 'talking' | 'thinking' | 'writing' | 'idle'; label?: string };
+
+/** What each person in the room is doing now. `live` = an accept is running; otherwise everyone is idle
+    (a call left mid-way after a reload is stale). The creator designs while live unless a call says more. */
+export function roomDoing(
+  s: RoomState,
+  live: boolean,
+  creatorId: string | undefined,
+  nick: (id: string) => string,
+): Record<string, Doing> {
+  const out: Record<string, Doing> = {};
+  if (!live) return out;
+  if (creatorId && s.guests.some((g) => g.agentId === creatorId))
+    out[creatorId] = { pose: 'pressing', label: 'designing' };
+  for (const c of Object.values(s.calls)) {
+    if (c.status === 'asking') {
+      out[c.from] = { pose: 'talking', label: `asking ${c.approver ? nick(c.approver) : ''}`.trim() };
+      if (c.approver) out[c.approver] = { pose: 'thinking' };
+    } else if (c.status === 'working') out[c.to] = { pose: 'writing', label: `for ${nick(c.from)}` };
+  }
+  return out;
+}
+
+/** The room's label for screen readers: everyone present, in order. */
+export const roomLabel = (names: string[]) => `In the room: ${names.join(', ')}`;
+
+/** The polite announcement for a join. */
+export const joinLine = (who: string, forWhom?: string) =>
+  forWhom ? `${who} joined the room, for ${forWhom}.` : `${who} joined the room.`;

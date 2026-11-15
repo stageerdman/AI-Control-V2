@@ -108,18 +108,23 @@ export function createRoom(deps: {
   }
 
   /** A spoken line in the setup chat (drafts only — projects show calls in the office's events). */
-  function say(ctx: Pick<RoomCtx, 'scope' | 'ownerId'>, agentId: string, text: string) {
+  function say(ctx: Pick<RoomCtx, 'scope' | 'ownerId'>, agentId: string, text: string, to?: string) {
     if (ctx.scope !== 'draft') return;
     const a = store.agents.get(agentId);
     const d = store.drafts.record(ctx.ownerId) ? store.drafts.require(ctx.ownerId) : null;
     if (!a || !d) return;
     const from: ChatMessage['from'] =
       agentId === d.orchestratorId ? 'orchestrator' : a.kind === 'creator' ? 'creator' : 'agent';
-    const line: ChatMessage = { from, ...(from === 'agent' ? { agentId } : {}), text: clip(text, 2000) };
+    const line: ChatMessage = {
+      from,
+      ...(from === 'agent' ? { agentId } : {}),
+      ...(to ? { to } : {}),
+      text: clip(text, 2000),
+    };
     store.tx(() =>
       store.drafts.update(ctx.ownerId, { chat: [...store.drafts.require(ctx.ownerId).chat, line] }),
     );
-    emit(ctx, { type: 'chat.message', payload: { from, agentId, text: line.text } });
+    emit(ctx, { type: 'chat.message', payload: { from, agentId, ...(to ? { to } : {}), text: line.text } });
   }
 
   const status = (ctx: RoomCtx | Pick<RoomCtx, 'scope' | 'ownerId'>, agentId: string, label?: string) =>
@@ -204,7 +209,7 @@ export function createRoom(deps: {
     if (approverId) {
       const approver = store.agents.require(approverId);
       step('asking');
-      say(ctx, caller.id, `${nick(approver)}, may I bring in ${nick(callee)} to ${why}?`);
+      say(ctx, caller.id, `${nick(approver)}, may I bring in ${nick(callee)} to ${why}?`, approver.id);
       status(ctx, approver.id, `Deciding on ${nick(callee)}`);
       let verdict: z.output<typeof AllowSchema>;
       try {
@@ -235,13 +240,23 @@ export function createRoom(deps: {
       status(ctx, approver.id);
       if (!verdict.allow) {
         step('declined', verdict.reply);
-        say(ctx, approver.id, `Not this time — ${verdict.reply.replace(/^(no[,.!—–-]*\s*)/i, '')}`);
-        say(ctx, caller.id, 'Okay — I’ll do it myself.');
+        say(
+          ctx,
+          approver.id,
+          `Not this time — ${verdict.reply.replace(/^(no[,.!—–-]*\s*)/i, '')}`,
+          caller.id,
+        );
+        say(ctx, caller.id, 'Okay — I’ll do it myself.', approver.id);
         return `${approver.name} said no: ${verdict.reply} Do it yourself.`;
       }
       step('approved', verdict.reply);
-      say(ctx, approver.id, /^yes\b/i.test(verdict.reply) ? verdict.reply : `Yes — ${verdict.reply}`);
-    } else say(ctx, caller.id, `${nick(callee)}, could you ${why}?`);
+      say(
+        ctx,
+        approver.id,
+        /^yes\b/i.test(verdict.reply) ? verdict.reply : `Yes — ${verdict.reply}`,
+        caller.id,
+      );
+    } else say(ctx, caller.id, `${nick(callee)}, could you ${why}?`, callee.id);
 
     join(ctx, callee.id, caller.id, why);
     step('working');
@@ -268,7 +283,7 @@ export function createRoom(deps: {
         ...(deps.helpCaps ? { caps: deps.helpCaps } : {}),
       });
       step('answered', value.say);
-      say(ctx, callee.id, `Done — ${value.say}`);
+      say(ctx, callee.id, `Done — ${value.say}`, caller.id);
       return value.answer;
     } catch (e) {
       step('failed', (e as Error).message);

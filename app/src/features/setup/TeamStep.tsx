@@ -4,7 +4,15 @@
    brief (POST /accept); what it made shows up tagged "new", then "Open the office →". Finishing
    (POST /finish) only creates the project — the Setter set the folder up in the step before. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { type Agent, type ChatMessage, type Draft, invalidate, studio, type Team } from '../../api';
+import {
+  type Agent,
+  type ChatMessage,
+  type Draft,
+  invalidate,
+  openEventStream,
+  studio,
+  type Team,
+} from '../../api';
 import { Hero } from '../../characters/Hero';
 import { reducedMotion } from '../../design/palette';
 import { go } from '../../shell/router';
@@ -12,8 +20,21 @@ import { briefName, type Resolve, WorkDesign } from '../collab';
 import { nickOf } from '../projects/model';
 import { fireConfetti, sparkle } from './confetti';
 import { DRAFTS_KEY } from './drafts';
-import { briefLine, canContinue, pendingBriefs, planLine, planView, STEP } from './flow';
-import { PlanStage } from './PlanStage';
+import {
+  briefLine,
+  canContinue,
+  joinLine,
+  pendingBriefs,
+  planLine,
+  planView,
+  ROOM0,
+  type RoomState,
+  roomDoing,
+  roomFold,
+  roomLabel,
+  STEP,
+} from './flow';
+import { PlanStage, type StageRoom } from './PlanStage';
 import { Foot, StepCard, StepTitle } from './parts';
 import { putDraft } from './useDraft';
 
@@ -57,6 +78,74 @@ export function TeamStep({
   const resolve = useMemo(() => planResolver(d, agents, teams), [d, agents, teams]);
   const oNick = nickOf(orch) || 'The orchestrator';
   const cNick = nickOf(creator) || 'The Agent Creator';
+
+  /* AGENT MCP: the room — folded from the draft's events (replay rebuilds it after a reload) */
+  const [room, setRoom] = useState<RoomState>(ROOM0);
+  const [entering, setEntering] = useState<ReadonlySet<string>>(new Set());
+  const [announce, setAnnounce] = useState('');
+  const [slow, setSlow] = useState(false);
+  const byId = (id: string) => agents.find((a) => a.id === id);
+  const nickById = (id: string) => nickOf(byId(id)) || byId(id)?.name || 'someone';
+  useEffect(() => {
+    const t0 = Date.now();
+    let chatTimer: ReturnType<typeof setTimeout> | null = null;
+    const stream = openEventStream(
+      studio.drafts.eventsUrl(d.id),
+      (e) => {
+        if (e.type === 'room.joined' || e.type === 'room.call') setRoom((r) => roomFold(r, e));
+        if (Date.parse(e.at) < t0 - 1000) return; // replay: no walk-ins, no announcements
+        if (e.type === 'room.joined') {
+          const { agentId, by } = e.payload;
+          setEntering((s) => new Set([...s, agentId]));
+          const a = agents.find((x) => x.id === agentId);
+          const forWhom = by && by !== d.orchestratorId ? agents.find((x) => x.id === by) : undefined;
+          setAnnounce(
+            joinLine(
+              nickOf(a) || a?.name || 'Someone',
+              forWhom ? nickOf(forWhom) || forWhom.name : undefined,
+            ),
+          );
+        }
+        /* the room talks while accept runs: pull the saved chat (the server's copy is the truth) */
+        if (e.type === 'chat.message' && e.payload.to) {
+          if (chatTimer) clearTimeout(chatTimer);
+          chatTimer = setTimeout(() => {
+            void studio.drafts.get(d.id).then(
+              (x) => putDraft(d.id, { chat: x.chat }),
+              () => undefined,
+            );
+          }, 150);
+        }
+      },
+      { types: ['room.joined', 'room.call', 'chat.message'] },
+    );
+    return () => {
+      stream.close();
+      if (chatTimer) clearTimeout(chatTimer);
+    };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: one stream per draft
+  }, [d.id]);
+  /* a long design: one quiet line after 20 s with nothing new */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: restart the quiet timer whenever the room moves
+  useEffect(() => {
+    setSlow(false);
+    if (busy !== 'creator') return;
+    const t = setTimeout(() => setSlow(true), 20_000);
+    return () => clearTimeout(t);
+  }, [busy, room, d.chat.length]);
+  const doing = roomDoing(room, busy === 'creator', creator?.id, nickById);
+  const guests = room.guests.flatMap((g) => {
+    const a = byId(g.agentId);
+    return a && a.id !== orch?.id ? [{ agent: a, ...(g.why ? { why: g.why } : {}) }] : [];
+  });
+  const stageRoom: StageRoom = {
+    guests,
+    doing,
+    entering,
+    label: roomLabel([orch?.name ?? 'The orchestrator', ...guests.map((g) => g.agent.name)]),
+    announce,
+  };
+  const helping = Object.values(doing).find((x) => x.pose === 'writing' || x.pose === 'pressing');
 
   const say = async (msg?: string) => {
     setBusy('orch');
@@ -150,8 +239,8 @@ export function TeamStep({
           <PlanStage
             view={view}
             orch={orch}
-            creator={creator}
             busy={busy === 'creator' ? 'creator' : busy === 'orch' ? 'orch' : false}
+            room={stageRoom}
           />
         }
         body={
@@ -174,6 +263,9 @@ export function TeamStep({
               <p className="np-sub">A proposal is on its way — whole teams first.</p>
             )}
             {view && <WorkDesign collab={d.plan?.collaboration} orch={oNick} resolve={resolve} />}
+            {slow && busy === 'creator' && (
+              <p className="np-sub">Real agents can take a few minutes — you can leave, it keeps going.</p>
+            )}
             {acceptErr && (
               <p className="np-err" role="alert">
                 {acceptErr}
@@ -216,7 +308,11 @@ export function TeamStep({
           <div className="op-who">
             <b>{orch?.name}</b>
             <span className="op-role">Orchestrator</span>
-            <span className="op-status">Planning {name}’s teams</span>
+            <span className="op-status">
+              {helping && guests.length
+                ? `With ${nickOf(guests.at(-1)?.agent) || cNick}`
+                : `Planning ${name}’s teams`}
+            </span>
           </div>
         </header>
         <ChatLog
@@ -226,6 +322,7 @@ export function TeamStep({
           error={chatErr}
           orch={oNick}
           creator={cNick}
+          nick={nickById}
         />
         <form
           className="op-composer"
@@ -267,6 +364,7 @@ function ChatLog({
   error,
   orch,
   creator,
+  nick,
 }: {
   chat: ChatMessage[];
   mine: string | null;
@@ -274,18 +372,19 @@ function ChatLog({
   error: string | null;
   orch: string;
   creator: string;
+  nick: (agentId: string) => string;
 }) {
   const log = useRef<HTMLDivElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the newest line whenever one lands
   useLayoutEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [chat.length, mine, typing, error]);
-  const who = (m: ChatMessage) => (m.from === 'user' ? 'You' : m.from === 'creator' ? creator : orch);
+  const who = (m: ChatMessage) => chatWho(m, { orch, creator, nick });
   return (
     <div className="op-log" role="log" aria-live="polite" ref={log}>
       {chat.map((m, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: the chat is append-only
-        <div key={i} className={`bubble ${m.from === 'user' ? 'me' : 'them'}`}>
+        <div key={i} className={`bubble ${m.from === 'user' ? 'me' : 'them'}${m.to ? ' np-aside' : ''}`}>
           <span className="who">{who(m)}</span>
           <span className="t">{m.text}</span>
         </div>
@@ -313,6 +412,17 @@ function ChatLog({
       )}
     </div>
   );
+}
+
+/** Who said a chat line: you, the orchestrator, the Agent Creator, or a guest in the room. */
+export function chatWho(
+  m: ChatMessage,
+  n: { orch: string; creator: string; nick: (agentId: string) => string },
+): string {
+  if (m.from === 'user') return 'You';
+  if (m.from === 'creator') return n.creator;
+  if (m.from === 'agent') return m.agentId ? n.nick(m.agentId) : 'Someone';
+  return n.orch;
 }
 
 /** Names for the collaboration chips: real agents/teams, or the plan's briefs before accept. */

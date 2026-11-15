@@ -47,6 +47,8 @@ export const EVENT_SCHEMAS = {
     /** 'agent' = anyone else in the room (a guest a call brought in), by agentId. */
     from: z.enum(['user', 'orchestrator', 'creator', 'agent']),
     agentId: id.optional(),
+    /** AGENT MCP: an agent-to-agent line in the room — who it's said to. */
+    to: id.optional(),
     text: text(4000),
   }),
   /** AGENT MCP: someone joined the room (the draft's setup room, or a project) — `by` brought them in. */

@@ -361,6 +361,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
                 scope,
                 draft.orchestratorId,
                 `${me.nick || me.name}, could you design ${what} for this project?`,
+                me.id,
               );
           }
           status('working');
