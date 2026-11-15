@@ -19,6 +19,7 @@ import { ASK_TOOL } from './runtime/stream.ts';
 import { cabinet } from './secrets/cabinet.ts';
 import { fileSecretStore } from './secrets/secretStore.ts';
 import { seedIfNeeded } from './seed.ts';
+import { spawnInstaller } from './self-install/self-install.ts';
 
 const config = loadConfig();
 ensureDirs(config);
@@ -61,6 +62,12 @@ try {
   console.error(`\nAI Studio backend did NOT start: ${(e as Error).message}\n`);
   process.exit(1);
 }
+/* on a Mac, merges into this checkout reinstall /Applications/AI Studio.app (AI_STUDIO_SELF_INSTALL=0 turns it off) */
+const studioRepo = join(import.meta.dirname, '..', '..');
+const selfInstall =
+  process.platform === 'darwin' && process.env.AI_STUDIO_SELF_INSTALL !== '0'
+    ? { repo: studioRepo, install: spawnInstaller(studioRepo, join(config.home, 'logs', 'self-install.log')) }
+    : null;
 const app = buildApp({
   config,
   db,
@@ -73,6 +80,7 @@ const app = buildApp({
   ghRun: ghBin ? ghCli(ghBin) : null,
   ghBin,
   shell,
+  selfInstall,
 });
 app.log.info(
   { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, ghBin, error: rt.binError },

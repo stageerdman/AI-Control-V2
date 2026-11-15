@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "install:mac": "node scripts/install-mac/main.mjs",
     "tauri": "tauri",
     "web:dev": "vite",
     "web:build": "tsc --noEmit && vite build",
