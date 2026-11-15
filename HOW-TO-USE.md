@@ -56,6 +56,18 @@ Other places:
 
 ## Good to know
 
+- **Agents forget on purpose:** when an agent's head gets full, it writes a note to itself (where it is, what it's
+  doing, the next step), leaves it on its desk and starts fresh from it. Click the paper on a desk to read it.
+- **Team principles:** each team keeps short rules in `principles/<team>/` in the project. The captain writes them;
+  everyone reads them first. Open a team's binder in the office to read them.
+- **Bring someone in:** ring the bell by the office door, pick any agent, give them a brief. Decide whether the
+  director may also give them work (off by default).
+- **Mail:** every office has a mailbox. Agents can mail other projects, or **HQ** (AI Studio itself) with tickets and
+  ideas. When you open an office, its director reads new mail and may put it on the whiteboard on its own.
+  Switch "Can send mail" off for an agent in the Cast to stop them mailing.
+- **Design an agent with Tinker:** in the Cast, **New agent → With Tinker** opens a chat with a live draft. Tinker
+  can look things up on the web; change anything by asking or by hand, then **Add to the Cast**.
+- **Everything agents say to each other is kept:** `GET /comms?format=jsonl` (one message per line), for an AI to analyse.
 - **Agents help each other:** every agent can ask a fellow agent for a hand. Calling someone already on the project is
   instant. Bringing in someone new needs a yes from their team captain, or from the director.
 
