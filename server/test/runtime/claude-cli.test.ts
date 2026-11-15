@@ -30,6 +30,13 @@ function go() {
     const kid = spawn('/bin/sleep', ['1000'], { stdio: 'ignore' });
     fs.writeFileSync(out + '.pids', JSON.stringify([process.pid, kid.pid]));
     setInterval(() => {}, 1000);
+  } else if (mode === 'orphan') {
+    // starts a server, answers and exits without stopping it
+    const kid = spawn('/bin/sleep', ['1000'], { stdio: 'ignore' });
+    kid.unref();
+    fs.writeFileSync(out + '.pids', JSON.stringify([process.pid, kid.pid]));
+    process.stdout.write(fs.readFileSync(process.env.FAKE_FIXTURE, 'utf8'));
+    process.stdin.on('end', () => process.exit(0));
   } else if (mode === 'chatty') {
     let i = 0;
     setInterval(() => process.stdout.write(JSON.stringify({ type: 'assistant', message: { id: 'm' + (i++), content: [{ type: 'text', text: 'hi' }] } }) + '\\n'), 5);
@@ -180,6 +187,16 @@ describe('ClaudeCliRunner', () => {
     const pids = JSON.parse(readFileSync(`${out}.pids`, 'utf8')) as number[];
     await new Promise((r) => setTimeout(r, 100));
     for (const pid of pids) expect(alive(pid)).toBe(false);
+  });
+
+  it('a command the CLI left running when it exited is swept (never an invisible leftover); the handle has a pid', async () => {
+    const { h } = run(spec('orphan'));
+    expect(h.pid).toBeGreaterThan(0);
+    expect((await h.done).status).toBe('succeeded');
+    const [, kid] = JSON.parse(readFileSync(`${out}.pids`, 'utf8')) as number[];
+    const until = Date.now() + 2000;
+    while (alive(kid as number) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));
+    expect(alive(kid as number)).toBe(false);
   });
 
   it('resumes a session with --resume instead of a new --session-id', async () => {
