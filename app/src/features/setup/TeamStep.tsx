@@ -3,7 +3,7 @@
    (POST /drafts/:id/chat → reply + the whole updated plan). Accept → the Agent Creator mints every
    brief (POST /accept); what it made shows up tagged "new", then "Open the office →". Finishing
    (POST /finish) only creates the project — the Setter set the folder up in the step before. */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   type Agent,
   type ChatMessage,
@@ -16,7 +16,7 @@ import {
 import { Hero } from '../../characters/Hero';
 import { reducedMotion } from '../../design/palette';
 import { go } from '../../shell/router';
-import { briefName, type Resolve, WorkDesign } from '../collab';
+import { briefName, ChatLog, type Resolve, WorkDesign } from '../collab';
 import { nickOf } from '../projects/model';
 import { fireConfetti, sparkle } from './confetti';
 import { DRAFTS_KEY } from './drafts';
@@ -86,6 +86,7 @@ export function TeamStep({
   const [slow, setSlow] = useState(false);
   const byId = (id: string) => agents.find((a) => a.id === id);
   const nickById = (id: string) => nickOf(byId(id)) || byId(id)?.name || 'someone';
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one stream per draft
   useEffect(() => {
     const t0 = Date.now();
     let chatTimer: ReturnType<typeof setTimeout> | null = null;
@@ -123,7 +124,6 @@ export function TeamStep({
       stream.close();
       if (chatTimer) clearTimeout(chatTimer);
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: one stream per draft
   }, [d.id]);
   /* a long design: one quiet line after 20 s with nothing new */
   // biome-ignore lint/correctness/useExhaustiveDependencies: restart the quiet timer whenever the room moves
@@ -317,12 +317,11 @@ export function TeamStep({
         </header>
         <ChatLog
           chat={d.chat}
+          who={(m) => chatWho(m, { orch: oNick, creator: cNick, nick: nickById })}
           mine={mine}
           typing={busy === 'orch'}
+          typingLabel={`${oNick} is typing`}
           error={chatErr}
-          orch={oNick}
-          creator={cNick}
-          nick={nickById}
         />
         <form
           className="op-composer"
@@ -354,63 +353,6 @@ export function TeamStep({
         </form>
       </aside>
     </>
-  );
-}
-
-function ChatLog({
-  chat,
-  mine,
-  typing,
-  error,
-  orch,
-  creator,
-  nick,
-}: {
-  chat: ChatMessage[];
-  mine: string | null;
-  typing: boolean;
-  error: string | null;
-  orch: string;
-  creator: string;
-  nick: (agentId: string) => string;
-}) {
-  const log = useRef<HTMLDivElement>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll to the newest line whenever one lands
-  useLayoutEffect(() => {
-    if (log.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [chat.length, mine, typing, error]);
-  const who = (m: ChatMessage) => chatWho(m, { orch, creator, nick });
-  return (
-    <div className="op-log" role="log" aria-live="polite" ref={log}>
-      {chat.map((m, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: the chat is append-only
-        <div key={i} className={`bubble ${m.from === 'user' ? 'me' : 'them'}${m.to ? ' np-aside' : ''}`}>
-          <span className="who">{who(m)}</span>
-          <span className="t">{m.text}</span>
-        </div>
-      ))}
-      {mine && (
-        <div className="bubble me">
-          <span className="who">You</span>
-          <span className="t">{mine}</span>
-        </div>
-      )}
-      {typing && (
-        <div className="bubble them np-typing">
-          <span className="sr-only">{orch} is typing</span>
-          <span className="typing" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
-        </div>
-      )}
-      {error && (
-        <div className="bubble np-chaterr" role="alert">
-          {error}
-        </div>
-      )}
-    </div>
   );
 }
 

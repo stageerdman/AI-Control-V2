@@ -1,8 +1,7 @@
 /* biome-ignore-all lint/style/noDescendingSpecificity: the prototype's rule order, ported as-is */
 /* biome-ignore-all lint/complexity/noImportantStyles: the prototype's rule, ported as-is */
-/* The project-setup space — ported verbatim from the prototype's studio-new.css, plus the office
-   chat look it reuses (op-head / op-log / op-composer / bubble / typing from office.css), scoped to
-   .np-chat so it never fights the office's own copy. U2 additions at the end. */
+/* The project-setup space — ported verbatim from the prototype's studio-new.css (the side-chat look
+   lives with ChatLog in features/collab/chat.css). U2 additions at the end. */
 /* the page: roomy, centred; the team step adds the chat column */
 .np-page {
   max-width: 980px;
@@ -132,19 +131,6 @@
 }
 .np-dcard .np-tile-empty {
   border-color: rgba(36, 26, 68, 0.25);
-}
-
-/* chat column — reuses the office chat look (op-head / op-log / op-composer from office.css) */
-.np-chat {
-  display: flex;
-  flex-direction: column;
-  height: min(640px, calc(100vh - 230px));
-  min-height: 420px;
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: linear-gradient(180deg, #fffaf2, #fff3e2);
-  box-shadow: var(--shadow);
-  color: var(--ink);
 }
 
 /* the plan on stage: orchestrator, then squads under their emblems */
@@ -656,10 +642,6 @@
 .np-more {
   align-self: center;
 }
-.bubble.np-aside {
-  margin-left: 16px;
-  opacity: 0.85;
-}
 @keyframes np-in {
   from {
     transform: translateX(40px);
@@ -674,9 +656,6 @@
 @media (max-width: 1100px) {
   .with-chat .np-grid {
     grid-template-columns: 1fr;
-  }
-  .np-chat {
-    height: 460px;
   }
 }
 @media (max-width: 640px) {
@@ -721,148 +700,6 @@
   letter-spacing: 0.04em;
 }
 
-/* ---- the office chat look, scoped (office.css op-*) ---- */
-.np-chat .op-head {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px 12px 10px;
-  background: #241a44;
-  color: var(--cream);
-  min-height: 96px;
-}
-.np-chat .op-portrait {
-  width: 64px;
-  height: 76px;
-  flex: none;
-  display: grid;
-  place-items: end center;
-  overflow: visible;
-}
-.np-chat .op-portrait .hero .h-fx {
-  display: none;
-}
-.np-chat .op-who {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  flex: 1;
-}
-.np-chat .op-who b {
-  font-size: 17px;
-}
-.np-chat .op-role {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--sun);
-}
-.np-chat .op-status {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: rgba(255, 246, 233, 0.8);
-  line-height: 1.35;
-}
-.np-chat .op-log {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px 14px 10px;
-}
-.np-chat .op-log .bubble {
-  max-width: 88%;
-  padding: 10px 13px;
-  border-radius: 16px;
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.45;
-}
-.np-chat .op-log .bubble.me {
-  align-self: flex-end;
-  background: var(--sun);
-  color: #4a2600;
-  border-bottom-right-radius: 5px;
-}
-.np-chat .op-log .bubble.them {
-  align-self: flex-start;
-  background: #fff;
-  color: var(--ink);
-  border-bottom-left-radius: 5px;
-  box-shadow: 0 0 0 1px var(--line);
-}
-.np-chat .op-log .bubble .who {
-  display: block;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--ink-soft);
-  margin-bottom: 2px;
-}
-.np-chat .op-log .bubble.me .who {
-  color: rgba(74, 38, 0, 0.65);
-}
-.np-chat .op-composer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-top: 1px solid var(--line);
-  background: #fff;
-  margin: 0;
-}
-.np-chat .op-composer input {
-  flex: 1;
-  min-width: 0;
-  font-family: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--ink);
-  border: 2px solid var(--line);
-  border-radius: 999px;
-  padding: 11px 14px;
-}
-.np-chat .op-composer input:focus-visible {
-  outline: 0;
-  border-color: var(--sun-deep);
-}
-.np-chat .typing {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px 0;
-}
-.np-chat .typing i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ink-soft);
-  animation: typ 1.2s infinite;
-}
-.np-chat .typing i:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.np-chat .typing i:nth-child(3) {
-  animation-delay: 0.4s;
-}
-@keyframes typ {
-  0%,
-  60%,
-  100% {
-    opacity: 0.25;
-  }
-  30% {
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .np-chat .typing i {
-    animation: none;
-  }
-}
-
 /* ---- U2 additions (real data) ---- */
 /* briefs the Agent Creator designs on accept: ghost robots, one clamped caption line */
 .np-brief {
@@ -883,14 +720,6 @@
   font-size: 13.5px;
   font-weight: 700;
   color: #c03540;
-}
-.np-chat .bubble.np-chaterr {
-  align-self: stretch;
-  max-width: none;
-  background: rgba(255, 111, 115, 0.1);
-  color: #9b2c33;
-  box-shadow: none;
-  font-size: 13px;
 }
 .np-empty {
   margin: 12px 0;

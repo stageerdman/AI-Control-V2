@@ -40,6 +40,7 @@ export function PlanStage({
   const orchPose = orch && room.doing[orch.id]?.pose === 'thinking' ? 'thinking' : undefined;
   return (
     <>
+      {/* biome-ignore lint/a11y/useSemanticElements: a labelled group of characters, not a form */}
       <div className="np-room" role="group" aria-label={room.label}>
         <Actor
           agent={orch}
