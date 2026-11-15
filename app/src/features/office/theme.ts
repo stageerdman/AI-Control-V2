@@ -20,9 +20,10 @@ export type DeskKind = 'pod' | 'hot' | 'boss';
 export type DeskOpts = {
   hue?: string | null;
   accent?: string | null;
-  item?: 'mug' | 'plant' | 'telescope' | null;
+  item?: 'mug' | 'plant' | 'telescope' | 'binder' | 'tent' | null;
 };
-export type DeskState = { glyph: string; hue: string; tray?: string | null };
+/** tray: the desk note (STUDIO LIFE) — 'new' glows until the viewer opens it. */
+export type DeskState = { glyph: string; hue: string; tray?: null | 'note' | 'new' };
 /** What the wall shows, straight from the backend's state. */
 export type BoardFacts = {
   /** Overall % (the latest goal's progress). */
@@ -37,6 +38,8 @@ export type BoardFacts = {
   unreadReports: number;
   /** The wall clock by the door is the work clock: its hands tick slowly while agents work (live runs). */
   live: number;
+  /** STUDIO LIFE: new letters in the mailbox (0–3 envelopes peek out of the slot). */
+  newMail: number;
   /** The project's portrait: display name, picture (full URL; null = its tile). */
   portrait: { name: string; image: string | null; tile: { g1: string; g2: string; glyph: string } } | null;
 };
@@ -290,6 +293,50 @@ function _otSheets(unread: number) {
   }).join('');
 }
 
+/* STUDIO LIFE: the letterbox (wall, above the outbox) — rounded steel, an ink slot; new mail = envelopes peeking
+   out of the slot (#mailSlot, behind the slot's lip). HQ's office: a small cream plaque under the slot. */
+function _otMailbox(plan: Plan, hq: boolean) {
+  const o = plan.objects.mailbox;
+  return `<g id="otMailbox" transform="translate(${o.x} ${o.y})">
+    <rect x="30" y="86" width="12" height="10" fill="${OT.steel}" ${_o(2)}/>
+    <rect x="4" y="8" width="64" height="80" rx="16" fill="${OT.metal}" ${_o()}/>
+    <path d="M14 20 C20 14 30 13 40 13" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".6"/>
+    <g id="mailSlot"></g>
+    <rect x="13" y="32" width="46" height="9" rx="4.5" fill="${OT_INK}"/>
+    ${
+      hq
+        ? `<rect id="mailHq" x="20" y="54" width="32" height="18" rx="4" fill="${OT.paper}" ${_o(1.8)}/><text x="36" y="67.5" text-anchor="middle" font-size="12" font-weight="900" fill="${OT_INK}" letter-spacing=".06em">HQ</text>`
+        : ''
+    }
+  </g>`;
+}
+/* 0 new: nothing in the slot. 1–3+: up to 3 envelopes, the top one with a coral seal */
+function _otEnvelopes(n0: number) {
+  const n = Math.max(0, Math.min(3, n0));
+  const at = [
+    [36, -4],
+    [26, 5],
+    [46, -3],
+  ];
+  return Array.from({ length: n }, (_, i) => {
+    const [x, r] = at[i];
+    const top = i === n - 1;
+    return `<g transform="translate(${x} 36) rotate(${r})">
+      <rect x="-13" y="-16" width="26" height="18" rx="2" fill="${OT.paper}" ${_o(1.6)}/>
+      <path d="M-13 -16 L0 -7 L13 -16" fill="none" stroke="#bdb5d6" stroke-width="1.6" stroke-linejoin="round"/>
+      ${top ? `<circle cx="0" cy="-7" r="3.2" fill="${PALETTE.coral}" ${_o(1.2)}/>` : ''}
+    </g>`;
+  }).join('');
+}
+/* the bell on the door frame: a brass plate with a round sun button (wiggles once when rung) */
+function _otBell(plan: Plan) {
+  const o = plan.objects.bell;
+  return `<g id="otBell" transform="translate(${o.x + o.w / 2} ${o.y + o.h / 2})"><g class="ot-bell">
+    <rect x="-9" y="-13" width="18" height="26" rx="5" fill="#e7b75a" ${_o(2)}/>
+    <circle cx="0" cy="0" r="5" fill="${PALETTE.sun}" ${_o(1.6)}/>
+  </g></g>`;
+}
+
 function _otWindow(x0: number) {
   return `<g transform="translate(${x0 - 1004} 0)">
     <rect x="1030" y="96" width="140" height="166" rx="6" fill="${OT.wood}" ${_o()}/>
@@ -404,7 +451,10 @@ function _otPlinth(plan: Plan, title: string) {
   </g>`;
 }
 
-export function officeArt(plan: Plan, ctx: { title: string; teams: Record<string, ArtTeam> }): string {
+export function officeArt(
+  plan: Plan,
+  ctx: { title: string; teams: Record<string, ArtTeam>; hq?: boolean },
+): string {
   _otCX = plan.W / 2;
   /* team pods get a rug + name plaque; solo desks stand on the bare floor */
   const rugs = plan.pods
@@ -426,6 +476,8 @@ export function officeArt(plan: Plan, ctx: { title: string; teams: Record<string
     ${_otBossOffice(plan)}
     ${_otDoor()}
     ${_otShip(plan)}
+    ${_otMailbox(plan, !!ctx.hq)}
+    ${_otBell(plan)}
     ${_otPortrait(plan)}
     ${_otDossier(plan)}
     ${_otWhiteboard(plan)}
@@ -518,6 +570,7 @@ export function syncArt(root: Element | null, ws: BoardFacts): void {
       .join(''),
   );
   html('trayPaper', _otSheets(ws.unreadReports));
+  html('mailSlot', _otEnvelopes(ws.newMail));
 }
 export function setDoor(root: Element | null, open: boolean) {
   const o = root?.querySelector<SVGElement>('#otDoorOpen');
@@ -585,6 +638,10 @@ export function desk(kind: DeskKind, o: DeskOpts = {}): string {
   const items = {
     mug: `<g transform="translate(${L + 26} -28)"><rect x="-6" y="-12" width="12" height="12" rx="2" fill="${OT.paper}" ${_o(1.8)}/><path d="M6 -9 c5 0 5 6 0 6" fill="none" ${_o(1.6)}/><rect x="-6" y="-8" width="12" height="3" fill="${hueHex(o.accent)}"/></g>`,
     plant: `<g transform="translate(${L + 26} -28)"><path d="M-7 0 L-6 -8 H6 L7 0Z" fill="${OT.paper}" ${_o(1.8)}/><path d="M0 -8 C-10 -14 -8 -22 -2 -20 C0 -16 0 -12 0 -8 C2 -16 8 -22 10 -16 C8 -12 4 -10 0 -8" fill="#5fbf73" ${_o(1.6)}/></g>`,
+    /* STUDIO LIFE: the captain's principles — two upright binders, the front one with a team-hue spine */
+    binder: `<g transform="translate(${L + 26} -28)"><rect x="-12" y="-28" width="11" height="28" rx="2" fill="${OT.steel}" ${_o(1.6)}/><rect x="-3" y="-32" width="14" height="32" rx="2" fill="${OT.paper}" ${_o(1.8)}/><rect x="-3" y="-32" width="5" height="32" rx="1.5" fill="${hueHex(o.hue)}" ${_o(1.4)}/><circle cx="6" cy="-22" r="2" fill="none" stroke="${OT_INK}" stroke-width="1.4"/></g>`,
+    /* a guest's desk: a small folded sun card, no text */
+    tent: `<g transform="translate(${L + 26} -28)"><path d="M-10 0 L-2 -14 H2 L10 0Z" fill="${PALETTE.sun}" ${_o(1.8)}/><path d="M-2 -14 L1 0" stroke="${PALETTE['sun-deep']}" stroke-width="1.6"/></g>`,
     telescope: `<g transform="translate(${L + 36} -28)"><path d="M-6 0 L0 -12 L6 0" fill="none" ${_o(2)}/><g transform="rotate(-24 0 -14)"><rect x="-16" y="-19" width="30" height="9" rx="2" fill="${PALETTE.sun}" ${_o(2)}/></g></g>`,
   };
   const monX = wide ? 40 : 30;
@@ -602,7 +659,7 @@ export function desk(kind: DeskKind, o: DeskOpts = {}): string {
     <rect x="${L + 10}" y="-3" width="${R - L - 20}" height="${wide ? 28 : 24}" rx="3" fill="none" stroke="${shade(frontC, -26)}" stroke-width="2" opacity=".5"/>
     ${o.accent ? `<rect x="${(L + R) / 2 - 13}" y="13" width="26" height="8" rx="2" fill="${hueHex(o.accent)}" ${_o(1.6)}/>` : ''}
     <g class="d-kbd"><path d="M-17 -26 H17 L19 -21 H-19Z" fill="#efe9f7" ${_o(1.6)}/></g>
-    <g class="d-tray" transform="translate(${R - 18} -25)" style="display:none"><path d="M-12 0 L-10 -8 H10 L12 0Z" fill="${OT.steel}" ${_o(1.6)}/><rect x="-9" y="-12" width="18" height="10" rx="1" fill="#e8c38c" ${_o(1.5)} transform="rotate(-6)"/></g>
+    <g class="d-tray" transform="translate(${R - 18} -25)" style="display:none"><g class="d-tray-in"><path d="M-12 0 L-10 -8 H10 L12 0Z" fill="${OT.steel}" ${_o(1.6)}/><rect x="-9" y="-12" width="18" height="10" rx="1" fill="#e8c38c" ${_o(1.5)} transform="rotate(-6)"/></g></g>
     ${o.item ? items[o.item] : ''}
   </svg>`;
 }
