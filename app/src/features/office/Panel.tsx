@@ -79,6 +79,8 @@ export function Panel(p: PanelProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   /* the history view belongs to one agent, so switching agent is back to live at once */
   const [nav, setNav] = useState<{ for: string; view: PanelView }>({ for: id, view: 'live' });
+  /* reset during render (not an effect): coming back to an agent never brings back its old history view */
+  if (nav.for !== id) setNav({ for: id, view: 'live' });
   const view: PanelView = nav.for === id ? nav.view : 'live';
   const pill = useRef<HTMLButtonElement>(null);
   const hist = useRef<HTMLDivElement>(null);
