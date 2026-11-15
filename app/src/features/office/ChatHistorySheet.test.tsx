@@ -80,7 +80,7 @@ beforeEach(() => {
       const method = init?.method ?? 'GET';
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
-      if (url === '/agents/a-pixel/chats') return answer(chats);
+      if (url.startsWith('/agents/a-pixel/chats?')) return answer(chats);
       const m = url.match(/^\/chats\/([^/]+)\/messages$/);
       if (m && method === 'POST') return post(body.text);
       if (m && messages[m[1]]) return answer(messages[m[1]]);

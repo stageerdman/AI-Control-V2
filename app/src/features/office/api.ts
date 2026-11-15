@@ -153,8 +153,24 @@ export type ChatMessage = {
 export type ChatReply = { sent: ChatMessage; reply: ChatMessage };
 
 const recap = (agentId: string) => http.get<Recap>(`/agents/${e(agentId)}/recap`);
-/** Newest first. */
-export const listAgentChats = (agentId: string) => http.get<ChatSummary[]>(`/agents/${e(agentId)}/chats`);
+/** The server's largest page (server/src/routes/chats.ts). */
+export const CHAT_PAGE = 100;
+type ChatPage = (before: string | undefined) => Promise<ChatSummary[]>;
+/** Every chat, newest first: pages back by `startedAt` until a short page — History lists them all, not the first 20. */
+export async function collectChats(page: ChatPage): Promise<ChatSummary[]> {
+  const all: ChatSummary[] = [];
+  for (;;) {
+    const next = await page(all.at(-1)?.startedAt);
+    all.push(...next);
+    if (next.length < CHAT_PAGE) return all;
+  }
+}
+const chatPage = (agentId: string) => (before: string | undefined) =>
+  http.get<ChatSummary[]>(
+    `/agents/${e(agentId)}/chats?limit=${CHAT_PAGE}${before ? `&before=${encodeURIComponent(before)}` : ''}`,
+  );
+/** Newest first, all of them. */
+export const listAgentChats = (agentId: string) => collectChats(chatPage(agentId));
 export const getChatMessages = (runId: string) => http.get<ChatMessage[]>(`/chats/${e(runId)}/messages`);
 /** Keep writing in a finished chat. 409 `chat_running` (live run), 502 `agent_error` (model failed). */
 export const sendChatMessage = (runId: string, text: string) =>
