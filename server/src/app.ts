@@ -301,6 +301,8 @@ export function buildApp({
     staffing: createStaffing({ store, events }),
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
+    /* "carry on": the director continues a stopped goal where it was */
+    resumeGoal: (projectId, goalId) => dispatch.resume(projectId, goalId),
     /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
     ask: (projectId, directorId, to, request) =>
       room.call(

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fakeBrain } from '../../src/crew/fake-brain.ts';
 import { contractOf } from '../../src/crew/structured.ts';
+import { workRepo } from '../../src/db/work.ts';
 import { waitsFor } from '../../src/office/threads.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -74,6 +75,55 @@ describe('the director asks someone from chat', () => {
       'I couldn’t ask Ivy: nobody by that name is on Lumi Health.',
     );
     expect(h.events.after('project', 'lumi').some((e) => e.type === 'room.call')).toBe(false);
+  });
+});
+
+describe('the director continues stopped work from chat', () => {
+  let h: ReturnType<typeof testApp>;
+  afterEach(() => h.close());
+
+  it('sees stopped goals, "resume" puts them back on, and an asked agent sees its stopped steps', async () => {
+    const calls: RunSpec[] = [];
+    let director: object = {};
+    h = testApp({
+      seed: true,
+      runner: fakeRunner((spec): FakeStep[] => {
+        calls.push(spec);
+        if (!contractOf(spec.task) && spec.tools?.length === 0) return [{ result: JSON.stringify(director) }];
+        if (contractOf(spec.task)) return fakeBrain(spec);
+        return [{ result: 'Built.' }];
+      }),
+    });
+    mkdirSync(join(h.config.sandbox, 'lumi'), { recursive: true });
+    h.store.projects.update('lumi', { folder: 'lumi', teamIds: [], agentIds: ['a-pete'] });
+    const orch = h.store.projects.require('lumi').orchestratorId;
+    const work = workRepo(h.db);
+    work.insertGoal(
+      { id: 'g1', projectId: 'lumi', text: 'Chat history', summary: 'Agents keep their chats.' },
+      [{ id: 'i1', text: 'Build the history view', brief: 'b', agentId: 'a-pete', teamId: null }],
+    );
+    work.setItem('i1', { status: 'failed', note: 'Stopped' });
+    work.setGoalStatus('g1', 'failed');
+    const thread = async (): Promise<Msg[]> =>
+      (await h.call('GET', `/projects/lumi/threads/${orch}/messages`)).body.messages;
+    const say = (text: string) => h.call('POST', `/projects/lumi/threads/${orch}/messages`, { text });
+
+    // asked about it first: Pete is told about his stopped step (not an empty whiteboard)
+    director = { reply: 'Asking Pete.', work: null, ask: { to: 'Pete', question: 'Can you continue?' } };
+    await say('Ask Pete to continue');
+    await wait(async () => (await thread()).some((m) => m.text.startsWith('Pete: “')));
+    const help = calls.find((c) => contractOf(c.task)?.name === 'help');
+    expect(help?.task).toContain('Build the history view');
+    expect(help?.task).toContain('stopped partway');
+    // the director's summary lists it under "stopped", and it can say "resume"
+    expect(calls[0]?.task).toContain('"stopped":[{"n":1,"goal":"Chat history"');
+    expect(calls[0]?.task).toContain('"resume"');
+
+    director = { reply: 'Putting it back on.', work: null, resume: [1] };
+    await say('Continue it');
+    await wait(async () => work.goal('g1')?.status === 'done');
+    expect(work.goal('g1')?.status).toBe('done');
+    expect((await thread()).map((m) => m.text)).toContain('Back on the whiteboard: Agents keep their chats.');
   });
 });
 
