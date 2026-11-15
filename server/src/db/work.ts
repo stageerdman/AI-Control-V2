@@ -115,6 +115,9 @@ export type ItemEdit = Partial<
 >;
 
 type Row = Record<string, unknown>;
+/** Whiteboard rows as stored (every column), taken before a removal so it can be put back as it was. */
+export type BoardSnapshot = { goals: Row[]; items: Row[] };
+
 const toItem = (r: Row): ChecklistItem => ({
   id: r.id as string,
   goalId: r.goal_id as string,
@@ -221,6 +224,13 @@ export function workRepo(db: Db) {
       );
     });
   }
+  /** INSERT a stored row back under its own columns (names come from our own SELECT *, never from input). */
+  const reinsert = (table: 'goals' | 'checklist_items', r: Row) => {
+    const cols = Object.keys(r);
+    db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(
+      ...(cols.map((c) => r[c]) as (string | number | null)[]),
+    );
+  };
   const renumber = (ids: string[]) => {
     const set = db.prepare('UPDATE checklist_items SET position = ? WHERE id = ?');
     ids.forEach((id, n) => {
@@ -300,6 +310,30 @@ export function workRepo(db: Db) {
     },
     /** Deletes a goal and every item under it. */
     removeGoal: (id: string) => db.prepare('DELETE FROM goals WHERE id = ?').run(id),
+    /** The stored rows of these goals (with all their items) and these items (with their sub-tasks). */
+    snapshot(goalIds: string[], itemIds: string[]): BoardSnapshot {
+      const goals = goalIds.flatMap((id) => db.prepare('SELECT * FROM goals WHERE id = ?').all(id) as Row[]);
+      const byGoal = goalIds.flatMap(
+        (id) => db.prepare('SELECT * FROM checklist_items WHERE goal_id = ?').all(id) as Row[],
+      );
+      const byItem = itemIds.flatMap(
+        (id) =>
+          db.prepare('SELECT * FROM checklist_items WHERE id = ?1 OR parent_id = ?1').all(id) as Row[],
+      );
+      const items = [...new Map([...byGoal, ...byItem].map((r) => [r.id as string, r])).values()];
+      /* parents first: a sub-task's row points at its team item */
+      items.sort((a, b) => Number(!!a.parent_id) - Number(!!b.parent_id));
+      return { goals, items };
+    },
+    /** Puts a snapshot back: goals, then items, each top-level item at its old place in its goal. */
+    restore(s: BoardSnapshot) {
+      for (const g of s.goals) reinsert('goals', g);
+      for (const i of s.items) reinsert('checklist_items', i);
+      const tops = s.items
+        .filter((i) => !i.parent_id)
+        .sort((a, b) => (a.position as number) - (b.position as number));
+      for (const i of tops) repo.moveItem(i.id as string, i.position as number);
+    },
     /** F1c: link a goal to a feature. */
     setGoalFeature: (id: string, featureId: string | null, ships: boolean) =>
       db

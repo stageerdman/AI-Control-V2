@@ -570,6 +570,21 @@ export const MIGRATIONS: readonly string[] = [
   /* 33 — soft delete: a deleted agent is hidden (deleted_at set) for the trash's keep time, so nothing
      cascades and its chats, work and comms stay linked to the same id. Every agent read skips these rows. */
   `ALTER TABLE agents ADD COLUMN deleted_at TEXT;`,
+  /* 34 — the whiteboard's change log: every change the director's tools make (who, what, when). A removal
+     keeps the rows it took off (snapshot) for a while, so it can be undone; undone_at marks one put back. */
+  `
+  CREATE TABLE board_changes (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    actor      TEXT NOT NULL,
+    action     TEXT NOT NULL,
+    summary    TEXT NOT NULL,
+    snapshot   TEXT,
+    undone_at  TEXT,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX board_changes_by_project ON board_changes(project_id, created_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
