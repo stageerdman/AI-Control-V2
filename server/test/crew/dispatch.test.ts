@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDispatch } from '../../src/crew/dispatch.ts';
+import { createDispatch, MAX_CONTINUES } from '../../src/crew/dispatch.ts';
 import { workRepo } from '../../src/db/work.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -206,21 +206,83 @@ describe('dispatch: goal → checklist → runs', () => {
     expect(s.crew.crewCalls()).toHaveLength(0);
   });
 
-  it('after a restart nothing is restarted on its own: running → failed, queued → cancelled', async () => {
+  const SOLO = {
+    ...PLAN,
+    items: [{ text: 'Prepare a preview deploy', assignee: 'a-baron', brief: 'Preview.' }],
+  };
+  const CAP = { fail: 'Stopped: reached the turn cap (30)' };
+
+  it('a run that reaches its turn cap carries on in the same session, then finishes', async () => {
+    const specs: RunSpec[] = [];
+    const s = studio({ dispatch: [SOLO] }, (spec) => {
+      specs.push(spec);
+      return specs.length === 1 ? [CAP] : [{ result: 'Deployed.' }];
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
+    const g = await settled(h, r.body.id);
+    expect(g.status).toBe('done');
+    expect(g.items[0]).toMatchObject({ status: 'done', continues: 1, resumeRunId: null, note: 'Deployed.' });
+    expect(specs).toHaveLength(2);
+    expect(specs[1]?.resumeSessionId).toBe(`fake-${specs[0]?.runId}`);
+    expect(specs[1]?.task).toContain('You were stopped partway through your checklist item');
+  });
+
+  it('stops for the user after MAX_CONTINUES pick-ups', async () => {
+    let runs = 0;
+    const s = studio({ dispatch: [SOLO] }, () => {
+      runs++;
+      return [CAP];
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
+    const g = await settled(h, r.body.id);
+    expect(g.status).toBe('failed');
+    expect(runs).toBe(1 + MAX_CONTINUES);
+  });
+
+  it('a stopped goal continues: its items queue again and the started one resumes its session', async () => {
+    const specs: RunSpec[] = [];
+    let fail = true;
+    const s = studio({ dispatch: [SOLO] }, (spec) => {
+      specs.push(spec);
+      return fail ? [{ fail: 'boom' }] : [{ result: 'Deployed.' }];
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
+    expect((await settled(h, r.body.id)).status).toBe('failed');
+    fail = false;
+    const c = await h.call('POST', `/projects/aurora/work/${r.body.id}/resume`);
+    expect(c.status).toBe(202);
+    expect(c.body.status).toBe('running');
+    const g = await settled(h, r.body.id);
+    expect(g.status).toBe('done');
+    expect(specs[1]?.resumeSessionId).toBe(`fake-${specs[0]?.runId}`);
+    expect((await h.call('POST', `/projects/aurora/work/${r.body.id}/resume`)).status).toBe(409); // done
+  });
+
+  it('after a restart the whiteboard stays and its work carries on: nothing is marked failed', async () => {
     h = testApp({ seed: true });
     const work = workRepo(h.db);
     const g = work.insertGoal({ id: 'g1', projectId: 'aurora', text: 't', summary: 's' }, [
       { id: 'i1', text: 'a', brief: 'b', agentId: 'a-semic', teamId: 'ship-it' },
       { id: 'i2', text: 'c', brief: 'd', agentId: 'a-baron', teamId: null },
     ]);
+    h.db
+      .prepare(
+        `INSERT INTO runs (id, project_id, agent_id, task, status, runner, caps, session_id, started_at)
+         VALUES ('r1', 'aurora', 'a-semic', 't', 'failed', 'fake', '{}', 's-1', '2026-01-01')`,
+      )
+      .run();
     work.setItem('i1', { status: 'running', runId: 'r1' });
     const crew = { call: async () => ({}) } as never;
-    createDispatch({ db: h.db, store: h.store, events: h.events, crew, runtime: h.runtime }).recover();
+    const runtime = { ...h.runtime, start: () => ({ id: 'r2' }) } as never; // nothing really starts
+    createDispatch({ db: h.db, store: h.store, events: h.events, crew, runtime }).recover();
     const after = work.goal(g.id);
-    expect(after?.status).toBe('failed');
-    expect(after?.items.map((i) => [i.status, i.note])).toEqual([
-      ['failed', 'Interrupted: the studio restarted'],
-      ['cancelled', 'Interrupted: the studio restarted'],
+    expect(after?.status).toBe('running');
+    expect(after?.items.map((i) => [i.status, i.resumeRunId, i.note])).toEqual([
+      ['todo', 'r1', null],
+      ['todo', null, null],
     ]);
   });
 });

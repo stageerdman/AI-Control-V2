@@ -16,6 +16,7 @@
 
    Contract `dispatch`: {"summary": string, "items": [{"text", "assignee", "teamId"?, "brief"}], "feature"?}. */
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { z } from 'zod';
 import { projectState } from '../apps/run-command.ts';
 import type { Db } from '../db/connection.ts';
@@ -56,6 +57,9 @@ export const DEFAULT_MAX_CONCURRENT = 2;
 export const MAX_ITEMS = 8;
 /** Merge conflicts the builder is asked to resolve before the item stops for the user. */
 export const MAX_MERGE_TRIES = 2;
+/** Turn-cap pick-ups per item: a run that reaches its cap carries on in the same session, up to this often. */
+export const MAX_CONTINUES = 3;
+const TURN_CAP = /reached the turn cap/;
 
 export const DispatchSchema = z.strictObject({
   summary: z.string().trim().min(1).max(1000),
@@ -348,6 +352,33 @@ export function createDispatch(deps: {
       .filter(Boolean)
       .join('\n\n');
   }
+  /** The next message of a stopped session: pick up where it was (the original task is already in its context). */
+  function carryOnTask(it: ChecklistItem): string {
+    return [
+      `You were stopped partway through your checklist item "${it.text}" (you reached your turn limit, or the studio restarted). Your session and your files are as you left them.`,
+      it.workspace
+        ? `Check where you are (\`git status\`, \`git log --oneline ${it.workspace.main}..HEAD\`), commit what's done, then carry on and finish it. Work in small steps and commit as you go.`
+        : 'Check where you are, then carry on and finish it. Work in small steps.',
+      'When you are done, reply with a short plain-words summary of what you did.',
+    ].join('\n\n');
+  }
+  /** A run's status and session (null: no such run). */
+  const runOf = (runId: string | null) =>
+    runId
+      ? ((deps.db.prepare('SELECT status, session_id FROM runs WHERE id = ?').get(runId) as
+          | { status: string; session_id: string | null }
+          | undefined) ?? null)
+      : null;
+  /** The run's session, if it has one to resume. */
+  const sessionOf = (runId: string | null): string | null => runOf(runId)?.session_id ?? null;
+  /** A build run reached its turn cap: queue the item again to carry on in the same session (≤ MAX_CONTINUES). */
+  function carryOn(it: ChecklistItem, run: Run): boolean {
+    if (run.status !== 'failed' || !TURN_CAP.test(run.error ?? '')) return false;
+    if (it.continues >= MAX_CONTINUES || !run.sessionId) return false;
+    settle(it, { status: 'todo', runId: null, resumeRunId: run.id, continues: it.continues + 1 });
+    return true;
+  }
+
   /** What the goal's earlier items finished — F3 live: "build on what the report recommends" while the build run
       never saw the report (it lives in the Reports tray, not the folder). Done items only; a report's summary + excerpt. */
   function earlierWork(it: ChecklistItem, goal: Goal): string {
@@ -424,6 +455,14 @@ export function createDispatch(deps: {
   function runFor(it: ChecklistItem, goal: Goal) {
     const caps = goal.caps ?? undefined;
     const team = it.teamId ? store.teams.get(it.teamId) : null;
+    if (it.resumeRunId && it.stage !== 'review')
+      return {
+        agentId: it.agentId,
+        ...(it.teamId ? { teamId: it.teamId } : {}),
+        task: carryOnTask(it),
+        caps,
+        resumeRunId: it.resumeRunId,
+      };
     if (team && it.teamPhase === 'integrate') {
       const parts = latestParts(it);
       return {
@@ -517,6 +556,11 @@ export function createDispatch(deps: {
   async function launch(itemId: string) {
     let it = work.item(itemId) as ChecklistItem;
     try {
+      /* carrying on (after a restart, or a stopped goal continued): its checkout again, where it was */
+      if (it.workspace && deps.worktrees && !existsSync(it.workspace.cwd)) {
+        const ws = await deps.worktrees.ensure(repoOf(it.projectId), it.workspace);
+        work.setItem(it.id, { status: it.status, workspace: ws });
+      }
       if (!it.workspace && deps.worktrees && it.stage === 'build') {
         /* a member's sub-task branches off its team item's branch (and merges back into it) */
         const parentWs = it.parentId ? work.item(it.parentId)?.workspace : null;
@@ -565,11 +609,17 @@ export function createDispatch(deps: {
         work.setItem(it.id, { status: 'todo' }); // raced a hand-started run: queue again
         return;
       }
+      if (it.resumeRunId) {
+        /* its session can't be resumed: start the item over (its checkout keeps what was done) */
+        work.setItem(it.id, { status: 'running', resumeRunId: null });
+        void launch(it.id);
+        return;
+      }
       await stop(it, { status: 'failed', note: clip(msg, 2000) });
       pump(it.projectId);
       return;
     }
-    work.setItem(it.id, { status: 'running', runId: run.id });
+    work.setItem(it.id, { status: 'running', runId: run.id, resumeRunId: null });
     announce(work.item(it.id) as ChecklistItem);
   }
 
@@ -693,6 +743,7 @@ export function createDispatch(deps: {
 
   /** A build (or rework) run ended. */
   function afterBuild(it: ChecklistItem, run: Run) {
+    if (carryOn(it, run)) return;
     if (run.status !== 'succeeded') {
       void stop(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
@@ -797,7 +848,8 @@ export function createDispatch(deps: {
   /** A fresh item for a team's captain, in its own checkout, on a team with someone to delegate to. */
   function delegable(it: ChecklistItem): boolean {
     if (it.parentId || it.report || !it.teamId || !it.workspace || it.teamPlan) return false;
-    if (it.stage !== 'build' || it.buildRunId || it.sendBacks > 0) return false;
+    if (it.stage !== 'build' || it.buildRunId || it.sendBacks > 0 || it.resumeRunId || it.continues > 0)
+      return false;
     const team = store.teams.get(it.teamId);
     return !!team && team.captainId === it.agentId && team.members.length > 1;
   }
@@ -929,6 +981,7 @@ export function createDispatch(deps: {
 
   /** The captain's integration run ended: one bounded rework round, or on through the gates like any build. */
   function afterIntegrate(it: ChecklistItem, run: Run) {
+    if (carryOn(it, run)) return;
     if (run.status !== 'succeeded') {
       void stop(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
@@ -1205,6 +1258,12 @@ export function createDispatch(deps: {
     /** Stop a goal: queued items are cancelled, live runs stopped (their items follow when they end). */
     cancel(projectId: string, goalId: string): Goal {
       const g = this.get(projectId, goalId);
+      if (g.status === 'failed') {
+        /* a stopped goal is dropped off the board (its kept branches stay) */
+        work.setGoalStatus(goalId, 'cancelled');
+        emit(projectId, { type: 'goal.changed', payload: { goalId, status: 'cancelled' } });
+        return work.goal(goalId) as Goal;
+      }
       if (g.status !== 'running') throw conflict(`This goal is already ${g.status}`);
       const split: string[] = [];
       for (const it of g.items.flatMap((i) => [...i.subtasks, i])) {
@@ -1230,22 +1289,62 @@ export function createDispatch(deps: {
       return work.goal(goalId) as Goal;
     },
 
-    /** After a restart: nothing is running any more; queued work is not restarted on its own (it would use plan usage unasked). */
-    recover() {
-      for (const projectId of work.activeProjects()) {
-        for (const it of [
-          ...work.projectItems(projectId, 'running'),
-          ...work.projectItems(projectId, 'todo'),
-        ]) {
-          work.setItem(it.id, {
-            status: it.status === 'running' ? 'failed' : 'cancelled',
-            note: 'Interrupted: the studio restarted',
-          });
-          /* its checkout: commit what's there on its branch, remove the checkout */
-          void shelve(it);
-        }
-        for (const g of work.goals(projectId)) if (g.status === 'running') refreshGoal(g.id);
+    /** Continue a stopped goal (failed, or cancelled by the user): its unfinished items queue again in order.
+        An item that had started carries on in its own session and checkout (re-made from its branch). */
+    resume(projectId: string, goalId: string): Goal {
+      const g = this.get(projectId, goalId);
+      if (g.status === 'running' || g.status === 'done') throw conflict(`This goal is already ${g.status}`);
+      for (const it of g.items) {
+        if (it.status !== 'failed' && it.status !== 'cancelled') continue;
+        const again = it.stage !== 'review' && !!sessionOf(it.runId);
+        work.setItem(it.id, {
+          status: 'todo',
+          runId: null,
+          note: null,
+          resumeRunId: again ? it.runId : null,
+          continues: 0,
+          ...(it.teamPhase === 'members' ? { teamPhase: null } : {}),
+        });
+        announce(work.item(it.id) as ChecklistItem);
       }
+      work.setGoalStatus(goalId, 'running');
+      emit(projectId, { type: 'goal.changed', payload: { goalId, status: 'running' } });
+      refreshGoal(goalId);
+      pump(projectId);
+      return work.goal(goalId) as Goal;
+    },
+
+    /** After a restart: the whiteboard stays as it was and its work carries on — a run that was cut off
+        resumes its session in its checkout; queued items stay queued. Nothing is marked failed. */
+    recover() {
+      const projects = work.activeProjects();
+      for (const projectId of projects) {
+        for (const it of work.projectItems(projectId, 'running')) {
+          if (it.teamPhase === 'members') continue; // waits on its members' parts (queued again below)
+          const run = runOf(it.runId);
+          if (run?.status === 'succeeded') {
+            /* its run had finished: it was merging back — merge again */
+            accept(it);
+            continue;
+          }
+          const again = it.stage !== 'review' && !!run?.session_id;
+          work.setItem(it.id, {
+            status: 'todo',
+            runId: null,
+            resumeRunId: again ? it.runId : it.resumeRunId,
+          });
+          announce(work.item(it.id) as ChecklistItem);
+        }
+      }
+      /* after the app has finished starting */
+      setImmediate(() => {
+        for (const projectId of projects)
+          try {
+            pump(projectId);
+          } catch {
+            /* the studio is closing again */
+          }
+      });
     },
     /** Tests: let queued work drain. */
     idle: (projectId: string) =>

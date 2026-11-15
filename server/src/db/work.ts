@@ -52,6 +52,10 @@ export type ChecklistItem = {
   workspace: Workspace | null;
   /** Merge conflicts the builder was asked to fix. */
   mergeTries: number;
+  /** A stopped run (turn cap, restart) whose session the next run carries on from (null = start as usual). */
+  resumeRunId: string | null;
+  /** How often it carried on after reaching its turn cap. */
+  continues: number;
   /** F1c: a member's sub-task of a team item (null on the whiteboard's own items). */
   parentId: string | null;
   /** F1c: where a split team item is (null = not split, or back in the normal flow after integration). */
@@ -77,6 +81,8 @@ export type ItemPatch = {
   buildRunId?: string | null;
   workspace?: Workspace | null;
   mergeTries?: number;
+  resumeRunId?: string | null;
+  continues?: number;
   teamPhase?: TeamPhase | null;
   teamRounds?: number;
   teamPlan?: string | null;
@@ -124,6 +130,8 @@ const toItem = (r: Row): ChecklistItem => ({
   buildRunId: (r.build_run_id as string | null) ?? null,
   workspace: r.workspace ? (JSON.parse(r.workspace as string) as Workspace) : null,
   mergeTries: (r.merge_tries as number) ?? 0,
+  resumeRunId: (r.resume_run_id as string | null) ?? null,
+  continues: (r.continues as number) ?? 0,
   parentId: (r.parent_id as string | null) ?? null,
   teamPhase: (r.team_phase as TeamPhase | null) ?? null,
   teamRounds: (r.team_rounds as number) ?? 0,
@@ -291,7 +299,7 @@ export function workRepo(db: Db) {
         (patch[k] === undefined ? cur[k] : patch[k]) as ChecklistItem[K];
       db.prepare(
         `UPDATE checklist_items SET status = ?, run_id = ?, note = ?, stage = ?, gate_index = ?, send_backs = ?, notes = ?,
-           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, team_phase = ?, team_rounds = ?, team_plan = ?,
+           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, resume_run_id = ?, continues = ?, team_phase = ?, team_rounds = ?, team_plan = ?,
            updated_at = ? WHERE id = ?`,
       ).run(
         patch.status,
@@ -305,6 +313,8 @@ export function workRepo(db: Db) {
         pick('buildRunId'),
         pick('workspace') ? JSON.stringify(pick('workspace')) : null,
         pick('mergeTries'),
+        pick('resumeRunId'),
+        pick('continues'),
         pick('teamPhase'),
         pick('teamRounds'),
         pick('teamPlan'),

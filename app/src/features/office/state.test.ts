@@ -12,6 +12,7 @@ import {
   type Live,
   mergeMessage,
   reduce,
+  stoppedGoals,
   taskHover,
   taskStage,
   threadMessageOf,
@@ -246,6 +247,10 @@ describe('the wall', () => {
     ]);
     expect(boardProgress(goals)).toEqual({ pct: 50, target: null, shipped: null, aria: '50% done' });
     expect(boardTasks([goals[1]]).map((t) => t.text)).toEqual(['a1']);
+    /* a goal that stopped partway stays on the board next to the running one (oldest first) */
+    const stopped = goal('g0', 'failed', 0, [['z1', 'failed']]);
+    expect(boardTasks([...goals, stopped]).map((t) => t.text)).toEqual(['z1', 'b1', 'b2']);
+    expect(stoppedGoals([...goals, stopped]).map((g) => g.id)).toEqual(['g0']);
     expect(boardProgress([]).pct).toBe(0);
   });
   it('progress: the project’s overall % labelled by its target, never by a goal text', () => {

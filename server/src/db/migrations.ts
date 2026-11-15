@@ -556,6 +556,12 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX chat_messages_agent ON chat_messages(agent_id, created_at);
   CREATE UNIQUE INDEX chat_messages_run ON chat_messages(run_id, seq);
   `,
+  /* 30 — carry on: an item stopped at its turn cap (or by a restart) picks up where it was.
+     resume_run_id = the stopped run whose session the next run resumes; continues = turn-cap pick-ups so far. */
+  `
+  ALTER TABLE checklist_items ADD COLUMN resume_run_id TEXT;
+  ALTER TABLE checklist_items ADD COLUMN continues INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

@@ -94,6 +94,9 @@ export const studio = {
       http.post<Goal>(`/projects/${e(id)}/work`, caps ? { goal, caps } : { goal }),
     cancelGoal: (id: string, goalId: string) =>
       http.post<Goal>(`/projects/${e(id)}/work/${e(goalId)}/cancel`),
+    /** Continue a stopped goal: its unfinished items carry on where they were. */
+    resumeGoal: (id: string, goalId: string) =>
+      http.post<Goal>(`/projects/${e(id)}/work/${e(goalId)}/resume`),
     health: (id: string) => http.get<ProjectHealth>(`/projects/${e(id)}/health`),
     checkHealth: (id: string, caps?: Partial<Caps>) =>
       http.post<HealthReport>(`/projects/${e(id)}/health`, caps ? { caps } : {}),

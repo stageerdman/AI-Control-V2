@@ -35,6 +35,7 @@ import {
   boardTasks,
   noteLine,
   nowFeatures,
+  stoppedGoals,
   taskHover,
   taskStage,
 } from './state';
@@ -304,6 +305,7 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
               {goal?.ships ? `Ships “${feature.name}” when done` : `Part of “${feature.name}”`}
             </button>
           )}
+          <StoppedBar pid={pid} goals={stoppedGoals(goals)} />
           <ul className="ob-tasks">
             {!tasks.length && (
               <li className="ob-empty">No tasks yet — {dir} writes them here as the plan takes shape.</li>
@@ -383,6 +385,43 @@ function TaskRow({
 }
 
 /** The ring's target: a ghost link under it — "Set a target" / "to v1.0 ✎" → a 40-char field. */
+/** Work that stopped partway: carry on where it was, or drop it off the board. */
+function StoppedBar({ pid, goals }: { pid: string; goals: Goal[] }) {
+  const [busy, setBusy] = useState(false);
+  if (!goals.length) return null;
+  const all = async (fn: (goalId: string) => Promise<unknown>, what: string) => {
+    setBusy(true);
+    try {
+      for (const g of goals) await fn(g.id);
+    } catch (e) {
+      toast(`Couldn’t ${what} — ${isApiError(e) ? e.message : 'try again'}`);
+    } finally {
+      void invalidate(keys.work(pid));
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ob-stopped">
+      <span>Work stopped partway.</span>
+      <Button
+        small
+        variant="hero"
+        disabled={busy}
+        onClick={() => void all((id) => studio.projects.resumeGoal(pid, id), 'continue')}
+      >
+        Continue
+      </Button>
+      <Button
+        small
+        disabled={busy}
+        onClick={() => void all((id) => studio.projects.cancelGoal(pid, id), 'drop it')}
+      >
+        Drop
+      </Button>
+    </div>
+  );
+}
+
 function TargetEdit({ pid, target }: { pid: string; target: string | null }) {
   const [edit, setEdit] = useState(false);
   const [busy, setBusy] = useState(false);
