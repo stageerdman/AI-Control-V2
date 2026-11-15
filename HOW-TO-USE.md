@@ -26,6 +26,8 @@ git project on your Mac. The agents run on your Claude Code subscription, using 
   the GitHub repo. A GitHub problem (no `gh`, not signed in) never stops setup; publish later from the health board.
   Unfinished setups wait as "In setup" cards. Deleting one never deletes the folder.
 - **Team** — the director proposes teams and specialists and how they'll work: who reviews whom, and send-back rules. You can change any of it.
+  When the plan needs new agents, the director calls **Tinker** (the Agent Creator) into the room. Tinker may bring in a
+  fellow agent, for example a designer for the costume. Pixel has to say yes first; you see it all on stage and in the chat.
 
 ## Get work done (the office)
 
@@ -53,6 +55,9 @@ Other places:
   **A private GitHub repo** (turn it off and new projects stay local by default).
 
 ## Good to know
+
+- **Agents help each other:** every agent can ask a fellow agent for a hand. Calling someone already on the project is
+  instant. Bringing in someone new needs a yes from their team captain, or from the director.
 
 - **GitHub:** agents never push; the studio does. After each merge to `main`, a published project is pushed
   automatically. The health board's GitHub row shows the repo link, a **Private / Public** switch (going public asks

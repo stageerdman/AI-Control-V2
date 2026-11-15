@@ -65,6 +65,9 @@ src/
   office/            what the office screen needs: features.ts (features folder), threads.ts (project conversations),
                      office.ts (staffing + latest status for the scene), lifecycle.ts (status + overall progress),
                      director-reply.ts (one Send: the director's {reply, work}), work-time.ts (the work clock)
+  room/              AGENT MCP: rule.ts (who must OK a call), bridge.ts (per-run studio tools for the MCP server),
+                     room.ts (who's in the room, call_agent, allow-call + help crew calls), context.ts (what agents are told)
+  mcp/ask-server.ts  the stdio MCP server: ask_user, file_report + whatever the run's bridge lists
   seed.ts            the prototype's cast and projects
 test/                mirrors src
 ```
@@ -117,6 +120,7 @@ Bodies are strict — unknown keys are 422.
 | `POST /projects/:id/github/push` | push `main` now (the health row's "Try again" after a failed auto-push; one at a time with the auto-pushes) → `GithubView` (`lastPush` says how it went); 409 when not published |
 | `GET /github/status` | `{gh: 'ready' \| 'missing' \| 'signed-out', login}` — can the studio use gh, and as whom (G3: publish form + hints) |
 | `GET /ports` | the Ports room (G1): `{range: {from: 3100, to: 3999}, projects: [{projectId, name, block: {app, spares: [4]}, app: {status, port, url}, ports: [{port, role: app\|spare, listening, heldBy: {runId, agentId} \| null}]}]}` — each project owns a stable block of 5 (persisted, never overlapping; `app` = F3's port); every agent run gets a free spare as `PORT` (+ `AI_STUDIO_PORTS` = the spares, `AI_STUDIO_APP_PORT`) and a line in its brief; `listening` = a 200 ms local connect check |
+| `GET /internal/bridges/:id/tools` · `POST …/tools/:name` · `GET …/jobs/:jobId/wait` | AGENT MCP side door (header `x-run-token`; unknown → 404): the run's studio tools — agent runs: `room`, `call_agent {agent, request, why}`; the Agent Creator on accept: + `studio_catalog`, `create_agent` / `create_team` (checked at once, staged, persisted all-or-nothing); helpers: `room`, `call_agent`, `studio_catalog`. A call to someone not in the room, by anyone but the orchestrator, needs the caller's captain's (else the orchestrator's) yes — crew contract `allow-call` `{allow, reply}`; the callee answers via contract `help` `{answer, say}` (in a project with Read/Glob/Grep in the folder). Events `room.joined {agentId, by?, why?}`, `room.call {callId, from, to, status, approver?, note?}`; in a draft the spoken lines land in the setup chat (`from: 'agent'`, `to`) |
 | `POST /trash/:token/restore` | undo a delete |
 | `GET /blueprint` | global modules (name, description, body = the markdown text, updatedAt = file mtime) + the scaffold tree the Setter creates |
 | `POST /drafts/:id/setup` | the Project Setter, on the draft (user's order: Setter first, then the orchestrator picks the team): scaffold the folder (new or adopt) + local commit, steps live on the draft stream; the draft then owns the folder (hidden from `/sandbox/folders`, no second draft may claim it). Idempotent/resumable: again = only what's missing (`commit: null`). A failed *first* setup of a new project removes the folder it just made; nothing else is ever removed → `{draft, steps, commit}` |

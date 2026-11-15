@@ -19,12 +19,21 @@ by anyone but the orchestrator need the **orchestrator's or the team captain's**
 - **Context:** every agent and crew prompt gets a short "Working with others" section.
 
 ## Phases
-- [ ] **M1** Room rule + bridge registry + events (`room.joined`, `room.call`) — tests
-- [ ] **M2** MCP server lists bridge tools; CLI args + FakeRunner `tool` step — tests
-- [ ] **M3** `call_agent` (approval crew call `allow-call`, help crew call `help`), Creator tools, setup chat lines — tests
-- [ ] **M4** "Working with others" context in agent + crew prompts — tests
-- [ ] **M5** Setup room UI: the Creator and guests join the stage, the ask-and-allow moment in the chat (UX spec) — tests
-- [ ] **M6** Verify: fake-runner flow in the app + one real run (Tinker asks Twinkle for a costume) in a throwaway root
+- [x] **M1** Room rule + bridge registry + events (`room.joined`, `room.call`) — tests
+- [x] **M2** MCP server lists bridge tools; CLI args + FakeRunner `tool` step — tests
+- [x] **M3** `call_agent` (approval crew call `allow-call`, help crew call `help`), Creator tools, setup chat lines — tests
+- [x] **M4** "Working with others" context in agent + crew prompts — tests
+- [x] **M5** Setup room UI: the Creator and guests join the stage, the ask-and-allow moment in the chat (UX spec) — tests
+- [x] **M6** Verify: fake-runner flow in the app + one real run (Tinker asks Twinkle for a costume) in a throwaway root
 
 ## Status
 - 2026-11-15: roadmap written; UX spec commissioned (`spec-ux-room.md`).
+- 2026-11-15: **M1–M6 done.** Server 487 tests, app 246 tests green.
+  - Free runner in the real app (throwaway root): Tinker joins, asks Pixel, Twinkle joins "for Tinker",
+    chat shows the ask-and-allow as asides — `shots/room-mid-accept.png`, `shots/room-after-accept.png`. No console errors.
+  - Real Claude (throwaway root, 2 accepts ≈ 8 short runs): run 1 found `create_agent` too loose (look sent as a string);
+    fixed with the real JSON schema + tolerant parse and a clearer "ask the designer" line. Run 2 (36 s): Tinker
+    `call_agent` → Pixel allowed it on its own → Twinkle picked the costume → `create_agent` passed first try →
+    "Offshore Ollie" minted wearing Twinkle's look.
+- **Next / not built:** guests called during project work aren't drawn in the office yet (events only — spec §4);
+  the installed `/Applications/AI Studio.app` front end needs a rebuild to show the room (backend changes apply on restart).

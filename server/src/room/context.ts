@@ -15,7 +15,7 @@ export const CREATOR_TOOLS = [
   'You have studio tools for agent development:',
   '- `studio_catalog` — the look slots, roles, names already taken, emblems and colours.',
   '- `create_agent` / `create_team` — create the design. Each checks it at once and tells you exactly what to fix; call again with the fix. What you create joins the Cast when the plan is accepted (all of it, or nothing).',
-  '- `call_agent` — ask a fellow agent for a hand, e.g. someone with a designer’s eye for a new costume (give them the look slots). The orchestrator OKs bringing them in.',
+  '- `call_agent` — ask a fellow agent for a hand. For every new agent’s costume, ask a fellow agent with a designer’s eye (named below, if any): give them who the agent is and the look slots, then use their pick. The orchestrator OKs bringing them in; if the answer is no, dress them yourself.',
   'When you are done, answer with the same design as the contract’s JSON object.',
 ].join('\n');
 

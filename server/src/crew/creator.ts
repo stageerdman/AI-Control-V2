@@ -5,6 +5,7 @@
    Accepting a plan (`POST /drafts/:id/accept`) designs every brief first (slow, outside
    any transaction), then persists them all + the resolved plan in ONE transaction: either
    the whole plan lands in the Cast, or nothing does. */
+import { z } from 'zod';
 import type { Agent } from '../db/agents.ts';
 import { castView } from '../db/drafts.ts';
 import type { Role } from '../db/roles.ts';
@@ -81,6 +82,25 @@ export type Minted = { roles: Role[]; agents: Agent[]; teams: Team[] };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/** Models sometimes send a nested object as a JSON string (live: `look: "{\"hat\": …}"`) — parse those back. */
+const NESTED = new Set(['look', 'members', 'newAgent']);
+export function unstring(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(unstring);
+  if (!v || typeof v !== 'object') return v;
+  return Object.fromEntries(
+    Object.entries(v).map(([k, x]) => {
+      if (NESTED.has(k) && typeof x === 'string' && /^\s*[[{]/.test(x)) {
+        try {
+          return [k, unstring(JSON.parse(x))];
+        } catch {
+          return [k, x];
+        }
+      }
+      return [k, unstring(x)];
+    }),
+  );
+}
+
 /** Fellow agents a creator may ask for a costume (a designer's eye). */
 const DESIGNERS = /design|ux|ui\b|art|look|costume|brand/i;
 
@@ -131,7 +151,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
   room?.setCatalog(catalog());
 
   /** create_agent / create_team: checked at once (shape + studio rules), staged until the plan is accepted. */
-  const stager = <T>(kind: 'agent' | 'team', check: Validate<T>) => {
+  const stager = <T>(kind: 'agent' | 'team', check: Validate<T>, schema: z.ZodType) => {
     let staged: T | null = null;
     const tool: BridgeTool = {
       name: kind === 'agent' ? 'create_agent' : 'create_team',
@@ -139,9 +159,9 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
         kind === 'agent'
           ? `Create the agent: ${json(AGENT_EXAMPLE)}. Checked at once — fix what it lists and call again. Joins the Cast when the plan is accepted.`
           : `Create the team: ${json(TEAM_EXAMPLE)}. Checked at once — fix what it lists and call again. Joins the Cast when the plan is accepted.`,
-      inputSchema: { type: 'object', additionalProperties: true },
+      inputSchema: z.toJSONSchema(schema, { io: 'input' }) as Record<string, unknown>,
       run: async (args) => {
-        const v = check(args);
+        const v = check(unstring(args));
         if (!v.ok)
           throw new Error(`Not yet — fix this and call again:\n${v.issues.map((i) => `- ${i}`).join('\n')}`);
         staged = v.value;
@@ -204,6 +224,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
       const s = stager(
         'agent',
         validateWith(AgentDefSchema, (d) => agentDefIssues(d, contextFor(opts.earlier ?? []))),
+        AgentDefSchema,
       );
       const { value } = await crew.call({
         who: me.name,
@@ -224,6 +245,7 @@ export function createCreator(deps: { store: Store; events: EventLog; crew: Crew
     const s = stager(
       'team',
       validateWith(TeamDefSchema, (d) => teamDefIssues(d, contextFor(opts.earlier ?? [], opts.specialists))),
+      TeamDefSchema,
     );
     const { value } = await crew.call({
       who: me.name,

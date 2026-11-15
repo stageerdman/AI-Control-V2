@@ -30,3 +30,17 @@ describe('who must OK a call', () => {
     expect(callRefusal({ callerId: 'b', calleeId: 'c', chain: ['a'] })).toBeNull();
   });
 });
+
+describe('create_* input', () => {
+  it('parses a nested object sent as a JSON string (live: look as a string)', async () => {
+    const { unstring } = await import('../../src/crew/creator.ts');
+    expect(unstring({ name: 'N', look: '{"hat":"captain"}', prompt: '{not json' })).toEqual({
+      name: 'N',
+      look: { hat: 'captain' },
+      prompt: '{not json',
+    });
+    expect(unstring({ members: [{ newAgent: '{"look":"{\\"hue\\":\\"teal\\"}"}' }] })).toEqual({
+      members: [{ newAgent: { look: { hue: 'teal' } } }],
+    });
+  });
+});

@@ -4,6 +4,8 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- [ ] Office doesn't draw guests a project agent calls in with call_agent (events room.joined / room.call exist; spec-ux-room.md §4). (AGENT MCP)
+- [ ] /Applications/AI Studio.app front end not rebuilt since AGENT MCP — rebuild + reinstall to see the setup room. (AGENT MCP)
 - [ ] Fresh data dirs still seed the 9 prototype demo projects (Aurora Storefront…). Removed from the user's real data 2026-11-14; seed.ts should stop creating them (tests depend on them — move to a test fixture).
 - [ ] Agents can't see a page in a real browser — they verify with tests + scripted requests. (F3)
 - [ ] Agent shell refuses env-prefixed commands (`PORT=… npm start`); agents work around it. (F3)
