@@ -4,7 +4,6 @@ import {
   type Collaboration,
   type CollaborationView,
   http,
-  isApiError,
   type ProjectApp,
   type ProjectStatus,
 } from '../../api';
@@ -135,16 +134,7 @@ export type ChatSummary = {
 /** GET /agents/:id/recap — the agent's own words about its last chat. */
 export type Recap = { recap: string | null; chat: ChatSummary | null; cached: boolean };
 
-/* Until /recap lands on the server (an unknown route, not an unknown agent), the recap is the last chat's
-   own last words. Remove this once the endpoint ships. */
-const noRoute = (err: unknown) =>
-  isApiError(err) && err.status === 404 && err.message.startsWith('No route');
-const recap = (agentId: string): Promise<Recap> =>
-  http.get<Recap>(`/agents/${e(agentId)}/recap`).catch(async (err) => {
-    if (!noRoute(err)) throw err;
-    const chat = await http.get<ChatSummary | null>(`/agents/${e(agentId)}/chats/latest`);
-    return { recap: chat?.lastText ?? null, chat: chat ?? null, cached: false };
-  });
+const recap = (agentId: string) => http.get<Recap>(`/agents/${e(agentId)}/recap`);
 
 export const officeApi = {
   recap,

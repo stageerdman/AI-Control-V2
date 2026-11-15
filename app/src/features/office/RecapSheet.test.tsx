@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
-/* RecapSheet: tap an agent → what they did. Every state against a fake server, plus the mock fallback
-   (no /recap route yet → the latest chat's last words). */
+/* RecapSheet: tap an agent → what they did. Every state against a fake server. */
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearQueryCache } from '../../api';
@@ -24,15 +23,13 @@ const chat = (p: Partial<ChatSummary> = {}): ChatSummary => ({
 
 const json = (v: unknown, status = 200) =>
   new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
-/** What the server answers for /agents/a-pixel/recap: a Recap, 'fail', 'hang' or 'noroute'. */
-let answer: Recap | 'fail' | 'hang' | 'noroute';
-let latest: ChatSummary | null;
+/** What the server answers for /agents/a-pixel/recap: a Recap, 'fail' or 'hang'. */
+let answer: Recap | 'fail' | 'hang';
 let calls: string[];
 
 beforeEach(() => {
   clearQueryCache();
   calls = [];
-  latest = null;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string) => {
@@ -41,11 +38,8 @@ beforeEach(() => {
       if (url === '/agents/a-pixel/recap') {
         if (answer === 'hang') return new Promise<Response>(() => {});
         if (answer === 'fail') return json({ error: { code: 'agent_error', message: 'boom' } }, 500);
-        if (answer === 'noroute')
-          return json({ error: { code: 'not_found', message: `No route GET ${url}` } }, 404);
         return json(answer);
       }
-      if (url === '/agents/a-pixel/chats/latest') return json(latest);
       return json({ error: { code: 'not_found', message: url } }, 404);
     }),
   );
@@ -114,12 +108,11 @@ describe('RecapBody', () => {
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBeNull();
   });
 
-  it('mock until /recap lands: the latest chat’s last words', async () => {
-    answer = 'noroute';
-    latest = chat({ lastText: 'Toggle shipped, both themes pass.' });
+  it('reads /recap only (no fallback)', async () => {
+    answer = { recap: 'Done.', chat: chat(), cached: true };
     render(<RecapBody agentId="a-pixel" name="Pixel" />);
-    expect(await screen.findByText('Toggle shipped, both themes pass.')).toBeTruthy();
-    expect(calls).toEqual(expect.arrayContaining(['/agents/a-pixel/recap', '/agents/a-pixel/chats/latest']));
+    await screen.findByText('Done.');
+    expect(calls).toEqual(['/agents/a-pixel/recap']);
   });
 });
 
