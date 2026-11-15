@@ -19,7 +19,13 @@ import { ASK_TOOL } from './runtime/stream.ts';
 import { cabinet } from './secrets/cabinet.ts';
 import { fileSecretStore } from './secrets/secretStore.ts';
 import { seedIfNeeded } from './seed.ts';
-import { spawnInstaller } from './self-install/self-install.ts';
+import {
+  headCommit,
+  installedBehind,
+  isMainCheckout,
+  markerFile,
+  spawnInstaller,
+} from './self-install/self-install.ts';
 
 const config = loadConfig();
 ensureDirs(config);
@@ -62,11 +68,16 @@ try {
   console.error(`\nAI Studio backend did NOT start: ${(e as Error).message}\n`);
   process.exit(1);
 }
-/* on a Mac, merges into this checkout reinstall /Applications/AI Studio.app (AI_STUDIO_SELF_INSTALL=0 turns it off) */
+/* on a Mac, the main checkout keeps /Applications/AI Studio.app current: on start if it is behind, and after
+   every merge (AI_STUDIO_SELF_INSTALL=0 turns it off). Worktrees can't install, so they don't try. */
 const studioRepo = join(import.meta.dirname, '..', '..');
 const selfInstall =
-  process.platform === 'darwin' && process.env.AI_STUDIO_SELF_INSTALL !== '0'
-    ? { repo: studioRepo, install: spawnInstaller(studioRepo, join(config.home, 'logs', 'self-install.log')) }
+  process.platform === 'darwin' && process.env.AI_STUDIO_SELF_INSTALL !== '0' && isMainCheckout(studioRepo)
+    ? {
+        repo: studioRepo,
+        install: spawnInstaller(studioRepo, config.home),
+        isBehind: installedBehind(markerFile(config.home), headCommit(studioRepo)),
+      }
     : null;
 const app = buildApp({
   config,
