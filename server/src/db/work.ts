@@ -312,6 +312,11 @@ export function workRepo(db: Db) {
         id,
       );
     },
+    /** A team rebuild hands an item to someone else (its status is set separately with setItem). */
+    reassign: (id: string, to: { agentId: string; teamId: string | null; note: string | null }) =>
+      db
+        .prepare('UPDATE checklist_items SET agent_id = ?, team_id = ?, note = ?, updated_at = ? WHERE id = ?')
+        .run(to.agentId, to.teamId, to.note, now(), id),
     /** Projects with checklist work in flight or queued. */
     activeProjects: (): string[] =>
       (

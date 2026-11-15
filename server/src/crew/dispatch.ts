@@ -488,10 +488,12 @@ export function createDispatch(deps: {
     const running = work.projectItems(projectId, 'running').filter((i) => i.teamPhase !== 'members');
     let free = cap - running.length;
     const busy = new Set(running.map(holder));
+    /* a team rebuild hands orphaned work back to the director: it waits there for a new owner */
+    const director = store.projects.require(projectId).orchestratorId;
     for (const it of work.projectItems(projectId, 'todo')) {
       if (free <= 0) break;
       const who = holder(it);
-      if (busy.has(who)) continue;
+      if (busy.has(who) || it.agentId === director) continue;
       /* the agent is busy with a run started by hand (or a chat turn): leave the item queued */
       if (runtime.busy(projectId, who)) {
         busy.add(who);

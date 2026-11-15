@@ -1,0 +1,632 @@
+/* The one confirm card for a team rebuild (spec-ux-team-rebuild §3) — under a director reply in chat, and from
+   Rearrange's Review in the office. One line per person or team, grouped by what happens to them; removals first.
+   Nothing applies until Rebuild. Focus starts on Keep as is; Enter on Rebuild confirms; a typed or spoken
+   "yes"/"no" does the same (answerByVoice). After it applies, the card becomes the Undo line. */
+import { useEffect, useId, useRef, useState } from 'react';
+import { Hero } from '../../../characters';
+import { Button } from '../../../ui';
+import {
+  type ApplyBody,
+  type HandoverTo,
+  isStaleError,
+  type LonePick,
+  type Person,
+  type RebuildCard as Card,
+  rebuildApi,
+  UNDO_MS,
+} from './api';
+import './rebuild.css';
+
+export type FaceOf = (id: string) => { name: string; look?: unknown } | null;
+
+/* ---------- outcomes survive the card unmounting (switching threads, closing Rearrange) */
+type Outcome =
+  | { kind: 'kept' }
+  | { kind: 'done'; token: string; summary: string; at: number }
+  | { kind: 'undone' };
+const outcomes = new Map<string, Outcome>();
+/** For tests. */
+export const resetRebuildCards = () => {
+  outcomes.clear();
+  live.length = 0;
+};
+
+/* ---------- voice / typed yes-no: the newest live card answers */
+type Live = { planId: string; yes: () => void; no: () => void };
+const live: Live[] = [];
+const YES = /^(yes|yep|yeah|yup|sure|ok|okay|rebuild|do it|go ahead|confirm|yes please|yes rebuild)$/;
+const NO = /^(no|nope|keep|keep it|keep as is|cancel|don'?t|no thanks|leave it)$/;
+export function voiceVerdict(text: string): 'yes' | 'no' | null {
+  const t = text
+    .toLowerCase()
+    .replace(/[.!?,’']/g, (c) => (c === '’' || c === "'" ? "'" : ''))
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (YES.test(t)) return 'yes';
+  if (NO.test(t)) return 'no';
+  return null;
+}
+/** A short yes/no while a card is waiting: it answers the card (true) instead of becoming a message. */
+export function answerByVoice(text: string): boolean {
+  const v = voiceVerdict(text);
+  const card = live[live.length - 1];
+  if (!v || !card) return false;
+  if (v === 'yes') card.yes();
+  else card.no();
+  return true;
+}
+
+/* ---------- words */
+const handLabel = (to: HandoverTo, toName: string, director: string) =>
+  to === 'captain'
+    ? `goes to ${toName} (captain)`
+    : to === 'director'
+      ? `goes back to ${director} to reassign`
+      : to === 'finish-first'
+        ? 'finishes this item, then leaves'
+        : 'stops now and hands over';
+const items = (n: number) => (n === 1 ? '1 open item' : `${n} open items`);
+const list = (xs: string[]) =>
+  xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
+export const copySentence = (team: string, others: string[]) =>
+  `${team} also work${/s$/i.test(team) ? '' : 's'} on ${list(others)} — this project gets its own copy.`;
+
+export type RebuildCardProps = {
+  card: Card;
+  /** Faces + names by agent id. */
+  faceOf: FaceOf;
+  /** The director's short name (work going back to them). */
+  director: string;
+  /** Greyed from outside: a newer message came in. */
+  stale?: boolean;
+  /** Take focus on Keep as is when it appears (default true). */
+  focus?: boolean;
+  /** The undo window starts here (a chat reply's time; default now). */
+  onApplied?: (r: { undoToken: string; summary: string }) => void;
+  onKept?: () => void;
+  onUndone?: () => void;
+};
+
+/* ---------- a11y: when the card turns into its one line, focus follows (keyboard) or the line is announced
+   (voice / typed answer, focus elsewhere) — never both, never silence, never focus dropped to the page. */
+const KEPT = 'Kept as is.';
+const UNDONE = 'Undone — the team is back as it was.';
+const doneText = (summary?: string) => (summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.');
+/** Focus is inside `el`, or was until the focused control was removed (focus fell back to the page). */
+const holdsFocus = (el: HTMLElement | null, was: boolean) => {
+  const a = document.activeElement;
+  return !!el && ((!!a && el.contains(a)) || (was && (!a || a === document.body)));
+};
+/** Remember focus-within across a focused control unmounting. */
+function useFocusWithin() {
+  const was = useRef(false);
+  const handlers = {
+    onFocus: () => {
+      was.current = true;
+    },
+    onBlur: (e: React.FocusEvent) => {
+      if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) was.current = false;
+    },
+  };
+  return { was, handlers };
+}
+function useGrabFocus<T extends HTMLElement>(grab: boolean) {
+  const ref = useRef<T>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, on mount
+  useEffect(() => {
+    if (grab) ref.current?.focus({ preventScroll: true });
+  }, []);
+  return ref;
+}
+function QuietLine({ text, grab }: { text: string; grab: boolean }) {
+  const ref = useGrabFocus<HTMLParagraphElement>(grab);
+  return (
+    <p ref={ref} tabIndex={-1} className="rb-line rb-quiet">
+      {text}
+    </p>
+  );
+}
+
+export function RebuildCard(p: RebuildCardProps) {
+  const { card } = p;
+  const [outcome, setOutcome] = useState<Outcome | undefined>(() => outcomes.get(card.planId));
+  const [said, setSaid] = useState('');
+  const [grab, setGrab] = useState(false);
+  const settle = (o: Outcome, hadFocus: boolean) => {
+    outcomes.set(card.planId, o);
+    setOutcome(o);
+    setGrab(hadFocus);
+    setSaid(hadFocus ? '' : o.kind === 'kept' ? KEPT : o.kind === 'undone' ? UNDONE : doneText(o.summary));
+  };
+  const body =
+    outcome?.kind === 'kept' ? (
+      <QuietLine key="kept" text={KEPT} grab={grab} />
+    ) : outcome?.kind === 'undone' ? (
+      <QuietLine key="undone" text={UNDONE} grab={grab} />
+    ) : outcome?.kind === 'done' ? (
+      <UndoLine
+        key="done"
+        token={outcome.token}
+        summary={outcome.summary}
+        since={outcome.at}
+        grab={grab}
+        onUndone={(hadFocus) => {
+          settle({ kind: 'undone' }, !!hadFocus);
+          p.onUndone?.();
+        }}
+      />
+    ) : (
+      <LiveCard
+        key="live"
+        {...p}
+        onApplied={(r, hadFocus) => {
+          settle({ kind: 'done', token: r.undoToken, summary: r.summary, at: Date.now() }, hadFocus);
+          p.onApplied?.(r);
+        }}
+        onKept={(hadFocus) => {
+          settle({ kind: 'kept' }, hadFocus);
+          p.onKept?.();
+        }}
+      />
+    );
+  return (
+    <>
+      {body}
+      {/* always mounted, so a change of text is announced */}
+      <p className="sr-only rb-say" role="status">
+        {said}
+      </p>
+    </>
+  );
+}
+
+type Picks = {
+  hand: Record<string, HandoverTo>;
+  captain: Record<string, string>;
+  lone: Record<string, LonePick>;
+};
+const firstPicks = (c: Card): Picks => ({
+  hand: Object.fromEntries(
+    c.leaves.filter((l) => l.openItems.length).map((l) => [l.id, l.openItems[0].to] as const),
+  ),
+  captain: Object.fromEntries((c.captains ?? []).map((x) => [x.teamId, x.agentId])),
+  lone: Object.fromEntries((c.lone ?? []).map((x) => [x.agentId, x.pick])),
+});
+/* only what the user changed goes back (the server keeps its defaults) */
+export function applyBodyOf(c: Card, picks: Picks): ApplyBody {
+  const first = firstPicks(c);
+  const hand = Object.entries(picks.hand)
+    .filter(([a, to]) => first.hand[a] !== to)
+    .map(([agent, to]) => ({ agent, to }));
+  const captain = Object.entries(picks.captain)
+    .filter(([t, a]) => first.captain[t] !== a)
+    .map(([team, agent]) => ({ team, agent }));
+  const lone = Object.entries(picks.lone)
+    .filter(([a, to]) => first.lone[a] !== to)
+    .map(([agent, to]) => ({ agent, to }));
+  return {
+    ...(hand.length ? { handover: hand } : {}),
+    ...(captain.length ? { captain } : {}),
+    ...(lone.length ? { lone } : {}),
+  };
+}
+
+function LiveCard(
+  p: RebuildCardProps & {
+    onApplied: (r: { undoToken: string; summary: string }, hadFocus: boolean) => void;
+    onKept: (hadFocus: boolean) => void;
+  },
+) {
+  const { card, faceOf, director } = p;
+  const id = useId();
+  const keep = useRef<HTMLButtonElement>(null);
+  const root = useRef<HTMLElement>(null);
+  const staleLine = useRef<HTMLParagraphElement>(null);
+  const within = useFocusWithin();
+  const [picks, setPicks] = useState<Picks>(() => firstPicks(card));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [staleNow, setStaleNow] = useState(false);
+  const stale = card.stale || !!p.stale || staleNow;
+  const had = () => holdsFocus(root.current, within.was.current);
+
+  const rebuild = async () => {
+    if (busy || stale) return;
+    setBusy(true);
+    setErr('');
+    const r = await rebuildApi.apply(card.planId, applyBodyOf(card, picks));
+    setBusy(false);
+    if (r.ok) p.onApplied({ undoToken: r.undoToken, summary: r.summary }, had());
+    else if (isStaleError(r.error)) setStaleNow(true);
+    else setErr(r.error);
+  };
+  const kept = () => {
+    if (!busy) p.onKept(had());
+  };
+  const ref = useRef({ rebuild, keep: kept });
+  ref.current = { rebuild, keep: kept };
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: focus once, when the card appears
+  useEffect(() => {
+    if (p.focus !== false) keep.current?.focus({ preventScroll: true });
+  }, []);
+  // the buttons go away when the plan goes stale: focus moves to the reason instead of the page
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only when it turns stale
+  useEffect(() => {
+    if (stale && had()) staleLine.current?.focus({ preventScroll: true });
+  }, [stale]);
+  useEffect(() => {
+    if (stale) return;
+    const me: Live = {
+      planId: card.planId,
+      yes: () => void ref.current.rebuild(),
+      no: () => ref.current.keep(),
+    };
+    live.push(me);
+    return () => {
+      const i = live.indexOf(me);
+      if (i >= 0) live.splice(i, 1);
+    };
+  }, [card.planId, stale]);
+
+  const specialists = card.specialists ?? [];
+  const moves = card.moves ?? [];
+  const newTeams = card.newTeams ?? [];
+  const captains = card.captains ?? [];
+  const lone = card.lone ?? [];
+  const copies = card.copies ?? [];
+  const title = `${id}-t`;
+
+  return (
+    <section
+      ref={root}
+      {...within.handlers}
+      className={`rb-card${stale ? ' stale' : ''}`}
+      aria-labelledby={title}
+      aria-describedby={stale ? `${id}-stale` : undefined}
+      aria-busy={busy || undefined}
+    >
+      <h3 id={title}>Rebuild the team?</h3>
+      <dl className="rb-groups">
+        {card.leaves.length > 0 && (
+          <Group label="Leaves this project" warm>
+            {card.leaves.map((l) => (
+              <li key={l.id} className="rb-who">
+                <Faces people={l.kind === 'team' ? (l.members ?? []) : [{ id: l.id, name: l.name }]} faceOf={faceOf} />
+                <span className="rb-name">
+                  {l.name}
+                  {l.kind === 'team' && <span className="rb-sub"> · whole team</span>}
+                </span>
+                {l.openItems.length > 0 && (
+                  <WorkLine
+                    id={`${id}-h-${l.id}`}
+                    leaver={l}
+                    to={picks.hand[l.id] ?? l.openItems[0].to}
+                    director={director}
+                    disabled={stale || busy}
+                    onChange={(to) => setPicks((s) => ({ ...s, hand: { ...s.hand, [l.id]: to } }))}
+                  />
+                )}
+              </li>
+            ))}
+          </Group>
+        )}
+        {specialists.length > 0 && (
+          <Group label={specialists.length === 1 ? 'Becomes a specialist' : 'Become specialists'}>
+            {specialists.map((s) => (
+              <li key={s.id} className="rb-who">
+                <Faces people={[s]} faceOf={faceOf} />
+                <span className="rb-name">{s.name}</span>
+              </li>
+            ))}
+          </Group>
+        )}
+        {moves.length > 0 && (
+          <Group label="Moves">
+            {moves.map((m) => (
+              <li key={m.agentId} className="rb-who">
+                <Faces people={[{ id: m.agentId, name: m.name }]} faceOf={faceOf} />
+                <span className="rb-name">
+                  {m.name}
+                  <span className="rb-sub">
+                    {' '}
+                    {/* heard as "from The Founders to Build", seen as "The Founders → Build" */}
+                    {m.fromTeam && (
+                      <>
+                        <span className="sr-only">from </span>
+                        {m.fromTeam}{' '}
+                      </>
+                    )}
+                    <span aria-hidden="true">→ </span>
+                    <span className="sr-only">to </span>
+                    {m.toTeam}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </Group>
+        )}
+        {newTeams.length > 0 && (
+          <Group label="New teams">
+            {newTeams.map((t) => (
+              <li key={t.name} className="rb-who">
+                <Faces people={t.members} faceOf={faceOf} />
+                <span className="rb-name">
+                  {t.name}
+                  <span className="rb-sub">
+                    {' '}
+                    · captain {t.captainName} ({t.members.map((m) => m.name).join(', ')})
+                  </span>
+                </span>
+              </li>
+            ))}
+          </Group>
+        )}
+        {captains.length > 0 && (
+          <Group label={captains.length === 1 ? 'New captain' : 'New captains'}>
+            {captains.map((c) => (
+              <li key={c.teamId} className="rb-who">
+                <Faces people={[{ id: picks.captain[c.teamId] ?? c.agentId, name: c.name }]} faceOf={faceOf} />
+                <span className="rb-name">{c.teamName}</span>
+                <Pick
+                  id={`${id}-c-${c.teamId}`}
+                  label={`Captain of ${c.teamName}`}
+                  value={picks.captain[c.teamId] ?? c.agentId}
+                  disabled={stale || busy}
+                  options={uniq([{ id: c.agentId, name: c.name }, ...c.choices]).map((x) => [x.id, x.name])}
+                  onChange={(v) => setPicks((s) => ({ ...s, captain: { ...s.captain, [c.teamId]: v } }))}
+                />
+              </li>
+            ))}
+          </Group>
+        )}
+        {lone.length > 0 && (
+          <Group label="Left on their own">
+            {lone.map((x) => (
+              <li key={x.agentId} className="rb-who">
+                <Faces people={[{ id: x.agentId, name: x.name }]} faceOf={faceOf} />
+                <span className="rb-name">
+                  {x.name}
+                  <span className="rb-sub"> would be alone at {x.teamName}</span>
+                </span>
+                <Pick
+                  id={`${id}-l-${x.agentId}`}
+                  label={`What happens to ${x.name}`}
+                  value={picks.lone[x.agentId] ?? x.pick}
+                  disabled={stale || busy}
+                  options={[
+                    ['specialist', `Make ${x.name} a specialist`],
+                    ['remove', `Remove ${x.name} too`],
+                  ]}
+                  onChange={(v) =>
+                    setPicks((s) => ({ ...s, lone: { ...s.lone, [x.agentId]: v as LonePick } }))
+                  }
+                />
+              </li>
+            ))}
+          </Group>
+        )}
+      </dl>
+      {copies.map((c) => (
+        <p key={c.teamId} className="rb-copy">
+          {copySentence(c.teamName, c.otherProjects)}
+        </p>
+      ))}
+      {stale ? (
+        <p ref={staleLine} tabIndex={-1} className="rb-stale" id={`${id}-stale`} role="status">
+          Plan changed — ask again.
+        </p>
+      ) : (
+        <>
+          {err && (
+            <p className="rb-err" role="alert">
+              {err}
+            </p>
+          )}
+          <footer className="rb-foot">
+            {/* aria-disabled, not disabled, while busy: a disabled button drops focus to the page */}
+            <Button ref={keep} variant="ghost" className="rb-keep" aria-disabled={busy || undefined} onClick={kept}>
+              Keep as is
+            </Button>
+            <Button variant="hero" aria-disabled={busy || undefined} onClick={() => void rebuild()}>
+              {busy ? 'Rebuilding…' : err ? 'Try again' : 'Rebuild'}
+            </Button>
+          </footer>
+        </>
+      )}
+    </section>
+  );
+}
+
+const uniq = (xs: Person[]) => xs.filter((x, i) => xs.findIndex((y) => y.id === x.id) === i);
+
+function Group({ label, warm, children }: { label: string; warm?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`rb-group${warm ? ' warm' : ''}`}>
+      <dt>{label}</dt>
+      <dd>
+        <ul>{children}</ul>
+      </dd>
+    </div>
+  );
+}
+
+function Faces({ people, faceOf }: { people: Person[]; faceOf: FaceOf }) {
+  const shown = people.slice(0, 3);
+  return (
+    <span className="rb-faces" aria-hidden="true">
+      {shown.map((x) => {
+        const a = faceOf(x.id);
+        return (
+          <span key={x.id} className="rb-face">
+            <Hero
+              agent={(a ?? { name: x.name }) as Parameters<typeof Hero>[0]['agent']}
+              ghost={!a}
+              size={28}
+              pose="idle"
+              facing="front"
+            />
+          </span>
+        );
+      })}
+      {people.length > shown.length && <span className="rb-more">+{people.length - shown.length}</span>}
+    </span>
+  );
+}
+
+function WorkLine({
+  id,
+  leaver,
+  to,
+  director,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  leaver: Card['leaves'][number];
+  to: HandoverTo;
+  director: string;
+  disabled: boolean;
+  onChange: (to: HandoverTo) => void;
+}) {
+  const n = leaver.openItems.length;
+  const captainName = leaver.openItems.find((i) => i.to === 'captain')?.toName ?? 'their captain';
+  const opts: [HandoverTo, string][] = [
+    ...(leaver.running
+      ? ([
+          ['finish-first', 'Let them finish first'],
+          ['stop-now', 'Stop now and hand over'],
+        ] as [HandoverTo, string][])
+      : []),
+    ...(leaver.kind === 'agent' && leaver.openItems.some((i) => i.to === 'captain')
+      ? ([['captain', `Hand to ${captainName} (captain)`]] as [HandoverTo, string][])
+      : []),
+    ['director', `Hand back to ${director}`],
+  ];
+  if (!opts.some(([v]) => v === to)) opts.unshift([to, handLabel(to, captainName, director)]);
+  const toName = to === 'captain' ? captainName : director;
+  return (
+    <span className="rb-work">
+      <span className="rb-arrow" aria-hidden="true">
+        →
+      </span>
+      <span>
+        {items(n)} {handLabel(to, toName, director)}
+        {n <= 3 && (
+          <span className="rb-items">
+            {' '}
+            ({leaver.openItems.map((i) => i.title).join('; ')})
+          </span>
+        )}
+      </span>
+      <Pick
+        id={id}
+        label={`Change where ${leaver.name}’s work goes`}
+        value={to}
+        disabled={disabled}
+        options={opts}
+        onChange={(v) => onChange(v as HandoverTo)}
+        change
+      />
+    </span>
+  );
+}
+
+/* one small native menu ("change"): keyboard and screen readers get the platform's own control */
+function Pick({
+  id,
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+  change,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: [string, string][];
+  disabled: boolean;
+  onChange: (v: string) => void;
+  change?: boolean;
+}) {
+  if (options.length < 2) return null;
+  return (
+    <span className={`rb-pick${change ? ' rb-change' : ''}`}>
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+      {change && (
+        <span className="rb-change-l" aria-hidden="true">
+          change
+        </span>
+      )}
+    </span>
+  );
+}
+
+/* ---------- after it applies: one line + Undo (10 min, while nobody started new work) */
+export function UndoLine({
+  token,
+  summary,
+  since = Date.now(),
+  onUndone,
+}: {
+  token: string;
+  summary?: string;
+  since?: number;
+  onUndone?: () => void;
+}) {
+  const [state, setState] = useState<'ready' | 'busy' | 'gone' | 'done' | 'late'>(() =>
+    outcomes.get(`undo:${token}`) ? 'done' : Date.now() - since >= UNDO_MS ? 'gone' : 'ready',
+  );
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    if (state !== 'ready') return;
+    const t = setTimeout(() => setState('gone'), Math.max(0, since + UNDO_MS - Date.now()));
+    return () => clearTimeout(t);
+  }, [state, since]);
+  const undo = async () => {
+    setState('busy');
+    const r = await rebuildApi.undo(token);
+    if (r.ok) {
+      outcomes.set(`undo:${token}`, { kind: 'undone' });
+      setState('done');
+      onUndone?.();
+    } else {
+      setMsg(r.error);
+      setState('late');
+    }
+  };
+  return (
+    <p className="rb-line" role="status">
+      {state === 'done' ? (
+        'Undone — the team is back as it was.'
+      ) : (
+        <>
+          <span>{summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.'}</span>
+          {(state === 'ready' || state === 'busy') && (
+            <button type="button" className="rb-undo" disabled={state === 'busy'} onClick={() => void undo()}>
+              {state === 'busy' ? 'Undoing…' : 'Undo'}
+            </button>
+          )}
+          {state === 'late' && (
+            <span className="rb-late">
+              {' '}
+              {/new work|too late|expired|gone/i.test(msg) || !msg
+                ? 'Too late to undo — rebuild again instead.'
+                : msg}
+            </span>
+          )}
+        </>
+      )}
+    </p>
+  );
+}
