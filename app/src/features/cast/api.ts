@@ -1,5 +1,6 @@
 /* Cast endpoints — the shared studio.* ones plus what only the Cast needs (reporter switches,
-   re-adding a member at its old place for Undo). Query keys: 'agents' · 'roles' · 'teams'. */
+   re-adding a member at its old place for Undo), Tinker's design chats.
+   Query keys: 'agents' · 'roles' · 'teams' · 'creator-sessions'. */
 import { http, studio } from '../../api';
 import type { Role, Team } from '../../api/types';
 
@@ -20,6 +21,8 @@ export const castApi = {
       http.post<Team>(`/teams/${e(id)}/members`, { agentId, instr, at }),
   },
   restore: studio.restore,
+  /** Design a new agent with Tinker (saved chats with a live draft). */
+  tinker: studio.creatorChat,
 };
 
-export const KEYS = { agents: 'agents', roles: 'roles', teams: 'teams' } as const;
+export const KEYS = { agents: 'agents', roles: 'roles', teams: 'teams', tinker: 'creator-sessions' } as const;

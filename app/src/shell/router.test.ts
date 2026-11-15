@@ -6,6 +6,8 @@ const cases: [string, Route][] = [
   ['#cast', { name: 'cast', tab: 'agents' }],
   ['#cast/teams', { name: 'cast', tab: 'teams' }],
   ['#cast/agent/a-pete', { name: 'cast.agent', id: 'a-pete' }],
+  ['#cast/agent/tinker', { name: 'cast.tinker', sid: null }],
+  ['#cast/agent/tinker/s-1', { name: 'cast.tinker', sid: 's-1' }],
   ['#cast/teams/t-1', { name: 'cast.team', id: 't-1' }],
   ['#access', { name: 'access' }],
   ['#blueprint', { name: 'blueprint' }],
@@ -40,6 +42,7 @@ describe('router', () => {
   it('lights the right stage', () => {
     expect(stageOf({ name: 'new', draftId: null })).toBe('projects');
     expect(stageOf({ name: 'cast.team', id: 'x' })).toBe('cast');
+    expect(stageOf({ name: 'cast.tinker', sid: null })).toBe('cast');
     expect(stageOf({ name: 'office', projectId: 'p', sub: 'room' })).toBeNull();
   });
 });

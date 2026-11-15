@@ -21,6 +21,7 @@ const TITLE: Record<Route['name'], string> = {
   projects: 'Projects',
   cast: 'Cast',
   'cast.agent': 'Agent',
+  'cast.tinker': 'New agent',
   'cast.team': 'Team',
   access: 'Access',
   blueprint: 'Blueprint',
