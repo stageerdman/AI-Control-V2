@@ -4,14 +4,14 @@
    a quiet "Saved ✓" pip answers every save. A new recruit with no name yet may switch to
    design-with-Tinker (onTinker); `draft` is Tinker's Details tab (no teams, no delete). */
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Agent, Role, Team } from '../../api/types';
+import type { Agent, BusySession, Role, Team } from '../../api/types';
 import { Emblem } from '../../characters';
-import { go } from '../../shell/router';
+import { formatRoute, go } from '../../shell/router';
 import { Switch } from '../../ui';
 import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
 import { Radios } from './Radios';
 import { RoleCombo } from './RoleCombo';
-import { saveAgent } from './store';
+import { busyReason, saveAgent } from './store';
 
 export type PanelAgent = Pick<
   Agent,
@@ -30,6 +30,8 @@ export const AgentPanel = forwardRef<
     onRole: (role: Role | null) => void;
     onPrompt: (prompt: string) => void;
     onDelete: () => void;
+    /** In a running session: Delete stays focusable but aria-disabled, with the reason under it. */
+    busy?: BusySession[];
     onSaved: () => void;
     /** "With Tinker" in the mode toggle (a new agent whose name is still empty). */
     onTinker?: () => void;
@@ -39,7 +41,7 @@ export const AgentPanel = forwardRef<
     changed?: ReadonlySet<string>;
   }
 >(function AgentPanel(
-  { agent, isNew, roles, teams, onName, onRole, onPrompt, onDelete, onSaved, onTinker, draft, changed },
+  { agent, isNew, roles, teams, onName, onRole, onPrompt, onDelete, busy, onSaved, onTinker, draft, changed },
   ref,
 ) {
   const crew = isCrew(agent);
@@ -238,12 +240,41 @@ export const AgentPanel = forwardRef<
             </p>
           )}
           {exists && agent.canDelete.ok && (
-            <button type="button" className="zp-link danger zp-del" onClick={onDelete}>
+            <button
+              type="button"
+              className="zp-link danger zp-del"
+              aria-disabled={busy ? true : undefined}
+              aria-describedby={busy ? 'zpBusy' : undefined}
+              onClick={onDelete}
+            >
               Delete {crew ? 'orchestrator' : 'agent'}
             </button>
           )}
+          {exists && agent.canDelete.ok && busy && <BusyLine id="zpBusy" name={agent.name} sessions={busy} />}
         </div>
       </div>
     </div>
   );
 });
+
+/** Why Delete is off: the first running session (its project links to it) and "+N more".
+    Reads exactly like store.busyReason, so the toast and the line never disagree. */
+function BusyLine({ id, name, sessions }: { id: string; name: string; sessions: BusySession[] }) {
+  const s = sessions[0];
+  if (!s)
+    return (
+      <p id={id} className="zp-why">
+        {busyReason(name, sessions)}
+      </p>
+    );
+  const more = sessions.length > 1 ? ` +${sessions.length - 1} more` : '';
+  return (
+    <p id={id} className="zp-why zp-busy">
+      {name} is working in{' '}
+      <a className="zp-link" href={formatRoute({ name: 'office', projectId: s.projectId, sub: 'room' })}>
+        {s.projectName}
+      </a>{' '}
+      — “{s.task}”{more}. You can delete them when it ends.
+    </p>
+  );
+}

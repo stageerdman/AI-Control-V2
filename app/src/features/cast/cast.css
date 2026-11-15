@@ -431,6 +431,9 @@
 .zp-danger .zp-link{font-size:13px}
 .zp-danger .zp-link.danger{margin-left:auto}
 .zp-why{flex:1 1 100%;margin:0;font-size:13px;font-weight:600;color:var(--cream-60)}
+/* busy: Delete stays focusable but reads as off; the reason sits right under it */
+.zp-link.danger[aria-disabled="true"]{color:var(--cream-60);text-decoration:none;cursor:not-allowed}
+.zp-busy{text-align:right}
 .zp-hint-btn{appearance:none;border:0;background:none;padding:0;margin-left:auto;font:inherit;font-size:12px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--cream-60);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .zp-hint-btn:hover{color:var(--cream)}
 .zp-hint-btn:focus-visible,.rl-del:focus-visible{outline:3px solid var(--sun);outline-offset:2px;border-radius:4px}

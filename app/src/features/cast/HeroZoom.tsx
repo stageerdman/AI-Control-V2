@@ -3,7 +3,7 @@
    Create mode (#cast/agent/new | new-orchestrator) becomes a real agent on its first valid name.
    The stage figure is imperative (crossfades, FLIP); everything else is React. */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Agent, Look, Role, Team } from '../../api/types';
+import type { Agent, AgentBusy, Look, Role, Team } from '../../api/types';
 import { hero, LOOK_SLOTS, type LookSlotId, randomLook, setPose } from '../../characters';
 import { hueHex } from '../../design/palette';
 import { go } from '../../shell/router';
@@ -22,7 +22,9 @@ import {
 } from './fx';
 import { LookRig } from './LookRig';
 import { castOrder, cycleLook, leastUsedHue, lookTag, roleText } from './model';
-import { createAgent, deleteAgent, flushAll, saveAgent, saveAgentSoon } from './store';
+import { busyReason, createAgent, deleteAgent, fetchBusy, flushAll, saveAgent, saveAgentSoon } from './store';
+
+const BUSY_POLL_MS = 15_000;
 
 export type HeroZoomProps = {
   id: string;
@@ -317,6 +319,30 @@ export function HeroZoom(p: HeroZoomProps) {
     return () => document.removeEventListener('keydown', onKey);
   }, [step, p.closing]);
 
+  /* ---------- busy: in a running session → Delete is blocked, with the reason ---------- */
+  const [busy, setBusy] = useState<AgentBusy | null>(null);
+  const busyOf = useRef<string | null>(null);
+  const checking = useRef(false);
+  const liveId = live && !isNewId(p.id) ? live.id : null;
+  useEffect(() => {
+    busyOf.current = liveId;
+    setBusy(null);
+    if (!liveId) return;
+    let off = false;
+    void fetchBusy(liveId).then((b) => !off && setBusy(b));
+    return () => {
+      off = true;
+    };
+  }, [liveId]);
+  /* while blocked, look again now and then so Delete frees itself when the session ends */
+  useEffect(() => {
+    if (!liveId || !busy?.busy) return;
+    const t = setInterval(() => {
+      void fetchBusy(liveId).then((b) => busyOf.current === liveId && setBusy(b));
+    }, BUSY_POLL_MS);
+    return () => clearInterval(t);
+  }, [liveId, busy?.busy]);
+
   /* ---------- edits (auto-save; a draft is created on its first valid name) ---------- */
   const create = (d: Draft) => {
     if (creating.current) return;
@@ -387,10 +413,24 @@ export function HeroZoom(p: HeroZoomProps) {
     setLook(next, { kind: 'dice' });
     announce(`New look: ${LOOK_SLOTS.map((sl) => sl.name(next[sl.id])).join(', ')}`);
   };
-  const onDelete = () => {
-    if (!live) return;
-    announce(`${live.name} deleted.`);
-    void deleteAgent(live, () => go('cast'));
+  /* Delete while busy is refused: ask again on Delete, so a session that just started blocks it
+     and one that just ended frees it (the button lights up; the next press deletes). */
+  const onDelete = async () => {
+    if (!live || checking.current) return;
+    const a = live;
+    checking.current = true;
+    const b = await fetchBusy(a.id);
+    checking.current = false;
+    if (busyOf.current !== a.id) return; // stepped to another agent meanwhile
+    const wasBusy = busy?.busy ?? false;
+    setBusy(b);
+    if (b.busy || wasBusy) {
+      if (b.busy) announce(busyReason(a.name, b.sessions));
+      return;
+    }
+    const ok = await deleteAgent(a, () => go('cast'));
+    if (ok) announce(`${a.name} deleted.`);
+    else if (busyOf.current === a.id) setBusy(await fetchBusy(a.id));
   };
 
   if (!agent) return null;
@@ -453,7 +493,8 @@ export function HeroZoom(p: HeroZoomProps) {
         onName={onName}
         onRole={onRole}
         onPrompt={onPrompt}
-        onDelete={onDelete}
+        onDelete={() => void onDelete()}
+        busy={busy?.busy ? busy.sessions : undefined}
         onSaved={saved}
         onTinker={p.id === 'new' ? () => go('cast/agent/tinker') : undefined}
       />

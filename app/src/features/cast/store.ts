@@ -5,8 +5,10 @@
 import { getQueryData, invalidate, isApiError, setQueryData, useQuery } from '../../api';
 import type {
   Agent,
+  AgentBusy,
   AgentCreate,
   AgentPatch,
+  BusySession,
   Deleted,
   Role,
   Team,
@@ -151,13 +153,41 @@ export async function createAgent(body: AgentCreate): Promise<Agent | undefined>
   }
 }
 
-/** Delete + an Undo toast that restores it (teams, captaincy and projects come back too). */
+/* ---------- busy: an agent in a running session can't be deleted ---------- */
+const NOT_BUSY: AgentBusy = { busy: false, sessions: [] };
+
+/** Is the agent in a running session? A failed check counts as free — the server still refuses. */
+export async function fetchBusy(id: string): Promise<AgentBusy> {
+  try {
+    const b = await castApi.agents.busy(id);
+    return b?.busy && Array.isArray(b.sessions) ? b : NOT_BUSY;
+  } catch {
+    return NOT_BUSY;
+  }
+}
+
+/** The one calm line under a blocked Delete (also the toast when the server refuses). */
+export function busyReason(name: string, sessions: BusySession[]): string {
+  const s = sessions[0];
+  if (!s) return `${name} is working in a running session. You can delete them when it ends.`;
+  const more = sessions.length > 1 ? ` +${sessions.length - 1} more` : '';
+  return `${name} is working in ${s.projectName} — “${s.task}”${more}. You can delete them when it ends.`;
+}
+
+const busySessions = (e: unknown): BusySession[] => {
+  const d = isApiError(e) ? (e.details as { sessions?: unknown } | undefined) : undefined;
+  return Array.isArray(d?.sessions) ? (d.sessions as BusySession[]) : [];
+};
+
+/** Delete + an Undo toast that restores it (teams, captaincy and projects come back too).
+    A 409 'agent_busy' (they joined a session since the check) → the busy reason, nothing changes. */
 export async function deleteAgent(a: Agent, then?: () => void) {
   let res: Deleted;
   try {
     res = await castApi.agents.remove(a.id);
   } catch (e) {
-    failed(e);
+    if (isApiError(e) && e.code === 'agent_busy') toast(busyReason(a.name, busySessions(e)));
+    else failed(e);
     return false;
   }
   setQueryData<Agent[]>(KEYS.agents, (l) => (l ?? []).filter((x) => x.id !== a.id));
