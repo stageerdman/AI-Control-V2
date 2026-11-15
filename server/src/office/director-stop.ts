@@ -39,13 +39,19 @@ export function createDirectorStop(deps: { store: Store; running: Running; stopp
     apply(projectId: string, stop: DirectorStop): StopLine[] {
       if ('everyone' in stop) {
         const what = describeStopped(deps.stopper.project(projectId).stopped);
-        return [{ kind: 'text', text: what ? `Stopped everything: ${what}.` : 'Nothing was running — all quiet.' }];
+        return [
+          { kind: 'text', text: what ? `Stopped everything: ${what}.` : 'Nothing was running — all quiet.' },
+        ];
       }
       return [...new Set(stop.agents)].map((said): StopLine => {
         const a = agentByName(store, said);
-        if (!a) return { kind: 'error', text: `I couldn’t stop ${said}: nobody by that name is in the studio.` };
+        if (!a)
+          return { kind: 'error', text: `I couldn’t stop ${said}: nobody by that name is in the studio.` };
         const what = describeStopped(deps.stopper.agent(projectId, a.id).stopped);
-        return { kind: 'text', text: what ? `Stopped ${a.name}: ${what}.` : `${a.name} had nothing running.` };
+        return {
+          kind: 'text',
+          text: what ? `Stopped ${a.name}: ${what}.` : `${a.name} had nothing running.`,
+        };
       });
     },
   };

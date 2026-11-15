@@ -32,5 +32,7 @@ export const runningRoutes =
       const projectId = store.projects.require(id).id;
       return reply.status(202).send(stopper.agent(projectId, store.agents.require(agentId).id));
     });
-    app.post('/projects/:id/stop', async (req, reply) => reply.status(202).send(stopper.project(project(req.params))));
+    app.post('/projects/:id/stop', async (req, reply) =>
+      reply.status(202).send(stopper.project(project(req.params))),
+    );
   };

@@ -87,6 +87,68 @@ describe('the running list', () => {
     expect(() => r.cancel('nope')).toThrow(/not found/);
   });
 
+  it('stop hits every matching session and code run, never apps or other projects; one refusal stops nothing else', () => {
+    const kill = vi.fn(() => true);
+    const table = [proc(100, 1, 100, 'claude -p'), proc(101, 100, 100, 'npm test')];
+    const r = createRunning({ procs: () => table, kill });
+    const a = vi.fn();
+    const other = vi.fn();
+    const app = vi.fn();
+    r.add(
+      session({
+        pid: () => 100,
+        cancel: () => {
+          throw new Error('stuck');
+        },
+      }),
+    );
+    r.add(session({ agentId: 'a-scar', cancel: a }));
+    r.add(session({ projectId: 'atlas', cancel: other }));
+    r.add({ ...session({ agentId: null, cancel: app }), kind: 'app' });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const stopped = r.stop({ projectId: 'aurora' });
+      expect(stopped.map((i) => [i.kind, i.agentId])).toEqual([
+        ['code', 'a-pete'],
+        ['session', 'a-scar'],
+      ]);
+      expect(error).toHaveBeenCalledWith(
+        expect.stringMatching(/could not stop session .* agent a-pete\): stuck/),
+      );
+    } finally {
+      error.mockRestore();
+    }
+    expect(a).toHaveBeenCalledOnce();
+    expect(kill).toHaveBeenCalledWith(101, 'SIGTERM');
+    expect(other).not.toHaveBeenCalled();
+    expect(app).not.toHaveBeenCalled();
+  });
+
+  it('on the real OS: stopping a project leaves nothing of it running, and another project untouched', async () => {
+    const spawnSession = () =>
+      spawn('/bin/sh', ['-c', 'sleep 30 & wait'], { detached: true, stdio: 'ignore' });
+    const here = spawnSession();
+    const there = spawnSession();
+    const hereExited = new Promise((x) => here.once('exit', x));
+    try {
+      const r = createRunning();
+      r.add(session({ pid: () => here.pid, cancel: () => signal(-(here.pid as number), 'SIGTERM') }));
+      r.add(session({ projectId: 'atlas', pid: () => there.pid, cancel: () => {} }));
+      const codeIn = (projectId: string) => r.list({ projectId }).filter((i) => i.kind === 'code');
+      for (let i = 0; i < 50 && (!codeIn('aurora').length || !codeIn('atlas').length); i++)
+        await new Promise((x) => setTimeout(x, 20));
+      expect(codeIn('aurora')).toHaveLength(1);
+
+      r.stop({ projectId: 'aurora' });
+      for (let i = 0; i < 50 && codeIn('aurora').length; i++) await new Promise((x) => setTimeout(x, 20));
+      expect(codeIn('aurora')).toEqual([]);
+      await hereExited; // the session's process is gone too
+      expect(codeIn('atlas')).toHaveLength(1);
+    } finally {
+      for (const p of [here, there]) if (p.pid) signal(-p.pid, 'SIGKILL');
+    }
+  });
+
   it('on the real OS: a command under a session is listed, and cancelling it stops it', async () => {
     const sh = spawn('/bin/sh', ['-c', 'sleep 30 & wait'], { detached: true, stdio: 'ignore' });
     try {
