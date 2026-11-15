@@ -247,10 +247,8 @@
   white-space: nowrap;
 }
 .pfolder .sub {
+  flex-shrink: 0; /* one short word — the name is what truncates */
   font-size: 12px;
   color: var(--ink-soft);
   font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }

@@ -84,6 +84,7 @@ export function NotAdoptedShelf({
                 type="button"
                 className="pfolder"
                 aria-label={`Adopt ${f.folder}`}
+                title={f.folder}
                 disabled={!!busy}
                 onClick={() => void adopt(f.folder)}
               >

@@ -23,8 +23,8 @@ describe('not adopted (pure)', () => {
     expect(unadopted(F, [], 'man').map((f) => f.folder)).toEqual(['MAN 20']);
     expect(unadopted(F, [], 'stage/').map((f) => f.folder)).toEqual(['cook-ai']);
   });
-  it('hint: the GitHub repo, else "git", else nothing', () => {
-    expect(F.map(folderHint)).toEqual(['stage/cook-ai', '', 'git']);
+  it('hint: "GitHub", else "git", else nothing', () => {
+    expect(F.map(folderHint)).toEqual(['GitHub', '', 'git']);
   });
 });
 

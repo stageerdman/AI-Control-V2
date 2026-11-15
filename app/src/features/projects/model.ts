@@ -89,5 +89,5 @@ export function unadopted<F extends LooseFolder>(
         !!f.remote?.github?.toLowerCase().includes(norm(q))),
   );
 }
-/** The row's one quiet hint: its GitHub repo, else "git", else nothing. */
-export const folderHint = (f: LooseFolder): string => f.remote?.github ?? (f.git ? 'git' : '');
+/** The row's one quiet hint: "GitHub" when it has a GitHub remote, else "git", else nothing. */
+export const folderHint = (f: LooseFolder): string => (f.remote?.github ? 'GitHub' : f.git ? 'git' : '');
