@@ -17,6 +17,7 @@ import {
   readSeen,
   sortInbox,
   trays,
+  whoGrid,
   writeSeen,
 } from './life';
 import { boardFacts } from './state';
@@ -134,6 +135,14 @@ describe('bring someone in', () => {
   it('only Cast agents (not crew) who are not here yet, by name', () => {
     const roster = [a('zed'), a('ada'), a('max', 'orchestrator'), a('pixel'), a('tinker', 'creator')];
     expect(bringable(roster, new Set(['pixel'])).map((x) => x.id)).toEqual(['ada', 'zed']);
+  });
+  it('the Who grid keeps the ones already here, tagged (so you can invite another like them)', () => {
+    const roster = [a('zed'), a('ada'), a('max', 'orchestrator'), a('pixel'), a('tinker', 'creator')];
+    expect(whoGrid(roster, new Set(['pixel'])).map((x) => [x.agent.id, x.here])).toEqual([
+      ['ada', false],
+      ['pixel', true],
+      ['zed', false],
+    ]);
   });
 });
 

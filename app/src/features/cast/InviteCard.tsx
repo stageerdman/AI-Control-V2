@@ -36,7 +36,12 @@ export function useInvite(original: Agent, agents: readonly Agent[]) {
     let off = false;
     const fallback: CopyDraft = {
       name: '',
-      look: { ...randomLook(original.look), hat: original.look.hat, tool: original.look.tool, decal: original.look.decal },
+      look: {
+        ...randomLook(original.look),
+        hat: original.look.hat,
+        tool: original.look.tool,
+        decal: original.look.decal,
+      },
     };
     studio.agents
       .copyDraft(original.id)
@@ -54,7 +59,10 @@ export function useInvite(original: Agent, agents: readonly Agent[]) {
   }, [original.id]);
 
   const trimmed = name.trim();
-  const taken = !!trimmed && (nameTaken(trimmed, agents) || clash.toLowerCase() === trimmed.toLowerCase());
+  const mine = made.current; // the copy already made: its own name doesn't count as taken
+  const others = mine ? agents.filter((a) => a.id !== mine.id) : agents;
+  const taken =
+    !!trimmed && (nameTaken(trimmed, others) || (!mine && clash.toLowerCase() === trimmed.toLowerCase()));
 
   return {
     original,
@@ -67,7 +75,7 @@ export function useInvite(original: Agent, agents: readonly Agent[]) {
     saving,
     saveErr,
     change,
-    canSubmit: !!look && !!trimmed && !taken && !saving,
+    canSubmit: !!mine || (!!look && !!trimmed && !taken && !saving),
     setName: (v: string) => {
       setName(v);
       setSaveErr('');
@@ -180,7 +188,11 @@ export function InviteStage({ inv, titleId }: { inv: Invite; titleId?: string })
       <h2 className="sr-only" id={titleId}>
         Invite another agent like {original.name}
       </h2>
-      <div className="ic-stage" ref={stage} style={{ '--accent': hueHex(look?.hue ?? original.look.hue) } as React.CSSProperties}>
+      <div
+        className="ic-stage"
+        ref={stage}
+        style={{ '--accent': hueHex(look?.hue ?? original.look.hue) } as React.CSSProperties}
+      >
         <div className="ic-floor" aria-hidden="true" />
         <figure className="ic-old" aria-hidden="true">
           <span ref={oldRef} style={{ display: 'contents' }}>
@@ -190,17 +202,34 @@ export function InviteStage({ inv, titleId }: { inv: Invite; titleId?: string })
         </figure>
         <div className="ic-new" aria-hidden="true">
           {look ? (
-            <Hero agent={{ id: 'invite', name: inv.name || original.name, look }} size={160} facing="front" pose="idle" />
+            <Hero
+              agent={{ id: 'invite', name: inv.name || original.name, look }}
+              size={160}
+              facing="front"
+              pose="idle"
+            />
           ) : (
             <span className="ic-wait" />
           )}
         </div>
         <div className="ic-tools">
-          <button type="button" className="lk-dice ic-dice" aria-label="Random look" title="Random look" disabled={!look} onClick={inv.roll}>
+          <button
+            type="button"
+            className="lk-dice ic-dice"
+            aria-label="Random look"
+            title="Random look"
+            disabled={!look}
+            onClick={inv.roll}
+          >
             {DICE}
           </button>
           {inv.rolled && (
-            <button type="button" className="zp-chip ic-family" aria-label="Back to the family look" onClick={inv.backToFamily}>
+            <button
+              type="button"
+              className="zp-chip ic-family"
+              aria-label="Back to the family look"
+              onClick={inv.backToFamily}
+            >
               ↺ Family look
             </button>
           )}
@@ -271,15 +300,13 @@ export function InviteDialog({
     onClose();
     setTimeout(() => (door.current as HTMLElement | null)?.focus?.(), 0);
   };
+  /* every key stays in the card (the zoom behind it steps on [ / ] and closes on Esc) */
   const onKey = (e: KeyboardEvent) => {
+    e.stopPropagation();
     if (e.key === 'Escape') {
       e.preventDefault();
-      e.stopPropagation();
       close();
-    } else if (e.key === 'Tab' && card.current) {
-      e.stopPropagation();
-      trapTab(e.nativeEvent, card.current);
-    }
+    } else if (e.key === 'Tab' && card.current) trapTab(e.nativeEvent, card.current);
   };
   const label = inv.name.trim() || 'them';
   return (

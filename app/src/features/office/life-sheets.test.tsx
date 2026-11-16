@@ -11,6 +11,7 @@ import { PrinciplesBody } from './PrinciplesSheet';
 import { TodoPaper } from './TodoPaper';
 
 const look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'bob', face: 'none', hue: 'rose' };
+const COPY_LOOK = { ...look, antenna: 'tuft', hue: 'teal' };
 const agent = (id: string, name: string, kind: Agent['kind'] = 'agent') =>
   ({ id, name, nick: null, kind, look, role: 'Research', roleId: null }) as unknown as Agent;
 const AGENTS = [
@@ -103,6 +104,10 @@ beforeEach(() => {
         if (m) m.status = body.status;
         return json(m);
       }
+      if (/^\/agents\/[^/]+\/copy-draft$/.test(url)) return json({ name: 'Pia', look: COPY_LOOK });
+      const cp = /^\/agents\/([^/]+)\/copies$/.exec(url);
+      if (cp && method === 'POST')
+        return json({ ...agent('a-pip', body.name), look: body.look, kinId: cp[1], kin: [cp[1]] }, 201);
       if (url === '/projects/aurora/guests' && method === 'POST')
         return json({ guest: { ...body, projectId: 'aurora', addedAt: ago(0) }, runId: 'r1' }, 201);
       if (/^\/projects\/aurora\/guests\//.test(url) && method === 'DELETE')
@@ -300,7 +305,11 @@ describe('BringInSheet', () => {
         onBrought={() => {}}
       />,
     );
-    expect(screen.getByText('Everyone in the Cast is already here.')).toBeTruthy();
+    expect(
+      screen.getByText('Everyone’s here. Need another pair of hands? Pick someone and tap ＋ Another.'),
+    ).toBeTruthy();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(screen.getAllByText('Here')).toHaveLength(3); // Ada, Pixel, Zed (not Max: crew)
     expect(screen.getByText('Analyze the comms')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Send home' }));
     expect(screen.getByText('Send Ada home? What they made stays.')).toBeTruthy();
@@ -315,5 +324,37 @@ describe('BringInSheet', () => {
         body: undefined,
       }),
     );
+  });
+  it('＋ Another on someone here: the invite card replaces the grid, makes the copy, then brings the copy in', async () => {
+    const onBrought = vi.fn();
+    render(<BringInBody {...base} guests={[]} onBrought={onBrought} />);
+    expect(screen.getByText('Here')).toBeTruthy(); // Pixel stays in the grid
+    fireEvent.click(screen.getByRole('button', { name: 'Invite another agent like Pixel' }));
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    const name = (await screen.findByDisplayValue('Pia')) as HTMLInputElement;
+    expect(screen.getByText('Same role and instructions as Pixel.')).toBeTruthy();
+    fireEvent.change(name, { target: { value: 'Pip' } });
+    fireEvent.change(screen.getByLabelText('Their brief'), { target: { value: 'Help with the icons' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Bring Pip in' }));
+    await waitFor(() => expect(onBrought).toHaveBeenCalledWith(expect.objectContaining({ id: 'a-pip' })));
+    expect(calls).toContainEqual({
+      method: 'POST',
+      url: '/agents/a-pixel/copies',
+      body: { name: 'Pip', look: COPY_LOOK },
+    });
+    expect(calls).toContainEqual({
+      method: 'POST',
+      url: '/projects/aurora/guests',
+      body: { agentId: 'a-pip', brief: 'Help with the icons', orchestratorMay: false },
+    });
+  });
+  it('＋ Another → Pick someone else brings the grid back, the brief kept', async () => {
+    render(<BringInBody {...base} guests={[]} onBrought={() => {}} />);
+    fireEvent.change(screen.getByLabelText('Their brief'), { target: { value: 'Keep me' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Invite another agent like Ada' }));
+    expect(await screen.findByDisplayValue('Pia')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pick someone else' }));
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect((screen.getByLabelText('Their brief') as HTMLTextAreaElement).value).toBe('Keep me');
   });
 });

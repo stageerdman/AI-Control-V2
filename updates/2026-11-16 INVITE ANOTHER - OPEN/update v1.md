@@ -43,8 +43,22 @@ Phase 5 note: whiteboard items, chats, to-dos, desk notes and runs were already 
 apart by construction; the test proves a copy runs as itself, and the prompt now names its kin
 (`compose.ts` `kin`, filled in `service.ts`).
 
-Next (front-end, not in this branch): the invite-another card (name dice, ↺ Family look) on `copy-draft` +
-`copies`, the bell/office-door entry, and the kin row on an agent's page ("like Pete", `kin[0]`).
+Front-end ✅ (Jony, branch `studio/build-the-invite-copies-flow-…`): app suite green (565), typecheck clean.
+- **The card** (`app/src/features/cast/InviteCard.tsx`, `invite.css`): `useInvite` (draft from `copy-draft`, look
+  dice, ↺ Family look, Change colour, name dice, taken check, makes the copy once) + `InviteStage` (the stage
+  strip, name, shares line) + `InviteDialog` (the Cast door). Pure rules in `cast/kin.ts`.
+- **Cast door:** `＋ Invite another` chip in the zoom panel's top row (regular agents only) and the **Kin** row
+  (28 px bots, "Open Bea"). Adding opens the new copy's zoom.
+- **Office door:** the bell's Who grid keeps the ones already here (`Here` tag + `＋ Another`); the others get a
+  small ＋ in the corner. The card replaces the grid; "Pick someone else" brings it back with the brief kept;
+  the button reads "Bring Bea in" (makes the copy, then brings it in; a retry reuses the copy).
+- Tests: `cast/kin.test.ts`, `cast/invite.test.tsx` (card, panel, zoom end-to-end), `office/life-sheets.test.tsx`
+  + `life.test.ts` (the ＋ Another path, the new "Everyone's here…" line).
+
+Follow-ups (in the design, not built yet): kin side by side + one shared floor shadow in the lineup; the office
+meta line "· like Blair"; the same-look line in the Cast zoom; Tinker's "Save for all N" + "share these
+instructions" line; the voice path ("Bring in another Blair"). Not yet looked at in a real window (only DOM
+tests): worth one visual pass of both doors.
 
 ## Risks / next
 - Renaming an agent (PATCH name) is not checked for clashes — true before this work too. Worth a follow-up so

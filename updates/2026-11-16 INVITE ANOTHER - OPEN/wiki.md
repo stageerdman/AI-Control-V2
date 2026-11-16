@@ -16,4 +16,12 @@ Decisions and why, for whoever picks this up next.
   change was needed there. Because the shared prompt may name the original, the run prompt tells each copy
   who its kin are and to read their names as itself (`runtime/compose.ts` `kinLine`).
 - **Edits redraw every kin's offices** (`office/agent-edits.ts` emits `agent.changed` per kin).
+- **One card, two doors.** `useInvite` holds the choice and makes the copy; `InviteStage` draws it; the Cast
+  wraps it in `InviteDialog`, the office puts it inside the bell's form. The card never knows its door.
+- **The copy is made once.** If bringing it into the office fails after the copy exists, the retry reuses it
+  (`useInvite` remembers the made copy; its own name doesn't count as taken).
+- **The card swallows every key** (`InviteDialog` stops propagation): the zoom behind it steps on `[` / `]` and
+  closes on Esc.
+- **The bell keeps the ones already here** in its grid (`office/life.ts` `whoGrid`), so "everyone's here" is
+  no longer a dead end; they aren't radios, their card holds `＋ Another`.
 - Migration 38 may collide with another branch on merge: renumber whichever lands second.

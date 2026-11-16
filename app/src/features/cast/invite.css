@@ -1,52 +1,284 @@
 /* Invite another — the invite card (InviteCard.tsx). A dark-glass card in both doors (the Cast zoom and the
    office's light sheet): the new bot is "on stage". Reuses the look editor's dice + the sun chip from cast.css. */
-.ic-body,.ic{--glass:rgba(48,36,88,.82);--glass-line:rgba(255,246,233,.12);--well:rgba(0,0,0,.22);--cream-60:rgba(255,246,233,.6);--cream-45:rgba(255,246,233,.45)}
+.ic-body,
+.ic {
+  --glass: rgba(48, 36, 88, 0.82);
+  --glass-line: rgba(255, 246, 233, 0.12);
+  --well: rgba(0, 0, 0, 0.22);
+  --cream-60: rgba(255, 246, 233, 0.6);
+  --cream-45: rgba(255, 246, 233, 0.45);
+}
 
 /* Cast door: a dialog over the zoom */
-.ic-scrim{position:absolute;inset:0;z-index:30;display:grid;place-items:center;background:rgba(18,12,40,.55);padding:16px}
-.ic{position:relative;width:min(440px,100%);max-height:100%;overflow:auto;box-sizing:border-box;padding:20px 22px 22px;color:var(--cream);
-  background:var(--glass);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--glass-line);border-radius:18px;
-  box-shadow:0 30px 60px -30px rgba(0,0,0,.75);animation:icIn .16s var(--ease-out) both}
-@keyframes icIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
-.ic-close{position:absolute;top:10px;right:10px;z-index:4;appearance:none;width:32px;height:32px;border-radius:50%;border:0;background:none;
-  color:var(--cream-72);font:inherit;font-size:22px;line-height:1;cursor:pointer}
-.ic-close:hover{color:var(--cream);background:rgba(255,246,233,.1)}
-.ic-close:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
-.ic-foot{display:flex;justify-content:flex-end;margin-top:18px}
+.ic-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(18, 12, 40, 0.55);
+  padding: 16px;
+}
+.ic {
+  position: relative;
+  width: min(440px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 20px 22px 22px;
+  color: var(--cream);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-line);
+  border-radius: 18px;
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.75);
+  animation: icIn 0.16s var(--ease-out) both;
+}
+@keyframes icIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ic-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 4;
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: none;
+  color: var(--cream-72);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ic-close:hover {
+  color: var(--cream);
+  background: rgba(255, 246, 233, 0.1);
+}
+.ic-close:focus-visible {
+  outline: 3px solid var(--sun);
+  outline-offset: 2px;
+}
+.ic-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
 
 /* the stage strip: the original small + faded bottom-left, the new bot big in the middle, the dice top-right */
-.ic-body{color:var(--cream)}
-.lf .ic-body{padding:16px 18px 18px;margin:0 0 16px;border-radius:18px;background:rgb(48,36,88);box-shadow:0 18px 40px -26px rgba(0,0,0,.6);
-  animation:icIn .16s var(--ease-out) both}
-.ic-stage{position:relative;height:200px;display:flex;align-items:flex-end;justify-content:center;line-height:0}
-.ic-floor{position:absolute;left:50%;bottom:-6px;width:260px;height:40px;transform:translateX(-50%);border-radius:50%;pointer-events:none;
-  background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 40%,transparent),transparent)}
-.ic-old{position:absolute;left:0;bottom:0;margin:0;opacity:.6;display:flex;flex-direction:column;align-items:center;gap:4px;line-height:normal}
-.ic-old figcaption{font-size:12px;font-weight:800;color:var(--cream-72);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ic-new{position:relative;z-index:2}
-.ic-new .hero{transform-origin:50% 100%}
-.ic-wait{display:block;width:120px;height:160px;border-radius:40% 40% 20% 20%;background:rgba(255,246,233,.06);animation:icWait 1.2s ease-in-out infinite alternate}
-@keyframes icWait{to{background:rgba(255,246,233,.12)}}
-.ic-tools{position:absolute;top:0;right:0;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:6px;line-height:normal}
-.ic .lk-dice,.ic-body .lk-dice{position:static}
-.ic-family{margin:0}
-.lk-dice:disabled{opacity:.4;cursor:default;transform:none}
+.ic-body {
+  color: var(--cream);
+}
+.lf .ic-body {
+  padding: 16px 18px 18px;
+  margin: 0 0 16px;
+  border-radius: 18px;
+  background: rgb(48, 36, 88);
+  box-shadow: 0 18px 40px -26px rgba(0, 0, 0, 0.6);
+  animation: icIn 0.16s var(--ease-out) both;
+}
+.ic-stage {
+  position: relative;
+  height: 200px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  line-height: 0;
+}
+.ic-floor {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 260px;
+  height: 40px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 40%, transparent), transparent);
+}
+.ic-old {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  margin: 0;
+  opacity: 0.6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  line-height: normal;
+}
+.ic-old figcaption {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--cream-72);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ic-new {
+  position: relative;
+  z-index: 2;
+}
+.ic-new .hero {
+  transform-origin: 50% 100%;
+}
+.ic-wait {
+  display: block;
+  width: 120px;
+  height: 160px;
+  border-radius: 40% 40% 20% 20%;
+  background: rgba(255, 246, 233, 0.06);
+  animation: icWait 1.2s ease-in-out infinite alternate;
+}
+@keyframes icWait {
+  to {
+    background: rgba(255, 246, 233, 0.12);
+  }
+}
+.ic-tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  line-height: normal;
+}
+.ic .lk-dice,
+.ic-body .lk-dice {
+  position: static;
+}
+.ic-family {
+  margin: 0;
+}
+.lk-dice:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
 
 /* same-look warning: one quiet line, never a block */
-.ic-twin{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:12px 0 0;font-size:13px;font-weight:700;color:var(--cream-72)}
-.ic-twin .zp-chip{margin:0}
+.ic-twin {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream-72);
+}
+.ic-twin .zp-chip {
+  margin: 0;
+}
 
 /* the name: suggested, editable, its own small dice */
-.ic-name{margin-top:16px}
-.ic-name label{display:block;margin:0 0 6px;font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--cream-60)}
-.ic-name-row{display:flex;align-items:center;gap:8px}
-.ic-name input{flex:1;min-width:0;box-sizing:border-box;font:inherit;font-size:20px;font-weight:900;color:var(--cream);background:var(--well);
-  border:1px solid var(--glass-line);border-radius:12px;padding:8px 12px}
-.ic-name input:focus{outline:none;border-color:var(--sun)}
-.ic-name input[aria-invalid="true"]{border-color:var(--coral)}
-.ic-err{margin:6px 0 0;font-size:13px;font-weight:800;color:var(--coral)}
-.lf .ic-body .ic-err{color:#ff9b9e}
-.ic-shares{margin:10px 0 0;font-size:13px;font-weight:600;color:var(--cream-72)}
-.ic-another{margin-top:4px}
+.ic-name {
+  margin-top: 16px;
+}
+.ic-name label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cream-60);
+}
+.ic-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ic-name input {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--cream);
+  background: var(--well);
+  border: 1px solid var(--glass-line);
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.ic-name input:focus {
+  outline: none;
+  border-color: var(--sun);
+}
+.ic-name input[aria-invalid="true"] {
+  border-color: var(--coral);
+}
+.ic-err {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--coral);
+}
+.lf .ic-body .ic-err {
+  color: #ff9b9e;
+}
+.ic-shares {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cream-72);
+}
+.ic-another {
+  margin-top: 4px;
+}
 
-@media (prefers-reduced-motion:reduce){.ic,.lf .ic-body,.ic-wait{animation:none!important}}
+/* the Cast door + the Kin row in the zoom panel */
+.zp-top .zp-invite {
+  margin: 0 0 0 auto;
+}
+.zp-top .zp-invite:focus-visible,
+.zp-kin-bot:focus-visible {
+  outline: 3px solid var(--sun);
+  outline-offset: 2px;
+}
+.zp-kin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+}
+.zp-kin .zp-label {
+  margin: 0 6px 0 0;
+}
+.zp-kin-bot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 246, 233, 0.06);
+  line-height: 0;
+}
+.zp-kin-bot:hover {
+  background: rgba(255, 246, 233, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ic,
+  .lf .ic-body,
+  .ic-wait {
+    animation: none !important;
+  }
+}

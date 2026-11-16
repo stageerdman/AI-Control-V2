@@ -597,6 +597,20 @@
 .bi-pick label:has(input:focus-visible){outline:3px solid var(--grape);outline-offset:2px}
 .bi-pick b{font-size:14px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bi-pick .hint{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Invite another: the ones already here stay in the grid (tagged, ＋ Another); the rest get a small ＋ corner */
+.bi-card{position:relative;display:flex;flex-direction:column;min-width:0}
+.bi-card>label{flex:1}
+.bi-card.is-here{color:var(--ink);align-items:center;gap:2px;padding:10px 6px 8px;border-radius:14px;background:#fbf8f3;box-shadow:0 0 0 1px var(--line);text-align:center}
+.bi-tag{font-size:11px;font-weight:800;color:var(--ink-soft)}
+.bi-another{appearance:none;margin-top:4px;min-height:28px;padding:4px 10px;border:0;border-radius:999px;font:inherit;font-size:12px;font-weight:900;cursor:pointer;color:#4a2600;background:var(--sun)}
+.bi-another:hover{background:var(--sun-deep)}
+.bi-plus{position:absolute;top:4px;right:4px;width:28px;height:28px;display:grid;place-items:center;appearance:none;border:0;border-radius:50%;
+  font:inherit;font-size:15px;font-weight:900;line-height:1;cursor:pointer;color:#4a2600;background:var(--sun);opacity:0;transition:opacity .12s}
+.bi-card:hover .bi-plus,.bi-plus:focus-visible{opacity:1}
+@media (hover:none){.bi-plus{opacity:1}}
+.bi-another:focus-visible,.bi-plus:focus-visible,.bi-back:focus-visible{outline:3px solid var(--grape);outline-offset:2px}
+.bi-everyone{margin:0 0 4px}
+.bi-back{appearance:none;display:block;margin:-6px 0 14px;padding:4px 0;border:0;background:none;font:inherit;font-size:13.5px;font-weight:800;color:var(--grape);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .bi-lbl{display:block;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px}
 .bi-switch{display:flex;align-items:center;gap:12px;margin:4px 0 0}
 .bi-switch>div{flex:1;min-width:0}

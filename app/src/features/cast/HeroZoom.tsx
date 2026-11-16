@@ -20,6 +20,8 @@ import {
   reducedMotion,
   trapTab,
 } from './fx';
+import { InviteDialog } from './InviteCard';
+import { canInvite, kinOf } from './kin';
 import { LookRig } from './LookRig';
 import { castOrder, cycleLook, leastUsedHue, lookTag, roleText, sameLook } from './model';
 import { busyReason, createAgent, deleteAgent, fetchBusy, flushAll, saveAgent, saveAgentSoon } from './store';
@@ -135,6 +137,11 @@ export function HeroZoom(p: HeroZoomProps) {
       for (const li of scene.querySelectorAll('.is-flying')) li.classList.remove('is-flying');
     };
   }, []);
+
+  /* ---------- ＋ Invite another: the invite card over the zoom (closes when the agent changes) ---------- */
+  const [inviting, setInviting] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new agent closes the card
+  useEffect(() => setInviting(false), [realId]);
 
   /* ---------- a tray option tried on (shown, never saved) ---------- */
   const [trying, setTrying] = useState<Look | null>(null);
@@ -493,6 +500,7 @@ export function HeroZoom(p: HeroZoomProps) {
 
   if (!agent) return null;
   const accent = hueHex(agent.look.hue);
+  const invitable = live && !isNewId(p.id) && canInvite(live) ? live : null;
   return (
     <section
       ref={zRef}
@@ -567,7 +575,23 @@ export function HeroZoom(p: HeroZoomProps) {
         busy={busy?.busy ? busy.sessions : undefined}
         onSaved={saved}
         onTinker={p.id === 'new' ? () => go('cast/agent/tinker') : undefined}
+        onInvite={invitable ? () => setInviting(true) : undefined}
+        kin={live ? kinOf(live, p.agents) : undefined}
       />
+      {inviting && invitable && (
+        <InviteDialog
+          original={invitable}
+          agents={p.agents}
+          onClose={() => setInviting(false)}
+          onDone={(a) => {
+            setInviting(false);
+            flushAll();
+            returnGhost.current = false;
+            location.replace(`#cast/agent/${encodeURIComponent(a.id)}`);
+            setTimeout(() => zRef.current?.querySelector<HTMLElement>('#zhTitle')?.focus(), 0);
+          }}
+        />
+      )}
     </section>
   );
 }

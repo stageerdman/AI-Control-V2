@@ -23,8 +23,6 @@ import type {
   CreatorSession,
   Deleted,
   DeskNote,
-  Todo,
-  ToolUse,
   Draft,
   DraftCreate,
   DraftPatch,
@@ -54,6 +52,8 @@ import type {
   Team,
   TeamCreate,
   TeamPatch,
+  Todo,
+  ToolUse,
 } from './types';
 
 const e = encodeURIComponent;

@@ -122,3 +122,14 @@ export function mailStatusLine(
 /** Cast agents (kind 'agent') not already in this office, by name. */
 export const bringable = (roster: readonly Agent[], here: ReadonlySet<string>): Agent[] =>
   roster.filter((a) => a.kind === 'agent' && !here.has(a.id)).sort((a, b) => a.name.localeCompare(b.name));
+
+/** The bell's "Who" grid: every Cast agent (not crew), by name — the ones already here stay, tagged, so you
+    can still invite another like them (Invite another, design.md §1b). */
+export const whoGrid = (
+  roster: readonly Agent[],
+  here: ReadonlySet<string>,
+): { agent: Agent; here: boolean }[] =>
+  roster
+    .filter((a) => a.kind === 'agent')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((agent) => ({ agent, here: here.has(agent.id) }));

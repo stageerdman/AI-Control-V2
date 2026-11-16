@@ -5,7 +5,7 @@
    design-with-Tinker (onTinker); `draft` is Tinker's Details tab (no teams, no delete). */
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Agent, BusySession, Role, Team } from '../../api/types';
-import { Emblem } from '../../characters';
+import { Emblem, Hero } from '../../characters';
 import { formatRoute, go } from '../../shell/router';
 import { Switch } from '../../ui';
 import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
@@ -40,9 +40,29 @@ export const AgentPanel = forwardRef<
     draft?: boolean;
     /** Fields Tinker just changed (tinted once). */
     changed?: ReadonlySet<string>;
+    /** "＋ Invite another" (regular agents that exist): opens the invite card. */
+    onInvite?: () => void;
+    /** The agent's other kin (same instructions), first-made first: the Kin row. */
+    kin?: readonly Pick<Agent, 'id' | 'name' | 'look'>[];
   }
 >(function AgentPanel(
-  { agent, isNew, roles, teams, onName, onRole, onPrompt, onDelete, busy, onSaved, onTinker, draft, changed },
+  {
+    agent,
+    isNew,
+    roles,
+    teams,
+    onName,
+    onRole,
+    onPrompt,
+    onDelete,
+    busy,
+    onSaved,
+    onTinker,
+    draft,
+    changed,
+    onInvite,
+    kin,
+  },
   ref,
 ) {
   const crew = isCrew(agent);
@@ -97,6 +117,16 @@ export const AgentPanel = forwardRef<
             <span className="zp-kicker">
               {crew ? 'Studio crew' : draft ? 'Draft' : isNew && !exists ? 'New recruit' : 'Agent'}
             </span>
+          )}
+          {exists && !draft && onInvite && (
+            <button
+              type="button"
+              className="zp-chip zp-invite"
+              aria-label={`Invite another agent like ${agent.name}`}
+              onClick={onInvite}
+            >
+              ＋ Invite another
+            </button>
           )}
           <span className="zp-saved" aria-hidden="true">
             Saved ✓
@@ -158,6 +188,22 @@ export const AgentPanel = forwardRef<
           <p className="zp-about">{KIND_ABOUT[kind as Exclude<typeof kind, 'agent'>]}</p>
         ) : (
           <RoleCombo roles={roles} roleId={agent.roleId} onRole={onRole} onSaved={onSaved} />
+        )}
+        {exists && !draft && !!kin?.length && (
+          <nav className="zp-kin" aria-label="Kin">
+            <span className="zp-label">Kin</span>
+            {kin.map((k) => (
+              <a
+                key={k.id}
+                className="zp-kin-bot"
+                href={`#cast/agent/${encodeURIComponent(k.id)}`}
+                aria-label={`Open ${k.name}`}
+                title={k.name}
+              >
+                <Hero agent={k} size={28} facing="front" pose="idle" />
+              </a>
+            ))}
+          </nav>
         )}
         <section className="zp-sec">
           <h3 className="zp-label">
