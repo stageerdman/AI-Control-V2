@@ -32,6 +32,7 @@ import {
   type ItemGate,
   parseVerdict,
 } from '../domain/collaboration.ts';
+import { heldForMain, mainFirst } from '../domain/quests.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
@@ -529,7 +530,7 @@ export function createDispatch(deps: {
   }
 
   /** Start queued items while the project has room: ≤ cap live, one per agent. An item is claimed
-      (running) right away; its checkout and run follow (launch). */
+      (running) right away; its checkout and run follow (launch). Main quests go first (src/domain/quests.ts). */
   function pump(projectId: string) {
     /* a split team item waits on its members: it holds no seat */
     const running = work.projectItems(projectId, 'running').filter((i) => i.teamPhase !== 'members');
@@ -537,16 +538,27 @@ export function createDispatch(deps: {
     const busy = new Set(running.map(holder));
     /* a team rebuild hands orphaned work back to the director: it waits there for a new owner */
     const director = store.projects.require(projectId).orchestratorId;
-    for (const it of work.projectItems(projectId, 'todo')) {
+    /* read fresh each time: a task skipped in this loop changes what the next one sees */
+    const goalOf = (it: ChecklistItem) => work.goal(it.goalId) as Goal;
+    const queue = work.projectItems(projectId, 'todo').map((it) => ({ it, goal: goalOf(it) }));
+    const held = heldForMain(
+      queue.map(({ it, goal }) => ({
+        holder: holder(it),
+        quest: goal.quest,
+        ready: !fresh(it) || orderGate(goal, it) === 'go',
+      })),
+    );
+    for (const { it, goal: { quest } } of mainFirst(queue, (q) => q.goal.quest)) {
       if (free <= 0) break;
       const who = holder(it);
       if (busy.has(who) || it.agentId === director) continue;
+      if (quest === 'side' && held.has(who)) continue;
       /* the agent is busy with a run started by hand (or a chat turn): leave the item queued */
       if (runtime.busy(projectId, who)) {
         busy.add(who);
         continue;
       }
-      const goal = work.goal(it.goalId) as Goal;
+      const goal = goalOf(it);
       if (fresh(it)) {
         const gate = orderGate(goal, it);
         if (gate === 'wait') continue;
@@ -1151,7 +1163,13 @@ export function createDispatch(deps: {
         }
         emit(projectId, {
           type: 'goal.changed',
-          payload: { goalId, status: g.status, text: clip(g.text, 2000), summary: clip(g.summary, 1000) },
+          payload: {
+            goalId,
+            status: g.status,
+            text: clip(g.text, 2000),
+            summary: clip(g.summary, 1000),
+            quest: g.quest,
+          },
         });
         for (const it of g.items) announce(it);
         refreshGoal(goalId);
@@ -1337,6 +1355,7 @@ export function createDispatch(deps: {
             status: 'running',
             text: clip(text, 2000),
             summary: clip(goal.summary, 1000),
+            quest: goal.quest,
           },
         });
         for (const it of goal.items) announce(it);

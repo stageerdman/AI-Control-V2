@@ -1,4 +1,5 @@
 /* The director's whiteboard tools: thin adapters from MCP arguments to the board (src/whiteboard/board.ts). */
+import { QUESTS } from '../domain/quests.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import type { Board, CleanWhich, TaskInput } from './board.ts';
@@ -54,7 +55,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
     },
     {
       name: 'add_goal',
-      can: 'put new work the user wants on the whiteboard as one goal with 1–8 tasks you choose, in order, each for a team captain or specialist; name the feature it builds so the feature ships when the goal is done',
+      can: 'put new work the user wants on the whiteboard as one goal with 1–8 tasks you choose, in order, each for a team captain or specialist; name the feature it builds so the feature ships when the goal is done; a quick fix or short research job goes on as a side quest (quest: side)',
       description:
         'Put a new goal on the whiteboard with 1–8 tasks, in the order they should happen. The work starts right away. "feature" links it to a feature from the features list (Planned moves to Now; it ships when the goal is done).',
       inputSchema: {
@@ -72,16 +73,24 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
             description:
               'false = the goal is only one step of the feature, so finishing it does not ship it.',
           },
+          quest: {
+            type: 'string',
+            enum: QUESTS,
+            description:
+              'main (default) = the big feature the team is building now. side = a quick fix or a short research job, often one task for one person; it never serves a feature and runs only when it holds up no main quest.',
+          },
         },
         required: ['text', 'tasks'],
       },
       run: async (a) => {
         const feature = str(a, 'feature')?.trim();
+        const quest = oneOf(a, 'quest', QUESTS);
         return board.addGoal(projectId, by, {
           text: need(a, 'text'),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),
           tasks: Array.isArray(a.tasks) ? (a.tasks as Args[]).map(task) : [],
           ...(feature ? { feature: { id: feature, ships: bool(a, 'ships') !== false } } : {}),
+          ...(quest ? { quest } : {}),
         });
       },
     },

@@ -517,6 +517,8 @@ export type Goal = {
   /** F1c: the feature this goal works on, and whether finishing it ships that feature. */
   featureId?: string | null;
   ships?: boolean;
+  /** The main storyline (the feature being built) or a side quest (a quick fix, a short research job). */
+  quest?: 'main' | 'side';
   createdAt: string;
   updatedAt: string;
 };
@@ -656,7 +658,13 @@ export type EventPayloads = {
     summary: string;
     dirty?: boolean;
   };
-  'goal.changed': { goalId: string; status: Goal['status']; text?: string; summary?: string };
+  'goal.changed': {
+    goalId: string;
+    status: Goal['status'];
+    text?: string;
+    summary?: string;
+    quest?: Goal['quest'];
+  };
   'checklist.item': {
     itemId: string;
     text: string;

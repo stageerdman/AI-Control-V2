@@ -9,6 +9,7 @@ import type { Db } from '../db/connection.ts';
 import { featuresRepo } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type NewItem, workRepo } from '../db/work.ts';
+import type { Quest } from '../domain/quests.ts';
 import { conflict, invalid } from '../errors.ts';
 import { boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
@@ -36,7 +37,14 @@ export type GoalEdit = {
 export type CleanWhich = 'finished' | 'stopped' | 'all';
 /** The feature a new goal serves; `ships: false` = the goal is only one step of it. */
 export type FeatureLink = { id: string; ships?: boolean };
-export type NewGoal = { text: string; summary?: string; tasks: TaskInput[]; feature?: FeatureLink };
+/** `quest`: the main storyline (default) or a side quest — a quick fix or short research job, never a feature's. */
+export type NewGoal = {
+  text: string;
+  summary?: string;
+  tasks: TaskInput[];
+  feature?: FeatureLink;
+  quest?: Quest;
+};
 
 const MAX_TASKS = 8;
 const DAY_MS = 86_400_000;
@@ -167,22 +175,35 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     if (!p.folder) throw conflict('This project has no folder yet — set it up first.');
     if (!a.text?.trim()) throw invalid('A goal needs "text".');
     if (!a.tasks?.length || a.tasks.length > MAX_TASKS) throw invalid(`A goal has 1–${MAX_TASKS} tasks.`);
+    const quest = a.quest ?? 'main';
+    if (a.feature && quest === 'side')
+      throw invalid(
+        'A side quest never serves a feature — leave "feature" out, or make it a main quest.',
+      );
     if (a.feature && !features.get(projectId, a.feature.id))
       throw invalid(`No feature '${a.feature.id}' — look with features first.`);
     const items = a.tasks.map((t) => newItem(projectId, t, direct));
     const goal = store.tx(() =>
       work.insertGoal(
-        { id: randomUUID(), projectId, text: a.text.trim(), summary: a.summary?.trim() || a.text.trim() },
+        {
+          id: randomUUID(),
+          projectId,
+          text: a.text.trim(),
+          summary: a.summary?.trim() || a.text.trim(),
+          quest,
+        },
         items,
       ),
     );
     const linked = a.feature ? port.linkFeature(goal, a.feature) : null;
-    history.record(projectId, by, 'add', `Added goal '${goal.text}' with ${items.length} task(s)`);
+    const kind = quest === 'side' ? 'side quest' : 'goal';
+    history.record(projectId, by, 'add', `Added ${kind} '${goal.text}' with ${items.length} task(s)`);
     const serves = linked ? ` It serves the feature “${linked.name}”.` : '';
-    return {
-      goal,
-      text: reply(projectId, [goal.id], `Added to the whiteboard; the work starts in order.${serves}`),
-    };
+    const lead =
+      quest === 'side'
+        ? 'Added as a side quest; it runs when it holds up no main quest.'
+        : `Added to the whiteboard; the work starts in order.${serves}`;
+    return { goal, text: reply(projectId, [goal.id], lead) };
   }
 
   return {

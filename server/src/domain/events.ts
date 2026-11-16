@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { AGENT_FIELDS } from './agent-changes.ts';
 import { GATE_KINDS } from './collaboration.ts';
+import { QUESTS } from './quests.ts';
 
 const id = z.string().trim().min(1).max(80);
 const text = (max = 2000) => z.string().max(max);
@@ -122,6 +123,7 @@ export const EVENT_SCHEMAS = {
     status: z.enum(['running', 'done', 'failed', 'cancelled']),
     text: text(2000).optional(),
     summary: text(1000).optional(),
+    quest: z.enum(QUESTS).optional(),
   }),
   'checklist.item': z.strictObject({
     itemId: id,
