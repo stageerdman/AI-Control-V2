@@ -3,15 +3,22 @@
    One thread per agent (threads API + `thread.message` events); the director is the default; the
    office is the switcher (click a robot). "!" asks arrive as cards in the agent's thread and are
    answered on the asks endpoint. One Send (OFFICE): the director decides — a clear ask becomes a goal on the
-   whiteboard (the server posts it, the board follows its events), a question or a maybe gets a reply. */
+   whiteboard (the server posts it, the board follows its events), a question or a maybe gets a reply.
+   The director's chat can start fresh (design/new-chat): the New chat pill, or saying "new chat". */
 import { type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { isApiError, setQueryData, studio, useQuery } from '../../api';
+import { invalidate, isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
 import { Button } from '../../ui';
-import { type ChatSummary, keys, officeApi, type Thread, type ThreadMessage } from './api';
+import type { RunningItem } from '../running/api';
+import { type ChatSummary, keys, officeApi, type Thread, type ThreadChat, type ThreadMessage } from './api';
+import { aboutTitles, Bubble } from './Bubble';
 import { CHAT_COPY, ChatList, ChatView } from './ChatHistorySheet';
-import { answerByVoice, RebuildCard, UndoLine } from './rebuild/RebuildCard';
+import { NewChatPill } from './NewChatPill';
+import { asksForNewChat, newChatState } from './new-chat';
+import { PastThreadChat, ThreadChatList } from './PastThreadChats';
+import { answerByVoice, isRebuildSettled, RebuildCard, UndoLine } from './rebuild/RebuildCard';
 import { type Actor, activityOf, mergeMessage, type PendingAsk } from './state';
+import { useNewChat } from './useNewChat';
 
 export type PanelAgent = {
   id: string;
@@ -38,22 +45,43 @@ export type PanelProps = {
   onGrab: () => void;
   /** Narrow screens: raise the drawer (History opens on a raised drawer). */
   raise?: () => void;
+  /** What runs in the studio now (useRunning): the director's New chat shines only when none of it is here. */
+  running?: RunningItem[];
 };
 
-/** What the panel body shows under the header (spec-ux-chat-history §1). */
-export type PanelView = 'live' | 'history' | { run: ChatSummary };
+/** What the panel body shows under the header (spec-ux-chat-history §1): an agent's run, or a director's past chat. */
+export type PanelView = 'live' | 'history' | { run: ChatSummary } | { chat: ThreadChat };
+const pastId = (v: { run: ChatSummary } | { chat: ThreadChat }) => ('run' in v ? v.run.runId : v.chat.id);
+
+export const NEW_CHAT_COPY = {
+  empty: (who: string) =>
+    `New chat. ${who} still sees the board — say what you want built. Your last chat is in History.`,
+  started: 'New chat started. Your last chat is in History.',
+  failed: 'Couldn’t start a new chat. Try again.',
+  alreadyNew: 'This chat is already new — say what you want built.',
+  blocked: (reason: string) => `${reason} — I can start fresh when that’s done.`,
+};
 
 /** A follow-up on a report (`reportId`), or just a subject (a letter, a team's principles): the message says
     `About “{title}”: …` so the agent knows what it's about. */
 export type FollowUpContext = { title: string; reportId?: string };
-/* titles of reports followed up here (a user message keeps only the reportId) */
-const aboutTitles = new Map<string, string>();
 
 export const shortOf = (a: { name: string; nick?: string | null } | undefined) =>
   a ? a.nick || a.name.replace(/^(Sir|Dr\.?|The)\s+/i, '').split(/\s+/)[0] : 'them';
 
 /* local lines (answered asks, messages that didn't go through) survive switching threads */
 const local = new Map<string, ThreadMessage[]>();
+/* threads started fresh in this session: their empty chat says where the last one went */
+const restarted = new Set<string>();
+
+/** The director's chat started fresh (here or on `thread.reset`): an empty live chat, the old one in History. */
+export function resetThread(pid: string, agentId: string) {
+  const lkey = `${pid}:${agentId}`;
+  local.delete(lkey);
+  restarted.add(lkey);
+  setQueryData<Thread>(keys.thread(pid, agentId), { projectId: pid, agentId, busy: false, messages: [] });
+  void invalidate(keys.threadChats(pid, agentId));
+}
 let seq = 0;
 const note = (from: string, text: string, kind: 'text' | 'error' = 'text'): ThreadMessage => ({
   id: `local-${++seq}`,
@@ -142,7 +170,7 @@ export function Panel(p: PanelProps) {
   const backToLive = () => go('live', 'pill');
   const backOne = () => {
     if (view === 'history') backToLive();
-    else if (typeof view === 'object') go('history', { run: view.run.runId });
+    else if (typeof view === 'object') go('history', { run: pastId(view) });
   };
   // biome-ignore lint/correctness/useExhaustiveDependencies: after the view swaps in
   useEffect(() => {
@@ -167,11 +195,44 @@ export function Panel(p: PanelProps) {
     if (view === 'live') {
       seen.current = last?.id;
       setFresh(false);
+      if (last) setSaid('');
     } else if (last && last.id !== seen.current) {
       seen.current = last.id;
       if (last.from !== 'user') setFresh(true);
     }
   }, [last?.id, view === 'live', id]);
+
+  /* ---------- New chat (director only) */
+  const nameOf = (aid: string) => shortOf(p.agents[aid]);
+  const look = newChatState({
+    pid,
+    director,
+    busy: typing,
+    running: p.running ?? [],
+    asks: p.asks,
+    /* saved lines only: a local note (a send that failed) is not a chat to clear */
+    messages: t.data?.messages ?? [],
+    nameOf,
+    settled: isRebuildSettled,
+  });
+  const [said, setSaid] = useState('');
+  const newChat = useNewChat({
+    pid,
+    agentId: director,
+    look,
+    onStarted: () => {
+      resetThread(pid, director);
+      setSaid(NEW_CHAT_COPY.started);
+      input.current?.focus({ preventScroll: true });
+    },
+    onFailed: () => addLocal(note(director, NEW_CHAT_COPY.failed, 'error')),
+  });
+  /** "new chat" said in the director's chat: the same action and the same rule as the pill. */
+  const newChatByVoice = (v: string) => {
+    if (look.state === 'shining') return void newChat.start();
+    addLocal(note('user', v));
+    addLocal(note(director, look.reason ? NEW_CHAT_COPY.blocked(look.reason) : NEW_CHAT_COPY.alreadyNew));
+  };
 
   const send = async (raw: string) => {
     const v = raw.trim();
@@ -182,6 +243,7 @@ export function Panel(p: PanelProps) {
     setText('');
     /* a plain yes / no while a rebuild card waits answers the card, not the director */
     if (isDir && !p.context && answerByVoice(v)) return;
+    if (isDir && !p.context && asksForNewChat(v)) return newChatByVoice(v);
     const ctx = p.context;
     if (ctx?.reportId) aboutTitles.set(ctx.reportId, ctx.title);
     p.clearContext();
@@ -247,6 +309,15 @@ export function Panel(p: PanelProps) {
         </div>
         {view === 'live' && (
           <div className="op-tools">
+            {isDir && (
+              <NewChatPill
+                state={newChat.state}
+                reason={newChat.reason}
+                quiet={newChat.quiet}
+                who={dirShort}
+                onStart={() => void newChat.start()}
+              />
+            )}
             <button
               ref={pill}
               type="button"
@@ -273,7 +344,7 @@ export function Panel(p: PanelProps) {
         )}
       </header>
       <p className="sr-only" role="status" aria-live="polite">
-        {fresh ? `New message from ${ag.name}` : ''}
+        {fresh ? `New message from ${ag.name}` : isDir ? said : ''}
       </p>
       {view !== 'live' && (
         // biome-ignore lint/a11y/noStaticElementInteractions: Esc steps back one level from anywhere in history
@@ -306,7 +377,19 @@ export function Panel(p: PanelProps) {
             )}
           </nav>
           <div className="op-hist-body">
-            {view === 'history' ? (
+            {view === 'history' && isDir ? (
+              <ThreadChatList
+                pid={pid}
+                agentId={id}
+                name={short}
+                onOpen={(c) => go({ chat: c }, null)}
+                current={{
+                  preview: last ? last.text : null,
+                  needsYou: asks.some((a) => !answers[a.id]),
+                  onSelect: backToLive,
+                }}
+              />
+            ) : view === 'history' ? (
               <ChatList
                 agentId={id}
                 name={short}
@@ -316,6 +399,15 @@ export function Panel(p: PanelProps) {
                   needsYou: asks.some((a) => !answers[a.id]),
                   onSelect: backToLive,
                 }}
+              />
+            ) : 'chat' in view ? (
+              <PastThreadChat
+                key={view.chat.id}
+                pid={pid}
+                agentId={id}
+                chat={view.chat}
+                nameOf={(from) => p.agents[from]?.name ?? ag.name}
+                openReport={p.openReport}
               />
             ) : (
               <ChatView
@@ -332,93 +424,98 @@ export function Panel(p: PanelProps) {
       )}
       {/* the live chat stays mounted while you're in history, so drafts in its cards survive */}
       <>
-          <div className="op-log" ref={log} role="log" aria-live="polite" hidden={!live}>
-            {t.loading && <p className="op-note">…</p>}
-            {t.error && !t.data && <p className="op-note">Couldn’t load this conversation.</p>}
-            {t.data && !messages.length && !asks.length && (
-              <p className="op-note">
-                {isDir
+        <div className="op-log" ref={log} role="log" aria-live="polite" hidden={!live}>
+          {t.loading && <p className="op-note">…</p>}
+          {t.error && !t.data && <p className="op-note">Couldn’t load this conversation.</p>}
+          {t.data && !messages.length && !asks.length && (
+            <p className="op-note">
+              {isDir && restarted.has(lkey)
+                ? NEW_CHAT_COPY.empty(short)
+                : isDir
                   ? `${short} keeps the big picture. Say what you want built and it goes on the whiteboard.`
                   : `Ask ${short} about their work.`}
-              </p>
-            )}
-            {messages.map((m, i) => (
-              <Fragment key={m.id}>
-                <Bubble
-                  m={m}
-                  who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
-                  openReport={p.openReport}
-                />
-                {isDir && m.rebuild && (
-                  <div className="op-rebuild">
-                    {m.rebuild.undoToken ? (
-                      <UndoLine
-                        token={m.rebuild.undoToken}
-                        summary={m.rebuild.summary}
-                        since={Date.parse(m.at)}
-                      />
-                    ) : (
-                      <RebuildCard
-                        card={m.rebuild.card}
-                        faceOf={(aid) => p.agents[aid] ?? null}
-                        director={dirShort}
-                        /* a newer message to the director: this card is out of date (spec §3) */
-                        stale={messages.slice(i + 1).some((x) => x.from === 'user')}
-                        /* only a card that just arrived takes focus — not one in the history */
-                        focus={Date.parse(m.at) > openedAt.current}
-                      />
-                    )}
-                  </div>
-                )}
-              </Fragment>
-            ))}
-            {asks.map((a) => (
-              <AskCard
-                key={a.id}
-                ask={a}
-                answered={answers[a.id]}
-                onAnswer={(v) => void answer(a, v)}
-                who={ag.name}
+            </p>
+          )}
+          {messages.map((m, i) => (
+            <Fragment key={m.id}>
+              <Bubble
+                m={m}
+                who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
+                openReport={p.openReport}
               />
-            ))}
-            {typing && (
-              <div className="bubble them">
-                <span className="sr-only">{short} is typing</span>
-                <span className="typing" aria-hidden="true">
-                  <i />
-                  <i />
-                  <i />
-                </span>
-              </div>
-            )}
-          </div>
-          {p.context && (
-            <div className="op-ctx" hidden={!live}>
-              <span>About: {p.context.title}</span>
-              <button type="button" aria-label="Drop the context" onClick={p.clearContext}>
-                ✕
-              </button>
+              {isDir && m.rebuild && (
+                <div className="op-rebuild">
+                  {m.rebuild.undoToken ? (
+                    <UndoLine
+                      token={m.rebuild.undoToken}
+                      summary={m.rebuild.summary}
+                      since={Date.parse(m.at)}
+                    />
+                  ) : (
+                    <RebuildCard
+                      card={m.rebuild.card}
+                      faceOf={(aid) => p.agents[aid] ?? null}
+                      director={dirShort}
+                      /* a newer message to the director: this card is out of date (spec §3) */
+                      stale={messages.slice(i + 1).some((x) => x.from === 'user')}
+                      /* only a card that just arrived takes focus — not one in the history */
+                      focus={Date.parse(m.at) > openedAt.current}
+                      /* an answered card no longer holds New chat back */
+                      onApplied={() => bump((n) => n + 1)}
+                      onKept={() => bump((n) => n + 1)}
+                    />
+                  )}
+                </div>
+              )}
+            </Fragment>
+          ))}
+          {asks.map((a) => (
+            <AskCard
+              key={a.id}
+              ask={a}
+              answered={answers[a.id]}
+              onAnswer={(v) => void answer(a, v)}
+              who={ag.name}
+            />
+          ))}
+          {typing && (
+            <div className="bubble them">
+              <span className="sr-only">{short} is typing</span>
+              <span className="typing" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
             </div>
           )}
-          <form className="op-composer" onSubmit={submit} hidden={!live}>
-            <input
-              ref={input}
-              autoComplete="off"
-              value={text}
-              placeholder={`Message ${short}…`}
-              aria-label={`Message ${ag.name}`}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && !text && !isDir) {
-                  e.stopPropagation();
-                  p.open(director);
-                }
-              }}
-            />
-            <Button small variant="hero" type="submit">
-              Send
-            </Button>
-          </form>
+        </div>
+        {p.context && (
+          <div className="op-ctx" hidden={!live}>
+            <span>About: {p.context.title}</span>
+            <button type="button" aria-label="Drop the context" onClick={p.clearContext}>
+              ✕
+            </button>
+          </div>
+        )}
+        <form className="op-composer" onSubmit={submit} hidden={!live}>
+          <input
+            ref={input}
+            autoComplete="off"
+            value={text}
+            placeholder={`Message ${short}…`}
+            aria-label={`Message ${ag.name}`}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && !text && !isDir) {
+                e.stopPropagation();
+                p.open(director);
+              }
+            }}
+          />
+          <Button small variant="hero" type="submit">
+            Send
+          </Button>
+        </form>
       </>
     </>
   );
@@ -451,25 +548,6 @@ function BackToChat({ fresh, onClick, hero }: { fresh: boolean; onClick: () => v
       {CHAT_COPY.backToChat}
       {fresh && <i className="op-dot" aria-hidden="true" />}
     </button>
-  );
-}
-
-function Bubble({ m, who, openReport }: { m: ThreadMessage; who: string; openReport: (id: string) => void }) {
-  const me = m.from === 'user';
-  /* a follow-up: the message keeps its reportId (older ones carried a text prefix) */
-  const legacy = me ? /^About (?:the report )?“(.+?)”: /.exec(m.text) : null;
-  const aboutTitle = me && m.reportId ? (aboutTitles.get(m.reportId) ?? 'a report') : legacy?.[1];
-  return (
-    <div className={`bubble ${me ? 'me' : 'them'}${m.kind === 'error' ? ' err' : ''}`}>
-      <span className="who">{who}</span>
-      {aboutTitle && <span className="op-about">About: {aboutTitle}</span>}
-      <span className="t">{fmt(legacy ? m.text.slice(legacy[0].length) : m.text)}</span>
-      {m.reportId && !me && (
-        <button type="button" className="op-link" onClick={() => openReport(m.reportId as string)}>
-          Open report
-        </button>
-      )}
-    </div>
   );
 }
 
@@ -527,19 +605,4 @@ function AskCard({
       </div>
     </div>
   );
-}
-
-/** **bold** and `code` only (the prototype's _fmt), as elements — never raw HTML. */
-function fmt(s: string): React.ReactNode[] {
-  const out: React.ReactNode[] = [];
-  const re = /\*\*([^*]+)\*\*|`([^`]+)`/g;
-  let last = 0;
-  let k = 0;
-  for (let m = re.exec(s); m; m = re.exec(s)) {
-    if (m.index > last) out.push(s.slice(last, m.index));
-    out.push(m[1] ? <b key={k++}>{m[1]}</b> : <code key={k++}>{m[2]}</code>);
-    last = m.index + m[0].length;
-  }
-  if (last < s.length) out.push(s.slice(last));
-  return out;
 }

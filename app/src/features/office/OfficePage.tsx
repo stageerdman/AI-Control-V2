@@ -39,7 +39,7 @@ import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
 import { type ObjectId, officeLayout } from './layout';
 import { noteCounts, noteLabel, principlesLabel, readSeen, type Seen, trays, writeSeen } from './life';
 import { MailSheet, refreshMail } from './MailSheet';
-import { type FollowUpContext, Panel, shortOf } from './Panel';
+import { type FollowUpContext, Panel, resetThread, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
 import { RecapSheet } from './RecapSheet';
@@ -502,6 +502,10 @@ function Office({
           if (ev.payload.from === 'agent') void e?.say(ev.payload.agentId, { ms: 1300 });
           break;
         }
+        case 'thread.reset':
+          /* the director's chat started fresh (here or in another window): the old one is in History */
+          resetThread(pid, ev.payload.agentId);
+          break;
         case 'run.started':
           /* the director briefs whoever starts a run: one "…" toward them */
           if (ev.payload.agentId !== director && liveRef.current.ids.includes(ev.payload.agentId))
@@ -1034,6 +1038,7 @@ function Office({
             setTimeout(() => engine.current?.fit(), 340);
           }}
           raise={showPanel}
+          running={running.data}
         />
       </aside>
       <AccessSheet pid={pid} name={name} open={accessOpen} onClose={() => setAccessOpen(false)} />

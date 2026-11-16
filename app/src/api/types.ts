@@ -601,7 +601,13 @@ export type EventPayloads = {
   'tool.used': { agentId: string; runId?: string; tool: string; ok: boolean };
   'guest.changed': { agentId: string; change: 'joined' | 'updated' | 'left' };
   /** The director staffed the project from chat. */
-  'staff.changed': { teamIds: string[]; agentIds: string[]; added: string[]; removed?: string[]; moved?: string[] };
+  'staff.changed': {
+    teamIds: string[];
+    agentIds: string[];
+    added: string[];
+    removed?: string[];
+    moved?: string[];
+  };
   'mail.changed': {
     mailId: string;
     change: 'arrived' | 'triaged' | 'filed' | 'reopened';
@@ -722,8 +728,16 @@ export type EventPayloads = {
     /** The goal this line belongs to (the orchestrator's thread records every goal). */
     goalId?: string;
     /** A team rebuild the director's reply carries (the card shape lives in features/office/rebuild/api.ts). */
-    rebuild?: { planId: string; needsConfirm: boolean; card: Record<string, unknown>; undoToken?: string; summary?: string };
+    rebuild?: {
+      planId: string;
+      needsConfirm: boolean;
+      card: Record<string, unknown>;
+      undoToken?: string;
+      summary?: string;
+    };
   };
+  /** The director's chat started fresh; the old one is now a past chat in History. */
+  'thread.reset': { agentId: string };
   /** Reports: title only, never the body. */
   'report.filed': { reportId: string; projectId: string; authorAgentId: string; title: string };
   'report.read': { reportId: string; read: boolean };
@@ -767,6 +781,7 @@ export const EVENT_TYPES = [
   'checklist.item',
   'feature.changed',
   'thread.message',
+  'thread.reset',
   'report.filed',
   'report.read',
   'report.archived',

@@ -355,6 +355,85 @@
   outline-offset: 2px;
 }
 
+/* ---- New chat with Pixel (design/new-chat): idle = the History look; shining = sun + glow + 3 sweeps; dim */
+.op-pill-new.is-idle,
+.op-pill-new.is-dim {
+  cursor: default;
+}
+.op-pill-new.is-idle:hover .op-pill-v {
+  background: rgba(255, 255, 255, 0.1);
+}
+.op-pill-new.is-dim {
+  cursor: not-allowed;
+}
+.op-pill-new.is-dim .op-pill-v {
+  opacity: 0.45;
+}
+.op-pill-new.is-dim:hover .op-pill-v {
+  background: rgba(255, 255, 255, 0.1);
+}
+.op-pill-new.is-shining .op-pill-v,
+.op-pill-new.is-shining:hover .op-pill-v {
+  background: var(--sun, #ffc24b)
+    linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.65) 50%, transparent 65%) no-repeat;
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  color: #4a2600;
+  box-shadow:
+    0 0 0 2px rgba(255, 194, 75, 0.35),
+    0 0 14px 2px rgba(255, 194, 75, 0.45);
+  transition:
+    box-shadow 0.2s,
+    transform 0.08s;
+  /* 1.2s sweep + 2.5s rest, three times, then a steady glow (never a loop) */
+  animation: op-sweep 3.7s ease-in-out 0s 3;
+}
+.op-pill-new.is-shining.no-sweep .op-pill-v {
+  animation: none;
+}
+.op-pill-new.is-shining:hover .op-pill-v {
+  box-shadow:
+    0 0 0 2px rgba(255, 194, 75, 0.35),
+    0 0 18px 3px rgba(255, 194, 75, 0.55);
+}
+.op-pill-new.is-shining:active .op-pill-v {
+  transform: scale(0.97);
+}
+.op-pill-new.is-shining:focus-visible .op-pill-v {
+  outline-color: var(--cream);
+}
+@keyframes op-sweep {
+  0% {
+    background-position: 150% 0;
+  }
+  32%,
+  100% {
+    background-position: -50% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .op-pill-new.is-shining .op-pill-v {
+    animation: none;
+  }
+  .op-pill-new.is-shining:active .op-pill-v {
+    transform: none;
+  }
+}
+.op-why {
+  max-width: 180px;
+  margin: -10px 4px 0 0;
+  color: rgba(255, 246, 233, 0.8);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.op-why + .op-pill {
+  margin-top: -6px;
+}
+
 /* ---- the two history views: nav bar + body */
 .op-hist {
   flex: 1;

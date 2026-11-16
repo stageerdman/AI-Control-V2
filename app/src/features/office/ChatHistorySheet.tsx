@@ -179,6 +179,26 @@ export function ChatList({
 
 /* ---------- History in the chat panel: Current chat pinned, then day groups, newest first */
 
+/** One past chat in the panel's History: an agent's run, or a closed window of the director's thread. */
+export type HistoryRow = {
+  id: string;
+  title: string;
+  lastText: string | null;
+  /** When it ended (ISO): groups by day, sorts newest first. */
+  at: string;
+  /** After the time: a status tag, or "· 14 messages". */
+  tag?: string | null;
+  extra?: string;
+};
+export type HistoryQuery = { data?: HistoryRow[]; fetching: boolean; refetch: () => Promise<void> };
+
+const rowOfRun = (c: ChatSummary): HistoryRow => ({
+  id: c.runId,
+  title: c.task,
+  lastText: c.lastText,
+  at: c.endedAt ?? c.startedAt,
+  tag: STATUS_TAG[c.status],
+});
 function PanelList({
   q,
   name,
@@ -192,12 +212,34 @@ function PanelList({
   current: CurrentRow;
   now: Date;
 }) {
-  const runs = [...(q.data ?? [])].sort((a, b) =>
-    (b.endedAt ?? b.startedAt).localeCompare(a.endedAt ?? a.startedAt),
-  );
-  const groups: { label: string; runs: ChatSummary[] }[] = [];
+  const rows = q.data?.map(rowOfRun);
+  const open = (id: string) => {
+    const c = q.data?.find((x) => x.runId === id);
+    if (c) onOpen(c);
+  };
+  return <HistoryList q={{ ...q, data: rows }} name={name} onOpen={open} current={current} now={now} />;
+}
+
+/** Current chat pinned on top, then the past chats grouped by day, newest first. */
+export function HistoryList({
+  q,
+  name,
+  onOpen,
+  current,
+  now,
+  emptyBody = CHAT_COPY.emptyBody,
+}: {
+  q: HistoryQuery;
+  name: string;
+  onOpen: (id: string) => void;
+  current: CurrentRow;
+  now: Date;
+  emptyBody?: string;
+}) {
+  const runs = [...(q.data ?? [])].sort((a, b) => b.at.localeCompare(a.at));
+  const groups: { label: string; runs: HistoryRow[] }[] = [];
   for (const c of runs) {
-    const label = dayLabel(c.endedAt ?? c.startedAt, now);
+    const label = dayLabel(c.at, now);
     const g = groups[groups.length - 1];
     if (g?.label === label) g.runs.push(c);
     else groups.push({ label, runs: [c] });
@@ -229,16 +271,16 @@ function PanelList({
                 <h3 className="ch-sub ch-day">{g.label}</h3>
               </li>
               {g.runs.map((c) => {
-                const tag = STATUS_TAG[c.status];
                 const text = c.lastText ? plain(c.lastText) : '';
                 return (
-                  <li key={c.runId}>
-                    <button type="button" className="ch-row" data-run={c.runId} onClick={() => onOpen(c)}>
-                      <span className="ch-row-t">{c.task}</span>
+                  <li key={c.id}>
+                    <button type="button" className="ch-row" data-run={c.id} onClick={() => onOpen(c.id)}>
+                      <span className="ch-row-t">{c.title}</span>
                       {text && <span className="ch-prev">{text}</span>}
                       <span className="ch-meta">
-                        {rowWhen(c.endedAt ?? c.startedAt, now)}
-                        {tag && <span className="rc-tag">{tag}</span>}
+                        {rowWhen(c.at, now)}
+                        {c.extra}
+                        {c.tag && <span className="rc-tag">{c.tag}</span>}
                       </span>
                     </button>
                   </li>
@@ -258,7 +300,7 @@ function PanelList({
                 🕘
               </span>
               <p className="ch-empty-t">{CHAT_COPY.emptyTitle(name)}</p>
-              <p className="ch-empty-b">{CHAT_COPY.emptyBody}</p>
+              <p className="ch-empty-b">{emptyBody}</p>
               <Button variant="hero" onClick={current.onSelect}>
                 {CHAT_COPY.backToChat}
               </Button>
@@ -292,7 +334,9 @@ export function foldLines(messages: readonly ChatMessage[]): Line[] {
 /** Replies whose offered work ("Start it") hasn't been started yet, by seq. */
 export function openOffers(messages: readonly ChatMessage[]): Set<number> {
   const started = new Set(
-    messages.map((m) => (m.meta?.started as { offer?: number } | undefined)?.offer).filter((s) => s !== undefined),
+    messages
+      .map((m) => (m.meta?.started as { offer?: number } | undefined)?.offer)
+      .filter((s) => s !== undefined),
   );
   return new Set(messages.filter((m) => m.meta?.offer && !started.has(m.seq)).map((m) => m.seq));
 }
@@ -526,7 +570,7 @@ export function ChatView({
 
 /* ---------- shared bits */
 
-function Placeholder({ label }: { label: string }) {
+export function Placeholder({ label }: { label: string }) {
   return (
     <div className="rc-think">
       <p className="rc-think-l">{label}</p>
@@ -537,7 +581,7 @@ function Placeholder({ label }: { label: string }) {
   );
 }
 
-function ErrorRow({ text, onRetry }: { text: string; onRetry: () => void }) {
+export function ErrorRow({ text, onRetry }: { text: string; onRetry: () => void }) {
   return (
     <div className="rp-error" role="alert">
       <span>{text}</span>

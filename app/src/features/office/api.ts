@@ -90,6 +90,16 @@ export type ThreadMessage = {
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
+/** A past chat of the director's thread (server/src/office/thread-chats.ts). */
+export type ThreadChat = {
+  id: string;
+  /** Its first user line ('' when the user never wrote in it). */
+  title: string;
+  lastText: string | null;
+  startedAt: string;
+  endedAt: string;
+  messageCount: number;
+};
 
 /** GET /asks — the pager's view of open asks across every project. */
 export type StudioAsk = {
@@ -200,6 +210,14 @@ export const officeApi = {
       `/projects/${e(pid)}/threads/${e(agentId)}/messages`,
       reportId ? { text, reportId } : { text },
     ),
+  /** "New chat with Pixel": closes the live chat (201 = the chat that closed); 409 work_running / chat_empty. */
+  newChat: (pid: string, agentId: string) =>
+    http.post<ThreadChat>(`/projects/${e(pid)}/threads/${e(agentId)}/new`, {}),
+  /** The director's past chats, newest first. */
+  threadChats: (pid: string, agentId: string) =>
+    http.get<ThreadChat[]>(`/projects/${e(pid)}/threads/${e(agentId)}/chats`),
+  threadChatMessages: (pid: string, agentId: string, chatId: string) =>
+    http.get<ThreadMessage[]>(`/projects/${e(pid)}/threads/${e(agentId)}/chats/${e(chatId)}/messages`),
   collaboration: (pid: string) => http.get<CollaborationView>(`/projects/${e(pid)}/collaboration`),
   setCollaboration: (pid: string, c: Collaboration) =>
     http.put<CollaborationView>(`/projects/${e(pid)}/collaboration`, c),
@@ -229,6 +247,9 @@ export const keys = {
   asks: (pid: string) => `office:${pid}:asks`,
   access: (pid: string) => `office:${pid}:access`,
   thread: (pid: string, agentId: string) => `office:${pid}:thread:${agentId}`,
+  threadChats: (pid: string, agentId: string) => `office:${pid}:threadchats:${agentId}`,
+  threadChat: (pid: string, agentId: string, chatId: string) =>
+    `office:${pid}:threadchats:${agentId}:${chatId}`,
   collaboration: (pid: string) => `office:${pid}:collaboration`,
   progress: (pid: string) => `office:${pid}:progress`,
   app: (pid: string) => `office:${pid}:app`,

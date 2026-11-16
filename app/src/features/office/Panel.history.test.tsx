@@ -107,6 +107,8 @@ beforeEach(() => {
   vi.spyOn(officeApi, 'thread').mockImplementation((_pid, id) => Promise.resolve(thread(id)));
   vi.spyOn(officeApi, 'listAgentChats').mockImplementation((id) => answer(chats[id] ?? []));
   vi.spyOn(officeApi, 'getChatMessages').mockImplementation((id) => Promise.resolve(lines(id)));
+  /* the director's History lists its past chats (design/new-chat), not its runs */
+  vi.spyOn(officeApi, 'threadChats').mockResolvedValue([]);
 });
 afterEach(() => {
   cleanup();
@@ -282,9 +284,7 @@ describe('Back to the live chat', () => {
 
   it('a trip to History keeps the live chat’s drafts (ask answer, composer)', async () => {
     await mount({
-      asks: [
-        { id: 'k2', agentId: 'a-mira', question: 'Which form?' } as PanelProps['asks'][number],
-      ],
+      asks: [{ id: 'k2', agentId: 'a-mira', question: 'Which form?' } as PanelProps['asks'][number]],
     });
     fireEvent.change(screen.getByRole('textbox', { name: 'Your answer' }), {
       target: { value: 'The signup one' },
@@ -444,6 +444,7 @@ describe('list states', () => {
     await mount({ thread: 'a-ada' });
     await openHistory();
     expect(await screen.findByText('No past chats with Ada yet')).toBeTruthy();
+    expect(screen.getByText('Start a new chat and this one shows up here.')).toBeTruthy();
   });
 
   it('loading: Finding their chats…, marked busy, Current chat still reachable', async () => {

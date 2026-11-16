@@ -7,11 +7,11 @@ import { Hero } from '../../../characters';
 import { Button } from '../../../ui';
 import {
   type ApplyBody,
+  type RebuildCard as Card,
   type HandoverTo,
   isStaleError,
   type LonePick,
   type Person,
-  type RebuildCard as Card,
   rebuildApi,
   UNDO_MS,
 } from './api';
@@ -25,6 +25,8 @@ type Outcome =
   | { kind: 'done'; token: string; summary: string; at: number }
   | { kind: 'undone' };
 const outcomes = new Map<string, Outcome>();
+/** The user already answered this card here (Rebuild or Keep as is). */
+export const isRebuildSettled = (planId: string) => outcomes.has(planId);
 /** For tests. */
 export const resetRebuildCards = () => {
   outcomes.clear();
@@ -91,7 +93,8 @@ export type RebuildCardProps = {
    (voice / typed answer, focus elsewhere) — never both, never silence, never focus dropped to the page. */
 const KEPT = 'Kept as is.';
 const UNDONE = 'Undone — the team is back as it was.';
-const doneText = (summary?: string) => (summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.');
+const doneText = (summary?: string) =>
+  summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.';
 /** Focus is inside `el`, or was until the focused control was removed (focus fell back to the page). */
 const holdsFocus = (el: HTMLElement | null, was: boolean) => {
   const a = document.activeElement;
@@ -292,7 +295,10 @@ function LiveCard(
           <Group label="Leaves this project" warm>
             {card.leaves.map((l) => (
               <li key={l.id} className="rb-who">
-                <Faces people={l.kind === 'team' ? (l.members ?? []) : [{ id: l.id, name: l.name }]} faceOf={faceOf} />
+                <Faces
+                  people={l.kind === 'team' ? (l.members ?? []) : [{ id: l.id, name: l.name }]}
+                  faceOf={faceOf}
+                />
                 <span className="rb-name">
                   {l.name}
                   {l.kind === 'team' && <span className="rb-sub"> · whole team</span>}
@@ -366,7 +372,10 @@ function LiveCard(
           <Group label={captains.length === 1 ? 'New captain' : 'New captains'}>
             {captains.map((c) => (
               <li key={c.teamId} className="rb-who">
-                <Faces people={[{ id: picks.captain[c.teamId] ?? c.agentId, name: c.name }]} faceOf={faceOf} />
+                <Faces
+                  people={[{ id: picks.captain[c.teamId] ?? c.agentId, name: c.name }]}
+                  faceOf={faceOf}
+                />
                 <span className="rb-name">{c.teamName}</span>
                 <Pick
                   id={`${id}-c-${c.teamId}`}
@@ -425,7 +434,13 @@ function LiveCard(
           )}
           <footer className="rb-foot">
             {/* aria-disabled, not disabled, while busy: a disabled button drops focus to the page */}
-            <Button ref={keep} variant="ghost" className="rb-keep" aria-disabled={busy || undefined} onClick={kept}>
+            <Button
+              ref={keep}
+              variant="ghost"
+              className="rb-keep"
+              aria-disabled={busy || undefined}
+              onClick={kept}
+            >
               Keep as is
             </Button>
             <Button variant="hero" aria-disabled={busy || undefined} onClick={() => void rebuild()}>
@@ -512,12 +527,7 @@ function WorkLine({
       </span>
       <span>
         {items(n)} {handLabel(to, toName, director)}
-        {n <= 3 && (
-          <span className="rb-items">
-            {' '}
-            ({leaver.openItems.map((i) => i.title).join('; ')})
-          </span>
-        )}
+        {n <= 3 && <span className="rb-items"> ({leaver.openItems.map((i) => i.title).join('; ')})</span>}
       </span>
       <Pick
         id={id}
