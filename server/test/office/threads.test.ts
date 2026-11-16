@@ -234,7 +234,7 @@ describe('project conversations (threads)', () => {
   it('a failed or stopped turn leaves an error message; asks are answered on the asks endpoint; secrets are scrubbed', async () => {
     h = studio((s) =>
       s.task.includes('"please fail"')
-        ? [{ fail: 'reached the turn cap (12)' }]
+        ? [{ fail: 'Claude Code exited (code 1)' }]
         : s.task.includes('"ask me"')
           ? [{ ask: 'Blue or green?', options: ['Blue', 'Green'] }, { result: 'Green it is.' }]
           : [{ result: `My key is ${s.env.STRIPE_KEY}` }],
@@ -251,7 +251,7 @@ describe('project conversations (threads)', () => {
     await h.runtime.settled(f.body.runId);
     expect((await h.call('GET', url('a-pete'))).body.messages.at(-1)).toMatchObject({
       kind: 'error',
-      text: 'I couldn’t finish that: reached the turn cap (12)',
+      text: 'I couldn’t finish that: Claude Code exited (code 1)',
     });
     const q = await h.call('POST', url('a-twinkle'), { text: 'ask me' });
     let open: { id: string }[] = [];

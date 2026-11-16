@@ -60,9 +60,6 @@ export const DEFAULT_MAX_CONCURRENT = 2;
 export const MAX_ITEMS = 8;
 /** Merge conflicts the builder is asked to resolve before the item stops for the user. */
 export const MAX_MERGE_TRIES = 2;
-/** Turn-cap pick-ups per item: a run that reaches its cap carries on in the same session, up to this often. */
-export const MAX_CONTINUES = 3;
-const TURN_CAP = /reached the turn cap/;
 
 export const DispatchSchema = z.strictObject({
   summary: z.string().trim().min(1).max(1000),
@@ -371,7 +368,7 @@ export function createDispatch(deps: {
     const why =
       runOf(it.resumeRunId)?.status === 'cancelled'
         ? 'the user stopped you, and has now asked you to continue'
-        : 'you reached your turn limit, or the studio restarted';
+        : 'the studio restarted';
     return [
       `You were stopped partway through your checklist item "${it.text}" (${why}). Your session and your files are as you left them.`,
       it.workspace
@@ -389,13 +386,6 @@ export function createDispatch(deps: {
       : null;
   /** The run's session, if it has one to resume. */
   const sessionOf = (runId: string | null): string | null => runOf(runId)?.session_id ?? null;
-  /** A build run reached its turn cap: queue the item again to carry on in the same session (≤ MAX_CONTINUES). */
-  function carryOn(it: ChecklistItem, run: Run): boolean {
-    if (run.status !== 'failed' || !TURN_CAP.test(run.error ?? '')) return false;
-    if (it.continues >= MAX_CONTINUES || !run.sessionId) return false;
-    settle(it, { status: 'todo', runId: null, resumeRunId: run.id, continues: it.continues + 1 });
-    return true;
-  }
 
   /** What the goal's earlier items finished — F3 live: "build on what the report recommends" while the build run
       never saw the report (it lives in the Reports tray, not the folder). Done items only; a report's summary + excerpt. */
@@ -763,7 +753,6 @@ export function createDispatch(deps: {
 
   /** A build (or rework) run ended. */
   function afterBuild(it: ChecklistItem, run: Run) {
-    if (carryOn(it, run)) return;
     if (run.status !== 'succeeded') {
       void stop(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
@@ -1001,7 +990,6 @@ export function createDispatch(deps: {
 
   /** The captain's integration run ended: one bounded rework round, or on through the gates like any build. */
   function afterIntegrate(it: ChecklistItem, run: Run) {
-    if (carryOn(it, run)) return;
     if (run.status !== 'succeeded') {
       void stop(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',

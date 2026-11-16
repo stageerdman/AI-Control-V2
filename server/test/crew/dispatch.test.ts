@@ -1,9 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createDispatch, MAX_CONTINUES } from '../../src/crew/dispatch.ts';
+import { createDispatch } from '../../src/crew/dispatch.ts';
 import { workRepo } from '../../src/db/work.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
+import { MAX_STALLS } from '../../src/runtime/limits.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
 import { type Answer, scriptedCrew } from './brain.ts';
@@ -222,7 +223,7 @@ describe('dispatch: goal → checklist → runs', () => {
   };
   const CAP = { fail: 'Stopped: reached the turn cap (30)' };
 
-  it('a run that reaches its turn cap carries on in the same session, then finishes', async () => {
+  it('a build that reaches its turn cap carries on as the same run in a fresh session, then finishes', async () => {
     const specs: RunSpec[] = [];
     const s = studio({ dispatch: [SOLO] }, (spec) => {
       specs.push(spec);
@@ -232,13 +233,14 @@ describe('dispatch: goal → checklist → runs', () => {
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('done');
-    expect(g.items[0]).toMatchObject({ status: 'done', continues: 1, resumeRunId: null, note: 'Deployed.' });
+    expect(g.items[0]).toMatchObject({ status: 'done', continues: 0, note: 'Deployed.' });
     expect(specs).toHaveLength(2);
-    expect(specs[1]?.resumeSessionId).toBe(`fake-${specs[0]?.runId}`);
-    expect(specs[1]?.task).toContain('You were stopped partway through your checklist item');
+    expect(specs[1]?.runId).toBe(specs[0]?.runId);
+    expect(specs[1]?.resumeSessionId).toBeUndefined();
+    expect(specs[1]?.task).toContain('You reached the step limit of a session');
   });
 
-  it('stops for the user after MAX_CONTINUES pick-ups', async () => {
+  it('stops as stuck when its fresh sessions bring no new commits', async () => {
     let runs = 0;
     const s = studio({ dispatch: [SOLO] }, () => {
       runs++;
@@ -248,11 +250,10 @@ describe('dispatch: goal → checklist → runs', () => {
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('failed');
-    expect(runs).toBe(1 + MAX_CONTINUES);
-    expect(g.items[0].problem).toEqual({
-      message: 'Ran out of steps. The work is saved and can continue.',
-      details: 'Stopped: reached the turn cap (30)',
-    });
+    expect(runs).toBe(MAX_STALLS);
+    expect(g.items[0].problem.message).toBe(
+      'Stuck: no new work after fresh starts. The work is saved and can continue.',
+    );
   });
 
   it('a stopped goal continues: its items queue again and the started one resumes its session', async () => {

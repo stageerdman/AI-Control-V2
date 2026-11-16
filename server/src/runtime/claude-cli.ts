@@ -10,6 +10,7 @@ import { createInterface } from 'node:readline';
 import { redactSecrets } from '../events/redact.ts';
 import { stopTree } from '../running/processes.ts';
 import { AGENT_SHELL } from './config.ts';
+import { turnCapError } from './limits.ts';
 import type { RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL, createStreamParser, REPORT_TOOL, studioTool } from './stream.ts';
 
@@ -202,7 +203,7 @@ export function claudeCliRunner(opts: CliOptions): Runner {
           setTimeout(() => stopAll(child), opts.afterResultMs ?? AFTER_RESULT_MS).unref();
         }
         if (parser.turns() > spec.caps.maxTurns)
-          stop({ status: 'failed', error: `Stopped: reached the turn cap (${spec.caps.maxTurns})` });
+          stop({ status: 'failed', error: turnCapError(spec.caps.maxTurns) });
       });
 
       const done = new Promise<RunOutcome>((resolve) => {

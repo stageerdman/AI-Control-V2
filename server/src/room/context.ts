@@ -36,9 +36,17 @@ export const YOUR_MEMORY = [
   '- When your context gets long, you feel lost, or a big chunk of work is done, you may forget on purpose: call `forget` with where you are, what you are doing and the next step (plus anything you must not lose). The note goes on your desk and you continue with a fresh memory from it.',
   '- Write the note for a stranger: concrete file paths, decisions, what is done and what is not. Commit finished work before you forget.',
   '- If the studio reminds you that your context is large, finish the step you are on, then forget.',
+  '- A session has a step limit. If you reach it, the studio carries you on in a fresh session from your latest note — as long as you keep committing. Commit as you go.',
   '- Stopped by the user and asked to carry on later? `my_history` shows your earlier chats here (what you were asked, what you did, how each ended); read the one you were stopped in, check your branch, and continue from there.',
 ].join('\n');
 
 /** The studio's nudge (PostToolUse) when a run's context passes the threshold. */
 export const FORGET_NUDGE =
   'AI Studio: your context is getting large. Finish the step you are on, commit, then call `forget` with where you are, what you are doing and the next step — you will continue fresh from that note.';
+
+/** The studio's nudge when a session is close to its step limit. */
+export const WRAP_UP_NUDGE =
+  'AI Studio: about 10 steps left in this session. Commit what is done now. Finish if you can; otherwise call `forget` with where you are and the next step — the studio carries you on in a fresh session.';
+
+/** Steps before the cap at which WRAP_UP_NUDGE is given. */
+export const WRAP_UP_STEPS = 10;

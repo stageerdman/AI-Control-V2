@@ -25,13 +25,21 @@ import { type Desk, type DeskNoteBody, DeskNoteSchema, deskBrief } from '../offi
 import { principlesBrief, principlesDir } from '../office/principles.ts';
 import type { WorkKind } from '../office/work-time.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
-import { FORGET_NUDGE, WORKING_WITH_OTHERS, YOUR_MEMORY } from '../room/context.ts';
+import {
+  FORGET_NUDGE,
+  WORKING_WITH_OTHERS,
+  WRAP_UP_NUDGE,
+  WRAP_UP_STEPS,
+  YOUR_MEMORY,
+} from '../room/context.ts';
 import type { Running } from '../running/registry.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { composePrompt } from './compose.ts';
 import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
+import { gitHead } from './git-head.ts';
+import { afterLimit, isLimit, type LimitState, limitBrief } from './limits.ts';
 import { runPermissions } from './permissions.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL } from './stream.ts';
@@ -61,17 +69,26 @@ type Live = {
   /** STUDIO LIFE: set by `forget` — when this handle ends, the run starts again from the note. */
   forgetting?: DeskNoteBody;
   forgets: number;
+  /** The latest note it left this run: a session cut off at a limit carries on from it. */
+  note?: DeskNoteBody;
+  /** Sessions it carried on after a limit, and how many of those in a row made no new commit. */
+  limits: LimitState;
+  /** The checkout's HEAD when this session began (progress = it moved). */
+  mark: string | null;
   cancelled?: boolean;
   /** The studio is closing: the run is left 'running' on its row so the restart recovers it like a crash. */
   closing?: boolean;
-  /** Turns + usage of earlier handles of this run (before a forget). */
-  before: { turns: number; usage: RunOutcome['usage'] };
+  /** Turns, usage and cost of earlier sessions of this run (before a forget or a limit). */
+  before: Spent;
   /** The latest turn's context size (input + cache), for the forget nudge. */
   context: number;
   nudged: boolean;
   /** Notes from the user or a leader while it runs ("Uncle Bob is already running"): the nudge hook hands them
       over after its next tool step. */
   notes: string[];
+  /** Turns in this session, for the wrap-up nudge before the cap. */
+  turns: number;
+  wrapped: boolean;
   /** The agent's latest words in the chat (the final result is saved only when it says something new). */
   said?: string;
   /** Takes it off the running list (src/running) once it has ended. */
@@ -83,6 +100,23 @@ export const STOPPED_BY_YOU = 'Stopped by you';
 export const STUDIO_CLOSED = 'Paused: the studio closed during this run';
 /** A run may forget this many times (a loop guard). */
 export const MAX_FORGETS = 5;
+type Spent = Pick<RunOutcome, 'turns' | 'usage' | 'costUsd'>;
+/** Two sessions' turns, usage and cost as one (cost stays absent when neither knew it). */
+const addSpent = (a: Spent, b: Spent): Spent => ({
+  turns: a.turns + b.turns,
+  usage: {
+    input: a.usage.input + b.usage.input,
+    output: a.usage.output + b.usage.output,
+    cacheRead: a.usage.cacheRead + b.usage.cacheRead,
+    cacheWrite: a.usage.cacheWrite + b.usage.cacheWrite,
+  },
+  ...(a.costUsd === undefined && b.costUsd === undefined
+    ? {}
+    : { costUsd: (a.costUsd ?? 0) + (b.costUsd ?? 0) }),
+});
+const NOTHING_SPENT: Spent = { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+/** How the next session of a run begins: its brief, what the chat and the office are told. */
+type NextSession = { brief: string; kind: 'forget' | 'limit'; label: string; line?: string };
 /** Context (tokens) past which the studio nudges an agent to forget. AI_STUDIO_FORGET_AT overrides. */
 export const FORGET_AT = 120_000;
 /** The reports seam (src/reports): who may file, and filing itself. */
@@ -126,6 +160,8 @@ export type RuntimeDeps = {
   forgetAt?: number;
   /** RUNNING: the studio's list of everything running — every run is on it while it lives. */
   running?: Running;
+  /** A mark of the checkout's work (default: git HEAD); a limited session that leaves it unchanged made no progress. */
+  progressMark?: (cwd: string) => string | null;
 };
 /** AGENT MCP: the studio tools an agent run gets (room, call_agent), wired once the room exists. */
 export type StudioToolsFor = (run: { projectId: string; agentId: string; runId: string }) => BridgeTool[];
@@ -326,6 +362,7 @@ export function createRuntime(deps: RuntimeDeps) {
       );
     else if (e.kind === 'tokens') {
       l.context = e.input;
+      l.turns++;
       emit(run.projectId, {
         type: 'tokens',
         payload: { agentId: run.agentId, runId: run.id, input: e.input, output: e.output },
@@ -433,10 +470,14 @@ export function createRuntime(deps: RuntimeDeps) {
       files,
       handle: { done: Promise.resolve({} as RunOutcome), cancel: () => {} },
       forgets: 0,
-      before: { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+      limits: { sessions: 0, stalls: 0 },
+      mark: null,
+      before: NOTHING_SPENT,
       context: 0,
       nudged: false,
       notes: [],
+      turns: 0,
+      wrapped: false,
     };
     live.set(runId, l);
     emit(
@@ -534,63 +575,67 @@ export function createRuntime(deps: RuntimeDeps) {
       deps.ports?.release(runId);
       bridge?.close();
     };
-    /* one handle at a time; after a forget the same run starts again — fresh session, the note as its brief */
+    const markOf = deps.progressMark ?? gitHead;
+    /* a build cut off at a limit carries on by itself — the user never has to notice (runtime/limits.ts) */
+    const carriesOn = !big && run.kind === 'building';
+    /** After a session ended: start the same run again (a forget, or a limit with progress) — or end it. */
+    const nextSession = (o: RunOutcome): { next: NextSession | null; o: RunOutcome } => {
+      const note = l.forgetting;
+      l.forgetting = undefined;
+      if (l.cancelled || l.closing) return { next: null, o };
+      if (note)
+        return {
+          next: { brief: deskBrief(note, req.task), kind: 'forget', label: 'Fresh start from my note' },
+          o,
+        };
+      if (!carriesOn || o.status !== 'failed' || !isLimit(o.error)) return { next: null, o };
+      const verdict = afterLimit(l.limits, markOf(cwd) !== l.mark, caps.maxTurns);
+      if (!verdict.carryOn) return { next: null, o: { ...o, error: verdict.error } };
+      l.limits = verdict.state;
+      return {
+        next: {
+          brief: limitBrief(req.task, caps.maxTurns, l.note ?? null),
+          kind: 'limit',
+          label: 'Carrying on in a fresh session',
+          line: `Reached the step limit (${caps.maxTurns}). Carrying on in a fresh session (${verdict.state.sessions}).`,
+        },
+        o,
+      };
+    };
+    /** One session's handle; the run goes on through fresh sessions until nextSession says it is over. */
     const watch = (h: RunHandle) => {
       l.handle = h;
       h.done
-        .catch(
-          (err: Error): RunOutcome => ({
-            status: 'failed',
-            error: err.message,
-            turns: 0,
-            usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          }),
-        )
-        .then((o) => {
-          const note = l.forgetting;
-          l.forgetting = undefined;
-          if (note && !l.cancelled) {
-            l.before = {
-              turns: l.before.turns + o.turns,
-              usage: {
-                input: l.before.usage.input + o.usage.input,
-                output: l.before.usage.output + o.usage.output,
-                cacheRead: l.before.usage.cacheRead + o.usage.cacheRead,
-                cacheWrite: l.before.usage.cacheWrite + o.usage.cacheWrite,
-              },
-            };
+        .catch((err: Error): RunOutcome => ({ ...NOTHING_SPENT, status: 'failed', error: err.message }))
+        .then((ended) => {
+          let { next, o } = nextSession(ended);
+          if (next) {
+            l.before = addSpent(l.before, o);
             l.context = 0;
             l.nudged = false;
+            l.turns = 0;
+            l.wrapped = false;
             emit(projectId, {
               type: 'agent.status',
               payload: {
                 agentId: agent.id,
                 runId,
                 status: 'working',
-                activity: { kind: 'starting', label: 'Fresh start from my note' },
+                activity: { kind: 'starting', label: next.label },
               },
             });
             try {
               const { resumeSessionId: _old, ...fresh } = spec;
-              const brief = deskBrief(note, req.task);
-              record(run, secrets, 'system', brief, { kind: 'forget' });
-              watch(runner.start({ ...fresh, task: brief, sessionId: randomUUID() }, io));
+              record(run, secrets, 'system', next.line ?? next.brief, { kind: next.kind });
+              l.mark = markOf(cwd);
+              watch(runner.start({ ...fresh, task: next.brief, sessionId: randomUUID() }, io));
               return;
             } catch (e) {
-              o = { ...o, status: 'failed', error: (e as Error).message };
+              o = { ...NOTHING_SPENT, status: 'failed', error: (e as Error).message };
             }
           }
           release();
-          finish(l, {
-            ...o,
-            turns: l.before.turns + o.turns,
-            usage: {
-              input: l.before.usage.input + o.usage.input,
-              output: l.before.usage.output + o.usage.output,
-              cacheRead: l.before.usage.cacheRead + o.usage.cacheRead,
-              cacheWrite: l.before.usage.cacheWrite + o.usage.cacheWrite,
-            },
-          });
+          finish(l, { ...o, ...addSpent(l.before, o) });
         });
     };
     l.untrack = deps.running?.add({
@@ -602,6 +647,7 @@ export function createRuntime(deps: RuntimeDeps) {
       pid: () => l.handle.pid,
       cancel: () => stopLive(l),
     }).end;
+    l.mark = markOf(cwd); // before the session starts: its own commits are its progress
     watch(startHandle(spec, io));
     return run;
   }
@@ -631,20 +677,29 @@ export function createRuntime(deps: RuntimeDeps) {
     deps.desk.save(l.run.projectId, l.run.agentId, runId, parsed.data, l.secrets);
     l.forgets++;
     l.forgetting = parsed.data;
+    l.note = parsed.data;
     const h = l.handle;
     setTimeout(() => h.cancel(), 50).unref?.(); // let the tool answer first
     return Promise.resolve('Your note is on your desk. Your memory clears now — you continue from the note.');
   }
-  /** The nudge hook asks after each tool: notes left for the run since the last tool, and — past the threshold,
-      once per memory — "write your note and forget". */
+  /** The nudge hook asks after each tool: notes left for the run since the last tool, plus — once per memory
+      each — near the step limit "commit and wrap up", past the context threshold "write your note and forget". */
   function nudge(runId: string): string | null {
     const l = live.get(runId);
     if (!l) return null;
-    const notes = l.notes.splice(0);
-    const forgetNow = !!deps.desk && !l.nudged && !l.forgetting && l.context >= (deps.forgetAt ?? FORGET_AT);
-    if (forgetNow) l.nudged = true;
-    const text = [...notes, ...(forgetNow ? [FORGET_NUDGE] : [])].join('\n\n');
+    const text = [...l.notes.splice(0), ...memoryNudge(l)].join('\n\n');
     return text || null;
+  }
+  /** The wrap-up or forget nudge due now (at most one), for runs that can leave a desk note. */
+  function memoryNudge(l: Live): string[] {
+    if (!deps.desk || l.forgetting) return [];
+    if (!l.wrapped && l.turns >= l.run.caps.maxTurns - WRAP_UP_STEPS) {
+      l.wrapped = true;
+      return [WRAP_UP_NUDGE];
+    }
+    if (l.nudged || l.context < (deps.forgetAt ?? FORGET_AT)) return [];
+    l.nudged = true;
+    return [FORGET_NUDGE];
   }
   /** A note for an agent's live run on this project, delivered after its next tool step (and kept in its chat).
       → the run it went to, or null when the agent isn't running here. */
