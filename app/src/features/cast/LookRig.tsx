@@ -8,7 +8,7 @@ import { LOOK_SLOTS, type LookSlotId, lookAnchors } from '../../characters';
 import { type CloseWhy, LookTray } from './LookTray';
 import { lookTag } from './model';
 
-const DICE = (
+export const DICE = (
   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
     <rect x="3.5" y="3.5" width="17" height="17" rx="4.5" fill="none" stroke="currentColor" strokeWidth="2" />
     <circle cx="8.5" cy="8.5" r="1.6" fill="currentColor" />

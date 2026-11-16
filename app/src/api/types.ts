@@ -64,9 +64,15 @@ export type Agent = {
   teamIds: string[];
   projectIds: string[];
   canDelete: DeleteVerdict;
+  /** Invite another: the kin group (agents sharing one set of instructions); null = alone. Older servers omit it. */
+  kinId?: string | null;
+  /** The other live kin ids, first-made first ("like Blair" = kin[0]). */
+  kin?: string[];
   createdAt: string;
   updatedAt: string;
 };
+/** GET /agents/:id/copy-draft — a fresh suggestion for a copy: a free family name and the family look. */
+export type CopyDraft = { name: string; look: Look };
 export type AgentCreate = {
   kind?: AgentKind;
   name: string;

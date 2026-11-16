@@ -18,6 +18,7 @@ import type {
   ChatMessage,
   ClaudeMdRebuild,
   Comm,
+  CopyDraft,
   CreatorDraft,
   CreatorSession,
   Deleted,
@@ -72,6 +73,10 @@ export const studio = {
     remove: (id: string) => http.del<Deleted>(`/agents/${e(id)}`),
     /** In a running session right now? (Delete is refused with 409 'agent_busy' while it is.) */
     busy: (id: string) => http.get<AgentBusy>(`/agents/${e(id)}/busy`),
+    /** Invite another: a fresh name + family look for a copy (each call re-rolls). */
+    copyDraft: (id: string) => http.get<CopyDraft>(`/agents/${e(id)}/copy-draft`),
+    /** Make the copy (same instructions); 409 name_taken for a name already in the Cast. */
+    copy: (id: string, body: Partial<CopyDraft>) => http.post<Agent>(`/agents/${e(id)}/copies`, body),
   },
   teams: {
     list: () => http.get<Team[]>('/teams'),

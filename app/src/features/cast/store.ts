@@ -153,6 +153,16 @@ export async function createAgent(body: AgentCreate): Promise<Agent | undefined>
   }
 }
 
+/** Invite another: make the copy, show it at once, and re-read the Cast (every kin's `kin` list grew).
+    Throws (409 name_taken, offline…) so the invite card can say why in place. */
+export async function inviteCopy(id: string, body: { name: string; look: AgentCreate['look'] }): Promise<Agent> {
+  const a = await castApi.agents.copy(id, body);
+  setQueryData<Agent[]>(KEYS.agents, upsert(a));
+  void invalidate(KEYS.agents);
+  void invalidate(KEYS.roles); // the role's agent count
+  return a;
+}
+
 /* ---------- busy: an agent in a running session can't be deleted ---------- */
 const NOT_BUSY: AgentBusy = { busy: false, sessions: [] };
 
