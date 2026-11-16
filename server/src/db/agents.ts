@@ -2,6 +2,7 @@
    them by id; each project runs its own copy at run time (no shared memory). */
 import {
   type AgentKind,
+  assertCanCopy,
   assertCanCreate,
   canDelete,
   type DeleteVerdict,
@@ -12,7 +13,7 @@ import {
 import { slugify, uniqueId } from '../domain/ids.ts';
 import { DEFAULT_LOOK, type Look } from '../domain/look.ts';
 import type { Toolset } from '../domain/toolset.ts';
-import { AppError, conflict, invalid, notFound } from '../errors.ts';
+import { AppError, invalid, notFound } from '../errors.ts';
 import type { Db } from './connection.ts';
 import type { RolesRepo } from './roles.ts';
 import { exists, nextPosition, now, row, rows } from './util.ts';
@@ -239,11 +240,7 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
     copy(id: string, identity: { name: string; look: Look }): Agent {
       const r = record(id);
       if (!r) throw notFound('Agent', id);
-      if (isSystemKind(r.kind))
-        throw conflict(`The ${KIND_LABEL[r.kind]} has one job in the studio; it can't be copied.`, {
-          agentId: id,
-          kind: r.kind,
-        });
+      assertCanCopy(r);
       if (repo.nameTaken(identity.name))
         throw new AppError('name_taken', `There's already a ${identity.name.trim()} in the Cast.`, {
           name: identity.name.trim(),

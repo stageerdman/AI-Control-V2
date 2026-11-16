@@ -17,7 +17,7 @@ const wearing = (hue: string): Look => ({ ...blair, hue });
 const seeded = (s: number) => {
   let seed = (s * 104729) % 2147483647; // spread small seeds so the first draw isn't always near 0
   return () => {
-  seed = (seed * 16807) % 2147483647;
+    seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
   };
 };

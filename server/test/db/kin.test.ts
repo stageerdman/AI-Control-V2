@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Look } from '../../src/domain/look.ts';
 import { testApp } from '../helpers.ts';
 
-const teal: Look = { hat: 'goggles', tool: 'wrench', body: 'hero', antenna: 'bob', face: 'none', hue: 'teal' };
+const teal: Look = {
+  hat: 'goggles',
+  tool: 'wrench',
+  body: 'hero',
+  antenna: 'bob',
+  face: 'none',
+  hue: 'teal',
+};
 const rose: Look = { ...teal, hue: 'rose', antenna: 'tuft' };
 
 describe('kin: copies of one Cast agent', () => {
@@ -53,7 +60,11 @@ describe('kin: copies of one Cast agent', () => {
     copy('Bea');
     agents().update('a-bea', { prompt: 'Shared brain v2', roleId: null, canMail: false });
     agents().update('a-bea', { name: 'Bea B', nick: 'Bee', look: rose });
-    expect(agents().require('a-pete')).toMatchObject({ prompt: 'Shared brain v2', roleId: null, canMail: false });
+    expect(agents().require('a-pete')).toMatchObject({
+      prompt: 'Shared brain v2',
+      roleId: null,
+      canMail: false,
+    });
     expect(agents().require('a-pete').name).toBe('Pixel Pete');
     expect(agents().require('a-pete').look).not.toEqual(rose);
     expect(agents().require('a-scar').prompt).not.toBe('Shared brain v2');
@@ -80,6 +91,9 @@ describe('kin: copies of one Cast agent', () => {
     expect(agents().require('a-bea')).toMatchObject({ kinId: 'a-pete', kin: [] });
     agents().update('a-bea', { prompt: 'Changed while Pete was away' });
     h.store.trash.restore(gone.restoreToken);
-    expect(agents().require('a-pete')).toMatchObject({ prompt: 'Changed while Pete was away', kin: ['a-bea'] });
+    expect(agents().require('a-pete')).toMatchObject({
+      prompt: 'Changed while Pete was away',
+      kin: ['a-bea'],
+    });
   });
 });

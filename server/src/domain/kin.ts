@@ -33,12 +33,13 @@ export function familyLook(original: Look, kinLooks: readonly Look[], rand: Rand
 }
 
 /** Invented, short, sayable names (no famous characters), 2–3 per letter. */
+// biome-ignore format: a compact pool reads better than one name per line
 export const KIN_NAMES = [
   'Ada', 'Alba', 'Bea', 'Bix', 'Bo', 'Cleo', 'Cub', 'Dot', 'Dex', 'Echo', 'Elm', 'Fen', 'Fig', 'Gus', 'Gem', 'Hal',
   'Hazel', 'Ivo', 'Iris', 'Jun', 'Juno', 'Kit', 'Kip', 'Lark', 'Lou', 'Moss', 'Mabel', 'Nell', 'Nico', 'Ollie', 'Opal',
   'Pip', 'Pia', 'Quill', 'Remy', 'Rue', 'Sol', 'Suki', 'Tam', 'Tilly', 'Uma', 'Uno', 'Vik', 'Vida', 'Wren', 'Wim',
   'Xan', 'Yuki', 'Yara', 'Zed', 'Zia',
-] as const; // prettier-ignore
+] as const;
 
 /** A free name for a copy of `original`: same first letter if one is free, else any free pool name, else "Name 2". */
 export function suggestKinName(original: string, taken: readonly string[], rand: Rand): string {
