@@ -110,7 +110,18 @@ The remaining answer fields move to tools. Pixel's answer becomes plain text.
   `{reply}` and `DIRECTOR_ANSWER` loses its action rules. The existing staffing, rebuild and work-from-chat tests
   pass through the tools.
 - **Feature:** `f-act-first-then-speak-work-staff-rebuild`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). `server/src/office/team-tools.ts`: `staff_project` (the staffing service,
+  returns who joined or why not) and `rebuild_teams` (the rebuild service; a plain change is done at once with an
+  Undo, a change with open work hands its confirm card to the turn through `TurnHooks.card` and tells Pixel to end
+  with "confirm below", never "done"). `work` is covered by `add_goal`: threads.ts snapshots the board's goals
+  before the turn (`goalsBefore`) and links a goal added during it to the user's message and the reply, then calls
+  `noteNewGoal`. Pixel's answer is plain text: `DirectorReplySchema` and `ANSWER_FIELDS` are gone,
+  `director-reply.ts` keeps only `directorAnswer(can)` and `replyText` (which still unwraps an old `{"reply": …}`).
+  `Capabilities` is tools only. threads.ts no longer takes `startWork` or `staffing`; `directorTools(projectId,
+  directorId, turn)` builds the tools per turn. With the `work` field gone, the chat's second planning turn
+  (`dispatch.start` from chat) is gone too; mail still uses `dispatch.start`. Tests: `capabilities`,
+  `director-work`, `staffing` and `rebuild` run through the tools (card under the reply, refusals read in the
+  turn). All 658 server tests and the typecheck pass.
 
 ### 5. Pixel answers agents' questions for the user
 "Tell Uncle Bob to use option 2" answers that agent's open `ask_user` question.
@@ -155,16 +166,19 @@ The chats that went wrong before become a regression suite, so they never come b
   agent's question then the user's answer (it used to show only a local "Go with X." that vanished on reload).
 - Feature 2 shipped (2026-11-16): Pixel's "what you can do from here" list is built from what is attached.
 - Feature 3 shipped (2026-11-16): ask, resume and stop are tools (`ask_person`, `resume_goal`, `stop_work`); Pixel
-  sees the result before it replies. Next: feature 4.
+  sees the result before it replies.
+- Feature 4 shipped (2026-11-16): work, staff and rebuild are tools (`add_goal`, `staff_project`,
+  `rebuild_teams`); every answer field is gone and Pixel's answer is plain text. Next: feature 5.
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
   `CapableTool[]`: a new director tool must carry a `can` line or it doesn't compile.
-- **Features 3 and 4 get simpler (from feature 2):** moving an answer field to a tool = delete its entry from
-  `ANSWER_FIELDS` and its key in `threads.ts`'s `wired` map, and give the new tool a `can` line — the capability
-  list and the answer rules follow by themselves. When the last field goes, `directorAnswer` shrinks to the
-  "reply only" shape. `capabilities.ts` checks `add_goal` / `add_feature` by name for the fallback offer; keep those
+- **No answer fields any more (from feature 4).** Every action Pixel takes is a `CapableTool`; a new one (feature
+  5's `answer_question`) is added to `directorTools` in `app.ts` with its `can` line, and the capability list
+  follows by itself. `capabilities.ts` checks `add_goal` / `add_feature` by name for the fallback offer; keep those
   names (or update `canStartWork`).
+- **A tool can hand something to the reply (from feature 4)** through the turn's `TurnHooks` (the rebuild card
+  rides on it). Use the same hook if a later tool needs a card or button under Pixel's reply.
 - **Tools run inside Pixel's turn (from feature 3).** Anything that stops runs must spare the director's own run
   (`spare` on `running.stop`); feature 4's tools should check the same for anything that cancels work. A tool
   answers by returning text or throwing (Pixel sees "<tool> refused: …"), never by adding thread lines itself.
