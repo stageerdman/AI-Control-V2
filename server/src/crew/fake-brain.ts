@@ -269,12 +269,15 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
         recap: `I was asked to ${task.replace(/\.$/, '').toLowerCase()}. ${status === 'running' ? 'I am still working on it.' : `It ended ${status ?? 'quietly'}.`} (A scripted recap: AI_STUDIO_RUNNER=fake.)`,
       });
     }
-    /* chat history: a follow-up in a past chat gets a short reply that echoes the new message */
+    /* chat history: a follow-up in a past chat gets a short reply that echoes the new message; a request
+       ("add…", "can you fix…") is offered as work */
     case 'agent-chat-reply': {
       const asked =
         t.split("The user's new message:\n")[1]?.split('\n\nReply with ONLY')[0]?.trim() || 'that';
+      const request = /^(please |can you |could you )?(add|make|build|fix|write|change|create|update)\b/i;
       return answer({
         reply: `You asked: "${asked.slice(0, 200)}". I remember this chat. (A scripted reply: AI_STUDIO_RUNNER=fake.)`,
+        ...(request.test(asked) ? { work: asked.slice(0, 80) } : {}),
       });
     }
     case 'help':

@@ -36,6 +36,7 @@ export type GoalEdit = {
 export type CleanWhich = 'finished' | 'stopped' | 'all';
 /** The feature a new goal serves; `ships: false` = the goal is only one step of it. */
 export type FeatureLink = { id: string; ships?: boolean };
+export type NewGoal = { text: string; summary?: string; tasks: TaskInput[]; feature?: FeatureLink };
 
 const MAX_TASKS = 8;
 const DAY_MS = 86_400_000;
@@ -48,7 +49,8 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   const name = (id: string) => store.agents.get(id)?.name ?? id;
   const history = createHistory({ db: deps.db, store, name });
 
-  function roster(projectId: string): Roster {
+  /** `direct`: the user picked the person themselves, so any team member may own the task. */
+  function roster(projectId: string, direct = false): Roster {
     const p = store.projects.require(projectId);
     const c = port.crewing(projectId);
     const teams = p.teamIds.flatMap((tid) => {
@@ -69,7 +71,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       people,
       teams,
       specialists: c.specialists,
-      everyone: p.collaboration?.orchestratorTalksTo === 'everyone',
+      everyone: direct || p.collaboration?.orchestratorTalksTo === 'everyone',
     };
   }
 
@@ -90,9 +92,9 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     return it;
   }
 
-  function newItem(projectId: string, t: TaskInput): NewItem {
+  function newItem(projectId: string, t: TaskInput, direct = false): NewItem {
     if (!t.text?.trim()) throw invalid('Every task needs "text".');
-    const owner = resolveOwner(roster(projectId), t.owner ?? '', t.team);
+    const owner = resolveOwner(roster(projectId, direct), t.owner ?? '', t.team);
     return {
       id: randomUUID(),
       text: t.text.trim(),
@@ -159,33 +161,34 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       .map(([k]) => k)
       .join(', ');
 
+  /** A new goal on the board, announced (so dispatch starts it) → the goal and the line that says so. */
+  function putGoal(projectId: string, by: string, a: NewGoal, direct = false): { goal: Goal; text: string } {
+    const p = store.projects.require(projectId);
+    if (!p.folder) throw conflict('This project has no folder yet — set it up first.');
+    if (!a.text?.trim()) throw invalid('A goal needs "text".');
+    if (!a.tasks?.length || a.tasks.length > MAX_TASKS) throw invalid(`A goal has 1–${MAX_TASKS} tasks.`);
+    if (a.feature && !features.get(projectId, a.feature.id))
+      throw invalid(`No feature '${a.feature.id}' — look with features first.`);
+    const items = a.tasks.map((t) => newItem(projectId, t, direct));
+    const goal = store.tx(() =>
+      work.insertGoal(
+        { id: randomUUID(), projectId, text: a.text.trim(), summary: a.summary?.trim() || a.text.trim() },
+        items,
+      ),
+    );
+    const linked = a.feature ? port.linkFeature(goal, a.feature) : null;
+    history.record(projectId, by, 'add', `Added goal '${goal.text}' with ${items.length} task(s)`);
+    const serves = linked ? ` It serves the feature “${linked.name}”.` : '';
+    return { goal, text: reply(projectId, [goal.id], `Added to the whiteboard; the work starts in order.${serves}`) };
+  }
+
   return {
     view: (projectId: string) => boardText(work.goals(projectId), name),
     history: (projectId: string) => history.text(projectId),
 
-    addGoal(
-      projectId: string,
-      by: string,
-      a: { text: string; summary?: string; tasks: TaskInput[]; feature?: FeatureLink },
-    ): string {
-      const p = store.projects.require(projectId);
-      if (!p.folder) throw conflict('This project has no folder yet — set it up first.');
-      if (!a.text?.trim()) throw invalid('A goal needs "text".');
-      if (!a.tasks?.length || a.tasks.length > MAX_TASKS) throw invalid(`A goal has 1–${MAX_TASKS} tasks.`);
-      if (a.feature && !features.get(projectId, a.feature.id))
-        throw invalid(`No feature '${a.feature.id}' — look with features first.`);
-      const items = a.tasks.map((t) => newItem(projectId, t));
-      const goal = store.tx(() =>
-        work.insertGoal(
-          { id: randomUUID(), projectId, text: a.text.trim(), summary: a.summary?.trim() || a.text.trim() },
-          items,
-        ),
-      );
-      const linked = a.feature ? port.linkFeature(goal, a.feature) : null;
-      history.record(projectId, by, 'add', `Added goal '${goal.text}' with ${items.length} task(s)`);
-      const serves = linked ? ` It serves the feature “${linked.name}”.` : '';
-      return reply(projectId, [goal.id], `Added to the whiteboard; the work starts in order.${serves}`);
-    },
+    addGoal: (projectId: string, by: string, a: NewGoal): string => putGoal(projectId, by, a).text,
+    /** The user's own goal for one person they picked (from that person's chat): any seat on the project. */
+    addDirectGoal: (projectId: string, by: string, a: NewGoal): Goal => putGoal(projectId, by, a, true).goal,
 
     addTask(projectId: string, by: string, a: TaskInput & { goal: string; position?: number }): string {
       const g = goalOf(projectId, a.goal);

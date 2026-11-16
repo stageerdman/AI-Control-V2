@@ -8,6 +8,7 @@ import type { Db } from '../db/connection.ts';
 import { runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { AppError, notFound, parse } from '../errors.ts';
+import type { ChatWork } from '../office/chat-work.ts';
 import { MAX_REPLY_CHARS, type ReplyInChat } from '../runtime/chat-reply.ts';
 import { IdParams } from './schemas.ts';
 
@@ -18,10 +19,22 @@ const ChatsQuery = z.object({
 const RunParams = z.object({ runId: z.uuid() });
 const SendBody = z.object({ text: z.string().trim().min(1).max(MAX_REPLY_CHARS) });
 
+const StartBody = z.strictObject({ seq: z.number().int().min(0) });
+
 const FOLLOW_UP = { followUp: true };
 
 export const chatRoutes =
-  ({ db, store, replyInChat }: { db: Db; store: Store; replyInChat: ReplyInChat }): FastifyPluginAsync =>
+  ({
+    db,
+    store,
+    replyInChat,
+    chatWork,
+  }: {
+    db: Db;
+    store: Store;
+    replyInChat: ReplyInChat;
+    chatWork: ChatWork;
+  }): FastifyPluginAsync =>
   async (app) => {
     const requireAgent = (id: string) => {
       if (!store.agents.get(id) && !latestAgentChat(db, id)) throw notFound('Agent', id);
@@ -33,14 +46,14 @@ export const chatRoutes =
         throw new AppError('chat_running', 'This chat is still running — wait for it to finish');
       return chat;
     };
-    const say = (chat: ChatSummary, role: 'user' | 'assistant', text: string) =>
+    const say = (chat: ChatSummary, role: 'user' | 'assistant', text: string, meta: object = {}) =>
       appendChatMessage(db, {
         runId: chat.runId,
         projectId: chat.projectId,
         agentId: chat.agentId,
         role,
         text,
-        meta: FOLLOW_UP,
+        meta: { ...FOLLOW_UP, ...meta },
       });
 
     app.get('/agents/:id/chats', async (req) => {
@@ -70,7 +83,16 @@ export const chatRoutes =
       const retry = last?.role === 'user' && last.meta?.followUp === true && last.text === text;
       if (retry) earlier = earlier.slice(0, -1);
       const sent = retry ? last : say(chat, 'user', text);
-      const reply = say(chat, 'assistant', await replyInChat(chat, earlier, text));
+      const answer = await replyInChat(chat, earlier, text);
+      const offer = answer.work && chatWork.canOffer(chat.projectId, chat.agentId) ? { work: answer.work } : null;
+      const reply = say(chat, 'assistant', answer.reply, offer ? { offer } : {});
       return { sent, reply };
+    });
+    /* "Start it" under a reply that offered work: a whiteboard goal for this agent, and a line in the chat */
+    app.post('/chats/:runId/start', async (req, reply) => {
+      const { runId } = parse(RunParams, req.params);
+      const { seq } = parse(StartBody, req.body);
+      requireWritableChat(runId);
+      return reply.status(201).send(chatWork.start(runId, seq));
     });
   };

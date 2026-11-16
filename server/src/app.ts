@@ -84,6 +84,7 @@ import { trashRoutes } from './routes/trash.ts';
 import { createRunning } from './running/registry.ts';
 import { createStopper } from './running/stop.ts';
 import { runningTools } from './running/tools.ts';
+import { createChatWork } from './office/chat-work.ts';
 import { createChatReplier } from './runtime/chat-reply.ts';
 import { AGENT_SHELL, loadCaps, type StudioCaps } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
@@ -500,7 +501,14 @@ export function buildApp({
   app.register(credentialRoutes({ cabinet: theCabinet }));
   app.register(accessesRoutes({ cabinet: theCabinet, access }));
   app.register(runRoutes({ runtime, pages, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(chatRoutes({ db, store, replyInChat: createChatReplier(crew) }));
+  app.register(
+    chatRoutes({
+      db,
+      store,
+      replyInChat: createChatReplier(crew),
+      chatWork: createChatWork({ db, store, board }),
+    }),
+  );
   app.register(recapRoutes({ db, store, recapChat: createRecapper(crew) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
