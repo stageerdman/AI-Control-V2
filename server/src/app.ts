@@ -101,6 +101,7 @@ import {
   studioProject,
 } from './self-install/self-install.ts';
 import { createBoard } from './whiteboard/board.ts';
+import { featureTools } from './office/feature-tools.ts';
 import { whiteboardTools } from './whiteboard/tools.ts';
 
 export type AppDeps = {
@@ -353,10 +354,13 @@ export function buildApp({
   });
   /* the director staffs the project from chat (existing Cast agents only); Rearrange brings people back */
   const staffing = createStaffing({ store, events });
-  /* the director edits and tidies the whiteboard itself (its chat turns' only tools) */
+  /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board });
   const threads = createThreads({
-    boardTools: (projectId, directorId) => whiteboardTools(board, projectId, directorId),
+    directorTools: (projectId, directorId) => [
+      ...whiteboardTools(board, projectId, directorId),
+      ...featureTools(features, store, projectId),
+    ],
     db,
     store,
     events,

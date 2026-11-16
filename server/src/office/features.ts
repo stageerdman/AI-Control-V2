@@ -1,5 +1,5 @@
 /* The features folder (U1): Now / Planned / Shipped, each with a plain description + vision.
-   The UI edits them; the orchestrator can later update them through the same service.
+   The UI edits them; the director's chat tools (feature-tools.ts) go through the same service.
    Every change is announced as `feature.changed` (after the write commits). */
 import type { Db } from '../db/connection.ts';
 import { type Feature, type FeatureCreate, type FeaturePatch, featuresRepo } from '../db/features.ts';

@@ -3,7 +3,7 @@
    resumes the thread's last session, in the project folder:
 
    - an agent runs with its normal composed prompt + tools (team context from its team on this project);
-   - the orchestrator runs big picture: its own brain + altitude, only its whiteboard tools, no secrets, and a fresh
+   - the orchestrator runs big picture: its own brain + altitude, only its whiteboard and features tools, no secrets, and a fresh
      summary of the whiteboard, features and health in every message. It decides whether the message is
      work (OFFICE: one Send): its answer is `{reply, work}` (director-reply.ts); work becomes a goal exactly
      as `POST /work` would, linked to this thread by goalId. It can also ask someone on the project a question
@@ -80,12 +80,12 @@ export function waitsFor<T extends { status: string; parallel: boolean }>(
 export function orchestratorChatPrompt(
   orch: Pick<Agent, 'name' | 'role' | 'prompt'>,
   project: string,
-  boardTools = false,
+  hasTools = false,
 ): string {
-  const know = boardTools
-    ? 'The user is chatting with you in the project’s office, mostly by voice. Every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work. Your only tools are the whiteboard tools.'
-    : 'The user is chatting with you in the project’s office, mostly by voice. You have no tools: every message carries a fresh summary of the whiteboard, the features folder, the team and the latest health check — that is what you know about the work.';
-  const board = boardTools
+  const know = hasTools
+    ? 'The user is chatting with you in the project’s office, mostly by voice. Every message carries a fresh summary of the whiteboard, the features list, the team and the latest health check — that is what you know about the work. Your only tools are the whiteboard tools and the features tools.'
+    : 'The user is chatting with you in the project’s office, mostly by voice. You have no tools: every message carries a fresh summary of the whiteboard, the features list, the team and the latest health check — that is what you know about the work.';
+  const tools = hasTools
     ? [
         'Whiteboard tools — every change shows on the board at once and is logged under your name. Look with `whiteboard` first to get ids.',
         '- New work the user wants: `add_goal` (1–8 tasks you choose, in order, each for a team captain or specialist). A step missing from a goal: `add_task`.',
@@ -94,6 +94,10 @@ export function orchestratorChatPrompt(
         '- Tidying: after a goal ships, or when finished or stopped goals crowd the board, `clean_board` (finished or stopped; all only when the user asks for a fresh board).',
         '- Took off the wrong thing, or the user wants it back: `undo_board` (within a day); `board_history` shows who changed what and when.',
         'A change that touches running work is refused unless you pass force: true — do that only when the user clearly wants the work stopped, and say whose work you stopped.',
+        '',
+        'Features tools — the features list (Now / Planned / Shipped) is separate from the whiteboard: it is what the product has and will have, not work in progress. Look with `features` first to get ids.',
+        '- "Add X to the features list" / "put X on the roadmap": `add_feature` (Planned unless the user says otherwise). It does not start work — never also put it on the whiteboard unless the user asks for the work.',
+        '- Rename, describe, move between Now / Planned / Shipped, reorder, progress or owner: `edit_feature`. Wrong or no longer wanted: `remove_feature`.',
       ].join('\n')
     : '';
   return [
@@ -104,8 +108,8 @@ export function orchestratorChatPrompt(
       '## How you talk here',
       '',
       know,
-      'What you can do from here (each message says how): put work on the whiteboard, continue work that stopped partway, stop anyone’s work (or everything) at once, bring Cast people and teams onto the project, and ask anyone on the project a question — the studio relays their answer into this chat. When the user wants one of these, do it in this answer instead of saying you can’t or offering to. Only for something truly outside these, say so in one line and offer to put it on the whiteboard as a feature.',
-      ...(board ? [board] : []),
+      `What you can do from here (each message says how): put work on the whiteboard, ${hasTools ? 'add and change features on the features list, ' : ''}continue work that stopped partway, stop anyone’s work (or everything) at once, bring Cast people and teams onto the project, and ask anyone on the project a question — the studio relays their answer into this chat. When the user wants one of these, do it in this answer instead of saying you can’t or offering to. Only for something truly outside these, say so in one line and offer ${hasTools ? 'to add it to the features list as Planned, or ' : ''}to put the work on the whiteboard as a goal.`,
+      ...(tools ? [tools] : []),
       'How the whiteboard runs: items run in checklist order. An item is "running" once its owner has been briefed and is working; a "todo" item is waiting its turn — `waitsFor` names the step it waits on, and its owner is briefed automatically the moment that step is done. A captain splits a team item into `team` sub-tasks for members. Explain waiting and progress from this, plainly ("Jony starts when Blair’s design lands").',
       'Names come from voice and can be misheard ("Ivy" for "Ally", "Johnny" for "Jony"). Match an unknown name to the closest person on the project, say who you took it as, and carry on — ask only when two people fit.',
       'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
@@ -141,8 +145,9 @@ export function createThreads(deps: {
   ask?: (projectId: string, directorId: string, to: string, request: string) => Promise<string>;
   /** The director sees what is running and stops it (one agent, or everything). Absent → it can't. */
   stops?: DirectorStopper;
-  /** The director's whiteboard tools for this project (src/whiteboard/tools.ts). Absent → it has none. */
-  boardTools?: (projectId: string, directorId: string) => BridgeTool[];
+  /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts) and features
+      (office/feature-tools.ts). Absent → it has none. */
+  directorTools?: (projectId: string, directorId: string) => BridgeTool[];
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
@@ -675,8 +680,8 @@ export function createThreads(deps: {
           ? {
               caps: deps.orchestratorCaps ?? CREW_CAPS,
               bigPicture: {
-                systemPrompt: orchestratorChatPrompt(s.agent, p.name, !!deps.boardTools),
-                ...(deps.boardTools ? { tools: deps.boardTools(projectId, s.agent.id) } : {}),
+                systemPrompt: orchestratorChatPrompt(s.agent, p.name, !!deps.directorTools),
+                ...(deps.directorTools ? { tools: deps.directorTools(projectId, s.agent.id) } : {}),
               },
             }
           : {}),
