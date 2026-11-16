@@ -13,6 +13,7 @@ import { pagerTools } from '../../src/office/pager.ts';
 import { questionTools } from '../../src/office/question-tools.ts';
 import { teamTools } from '../../src/office/team-tools.ts';
 import { orchestratorChatPrompt } from '../../src/office/threads.ts';
+import { ROADMAP_RULE, WORKING_WITH_OTHERS } from '../../src/room/context.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { todoTools } from '../../src/todos/tools.ts';
 import { whiteboardTools } from '../../src/whiteboard/tools.ts';
@@ -56,6 +57,12 @@ describe('honest capability list', () => {
     expect(directorAnswer({ tools })).not.toContain('want it on the whiteboard');
     // nothing at all → it can only talk
     expect(orchestratorChatPrompt(pixel, 'Aurora')).toContain('you have no tools and no actions');
+  });
+
+  it('roadmaps: the director names one leader to write each phased roadmap; others are told not to', () => {
+    expect(orchestratorChatPrompt(pixel, 'Aurora')).toContain(ROADMAP_RULE);
+    expect(ROADMAP_RULE).toMatch(/Only leaders write it: you decide who/);
+    expect(WORKING_WITH_OTHERS).toMatch(/Roadmaps are written by the leader the orchestrator names/);
   });
 
   it('for a request outside the list it offers the real next steps it has', () => {

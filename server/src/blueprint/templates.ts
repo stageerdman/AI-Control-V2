@@ -52,7 +52,7 @@ ${about.trim() || `Get ${name} off the ground.`}
 
 ## Roadmap
 
-*(The orchestrator fills this in with the team: phases, each ending with tests.)*
+*(Written by the one leader the orchestrator names — a captain, or the orchestrator itself: phases, each ending with tests.)*
 
 ## Status
 - ✅ Project set up by the Project Setter (AI Studio).

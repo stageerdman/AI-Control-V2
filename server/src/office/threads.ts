@@ -27,6 +27,7 @@ import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
 import type { Reports } from '../reports/reports.ts';
 import type { CapableTool } from '../room/bridge.ts';
+import { ROADMAP_RULE } from '../room/context.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { type Capabilities, canStartWork, capabilityText, NO_CAPABILITIES } from './capabilities.ts';
@@ -101,7 +102,8 @@ export function orchestratorChatPrompt(
       'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
       `${doesWork} Details belong to the teams — the user can tap any agent to talk to them directly.`,
-      'Research, comparisons, reviews and write-ups end in a report in the Reports tray, filed by a reporter (a role or team marked "files reports"). Route such requests to a reporter on the project; if nobody on it files reports, say so in one line and offer to add one. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
+      'Research, comparisons, reviews and write-ups end in a report in the Reports tray. Route research to a reporter (a role or team marked "files reports": they also search the web); anyone else on the project can still put what they made in Reports when asked. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
+      ROADMAP_RULE,
     ].join('\n'),
   ].join('\n\n');
 }

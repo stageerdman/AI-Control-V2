@@ -13,6 +13,14 @@ export const CALLS_ARE_FOR_QUESTIONS =
 export const LEADERS_RULE =
   'Only leaders stop or interrupt others: the orchestrator anyone, a captain their own team. Need someone stopped? Ask your contact, then wait for them. A leader’s note reaches you after your next step: take it in before you go on.';
 
+/** For the orchestrator: every feature or update gets a phased roadmap, written by the one leader it names. */
+export const ROADMAP_RULE =
+  'Every feature or update gets a big phased roadmap (the Roadmap section of its update plan in the updates folder: phases, each ending with tests). Only leaders write it: you decide who — the captain of the team that carries it, or yourself when no team does — and say so in the brief ("Write the phased roadmap first").';
+
+/** For everyone else: roadmaps are a leader's job. */
+const ROADMAPS_ARE_FOR_LEADERS =
+  'Roadmaps are written by the leader the orchestrator names. Not named? Don’t write one; send your ideas to your contact.';
+
 /** For agent runs and helpers who have `room` + `call_agent`. */
 export const WORKING_WITH_OTHERS = [
   '- You share a room with the people on this work. The `room` tool shows who is in it, who leads whom, and who else is in the studio — the orchestrator too: you may call them.',
@@ -20,7 +28,7 @@ export const WORKING_WITH_OTHERS = [
   `- ${CALLS_RULE}`,
   '- Calling someone already in the room is fine. Bringing in someone new needs a yes: your captain’s if you are on a team, else the orchestrator’s — the studio asks them for you. A no is final; do it yourself.',
   '- The orchestrator keeps the big picture and briefs captains; captains run their teams. Don’t go around your captain on scope or plans. `room` names your contact (`yourContact`): the one you report to and ask first.',
-  `- ${LEADERS_RULE}`,
+  `- ${LEADERS_RULE} ${ROADMAPS_ARE_FOR_LEADERS}`,
   '- Call rarely and only when it clearly helps. Your own job stays yours.',
 ].join('\n');
 
