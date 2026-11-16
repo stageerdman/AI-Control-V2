@@ -108,6 +108,16 @@ describe('the tally', () => {
     expect(quill).toMatchObject({ ms: 0, requests: 0, lastAskedAt: '2026-10-01T10:00:00.000Z' });
   });
 
+  it('per agent: time by kind of work, inside the window only', () => {
+    const spans2: Span[] = [
+      span('a-blair', '2026-11-16T09:00:00.000Z', 30),
+      { ...span('a-blair', '2026-11-16T10:00:00.000Z', 15), kind: 'reviewing' },
+      { ...span('a-blair', '2026-10-01T10:00:00.000Z', 99), kind: 'thinking' }, // outside: not counted
+    ];
+    const [blair] = tally(spans2, windowOf('7d', CET, NOW, null), NOW).agents;
+    expect(blair?.kinds).toEqual({ thinking: 0, building: 30 * 60_000, reviewing: 15 * 60_000, research: 0, setup: 0 });
+  });
+
   it('per local day: every day of the window, a span on the day it started, split by agent', () => {
     expect(week.days.map((d) => d.day)).toEqual([
       '2026-11-10',

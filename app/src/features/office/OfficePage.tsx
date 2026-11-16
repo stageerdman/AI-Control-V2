@@ -56,7 +56,8 @@ import {
   reduce,
   threadMessageOf,
 } from './state';
-import { clockLabel, TimeSheet, useWorkTime } from './TimeSheet';
+import { TeamSheet } from './performance/TeamSheet';
+import { clockLabel, useWorkTime } from './TimeSheet';
 import './office.css';
 
 type Boot = { office: OfficeView; asks: Ask[]; hqId: string | null };
@@ -904,7 +905,7 @@ function Office({
                       : safeNew
                         ? `Safe — ${name} access, ${newAccess} new`
                         : h.id === 'clock'
-                          ? clockLabel(time.data)
+                          ? `${clockLabel(time.data)} — open how the team works`
                           : h.id === 'portrait'
                             ? `${name} — change its picture and name`
                             : h.label
@@ -1068,12 +1069,13 @@ function Office({
         />
       )}
       <RunningSheet pid={pid} open={runningOpen} onClose={() => setRunningOpen(false)} agents={agentsById} />
-      <TimeSheet
+      <TeamSheet
         pid={pid}
         name={name}
         open={timeOpen}
         onClose={() => setTimeOpen(false)}
         agents={agentsById}
+        crew={office}
       />
       <DeskNoteSheet
         pid={pid}

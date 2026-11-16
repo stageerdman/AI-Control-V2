@@ -1,12 +1,10 @@
 // @vitest-environment happy-dom
-/* OFFICE: the second progress bar above the safe is gone; the wall clock above the door opens Agent time. */
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
-import type { Agent } from '../../api';
+/* OFFICE: the second progress bar above the safe is gone; the wall clock above the door opens How the team works. */
+import { describe, expect, it } from 'vitest';
 import type { WorkTime } from './api';
 import { officeLayout } from './layout';
 import { boardFacts } from './state';
-import { clockLabel, TimeView } from './TimeSheet';
+import { clockLabel } from './TimeSheet';
 import { officeArt, syncArt } from './theme';
 import { worked } from './time';
 
@@ -42,16 +40,6 @@ const some: WorkTime = {
   since: '2026-11-03T10:00:00Z',
   live: 2,
 };
-const agents = {
-  'a-semic': {
-    id: 'a-semic',
-    name: 'Captain Semicolon',
-    role: 'Backend',
-    look: { hat: 'cap', tool: 'wrench', body: 'hero', antenna: 'bob', face: 'none', hue: 'mint' },
-  },
-} as unknown as Record<string, Agent>;
-
-afterEach(cleanup);
 
 describe('the work clock', () => {
   it('worked(): minutes, hours, never days', () => {
@@ -85,25 +73,5 @@ describe('the work clock', () => {
     expect(clockLabel(none)).toBe('Agent time: none yet');
     expect(clockLabel(some)).toBe('Agent time: 12h 40m, 2 agents working now');
   });
-
-  it('the sheet: total, kinds that have time, who put it in, runs and turns — no money', () => {
-    const { container } = render(<TimeView t={some} name="Habit Hatch" agents={agents} />);
-    expect(screen.getByText('12h 40m')).toBeTruthy();
-    expect(screen.getByText('2 working now')).toBeTruthy();
-    expect(screen.getByText('8 runs · 140 turns')).toBeTruthy();
-    const kinds = [...container.querySelectorAll('.ts-kinds li > span:first-child')].map(
-      (e) => e.textContent,
-    );
-    expect(kinds).toEqual(['Thinking & planning', 'Coding & building']); // zero kinds hidden, fixed order
-    expect(screen.getByText('Captain Semicolon')).toBeTruthy();
-    expect(screen.getByText('A retired agent')).toBeTruthy();
-    expect(container.textContent).not.toMatch(/\$|USD|cost/i);
-  });
-
-  it('an adopted project with no agent time: 0m and a gentle line', () => {
-    const { container } = render(<TimeView t={none} name="Todo CLI" agents={agents} />);
-    expect(screen.getByText('0m')).toBeTruthy();
-    expect(screen.getByText('No agent time yet. The clock starts when the crew does.')).toBeTruthy();
-    expect(container.querySelector('.ts-kinds')).toBeNull();
-  });
+  // The sheet behind the clock: performance/TeamSheet.test.tsx.
 });
