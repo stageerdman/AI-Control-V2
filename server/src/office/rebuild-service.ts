@@ -3,6 +3,7 @@
    minutes while nobody has started new work under the new lineup. Plans and snapshots live in memory: after a
    restart a card is simply stale ("ask again"). */
 import { randomUUID } from 'node:crypto';
+import { runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
@@ -53,6 +54,10 @@ export function createRebuilds(deps: {
   const { store, events } = deps;
   const clock = deps.clock ?? Date.now;
   const work = workRepo(store.db);
+  const runs = runsRepo(store.db);
+  /** A step still marked running whose run has already delivered (the board catches up a moment later). */
+  const justDelivered = (it: { status: string; runId: string | null }) =>
+    it.status === 'running' && !!it.runId && runs.get(it.runId)?.status === 'succeeded';
   const plans = new Map<string, Plan>();
   const undos = new Map<string, Snapshot>();
 
@@ -151,7 +156,7 @@ export function createRebuilds(deps: {
           });
         } else {
           const it = work.item(s.itemId);
-          if (!it) continue;
+          if (!it || justDelivered(it)) continue; // its run already finished: the work is kept, nothing to hand over
           snap.items.push({
             id: it.id,
             agentId: it.agentId,

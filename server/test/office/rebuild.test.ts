@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fakeBrain } from '../../src/crew/fake-brain.ts';
 import { getChatMessages } from '../../src/db/chats.ts';
+import { runsRepo } from '../../src/db/runs.ts';
 import { workRepo } from '../../src/db/work.ts';
 import { planRebuild } from '../../src/office/rebuild.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
@@ -199,6 +200,36 @@ describe('rebuild apply and undo', () => {
     expect(it?.agentId).toBe('a-semic');
     expect(it?.status).toBe('todo'); // stopped: it waits for its new owner
     expect(it?.runId).toBeNull();
+  });
+
+  it('stop-now on a step whose run just delivered: not stopped, not handed over, the work is kept', async () => {
+    const s = boot();
+    items([{ id: 'i3', agentId: 'a-pete', teamId: 'ship-it' }]);
+    const runs = runsRepo(s.db);
+    runs.insert({
+      id: 'r-done',
+      projectId: 'aurora',
+      agentId: 'a-pete',
+      teamId: 'ship-it',
+      task: 't',
+      runner: 'fake',
+      model: 'm',
+      caps: {},
+    });
+    runs.finish('r-done', {
+      status: 'succeeded',
+      result: 'Delivered.',
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      turns: 1,
+    });
+    workRepo(s.db).setItem('i3', { status: 'running', runId: 'r-done' }); // the board hasn't caught up yet
+    const plan = await h.call('POST', '/projects/aurora/rebuild/plan', { remove: ['a-pete'] });
+    const done = await h.call('POST', `/rebuild/${plan.body.planId}/apply`, {
+      handover: [{ agent: 'a-pete', to: 'stop-now' }],
+    });
+    expect(done.status).toBe(200);
+    const it = workRepo(s.db).item('i3');
+    expect(it).toMatchObject({ agentId: 'a-pete', status: 'running', runId: 'r-done' });
   });
 
   it('a nonsense name is refused, nothing written', async () => {
