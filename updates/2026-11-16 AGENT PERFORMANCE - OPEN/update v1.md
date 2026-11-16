@@ -35,7 +35,7 @@ UI design: [`design.md`](design.md) ("How the team works", the wall clock's shee
 ### Phase 3 — the read (server)
 - `GET /projects/:id/performance?range=7d|30d|all&tz=<minutes>` — one request per office and range, as the
   design asks. `tz` = the browser's `getTimezoneOffset()`.
-- **Tests:** route shape, 404 for an unknown office, bad range → 400, a live end-to-end run shows up.
+- **Tests:** route shape, 404 for an unknown office, bad range or tz → 422 (the studio's validation status), runs and older unmeasured crew calls show up.
 
 ### Phase 4 — the sheet (UI, separate item)
 The clock's sheet grows into "How the team works" per `design.md`, on top of the Phase 3 read.
@@ -48,9 +48,9 @@ The clock's sheet grows into "How the team works" per `design.md`, on top of the
 
 ## Status
 - [x] Roadmap
-- [ ] Phase 1 — tokens, outcome and `asked` recorded for crew calls and runs
-- [ ] Phase 2 — `performance/spans.ts` + `performance/tally.ts`, work clock on the shared reader
-- [ ] Phase 3 — `GET /projects/:id/performance`
+- [x] Phase 1 — tokens, outcome and `asked` recorded for crew calls and runs
+- [x] Phase 2 — `performance/spans.ts` + `performance/tally.ts`, work clock on the shared reader
+- [x] Phase 3 — `GET /projects/:id/performance`
 - [ ] Phase 4 — UI sheet
 
 ## Decisions

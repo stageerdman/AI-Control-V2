@@ -125,17 +125,15 @@ describe('chat history (db)', () => {
 
   it('migrates a database from before chat history without losing its runs', () => {
     const db = new DatabaseSync(':memory:');
-    const before = MIGRATIONS.length - 1;
+    // Pinned to the chat-history migration; the legacy run is plain SQL so later run columns can't break it.
+    const before = MIGRATIONS.findIndex((sql) => sql.includes('CREATE TABLE chat_messages'));
     for (const sql of MIGRATIONS.slice(0, before)) db.exec(sql);
     db.exec(`PRAGMA user_version = ${before}`);
     addProject(db);
-    addRun(db, 'legacy');
-    runsRepo(db).finish('legacy', {
-      status: 'succeeded',
-      result: 'Old answer',
-      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      turns: 1,
-    });
+    db.prepare(
+      `INSERT INTO runs (id, project_id, agent_id, task, status, runner, caps, result, turns, started_at, ended_at)
+       VALUES ('legacy', 'kite', 'a-pete', 'Make hello.txt', 'succeeded', 'fake', '{}', 'Old answer', 1, ?, ?)`,
+    ).run('2026-01-01T00:00:00.000Z', '2026-01-01T00:01:00.000Z');
     migrate(db);
     expect(listAgentChats(db, 'a-pete')).toEqual([
       expect.objectContaining({ runId: 'legacy', messageCount: 0, lastText: 'Old answer' }),
