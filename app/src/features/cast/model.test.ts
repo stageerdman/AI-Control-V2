@@ -26,8 +26,10 @@ import {
   roleOptions,
   roleText,
   roleUse,
+  sameLook,
   TEAM_MAX,
   tinkerDoing,
+  trayOptions,
 } from './model';
 
 const look: Look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue: 'sun' };
@@ -80,6 +82,31 @@ describe('look arrows + recruit colour', () => {
     if (!hat) throw new Error('no hat slot');
     const next = cycleLook({ ...look, hat: hat.options[0] as string }, 'hat', 1);
     expect(next.decal).toBe(hatDecal(next.hat));
+  });
+  it('trayOptions: every option of every slot, in order, the current one marked, each tried on', () => {
+    for (const sl of LOOK_SLOTS) {
+      const opts = trayOptions(look, sl.id);
+      expect(opts.map((o) => o.value)).toEqual([...sl.options]);
+      expect(opts.filter((o) => o.current).map((o) => o.value)).toEqual([look[sl.id]]);
+      for (const o of opts) {
+        expect(o.look[sl.id]).toBe(o.value);
+        expect(o.name).toBe(sl.name(o.value));
+        /* only the slot changes (and the hat's decal) */
+        for (const k of ['hat', 'tool', 'body', 'antenna', 'face', 'hue'] as const)
+          if (k !== sl.id) expect(o.look[k]).toBe(look[k]);
+      }
+    }
+    const captain = trayOptions(look, 'hat').find((o) => o.value === 'captain');
+    expect(captain?.look.decal).toBe(hatDecal('captain'));
+    expect(captain?.name).toBe("Captain's cap");
+    expect(trayOptions(look, 'hue')).toHaveLength(7);
+  });
+  it('sameLook ignores key order and a missing decal', () => {
+    const shuffled = { hue: 'sun', face: 'none', antenna: 'none', body: 'hero', tool: 'none', hat: 'none' } as Look;
+    expect(sameLook(look, shuffled)).toBe(true);
+    expect(sameLook(look, { ...look, decal: undefined })).toBe(true);
+    expect(sameLook(look, { ...look, hat: 'beret' })).toBe(false);
+    expect(sameLook(look, { ...look, decal: 'Design' })).toBe(false);
   });
   it('a new recruit wears the least-used hue', () => {
     const worn = HUES.filter((h) => h !== 'grape').map((hue) => ({ look: { ...look, hue } }));

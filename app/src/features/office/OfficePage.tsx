@@ -324,6 +324,16 @@ function Office({
       void e.apply(deriveActor(live, a), live.pending.find((p) => p.agentId === a)?.question);
   }, [live]);
   useEffect(() => engine.current?.syncFacts(facts), [facts]);
+  /* someone was edited in the Cast (agent.changed reloads the roster): they change in place, with one hop */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: also once the scene exists (world)
+  useEffect(() => {
+    const e = engine.current;
+    if (!e) return;
+    for (const a of liveRef.current.ids) {
+      const ag = agentsById[a];
+      if (ag && e.restyle(a, ag as unknown as SceneAgent)) e.react(a, 'hop');
+    }
+  }, [agentsById, world]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: also once the scene exists (world)
   useEffect(() => {
     const e = engine.current;
@@ -585,6 +595,10 @@ function Office({
         }
         case 'mail.changed':
           void refreshMail(pid);
+          break;
+        case 'agent.changed':
+          /* edited in the Cast (here or another window): read the roster again; the effect above redraws them */
+          void invalidate('agents');
           break;
       }
     },
