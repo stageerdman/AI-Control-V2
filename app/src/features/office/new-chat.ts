@@ -33,8 +33,7 @@ const sessionsOf = (f: NewChatFacts) =>
 export function cardPending(messages: readonly ThreadMessage[], settled: (planId: string) => boolean) {
   return messages.some(
     (m, i) =>
-      m.rebuild &&
-      m.rebuild.needsConfirm &&
+      m.rebuild?.needsConfirm &&
       !m.rebuild.undoToken &&
       !m.rebuild.card.stale &&
       !settled(m.rebuild.planId) &&
