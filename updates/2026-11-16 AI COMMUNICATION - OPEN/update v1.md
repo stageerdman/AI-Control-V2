@@ -170,7 +170,23 @@ Talking to an agent directly is no longer a dead end.
   in one tap. That continues the same agent's session on that project with the message as its brief, through the
   normal run path, so the agent remembers the chat. A question still gets a plain answer. A test covers both cases.
 - **Feature:** `f-a-reply-in-an-agent-s-chat-can-start-wor`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). The chat reply (`runtime/chat-reply.ts`) answers `{reply, work?}`: when the
+  message asks for work the agent says how it would do it and names it as a short goal title; a question leaves
+  `work` out. The route saves the reply with `meta.offer = {work}`, but only for someone who can own whiteboard work
+  (`chatWork.canOffer`: the project has a folder, never its director). `POST /chats/:runId/start {seq}`
+  (`office/chat-work.ts`) puts the offer on the whiteboard as a one-task goal for that agent via
+  `board.addDirectGoal` (the same `putGoal` as `add_goal`, so dispatch starts it and the office redraws; "direct":
+  the user picked the person, so a team member may own it, not only captains), then adds the line "On the whiteboard
+  now: “…”" with `meta.started = {goalId, offer}`, which also refuses a second tap (409). **Changed from the plan:**
+  the run does not `--resume` the chat's session. Each whiteboard item gets its own checkout, and Claude sessions
+  live per folder, so a resume would fail. Instead the brief carries the user's words and the agent's answer, and
+  points at the chat to read with `my_history (runId …)`. App: a "Start it" button under the offering reply
+  (`ChatHistorySheet.tsx`, `openOffers`), gone once started; the fake brain offers work for "add/fix/make…"
+  messages. Tests: `server/test/office/chat-work.test.ts` (request → offer → Start it → the goal for the same agent
+  runs to done, briefed with the message, the chat and the answer; the started line stays; a second tap is 409; a
+  question gets no offer and start is 422; the director's chats never offer) and the button test in
+  `ChatHistorySheet.test.tsx`. All 667 server tests, the app's chat tests and both typechecks pass. No live run with a
+  real model.
 
 ### 8. Conversation checks
 The chats that went wrong before become a regression suite, so they never come back.
@@ -196,7 +212,9 @@ The chats that went wrong before become a regression suite, so they never come b
 - Feature 5 shipped (2026-11-16): Pixel answers agents' open questions for the user (`open_questions`,
   `answer_question`, through the user's own answer path).
 - Feature 6 shipped (2026-11-16): `add_goal` names the feature a goal builds; working agents read and update it
-  with their `feature` tool; the finished goal ships it unless the agent already did. Next: feature 7.
+  with their `feature` tool; the finished goal ships it unless the agent already did.
+- Feature 7 shipped (2026-11-16): a reply in an agent's past chat that names work offers "Start it"; one tap puts it
+  on the whiteboard for that agent, briefed from the chat. Next: feature 8.
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
@@ -230,6 +248,11 @@ The chats that went wrong before become a regression suite, so they never come b
   `setStudioTools`; `room.test.ts` and `mcp-bridge.test.ts` pin the list, so a new one (feature 7?) updates both.
   Feature 7's "Start it" run goes through the normal run path, so it gets the `feature` tool too, but with no
   whiteboard item behind it the tool needs a feature id.
+- **A session can't follow work into a new checkout (from feature 7).** Claude sessions are stored per folder, and
+  every whiteboard item gets its own worktree, so `resumeRunId` only works inside the same checkout (rework, carry
+  on). To give new work an old chat's memory, brief it and point at `my_history (runId …)`.
+- **Feature 8's "start it from a chat" check** can reuse `chat-work.test.ts`'s setup (a finished run, a scripted
+  `agent-chat-reply` answer with `work`, then `POST /chats/:runId/start`).
 - **Installing in a fresh checkout:** `npm install --prefix server` touches the root `package-lock.json`; revert it
   before committing.
 - The server's `npm run lint` already fails on older files (formatting, comma operators); new files follow the
