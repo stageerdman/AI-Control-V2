@@ -12,12 +12,13 @@ import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
 import { Radios } from './Radios';
 import { RoleCombo } from './RoleCombo';
 import { busyReason, saveAgent } from './store';
+import { ToolList } from './ToolList';
 
 export type PanelAgent = Pick<
   Agent,
   'id' | 'kind' | 'name' | 'roleId' | 'role' | 'prompt' | 'teamIds' | 'projectIds' | 'canDelete' | 'canMail'
 > &
-  Partial<Pick<Agent, 'tools'>>;
+  Partial<Pick<Agent, 'toolList'>>;
 
 export const AgentPanel = forwardRef<
   HTMLDivElement,
@@ -178,16 +179,12 @@ export const AgentPanel = forwardRef<
             }}
           />
         </section>
-        {exists && !draft && !!agent.tools?.works.length && (
+        {exists && !draft && agent.toolList && (
           <section className="zp-sec zp-tools" aria-labelledby="zpToolsLabel">
             <h3 className="zp-label" id="zpToolsLabel">
               Tools
             </h3>
-            <ul className="zp-tool-list">
-              {agent.tools.works.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
+            <ToolList list={agent.toolList} />
           </section>
         )}
         {exists && !draft && (

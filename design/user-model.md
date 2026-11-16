@@ -17,7 +17,10 @@
 
 - They couldn't start a new chat with Pixel; one long thread made Pixel drift back to old ideas (Nov 2026). Design: a "New chat" pill that only works, and shines, when nothing runs (design/new-chat/new-chat.md).
 
+- The Cast stored each agent's tools but never showed them, so "who can do what" was a guess (Nov 2026). The agent panel now lists Edit / Run / Reach straight from the runtime's rules (design/cast/tools.md).
+
 ## Assumptions (guesses — check)
+- Three plain rows (Edit / Run / Reach) answer "can this agent do X?" without the old "works with" prose. Check: do people still ask what an agent can do after opening its panel?
 - People want a fresh Pixel chat mostly right after a goal finishes, when nothing runs. Read-only old Pixel chats are enough. Check: taps on the dimmed pill; attempts to type in a past Pixel chat.
 - Raw error text is rarely needed. It sits behind "Details". Check: do people open Details often? If they do, the plain messages aren't saying enough.
 - Most restores happen within minutes (Undo) or within a few days (Recently deleted). 30 days is enough.

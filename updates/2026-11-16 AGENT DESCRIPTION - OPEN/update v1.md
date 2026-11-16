@@ -32,12 +32,16 @@ reach visible and honest" asks for it.
 
 ## Status
 - [x] Phase 1 — server `toolList` on the Cast API, with tests.
-- [ ] Phase 2 — app panel.
+- [x] Phase 2 — app panel: `ToolList` (Edit / Run / Reach rows) under the Brain in every saved agent's
+  Cast panel, spec `design/cast/tools.md`; tests `ToolList.test.tsx` + the nine archetypes checked
+  against the server's own `toolList` (`archetypes.e2e.test.tsx`).
 - [ ] Phase 3 — room view for agents.
 
 ## Decisions
 - `toolList` is derived, never stored: the toolset stays the one source of truth.
-- Lines are plain words; an empty list means "nothing" (the UI words it).
+- Lines are plain words; an empty list means "nothing" (the UI words it: Edit "Nothing — reads only", Run "Nothing").
+- The panel no longer shows the old prose "works with" lines (`tools.works`): they overlapped the real
+  permissions and could disagree with them. One truth, shown once. `works` stays in the data for Tinker.
 - "Reach" covers: reading the project (always), the web, mail, and the keys granted to the project the
   agent works in (names only, never values — runs get every key granted to their project).
 - Web: a toolset's `web`, or a reporter role (report runs always get the web). A report *team* also
