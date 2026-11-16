@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs';
 import { z } from 'zod';
 import { projectState } from '../apps/run-command.ts';
 import type { Db } from '../db/connection.ts';
+import type { Feature } from '../db/features.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
@@ -274,7 +275,8 @@ export function createDispatch(deps: {
   }
 
   /** The goal's feature follows it (F1c): its % while the goal runs; shipped once the goal landed whole and no
-      other goal still works on it. A failed or cancelled goal leaves the feature where it is. */
+      other goal still works on it. A failed or cancelled goal leaves the feature where it is. An agent's own
+      update (the `feature` tool) wins: the goal never lowers its pct, and a feature it shipped stays as it is. */
   function featureFollows(g: Goal, ended: GoalStatus | null) {
     const fs = deps.features;
     if (!fs || !g.featureId || !g.ships) return;
@@ -282,7 +284,7 @@ export function createDispatch(deps: {
       const f = fs.repo.get(g.projectId, g.featureId);
       if (!f || f.status === 'shipped') return;
       if (!ended) {
-        if (f.pct !== g.pct) fs.update(g.projectId, f.id, { pct: g.pct });
+        if (g.pct > (f.pct ?? 0)) fs.update(g.projectId, f.id, { pct: g.pct });
         return;
       }
       if (ended !== 'done') return;
@@ -297,10 +299,10 @@ export function createDispatch(deps: {
     }
   }
 
-  /** Link a new goal to its feature: an existing one (planned → now), or a new one in Now. */
-  function linkFeature(goal: Goal, f: DispatchPlan['feature']) {
+  /** Link a new goal to its feature: an existing one (planned → now), or a new one in Now. → the feature linked. */
+  function linkFeature(goal: Goal, f: DispatchPlan['feature']): Feature | null {
     const fs = deps.features;
-    if (!fs || !f) return;
+    if (!fs || !f) return null;
     try {
       let feature = f.id ? fs.repo.get(goal.projectId, f.id) : null;
       if (feature && feature.status === 'planned')
@@ -313,9 +315,19 @@ export function createDispatch(deps: {
           description: f.description ?? goal.summary,
         });
       if (feature) work.setGoalFeature(goal.id, feature.id, f.ships !== false);
+      return feature;
     } catch {
       /* a feature that can't be linked never blocks the work */
+      return null;
     }
+  }
+
+  /** The brief's line about the feature its goal serves, so the agent can keep it up to date. */
+  function featureNote(goal: Goal): string {
+    const f = goal.featureId ? deps.features?.repo.get(goal.projectId, goal.featureId) : null;
+    if (!f) return '';
+    const ends = goal.ships ? 'it moves to Shipped by itself when this goal finishes' : 'this goal is one step of it';
+    return `This goal serves the feature “${f.name}” (${f.id}; ${ends}). Use the \`feature\` tool to read it, set its pct as your part lands, and add one line on what shipped; set status shipped only when the whole feature is done.`;
   }
 
   const orchName = (projectId: string) =>
@@ -329,6 +341,7 @@ export function createDispatch(deps: {
       `Goal from ${orchName(it.projectId)} (your orchestrator): ${goal.text}`,
       `Your checklist item: ${it.text}`,
       `Brief: ${it.brief}`,
+      featureNote(goal),
       earlierWork(it, goal),
       team
         ? captain
@@ -1104,6 +1117,7 @@ export function createDispatch(deps: {
   const board = {
     crewing,
     gatesOf,
+    linkFeature,
     /** Stops these items and resolves once none of them is running any more. */
     async stopItems(projectId: string, ids: string[]): Promise<void> {
       const list = ids.map((id) => work.item(id)).filter((i): i is ChecklistItem => !!i);

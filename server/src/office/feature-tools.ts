@@ -16,6 +16,19 @@ function need(a: Args, k: string): string {
   return v;
 }
 
+/** A feature's status and pct from tool arguments, checked (the director's and the agents' feature tools). */
+export function progressPatch(a: Args): Pick<FeaturePatch, 'status' | 'pct'> {
+  const status = str(a, 'status');
+  if (status !== undefined && !FEATURE_STATUSES.includes(status as Feature['status']))
+    throw invalid(`"status" is one of: ${FEATURE_STATUSES.join(', ')}.`);
+  const pct = num(a, 'pct');
+  if (pct !== undefined && (pct < 0 || pct > 100)) throw invalid('"pct" is 0–100.');
+  return {
+    ...(status ? { status: status as Feature['status'] } : {}),
+    ...(pct !== undefined ? { pct } : {}),
+  };
+}
+
 /** The fields add_feature and edit_feature share. */
 const FIELDS = {
   name: { type: 'string', description: 'The feature, in a few words.' },
@@ -45,19 +58,13 @@ export function featureTools(features: Features, store: Store, projectId: string
     return `${f.id} — ${f.name} [${f.status} #${f.order}${extra ? `, ${extra}` : ''}]`;
   };
   const fields = (a: Args): FeaturePatch => {
-    const status = str(a, 'status');
-    if (status !== undefined && !FEATURE_STATUSES.includes(status as Feature['status']))
-      throw invalid(`"status" is one of: ${FEATURE_STATUSES.join(', ')}.`);
-    const pct = num(a, 'pct');
-    if (pct !== undefined && (pct < 0 || pct > 100)) throw invalid('"pct" is 0–100.');
     const owner = str(a, 'owner');
     return {
       ...(str(a, 'name')?.trim() ? { name: str(a, 'name')?.trim() } : {}),
       ...(str(a, 'description') !== undefined ? { description: str(a, 'description') } : {}),
       ...(str(a, 'vision') !== undefined ? { vision: str(a, 'vision') } : {}),
-      ...(status ? { status: status as Feature['status'] } : {}),
+      ...progressPatch(a),
       ...(num(a, 'order') !== undefined ? { order: num(a, 'order') } : {}),
-      ...(pct !== undefined ? { pct } : {}),
       ...(owner !== undefined ? { owner: ownerId(owner) } : {}),
     };
   };
