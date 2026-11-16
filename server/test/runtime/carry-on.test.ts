@@ -64,7 +64,55 @@ describe('carry on after a limit', () => {
     const run = await h.runtime.settled(build().id);
     expect(specs).toHaveLength(MAX_STALLS);
     expect(run.status).toBe('failed');
-    expect(run.error).toMatch(/^Stopped: no new commits in its last 2 sessions/);
+    expect(run.error).toMatch(
+      /^Stopped: no new work \(a commit, a report or a desk note\) in its last 2 sessions/,
+    );
+  });
+
+  /* live check 2026-11-16: report items run as `research` and used to just fail at the cap */
+  it('a report run carries on too, with a brief that asks for findings, not commits', async () => {
+    const specs = app((n) => (n < 2 ? [CAP] : [{ result: 'Filed.' }]));
+    const r = h.runtime.start('aurora', { agentId: 'a-pete', task: 'Audit the docs.', kind: 'research' });
+    const run = await h.runtime.settled(r.id);
+    expect(run).toMatchObject({ status: 'succeeded', result: 'Filed.' });
+    expect(specs).toHaveLength(2);
+    expect(specs[1]?.task).toContain('Audit the docs.');
+    expect(specs[1]?.task).not.toContain('commit what is done');
+  });
+
+  /* live check 2026-11-16: a read-only run that was really moving was stopped as stuck (progress was only commits) */
+  it('a session with no commit but a desk note counts as new work, not a stall', async () => {
+    const specs = app((n) =>
+      n === 1
+        ? [CAP]
+        : n === 2
+          ? [
+              { tool: 'forget', args: { where: '6 of 30 files read', doing: 'reading', next: 'file 7' } },
+              { wait: 500 },
+            ]
+          : n === 3
+            ? [CAP]
+            : [{ result: 'Read all 30.' }],
+    );
+    const r = h.runtime.start('aurora', { agentId: 'a-pete', task: 'Read every file.', kind: 'research' });
+    const run = await h.runtime.settled(r.id);
+    expect(run).toMatchObject({ status: 'succeeded', result: 'Read all 30.' });
+    expect(specs).toHaveLength(4);
+  });
+
+  it('a session with no commit but a filed report counts as new work', async () => {
+    const REPORT = {
+      title: 'Docs',
+      summary: 'Half done.',
+      body: 'So far.',
+      kind: 'research',
+      question: 'Docs?',
+    };
+    const specs = app((n) => (n === 2 ? [{ report: REPORT }, CAP] : n < 4 ? [CAP] : [{ result: 'Done.' }]));
+    const r = h.runtime.start('aurora', { agentId: 'a-pete', task: 'Audit the docs.', kind: 'research' });
+    const run = await h.runtime.settled(r.id);
+    expect(run).toMatchObject({ status: 'succeeded', result: 'Done.' });
+    expect(specs).toHaveLength(4);
   });
 
   it('a run that is not a build is never carried on', async () => {

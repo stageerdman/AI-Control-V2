@@ -58,9 +58,11 @@ export const YOUR_MEMORY = [
 export const FORGET_NUDGE =
   'AI Studio: your context is getting large. Finish the step you are on, commit, then call `forget` with where you are, what you are doing and the next step — you will continue fresh from that note.';
 
-/** The studio's nudge when a session is close to its step limit. */
-export const WRAP_UP_NUDGE =
-  'AI Studio: about 10 steps left in this session. Commit what is done now. Finish if you can; otherwise call `forget` with where you are and the next step — the studio carries you on in a fresh session.';
+/** The studio's nudge when a session is close to its step limit. Read-only research saves its findings, not commits. */
+export const wrapUpNudge = (kind: string | null | undefined): string =>
+  kind === 'research'
+    ? 'AI Studio: about 10 steps left in this session. File your report if it is ready; otherwise call `forget` with what you found so far and the next step — the studio carries you on in a fresh session.'
+    : 'AI Studio: about 10 steps left in this session. Commit what is done now. Finish if you can; otherwise call `forget` with where you are and the next step — the studio carries you on in a fresh session.';
 
 /** Steps before the cap at which WRAP_UP_NUDGE is given. */
 export const WRAP_UP_STEPS = 10;

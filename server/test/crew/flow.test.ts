@@ -44,8 +44,9 @@ describe('setup → work, end to end (fake brain)', () => {
       [team.captainId, team.id],
     ]);
     let g = w.body;
-    for (let i = 0; i < 200 && g.status === 'running'; i++) {
-      await new Promise((r) => setTimeout(r, 5));
+    // a wall-clock deadline, not a poll count: on a busy machine 200 quick polls ended before five git-backed runs did
+    for (const end = Date.now() + 10_000; Date.now() < end && g.status === 'running'; ) {
+      await new Promise((r) => setTimeout(r, 20));
       g = (await h.call('GET', `/projects/${p.id}/work/${g.id}`)).body;
     }
     expect(g).toMatchObject({ status: 'done', pct: 100 });
@@ -58,5 +59,5 @@ describe('setup → work, end to end (fake brain)', () => {
     const feats = (await h.call('GET', `/projects/${p.id}/features`)).body;
     expect(feats).toMatchObject([{ name: 'Ship the first screen', status: 'shipped', pct: 100 }]);
     expect(h.store.projects.require(p.id).progress).toBe(100);
-  });
+  }, 20_000);
 });

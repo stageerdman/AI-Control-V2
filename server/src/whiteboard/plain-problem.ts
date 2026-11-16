@@ -9,9 +9,9 @@ const SAVED = 'The work is saved and can continue.';
 
 const RULES: { test: RegExp; message: string }[] = [
   { test: /'s review didn't finish/, message: "The review didn't finish." },
-  /* runtime/limits.ts: a build that kept hitting its step limit without committing anything new */
+  /* runtime/limits.ts: a build or report that kept hitting its step limit with no new work (older rows: "commits") */
   {
-    test: /^Stopped: no new commits in its last/,
+    test: /^Stopped: no new (commits|work\b.*) in its last/,
     message: `Stuck: no new work after fresh starts. ${SAVED}`,
   },
   {

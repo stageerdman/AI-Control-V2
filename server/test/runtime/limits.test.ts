@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   afterLimit,
+  afterNote,
+  carriesOn,
   isLimit,
   limitBrief,
   MAX_SESSIONS,
@@ -43,6 +45,26 @@ describe('limits', () => {
     expect(b).toContain('step limit of a session (120 steps)');
     expect(b).toContain('Next step: tests');
     expect(b).toContain('Build the thing');
-    expect(limitBrief('Build', 120, null)).not.toContain('desk');
+    expect(limitBrief('Build', 120, null)).not.toContain('Your latest note');
+  });
+
+  it('builds and research carry on; reviews, chats and unknown kinds do not', () => {
+    expect(carriesOn('building')).toBe(true);
+    expect(carriesOn('research')).toBe(true);
+    expect(carriesOn('reviewing')).toBe(false);
+    expect(carriesOn('thinking')).toBe(false);
+    expect(carriesOn(undefined)).toBe(false);
+  });
+
+  it('a desk note resets the stall count, so a note between two bare sessions is not "stuck"', () => {
+    const first = afterLimit({ sessions: 0, stalls: 0 }, false, 120);
+    if (!first.carryOn) throw new Error('stopped too early');
+    expect(afterLimit(afterNote(first.state), false, 120).carryOn).toBe(true);
+  });
+
+  it('a research brief asks for findings and notes, never for commits', () => {
+    const b = limitBrief('Audit', 120, null, 'research');
+    expect(b).not.toMatch(/commit/i);
+    expect(b).toContain('forget');
   });
 });

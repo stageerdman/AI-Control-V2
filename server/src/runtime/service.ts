@@ -28,8 +28,8 @@ import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import {
   FORGET_NUDGE,
   WORKING_WITH_OTHERS,
-  WRAP_UP_NUDGE,
   WRAP_UP_STEPS,
+  wrapUpNudge,
   YOUR_MEMORY,
 } from '../room/context.ts';
 import type { Running } from '../running/registry.ts';
@@ -40,7 +40,7 @@ import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
 import { gitHead } from './git-head.ts';
-import { afterLimit, isLimit, type LimitState, limitBrief } from './limits.ts';
+import { afterLimit, afterNote, carriesOn, isLimit, type LimitState, limitBrief } from './limits.ts';
 import { runPermissions } from './permissions.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL } from './stream.ts';
@@ -74,8 +74,10 @@ type Live = {
   note?: DeskNoteBody;
   /** Sessions it carried on after a limit, and how many of those in a row made no new commit. */
   limits: LimitState;
-  /** The checkout's HEAD when this session began (progress = it moved). */
-  mark: string | null;
+  /** The checkout's HEAD and reports filed when this session began (progress = either moved). */
+  mark: string;
+  /** Reports filed in this run: new work for a read-only run cut off at a limit. */
+  reports: number;
   cancelled?: boolean;
   /** The studio is closing: the run is left 'running' on its row so the restart recovers it like a crash. */
   closing?: boolean;
@@ -478,7 +480,8 @@ export function createRuntime(deps: RuntimeDeps) {
       handle: { done: Promise.resolve({} as RunOutcome), cancel: () => {} },
       forgets: 0,
       limits: { sessions: 0, stalls: 0 },
-      mark: null,
+      mark: '',
+      reports: 0,
       before: NOTHING_SPENT,
       context: 0,
       nudged: false,
@@ -582,26 +585,35 @@ export function createRuntime(deps: RuntimeDeps) {
       deps.ports?.release(runId);
       bridge?.close();
     };
-    const markOf = deps.progressMark ?? gitHead;
-    /* a build cut off at a limit carries on by itself — the user never has to notice (runtime/limits.ts) */
-    const carriesOn = !big && run.kind === 'building';
+    const headOf = deps.progressMark ?? gitHead;
+    /** What "new work" is measured against: a new commit or a filed report (a desk note resets in nextSession). */
+    const markNow = () => `${headOf(cwd) ?? ''}#${l.reports}`;
+    /* a build or report cut off at a limit carries on by itself — the user never has to notice (runtime/limits.ts) */
+    const carries = !big && carriesOn(run.kind);
     /** After a session ended: start the same run again (a forget, or a limit with progress) — or end it. */
     const nextSession = (o: RunOutcome): { next: NextSession | null; o: RunOutcome } => {
       const note = l.forgetting;
       l.forgetting = undefined;
       if (l.cancelled || l.closing) return { next: null, o };
-      if (note)
+      if (note) {
+        l.limits = afterNote(l.limits);
         return {
           next: { brief: deskBrief(note, req.task), kind: 'forget', label: 'Fresh start from my note' },
           o,
         };
-      if (!carriesOn || o.status !== 'failed' || !isLimit(o.error)) return { next: null, o };
-      const verdict = afterLimit(l.limits, markOf(cwd) !== l.mark, caps.maxTurns);
+      }
+      if (!carries || o.status !== 'failed' || !isLimit(o.error)) return { next: null, o };
+      const verdict = afterLimit(l.limits, markNow() !== l.mark, caps.maxTurns);
       if (!verdict.carryOn) return { next: null, o: { ...o, error: verdict.error } };
       l.limits = verdict.state;
       return {
         next: {
-          brief: limitBrief(req.task, caps.maxTurns, l.note ?? null),
+          brief: limitBrief(
+            req.task,
+            caps.maxTurns,
+            l.note ?? null,
+            run.kind === 'research' ? 'research' : 'building',
+          ),
           kind: 'limit',
           label: 'Carrying on in a fresh session',
           line: `Reached the step limit (${caps.maxTurns}). Carrying on in a fresh session (${verdict.state.sessions}).`,
@@ -634,7 +646,7 @@ export function createRuntime(deps: RuntimeDeps) {
             try {
               const { resumeSessionId: _old, ...fresh } = spec;
               record(run, secrets, 'system', next.line ?? next.brief, { kind: next.kind });
-              l.mark = markOf(cwd);
+              l.mark = markNow();
               watch(runner.start({ ...fresh, task: next.brief, sessionId: randomUUID() }, io));
               return;
             } catch (e) {
@@ -654,7 +666,7 @@ export function createRuntime(deps: RuntimeDeps) {
       pid: () => l.handle.pid,
       cancel: () => stopLive(l),
     }).end;
-    l.mark = markOf(cwd); // before the session starts: its own commits are its progress
+    l.mark = markNow(); // before the session starts: its own commits are its progress
     watch(startHandle(spec, io));
     return run;
   }
@@ -702,7 +714,7 @@ export function createRuntime(deps: RuntimeDeps) {
     if (!deps.desk || l.forgetting) return [];
     if (!l.wrapped && l.turns >= l.run.caps.maxTurns - WRAP_UP_STEPS) {
       l.wrapped = true;
-      return [WRAP_UP_NUDGE];
+      return [wrapUpNudge(l.run.kind)];
     }
     if (l.nudged || l.context < (deps.forgetAt ?? FORGET_AT)) return [];
     l.nudged = true;
@@ -733,7 +745,9 @@ export function createRuntime(deps: RuntimeDeps) {
     const l = live.get(runId);
     if (!l) throw conflict('That run is not running');
     if (!l.files || !deps.reports) throw conflict('This run does not file reports');
-    return { id: deps.reports.file(l.run, input, l.secrets).id };
+    const { id } = deps.reports.file(l.run, input, l.secrets);
+    l.reports++;
+    return { id };
   }
   const waitUntilAnswered = async (askId: string): Promise<Ask> => {
     for (;;) {
