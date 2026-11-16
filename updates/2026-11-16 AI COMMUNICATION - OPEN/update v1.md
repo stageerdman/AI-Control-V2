@@ -69,7 +69,18 @@ has, not written by hand.
   truly outside what Pixel can do, it offers a real next step it *can* take (a feature in Planned, or a goal on the
   whiteboard).
 - **Feature:** `f-honest-capability-list`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). Every director tool is a `CapableTool` (`room/bridge.ts`: a `BridgeTool` plus
+  one `can` line, written next to each tool in `whiteboard/tools.ts` and `office/feature-tools.ts`). Every answer
+  field has its `can` line and its rule in `ANSWER_FIELDS` (`office/director-reply.ts`), keyed by the schema's
+  fields, so a new field without a line doesn't compile. `office/capabilities.ts` builds the prompt's list from
+  what is attached: `threads.ts` passes the tools it really gives the run and the fields whose service is wired
+  (`startWork`, `staffing`, `rebuilds`, `ask`, `resumeGoal`, `stops`). `DIRECTOR_ANSWER` became
+  `directorAnswer(fields)`, so the answer rules only cover wired fields too. The "outside the list" line offers only
+  steps that are attached (features list as Planned, whiteboard goal); with nothing attached (report-in) Pixel is
+  told it can only talk. The old hand-written whiteboard/features guidance moved into the tools' `can` lines (and
+  the `force` hint into the tool's `force` description). Tests: `server/test/office/capabilities.test.ts` (every
+  field and tool has a line; the prompt shows exactly those lines; no stop without `stop`; real fallbacks; the real
+  studio's chat prompt lists every attached tool and field).
 
 ### 3. Act first, then speak: `ask`, `resume`, `stop` as tools
 The three simplest answer fields become tools, so Pixel sees the result before it writes its reply.
@@ -127,12 +138,20 @@ The chats that went wrong before become a regression suite, so they never come b
 - Roadmap written (2026-11-16).
 - All 8 features added to the features list as Planned, in roadmap order (orders 19–26, after the user's existing
   planned items), each saying it is part of Revision of AI Communication. None are on the whiteboard.
-- Feature 1 shipped (2026-11-16): Pixel can see, add, edit, move and remove features from the chat. Next: feature 2.
+- Feature 1 shipped (2026-11-16): Pixel can see, add, edit, move and remove features from the chat.
+- Feature 2 shipped (2026-11-16): Pixel's "what you can do from here" list is built from what is attached. Next:
+  feature 3.
 
 ## Learned (changes later steps)
-- **One list of director tools.** `threads.ts` now takes `directorTools` (whiteboard + features) instead of
-  `boardTools`, and the prompt switches on one `hasTools` flag. Feature 2 should replace that flag with capability
-  lines built from the tools actually in the list — the seam is `orchestratorChatPrompt(…, hasTools)`.
+- **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
+  `CapableTool[]`: a new director tool must carry a `can` line or it doesn't compile.
+- **Features 3 and 4 get simpler (from feature 2):** moving an answer field to a tool = delete its entry from
+  `ANSWER_FIELDS` and its key in `threads.ts`'s `wired` map, and give the new tool a `can` line — the capability
+  list and the answer rules follow by themselves. When the last field goes, `directorAnswer` shrinks to the
+  "reply only" shape. `capabilities.ts` checks `add_goal` / `add_feature` by name for the fallback offer; keep those
+  names (or update `canStartWork`).
+- **Feature 6 can reuse `CapableTool`/`capabilityLines`** for the agents' `feature` tool if their prompt lists
+  capabilities too.
 - **Names, not ids, from voice.** Feature owners are agent/team ids, but Pixel hears names; the tool resolves names
   with `agentByName` (director-stop.ts) plus team names. Features 3 and 5 (`ask_person`, `answer_question`) need the
   same lookup — reuse it, and move it out of `director-stop.ts` into a small shared module when the second caller lands.
