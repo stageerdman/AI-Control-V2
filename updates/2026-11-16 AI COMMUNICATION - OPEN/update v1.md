@@ -50,7 +50,13 @@ Pixel can see, add, edit, move and remove features in the features folder from t
   through the director's chat and finds it under Planned. A real Pixel turn in a throwaway studio does the same.
   The prompt's "as a feature" wording is fixed.
 - **Feature:** `f-features-tools-for-pixel`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). `server/src/office/feature-tools.ts` (thin adapter over `office/features.ts`,
+  owner by name or id), attached in `app.ts` next to the whiteboard tools as one `directorTools` list. The prompt
+  now has a "Features tools" block that says the features list is not the whiteboard, and the fallback offer is
+  "add it to the features list as Planned, or put the work on the whiteboard as a goal". Tests:
+  `server/test/office/feature-tools.test.ts` (the "add dark mode to the features list" chat → Planned, one
+  `feature.changed`, no goal; plus view, move, pct, owner, bad input and remove). Not done: a real-brain Pixel turn
+  in a throwaway studio — the fake-brain chat test covers the same path; do the live check with step 8.
 
 ### 2. Honest capability list
 The "what you can do from here" lines in Pixel's prompt are built from the tools and answer fields Pixel really
@@ -118,7 +124,22 @@ The chats that went wrong before become a regression suite, so they never come b
 ## Status
 - Roadmap written (2026-11-16).
 - All 8 features added to the features list as Planned, in roadmap order (orders 19–26, after the user's existing
-  planned items), each saying it is part of Revision of AI Communication. None are on the whiteboard. Next: feature 1.
+  planned items), each saying it is part of Revision of AI Communication. None are on the whiteboard.
+- Feature 1 shipped (2026-11-16): Pixel can see, add, edit, move and remove features from the chat. Next: feature 2.
+
+## Learned (changes later steps)
+- **One list of director tools.** `threads.ts` now takes `directorTools` (whiteboard + features) instead of
+  `boardTools`, and the prompt switches on one `hasTools` flag. Feature 2 should replace that flag with capability
+  lines built from the tools actually in the list — the seam is `orchestratorChatPrompt(…, hasTools)`.
+- **Names, not ids, from voice.** Feature owners are agent/team ids, but Pixel hears names; the tool resolves names
+  with `agentByName` (director-stop.ts) plus team names. Features 3 and 5 (`ask_person`, `answer_question`) need the
+  same lookup — reuse it, and move it out of `director-stop.ts` into a small shared module when the second caller lands.
+- **`remove_feature` can't be undone** (the features repo deletes the row). The whiteboard has `undo_board`; if the
+  user ever loses a feature by mistake, add the same undo there rather than a soft-delete flag.
+- **Feature 6 can reuse `feature-tools.ts`:** an agent's `feature` tool is `edit_feature` limited to pct, status and
+  one appended description line.
+- The server's `npm run lint` already fails on older files (formatting, comma operators); new files follow the
+  existing style. Worth a cleanup pass, separate from this update.
 
 ## Decisions
 - **Tools rather than answer fields** for everything new. Answer fields run after the reply, so the reply can't
