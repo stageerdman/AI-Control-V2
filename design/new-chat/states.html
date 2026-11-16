@@ -1,0 +1,132 @@
+<!doctype html>
+<!-- New chat with Pixel: the four pill states in Pixel's header (spec: new-chat.md). Open in a browser. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>New chat with Pixel — states</title>
+<style>
+  :root { --sun:#ffc24b; --ink:#241a44; --ink-soft:#5b5280; --cream:#fff6e9; }
+  body { margin:0; padding:32px; background:#efe7dc; font:15px/1.4 system-ui, sans-serif; color:var(--ink); }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 24px; color:var(--ink-soft); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:24px; }
+  figure { margin:0; }
+  figcaption { font-weight:800; margin:0 0 8px; }
+  figcaption small { display:block; font-weight:500; color:var(--ink-soft); }
+  .panel { background:#fff; border-radius:18px; overflow:hidden; box-shadow:0 6px 20px rgba(36,26,68,.12); }
+  .head { display:flex; gap:12px; align-items:center; padding:12px 14px 12px 10px; background:var(--ink); color:var(--cream); min-height:96px; }
+  .bot { width:56px; height:56px; border-radius:50%; background:#7d6bd6; flex:none; }
+  .who { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .who b { font-size:18px; }
+  .role { font-size:12px; font-weight:800; color:var(--sun); }
+  .status { font-size:12.5px; font-weight:600; color:rgba(255,246,233,.8); }
+  .tools { align-self:flex-start; display:flex; flex-direction:column; align-items:flex-end; gap:6px; padding-top:4px; }
+  .pill { appearance:none; border:0; font:inherit; font-size:12px; font-weight:800; min-height:28px; padding:0 11px;
+          border-radius:999px; background:rgba(255,255,255,.1); color:var(--cream); white-space:nowrap; cursor:pointer; }
+  .pill:focus-visible { outline:3px solid var(--sun); outline-offset:2px; }
+  .reason { font-size:11.5px; font-weight:700; color:rgba(255,246,233,.8); margin:-2px 2px 0; }
+  .is-dim { opacity:.45; cursor:not-allowed; }
+  .is-idle { cursor:default; }
+  .is-shining { background:var(--sun) linear-gradient(105deg, transparent 35%, rgba(255,255,255,.65) 50%, transparent 65%) no-repeat;
+                background-size:250% 100%; background-position:150% 0; color:#4a2600;
+                box-shadow:0 0 0 2px rgba(255,194,75,.35), 0 0 14px 2px rgba(255,194,75,.45);
+                transition:box-shadow .2s, transform .08s;
+                /* 1.2s sweep + 2.5s rest, three times: one 3.7s cycle with the sweep in its first third */
+                animation:op-sweep 3.7s ease-in-out 0s 3; }
+  @keyframes op-sweep { 0% { background-position:150% 0; } 32%, 100% { background-position:-50% 0; } }
+  .is-shining.replay { animation:none; }
+  .is-shining:hover { box-shadow:0 0 0 2px rgba(255,194,75,.35), 0 0 18px 3px rgba(255,194,75,.55); }
+  .is-shining:active { transform:scale(.97); }
+  .is-shining:focus-visible { outline-color:var(--cream); }
+  @media (prefers-reduced-motion: reduce) { .is-shining { animation:none; } .is-shining:active { transform:none; } }
+  .log { min-height:150px; padding:16px; display:flex; flex-direction:column; gap:8px; background:var(--cream); }
+  .bubble { max-width:80%; padding:8px 12px; border-radius:16px; font-size:14px; }
+  .them { background:#fff; align-self:flex-start; border-bottom-left-radius:5px; }
+  .me { background:var(--sun); color:#4a2600; align-self:flex-end; border-bottom-right-radius:5px; }
+  .note { margin:auto 0; text-align:center; color:var(--ink-soft); font-size:13.5px; }
+  .composer { display:flex; gap:8px; padding:10px; border-top:1px solid rgba(36,26,68,.1); }
+  .composer span { flex:1; padding:9px 12px; border-radius:999px; background:#f6f2ec; color:var(--ink-soft); font-size:14px; }
+  .composer i { font-style:normal; font-weight:800; padding:9px 14px; border-radius:999px; background:var(--sun); color:#4a2600; font-size:14px; }
+  button.replay-btn { margin-top:24px; font:inherit; font-weight:700; padding:8px 14px; border-radius:999px; border:2px solid var(--ink); background:#fff; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>New chat with Pixel</h1>
+<p class="sub">Every state of the pill in Pixel's chat header. The shine sweeps 3× when it lights up, then rests as a glow.</p>
+
+<div class="grid">
+  <figure>
+    <figcaption>1 · Idle<small>Nothing running, chat already new. Quiet; tap does nothing.</small></figcaption>
+    <div class="panel">
+      <div class="head">
+        <div class="bot"></div>
+        <div class="who"><b>Pixel</b><span class="role">Orchestrator</span><span class="status">Your director · big picture only</span></div>
+        <div class="tools">
+          <button class="pill is-idle" aria-disabled="true" aria-label="New chat — this chat is already new"><span aria-hidden="true">✦ </span>New chat</button>
+          <button class="pill"><span aria-hidden="true">🕘 </span>History</button>
+        </div>
+      </div>
+      <div class="log"><p class="note">Pixel keeps the big picture. Say what you want built and it goes on the whiteboard.</p></div>
+      <div class="composer"><span>Message Pixel…</span><i>Send</i></div>
+    </div>
+  </figure>
+
+  <figure>
+    <figcaption>2 · Shining<small>Nothing running, the chat has messages. Sun pill + glow + 3 sweeps.</small></figcaption>
+    <div class="panel">
+      <div class="head">
+        <div class="bot"></div>
+        <div class="who"><b>Pixel</b><span class="role">Orchestrator</span><span class="status">Your director · big picture only</span></div>
+        <div class="tools">
+          <button class="pill is-shining" id="shine" aria-label="New chat with Pixel"><span aria-hidden="true">✦ </span>New chat</button>
+          <button class="pill"><span aria-hidden="true">🕘 </span>History</button>
+        </div>
+      </div>
+      <div class="log">
+        <div class="bubble me">Add a dark mode to the settings page</div>
+        <div class="bubble them">Done — Mira built it and the tests pass. It's on the board as finished.</div>
+      </div>
+      <div class="composer"><span>Message Pixel…</span><i>Send</i></div>
+    </div>
+  </figure>
+
+  <figure>
+    <figcaption>3 · Disabled<small>Work is running. Faded, with the reason under it.</small></figcaption>
+    <div class="panel">
+      <div class="head">
+        <div class="bot"></div>
+        <div class="who"><b>Pixel</b><span class="role">Orchestrator</span><span class="status">Your director · big picture only</span></div>
+        <div class="tools">
+          <button class="pill is-dim" aria-disabled="true" aria-label="New chat — available when work finishes. 2 agents working"><span aria-hidden="true">✦ </span>New chat</button>
+          <span class="reason" aria-hidden="true">2 agents working</span>
+          <button class="pill"><span aria-hidden="true">🕘 </span>History</button>
+        </div>
+      </div>
+      <div class="log">
+        <div class="bubble me">Build the login form and a signup page</div>
+        <div class="bubble them">On the board as one goal; Mira and Captain Semicolon are on it.</div>
+      </div>
+      <div class="composer"><span>Message Pixel…</span><i>Send</i></div>
+    </div>
+  </figure>
+
+  <figure>
+    <figcaption>4 · After tap<small>Fresh chat, focus in the composer. The old one is in History.</small></figcaption>
+    <div class="panel">
+      <div class="head">
+        <div class="bot"></div>
+        <div class="who"><b>Pixel</b><span class="role">Orchestrator</span><span class="status">Your director · big picture only</span></div>
+        <div class="tools">
+          <button class="pill is-idle" aria-disabled="true" aria-label="New chat — this chat is already new"><span aria-hidden="true">✦ </span>New chat</button>
+          <button class="pill"><span aria-hidden="true">🕘 </span>History</button>
+        </div>
+      </div>
+      <div class="log"><p class="note">New chat. Pixel still sees the board — say what you want built. Your last chat is in History.</p></div>
+      <div class="composer"><span>Message Pixel…</span><i>Send</i></div>
+    </div>
+  </figure>
+</div>
+
+<button class="replay-btn" type="button" onclick="const s=document.getElementById('shine');s.classList.add('replay');void s.offsetWidth;s.classList.remove('replay')">Replay the shine</button>
+</body>
+</html>

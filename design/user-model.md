@@ -8,13 +8,17 @@
 2. Shape the Cast: add, edit, rearrange agents and teams.
 3. Recover from mistakes fast. Deleting the wrong agent must never cost work.
 4. See what's running in a project and stop it, one agent or all, right away, without losing their chats.
+5. Start fresh with Pixel (the orchestrator) once work is done, keeping the old chat to look back at.
 
 ## What they do (observed)
 - They accidentally deleted Health Analyst, an agent with chats and a team seat, and running work was blocked (Nov 2026). Getting them back needed manual recovery.
 
 - They found whiteboard tasks hard to read, especially errors shown as raw technical text, and wanted to see who is on each task and who finished it (Nov 2026). The board now shows a status mark, an avatar and name, and one plain line when something goes wrong (design/whiteboard-task-card.md).
 
+- They couldn't start a new chat with Pixel; one long thread made Pixel drift back to old ideas (Nov 2026). Design: a "New chat" pill that only works, and shines, when nothing runs (design/new-chat/new-chat.md).
+
 ## Assumptions (guesses — check)
+- People want a fresh Pixel chat mostly right after a goal finishes, when nothing runs. Read-only old Pixel chats are enough. Check: taps on the dimmed pill; attempts to type in a past Pixel chat.
 - Raw error text is rarely needed. It sits behind "Details". Check: do people open Details often? If they do, the plain messages aren't saying enough.
 - Most restores happen within minutes (Undo) or within a few days (Recently deleted). 30 days is enough.
 - "Stop all agents" should leave the project's app running (it's the user's, not an agent's). Check: do people stop the app right after Stop all?
