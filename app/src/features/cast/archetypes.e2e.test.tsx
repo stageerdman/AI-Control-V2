@@ -5,7 +5,7 @@
    keyboard (real buttons, named, in tab order). */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Agent, Look, Toolset } from '../../api/types';
+import type { Agent, Look, ToolList, Toolset } from '../../api/types';
 import { HATS, hatDecal, heroSVG, lookSlot, ROLE_GEAR, TOOLS } from '../../characters/hero-svg';
 import { AgentPanel } from './AgentPanel';
 import { LookRig } from './LookRig';
@@ -91,10 +91,31 @@ describe('the nine archetype agents, server pack → app', () => {
   });
 });
 
+/* The server's own toolList (what GET /agents sends), so the panel is checked against real data. */
+type ToolListFn = (
+  a: { tools: Toolset | null; canMail: boolean; reporter: boolean },
+  shell: readonly string[],
+) => ToolList;
+const [tl] = Object.values(
+  import.meta.glob<{ toolList: ToolListFn }>('../../../../server/src/domain/tool-list.ts', { eager: true }),
+);
+if (!tl) throw new Error('server/src/domain/tool-list.ts not found');
+const DEV_SHELL = ['git', 'ls', 'cat', 'pwd', 'mkdir', 'npm', 'npx', 'node'];
+
+/** The Tools region's rows as the user reads them: "Edit" → its lines. */
+const rows = (region: HTMLElement) =>
+  Object.fromEntries(
+    [...region.querySelectorAll('.tl-row')].map((r) => [
+      r.querySelector('dt')?.textContent,
+      [...r.querySelectorAll('dd')].map((d) => d.textContent),
+    ]),
+  );
+
 describe('the agent panel shows its working tools', () => {
-  it("lists every agent's 'works with' lines under Tools", () => {
+  it("shows every archetype's real Edit / Run / Reach, as the Cast API sends them", () => {
     for (const a of NINE) {
-      const agent = { ...asAgent(a), tools: a.tools };
+      const toolList = tl.toolList({ tools: a.tools, canMail: true, reporter: false }, DEV_SHELL);
+      const agent = { ...asAgent(a), canMail: true, toolList };
       const roles = ARCHETYPES.roles.map((r) => ({ ...r, agentCount: 1, reporter: false }));
       const noop = () => {};
       render(
@@ -110,11 +131,15 @@ describe('the agent panel shows its working tools', () => {
           onSaved={noop}
         />,
       );
-      const list = screen.getByRole('region', { name: 'Tools' });
-      const lines = within(list)
-        .getAllByRole('listitem')
-        .map((li) => li.textContent);
-      expect(lines).toEqual(a.tools.works);
+      const got = rows(screen.getByRole('region', { name: 'Tools' }));
+      const or = (xs: string[], none: string) => (xs.length ? xs : [none]);
+      expect(got, a.name).toEqual({
+        Edit: or(toolList.edit, 'Nothing — reads only'),
+        Run: [toolList.run.length ? toolList.run.join(' · ') : 'Nothing'],
+        Reach: toolList.reach,
+      });
+      /* the old prose "works with" lines are gone — one truth, shown once */
+      for (const w of a.tools.works) expect(screen.queryByText(w), w).toBeNull();
       cleanup();
     }
   });

@@ -33,6 +33,9 @@ export type Toolset = {
   /** What it works with, in plain words (the design card's "works with" line). */
   works: string[];
 };
+/** An agent's tools in plain words (server domain/tool-list.ts): what its runs can edit, run and
+    reach. An empty list means "nothing". Derived by the server — never worked out in the app. */
+export type ToolList = { edit: string[]; run: string[]; reach: string[] };
 export type AgentKind = 'agent' | 'setter' | 'orchestrator' | 'creator';
 export type DeleteVerdict = { ok: true; why: '' } | { ok: false; why: string };
 
@@ -56,6 +59,8 @@ export type Agent = {
   canMail?: boolean;
   /** Working tools (server domain/toolset.ts); null/absent = the studio's full kit. */
   tools?: Toolset | null;
+  /** The Cast API's plain tool list (every /agents reply carries it). */
+  toolList?: ToolList;
   teamIds: string[];
   projectIds: string[];
   canDelete: DeleteVerdict;
