@@ -1,23 +1,16 @@
-/* What the director can do from here, built from what is really attached: every tool and every answer field
-   carries one plain capability line next to its definition, and the prompt shows exactly those lines — so it
-   never promises something that isn't wired, nor hides something that is. */
+/* What the director can do from here, built from what is really attached: every tool carries one plain
+   capability line next to its definition, and the prompt shows exactly those lines — so it never promises
+   something that isn't wired, nor hides something that is. */
 import type { CapableTool } from '../room/bridge.ts';
-import { ANSWER_FIELDS, type AnswerField } from './director-reply.ts';
 
-export type Capabilities = { tools: CapableTool[]; fields: AnswerField[] };
-export const NO_CAPABILITIES: Capabilities = { tools: [], fields: [] };
+export type Capabilities = { tools: CapableTool[] };
+export const NO_CAPABILITIES: Capabilities = { tools: [] };
 
-/** One line per attached tool and answer field, in that order. */
-export function capabilityLines(c: Capabilities): string[] {
-  return [
-    ...c.tools.map((t) => `- \`${t.name}\`: ${t.can}`),
-    ...c.fields.map((f) => `- "${f}" in your answer: ${ANSWER_FIELDS[f].can}`),
-  ];
-}
+/** One line per attached tool. */
+export const capabilityLines = (c: Capabilities): string[] => c.tools.map((t) => `- \`${t.name}\`: ${t.can}`);
 
 /** Can the director put work on the whiteboard from here? */
-export const canStartWork = (c: Capabilities) =>
-  c.fields.includes('work') || c.tools.some((t) => t.name === 'add_goal');
+export const canStartWork = (c: Capabilities) => c.tools.some((t) => t.name === 'add_goal');
 
 /** The nearest real step for a request outside the list — only steps that are attached. */
 function fallback(c: Capabilities): string {

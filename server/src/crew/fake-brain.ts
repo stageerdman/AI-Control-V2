@@ -106,8 +106,8 @@ export function pacedBrain(pace: number): (spec: RunSpec) => FakeStep[] {
   };
 }
 
-/** "Build the checkout" → work; "maybe dark mode?" → a reply that asks; anything else → a scripted echo. */
-export function fakeDirector(said: string): { reply: string; work: { goal: string } | null } {
+/** "Build the checkout" → a goal; "maybe dark mode?" → a reply that asks; anything else → a scripted echo. */
+export function fakeDirector(said: string): { reply: string; goal: string | null } {
   const t = said.trim();
   const ask =
     /\?\s*$/.test(t) ||
@@ -117,14 +117,35 @@ export function fakeDirector(said: string): { reply: string; work: { goal: strin
     /^(please\s+)?(build|add|make|create|implement|fix|ship|write|set up|setup|research|compare|investigate|find out|review|refactor|design|improve|update|remove|migrate|test|document)\b/i.test(
       t,
     );
-  if (work)
-    return { reply: 'On it — it’s going on the whiteboard and I’ll brief the team.', work: { goal: t } };
+  if (work) return { reply: 'On it — it’s on the whiteboard and the team is briefed.', goal: t };
   if (ask && /\b(add|build|make|could|should|maybe)\b/i.test(t))
     return {
       reply: `Good idea — want me to put “${t.replace(/\?\s*$/, '').slice(0, 160)}” on the whiteboard? Say the word. (A scripted reply: AI_STUDIO_RUNNER=fake.)`,
-      work: null,
+      goal: null,
     };
-  return { reply: `Got it — “${t.slice(0, 200)}”. (A scripted reply: AI_STUDIO_RUNNER=fake.)`, work: null };
+  return { reply: `Got it — “${t.slice(0, 200)}”. (A scripted reply: AI_STUDIO_RUNNER=fake.)`, goal: null };
+}
+
+/** The first captain or specialist in the director's summary: who the fake director gives a goal to. */
+function firstOwner(task: string): string | null {
+  try {
+    const now = JSON.parse(task.split('\n')[0]?.replace('Studio summary right now: ', '') ?? '') as {
+      people?: { teams?: { captain: string | null }[]; specialists?: { name: string }[] };
+    };
+    return now.people?.teams?.find((t) => t.captain)?.captain ?? now.people?.specialists?.[0]?.name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The fake director's turn: a goal goes on the whiteboard with add_goal (one task), then the reply. */
+function fakeDirectorTurn(task: string, said: string): FakeStep[] {
+  const d = fakeDirector(said);
+  const owner = d.goal ? firstOwner(task) : null;
+  const add: FakeStep[] =
+    d.goal && owner ? [{ tool: 'add_goal', args: { text: d.goal, tasks: [{ text: d.goal, owner }] } }] : [];
+  const reply = d.goal && !owner ? 'Nobody staffs this project yet — add a team or a specialist first.' : d.reply;
+  return [...add, { result: reply }];
 }
 
 export function fakeBrain(spec: RunSpec): FakeStep[] {
@@ -398,13 +419,13 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           { tokens: { input: 600, output: 80 } },
           { result: 'Looks good.\n{"verdict": "approve", "notes": "Meets the brief (fake review)."}' },
         ];
-      /* the director's office-chat turn (one Send): work for a clear ask, a reply (that asks) otherwise */
+      /* the director's office-chat turn: a goal for a clear ask, a reply (that asks) otherwise */
       if (t.startsWith('Studio summary right now: ')) {
         const said = field<string>(t, 'The user says:') ?? '';
         return [
           { activity: { kind: 'thinking', label: 'Thinking' } },
           { tokens: { input: 300, output: 40 } },
-          { result: JSON.stringify(fakeDirector(said)) },
+          ...fakeDirectorTurn(t, said),
         ];
       }
       /* an office-chat turn: a short, obviously-fake reply that echoes the user */

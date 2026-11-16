@@ -104,6 +104,7 @@ import { createBoard } from './whiteboard/board.ts';
 import { workRepo } from './db/work.ts';
 import { actionTools } from './office/action-tools.ts';
 import { featureTools } from './office/feature-tools.ts';
+import { teamTools } from './office/team-tools.ts';
 import { whiteboardTools } from './whiteboard/tools.ts';
 
 export type AppDeps = {
@@ -374,10 +375,11 @@ export function buildApp({
       ),
   };
   const threads = createThreads({
-    directorTools: (projectId, directorId) => [
+    directorTools: (projectId, directorId, turn) => [
       ...whiteboardTools(board, projectId, directorId),
       ...featureTools(features, store, projectId),
       ...actionTools(actions, projectId, directorId),
+      ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
     ],
     db,
     store,
@@ -389,10 +391,7 @@ export function buildApp({
     reports,
     secretValues: secretValuesOf(secrets),
     orchestratorCaps: caps.orchestrator,
-    staffing,
     rebuilds,
-    /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
-    startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
   });
   threadsRef = threads;
   /* someone finished a step → they tell the director, who decides what the user hears (chat, page or keep) */

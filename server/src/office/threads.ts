@@ -4,15 +4,14 @@
 
    - an agent runs with its normal composed prompt + tools (team context from its team on this project);
    - the orchestrator runs big picture: its own brain + altitude, only its director tools (whiteboard, features,
-     ask / resume / stop), no secrets, and a fresh summary of the whiteboard, features and health in every
-     message. It decides whether the message is work (OFFICE: one Send): its answer is `{reply, work}`
-     (director-reply.ts); work becomes a goal exactly as `POST /work` would, linked to this thread by goalId.
+     ask / resume / stop, staff / rebuild), no secrets, and a fresh summary of the whiteboard, features and health
+     in every message. It acts with its tools during the turn and answers in plain words (director-reply.ts); a
+     goal it puts on the whiteboard is linked to the turn's lines by goalId, and a rebuild card rides on its reply.
 
    One turn at a time per thread; the runtime's rules still hold (one live run per agent per
    project, caps). The reply arrives later as a `thread.message` event and is stored; asks the run
    opens are answered on the existing asks endpoint. Secrets are redacted before anything is stored. */
 import { randomUUID } from 'node:crypto';
-import { planReply } from '../crew/dispatch.ts';
 import { ORCHESTRATOR_ALTITUDE } from '../crew/prompts.ts';
 import { CREW_CAPS } from '../crew/structured.ts';
 import type { Agent } from '../db/agents.ts';
@@ -21,7 +20,7 @@ import type { Project } from '../db/projects.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
-import { type Goal, workRepo } from '../db/work.ts';
+import { workRepo } from '../db/work.ts';
 import { conflict } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
@@ -31,12 +30,13 @@ import type { CapableTool } from '../room/bridge.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { type Capabilities, canStartWork, capabilityText, NO_CAPABILITIES } from './capabilities.ts';
-import { type AnswerField, directorAnswer, parseDirectorReply } from './director-reply.ts';
+import { directorAnswer, replyText } from './director-reply.ts';
 import type { DirectorStopper } from './director-stop.ts';
 import type { Features } from './features.ts';
 import { type Seat, seatOf } from './people.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
-import { castAvailable, type Staffing } from './staffing.ts';
+import { castAvailable } from './staffing.ts';
+import type { TurnHooks } from './team-tools.ts';
 
 export type ThreadMessage = {
   id: string;
@@ -84,7 +84,7 @@ export function orchestratorChatPrompt(
   can: Capabilities = NO_CAPABILITIES,
 ): string {
   const doesWork = canStartWork(can)
-    ? 'You do not do the work yourself. When the user clearly asks for work, you put it on the whiteboard as ONE goal and break it into checklist items right after — the user does not split it; say which of the people on the project (the summary’s "people") you will brief. When it is only an idea or a question, answer and ask first.'
+    ? 'You do not do the work yourself. When the user clearly asks for work, you put it on the whiteboard as ONE goal with its tasks (`add_goal`) — the user does not split it; say which of the people on the project (the summary’s "people") you briefed. When it is only an idea or a question, answer and ask first.'
     : 'You do not do the work yourself.';
   return [
     `# ${orch.name}`,
@@ -117,33 +117,28 @@ export function createThreads(deps: {
   secretValues: () => string[];
   /** Caps for the orchestrator's chat turns (default CREW_CAPS). */
   orchestratorCaps?: Caps;
-  /** Make a goal exactly as `POST /work` would (dispatch.start), without its own thread lines. Absent → the
-      director's work answers are replies only. */
-  startWork?: (projectId: string, goal: string) => Promise<Goal>;
-  /** The director staffs the project from chat (office/staffing.ts). */
-  staffing?: Staffing;
-  /** The director rebuilds teams from chat (office/rebuild-service.ts). */
-  rebuilds?: Rebuilds;
+  /** Open rebuild cards go stale when a newer message reaches the director (office/rebuild-service.ts). */
+  rebuilds?: Pick<Rebuilds, 'staleAll'>;
   /** Who is working on what right now (the summary's `runningNow`, for the director's `stop_work`). */
   runningNow?: DirectorStopper['runningNow'];
   /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts), features
-      (office/feature-tools.ts) and ask / resume / stop (office/action-tools.ts). Absent → it has none. */
-  directorTools?: (projectId: string, directorId: string) => CapableTool[];
+      (office/feature-tools.ts), ask / resume / stop (office/action-tools.ts) and staff / rebuild
+      (office/team-tools.ts, which hand their card to `turn`). Absent → it has none. */
+  directorTools?: (projectId: string, directorId: string, turn: TurnHooks) => CapableTool[];
 }) {
   const { db, store, events, runtime } = deps;
-  /* the answer fields this studio really carries out: each needs its service */
-  const wired: Record<AnswerField, unknown> = {
-    work: deps.startWork,
-    staff: deps.staffing,
-    rebuild: deps.rebuilds,
-  };
-  const answerFields = (Object.keys(wired) as AnswerField[]).filter((f) => !!wired[f]);
   const work = workRepo(db);
-  /** runId → the thread its reply belongs to (+ the user's message, for the orchestrator's work) */
-  const turns = new Map<
-    string,
-    { projectId: string; agentId: string; orchestrator: boolean; messageId?: string }
-  >();
+  /** runId → the thread its reply belongs to (+ for the director: the user's message, the goals there were
+      before the turn, and the rebuild card a tool handed over) */
+  type Turn = {
+    projectId: string;
+    agentId: string;
+    orchestrator: boolean;
+    messageId?: string;
+    goalsBefore?: Set<string>;
+    card?: Offer;
+  };
+  const turns = new Map<string, Turn>();
   const key = (projectId: string, agentId: string) => `${projectId}\u0000${agentId}`;
   const busy = new Set<string>();
   const scrub = (s: string) => redactSecrets(s, deps.secretValues()).value;
@@ -386,6 +381,7 @@ export function createThreads(deps: {
     p: Project,
     s: Seat,
     text: string,
+    can: Capabilities,
     reportId?: string,
     recap?: string | null,
   ): string {
@@ -399,7 +395,7 @@ export function createThreads(deps: {
         recap ?? '',
         about,
         `The user says: ${json(text)}`,
-        directorAnswer(answerFields),
+        directorAnswer(can),
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -419,31 +415,26 @@ export function createThreads(deps: {
     if (finishedBefore) setSession(projectId, agentId, { rotate: true });
   }
 
-  /** The director said "work": the goal goes on the whiteboard (dispatch), the turn's lines carry its goalId,
-      then the plan reply — or why it couldn't be planned. */
-  function startWork(t: { projectId: string; agentId: string }, goal: string, lines: (string | undefined)[]) {
-    const name = (id: string) => store.agents.get(id)?.name ?? id;
-    (deps.startWork as NonNullable<typeof deps.startWork>)(t.projectId, goal).then(
-      (g) => {
-        const ids = lines.filter((x): x is string => !!x);
-        for (const id of ids) db.prepare('UPDATE thread_messages SET goal_id = ? WHERE id = ?').run(g.id, id);
-        noteNewGoal(t.projectId, t.agentId, g.id);
-        insert(t.projectId, t.agentId, {
-          sender: 'agent',
-          kind: 'text',
-          text: clip(planReply(g, name), 20_000),
-          runId: null,
-          goalId: g.id,
-        });
-      },
-      (e: unknown) =>
-        insert(t.projectId, t.agentId, {
-          sender: 'agent',
-          kind: 'error',
-          text: `I couldn’t plan that: ${clip(e instanceof Error ? e.message : String(e), 2000)}`,
-          runId: null,
-        }),
-    );
+  /** The goal the director's turn put on the whiteboard (add_goal), if any: the first one that wasn't there. */
+  const goalAddedIn = (t: Turn) =>
+    t.goalsBefore ? (work.goals(t.projectId).find((g) => !t.goalsBefore?.has(g.id)) ?? null) : null;
+
+  /** The director's reply: plain words, with the rebuild card a tool handed over; a goal it added links the
+      user's message and the reply, and a goal after a finished one rotates the session. */
+  function directorReplied(t: Turn, run: Run) {
+    const goal = goalAddedIn(t);
+    if (goal && t.messageId) {
+      db.prepare('UPDATE thread_messages SET goal_id = ? WHERE id = ?').run(goal.id, t.messageId);
+      noteNewGoal(t.projectId, t.agentId, goal.id);
+    }
+    insert(t.projectId, t.agentId, {
+      sender: 'agent',
+      kind: 'text',
+      text: replyText(run.result as string),
+      runId: run.id,
+      goalId: goal?.id ?? null,
+      rebuild: t.card ?? null,
+    });
   }
 
   /* an agent's question the user answered stays in the agent's thread as two lines: the question, then the
@@ -479,53 +470,7 @@ export function createThreads(deps: {
       return;
     }
     const ok = run.status === 'succeeded' && !!run.result?.trim();
-    if (ok && t.orchestrator) {
-      const d = parseDirectorReply(run.result as string);
-      /* a rebuild rides on the reply: a confirm card, or (nothing to decide) applied at once with its Undo */
-      let rebuild: Offer | null = null;
-      let rebuildError: string | null = null;
-      if (d.rebuild && deps.rebuilds) {
-        try {
-          const offer = deps.rebuilds.plan(t.projectId, d.rebuild);
-          if (offer.needsConfirm) rebuild = offer;
-          else {
-            const done = deps.rebuilds.apply(offer.planId, {}, t.agentId);
-            rebuild = { ...offer, card: done.card, undoToken: done.undoToken, summary: done.summary };
-          }
-        } catch (e) {
-          rebuildError = clip(e instanceof Error ? e.message : String(e), 2000);
-        }
-      }
-      const reply = insert(t.projectId, t.agentId, {
-        sender: 'agent',
-        kind: 'text',
-        text: d.reply,
-        runId: run.id,
-        rebuild,
-      });
-      if (rebuildError)
-        insert(t.projectId, t.agentId, {
-          sender: 'agent',
-          kind: 'error',
-          text: `I couldn’t change the teams: ${rebuildError}`,
-          runId: null,
-        });
-      if (d.staff && deps.staffing) {
-        try {
-          deps.staffing.apply(t.projectId, d.staff, t.agentId);
-        } catch (e) {
-          insert(t.projectId, t.agentId, {
-            sender: 'agent',
-            kind: 'error',
-            text: `I couldn’t set up the people: ${clip(e instanceof Error ? e.message : String(e), 2000)}`,
-            runId: null,
-          });
-          return; // no work on a team that isn't there
-        }
-      }
-      if (d.goal && deps.startWork) startWork(t, d.goal, [t.messageId, reply.id]);
-      return;
-    }
+    if (ok && t.orchestrator) return directorReplied(t, run);
     insert(t.projectId, t.agentId, {
       sender: 'agent',
       kind: ok ? 'text' : 'error',
@@ -576,14 +521,23 @@ export function createThreads(deps: {
           fresh = true;
         }
       }
-      const task = taskFor(p, s, text, opts.reportId, recap); // an unknown report is a 404 before anything starts
+      const turn: Turn = {
+        projectId,
+        agentId: s.agent.id,
+        orchestrator: s.orchestrator,
+        ...(s.orchestrator ? { goalsBefore: new Set(work.goals(projectId).map((g) => g.id)) } : {}),
+      };
+      const tools = s.orchestrator
+        ? (deps.directorTools?.(projectId, s.agent.id, { card: (o) => (turn.card = o) }) ?? [])
+        : [];
+      // an unknown report is a 404 before anything starts
+      const task = taskFor(p, s, text, { tools }, opts.reportId, recap);
       const k = key(projectId, s.agent.id);
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
       /* a newer message to the director: any open rebuild card goes stale (spec §3) */
       if (s.orchestrator) deps.rebuilds?.staleAll(projectId);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
       const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
-      const tools = s.orchestrator ? (deps.directorTools?.(projectId, s.agent.id) ?? []) : [];
       const run = runtime.start(projectId, {
         agentId: s.agent.id,
         ...(s.teamId ? { teamId: s.teamId } : {}),
@@ -595,18 +549,13 @@ export function createThreads(deps: {
           ? {
               caps: deps.orchestratorCaps ?? CREW_CAPS,
               bigPicture: {
-                systemPrompt: orchestratorChatPrompt(s.agent, p.name, { tools, fields: answerFields }),
+                systemPrompt: orchestratorChatPrompt(s.agent, p.name, { tools }),
                 ...(tools.length ? { tools } : {}),
               },
             }
           : {}),
       });
       busy.add(k);
-      const turn: { projectId: string; agentId: string; orchestrator: boolean; messageId?: string } = {
-        projectId,
-        agentId: s.agent.id,
-        orchestrator: s.orchestrator,
-      };
       turns.set(run.id, turn);
       if (fresh) setSession(projectId, s.agent.id, { startedAt: now(), rotate: false });
       const message = insert(projectId, s.agent.id, {
