@@ -195,7 +195,17 @@ The chats that went wrong before become a regression suite, so they never come b
   one checks what actually changed (features, board, runs, asks), not just the wording of the reply. It runs in
   `npm test`.
 - **Feature:** `f-conversation-checks`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). `server/test/office/conversation-checks.test.ts` plays each chat through
+  the director's thread on Lumi (Twinkle and Professor Prompt), with the fake runner scripting the director's tool
+  calls and the fake brain for other contracts. Each case checks the state, not the wording: "add dark mode to the
+  features list" → `f-dark-mode` under Planned, no goal, and the prompt lists `add_feature` and no longer says "as
+  a feature"; "have you asked Twinkle?" → a real `room.call` (working → answered) whose answer the turn reads, and
+  someone off the project is refused with no call; "stop everything" → both runs cancelled, nothing running,
+  Pixel's own turn succeeds; "carry on" → the stopped goal goes back on and runs to done; "tell Professor option 2"
+  → his waiting run gets "Green" and succeeds, no open asks, and his chat shows the question then the answer (the
+  real chat named Uncle Bob, who isn't in the seed). The "Start it" case stays in `chat-work.test.ts`. It runs in
+  the server's `npm test` (the repo has no CI workflow yet; `npm test` is the gate). All 672 server tests and the
+  typecheck pass.
 
 ## Status
 - Roadmap written (2026-11-16).
@@ -214,7 +224,11 @@ The chats that went wrong before become a regression suite, so they never come b
 - Feature 6 shipped (2026-11-16): `add_goal` names the feature a goal builds; working agents read and update it
   with their `feature` tool; the finished goal ships it unless the agent already did.
 - Feature 7 shipped (2026-11-16): a reply in an agent's past chat that names work offers "Start it"; one tap puts it
-  on the whiteboard for that agent, briefed from the chat. Next: feature 8.
+  on the whiteboard for that agent, briefed from the chat.
+- Feature 8 shipped (2026-11-16): the old failed chats are a regression suite in `npm test`.
+- **Update closed (2026-11-16):** all 8 features shipped and ticked off in the features list, and "Revision of AI
+  Communication" is marked shipped (100%). Left for later: a CI workflow to run `npm test` on every push, and the
+  server lint cleanup noted below.
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
