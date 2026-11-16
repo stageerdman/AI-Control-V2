@@ -5,6 +5,8 @@ import type { EditScope } from '../domain/toolset.ts';
 
 export type ComposeInput = {
   agent: { name: string; prompt: string; role: string };
+  /** Names of the agent's kin (other copies sharing its instructions), if any. */
+  kin?: readonly string[];
   team?: { name: string; instr: string; code: string; isCaptain: boolean; job: string } | null;
   project: { name: string };
   /** Toolsmiths (quality / test roles): their persistent toolkit + the per-project tools folder. */
@@ -53,8 +55,15 @@ function shellLine(cmds: readonly string[], settingsPrefix: boolean, port: numbe
   return `- In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${list(cmds.map(code))} ${verb} pre-approved, anything else is refused.${prefix}`;
 }
 
+/* The instructions are shared word for word, so they may name a kin: the copy must read that as itself. */
+function kinLine(name: string, kin: readonly string[]): string {
+  if (!kin.length) return '';
+  return `You share these instructions with your kin ${list(kin)} (other copies of the same agent). Wherever they name one of your kin, read it as you, ${name}. Your kin are separate people with their own work.`;
+}
+
 export function composePrompt({
   agent,
+  kin,
   team,
   project,
   toolkit,
@@ -68,7 +77,12 @@ export function composePrompt({
   principles,
 }: ComposeInput): string {
   const cmds = shell ?? ['git', 'ls', 'cat', 'pwd'];
-  const who = `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`;
+  const who = [
+    `You are ${agent.name}${agent.role ? ` (${agent.role})` : ''}, an agent in AI Studio.`,
+    kinLine(agent.name, kin ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ');
   return [
     `# ${agent.name}`,
     `${who}\n\n${agent.prompt.trim()}`.trim(),
