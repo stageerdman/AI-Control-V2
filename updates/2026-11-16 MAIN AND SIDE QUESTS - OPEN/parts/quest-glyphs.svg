@@ -1,0 +1,23 @@
+<!-- Side quest kind glyphs, 14px, ink-soft, 1.8 stroke (same family as the Cast's wrench and magnifier tools).
+     #fix   wrench     : a quick fix. Story: the tool the studio's fixers keep in their back pocket. Feeling: handy.
+     #look  magnifier  : a short research job. Story: someone went to look something up. Feeling: curious.
+     #main  pennant    : marks a Main Quest strip. Story: the flag on the road everyone walks. Feeling: brave.
+     Use as <use href="quest-glyphs.svg#fix"/> or inline each symbol. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 16" width="48" height="16">
+  <defs>
+    <symbol id="fix" viewBox="0 0 16 16">
+      <path d="M10.6 2.2a3.6 3.6 0 0 0-3.9 4.8L2.4 11.3a1.2 1.2 0 0 0 0 1.7l.6.6a1.2 1.2 0 0 0 1.7 0L9 9.3a3.6 3.6 0 0 0 4.8-3.9l-2.2 2.2-2.1-.6-.6-2.1z" fill="#5b5280"/>
+    </symbol>
+    <symbol id="look" viewBox="0 0 16 16">
+      <circle cx="6.6" cy="6.6" r="4.2" fill="none" stroke="#5b5280" stroke-width="1.8"/>
+      <path d="M9.8 9.8l3.8 3.8" stroke="#5b5280" stroke-width="2.4" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="main" viewBox="0 0 16 16">
+      <path d="M3.5 2v12.5" stroke="#241a44" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M4.4 2.6h9l-2.4 3 2.4 3h-9z" fill="#ff9b3d"/>
+    </symbol>
+  </defs>
+  <use href="#fix" x="0" y="0" width="16" height="16"/>
+  <use href="#look" x="16" y="0" width="16" height="16"/>
+  <use href="#main" x="32" y="0" width="16" height="16"/>
+</svg>

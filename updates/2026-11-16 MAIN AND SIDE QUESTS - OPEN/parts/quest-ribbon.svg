@@ -1,0 +1,16 @@
+<!-- Quest ribbon: the Main Quest's name banner. Story: the banner the studio hangs over the one thing
+     everyone is building, so nobody forgets which road is the main one. Feeling: proud.
+     Flat sun band + sun-deep tails, then one thin cream stitch. Stretches horizontally: only the
+     middle band scales (tails are fixed 28px end caps, so 9-slice it or draw tails as ::before/::after). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 44" width="320" height="44">
+  <!-- tails (behind) -->
+  <path d="M0 12h30v28H0l10-14z" fill="#ff9b3d"/>
+  <path d="M320 12h-30v28h30l-10-14z" fill="#ff9b3d"/>
+  <!-- fold shadows -->
+  <path d="M18 34l12 6v-6z" fill="#241a44" opacity=".22"/>
+  <path d="M302 34l-12 6v-6z" fill="#241a44" opacity=".22"/>
+  <!-- band -->
+  <rect x="18" y="4" width="284" height="30" rx="4" fill="#ffc24b"/>
+  <!-- stitch -->
+  <rect x="23" y="8.5" width="274" height="21" rx="2.5" fill="none" stroke="#fff6e9" stroke-width="1.2" stroke-dasharray="4 3" opacity=".8"/>
+</svg>

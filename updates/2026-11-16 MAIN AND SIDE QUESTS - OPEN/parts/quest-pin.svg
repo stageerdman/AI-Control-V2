@@ -1,0 +1,8 @@
+<!-- Quest pin: holds each Side Quest card to the board. Story: whoever takes a quick job pins it up
+     so the room can see it; it turns teal when the job is done, coral when it's stuck. Feeling: playful.
+     Recolor via the --pin custom property (default sun-deep). Can bounce on "pinned" (squash 1.2/0.8, 180ms). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 22" width="20" height="22">
+  <ellipse cx="11" cy="19" rx="6" ry="2" fill="#241a44" opacity=".16"/>
+  <circle cx="10" cy="9" r="7.5" style="fill:var(--pin,#ff9b3d)"/>
+  <circle cx="7.4" cy="6.4" r="2.2" fill="#fff6e9" opacity=".85"/>
+</svg>
