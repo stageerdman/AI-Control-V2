@@ -24,7 +24,7 @@ reports keep working unchanged. Only the kind, the order and the look differ.
 - **Who sets it.** Pixel's `add_goal` takes `quest: "side"`. A colleague's `call_agent` with `work: true` is a
   side quest (a small ask from one agent to another; it never had a feature). The orchestrator's planned goals
   and "Start it" from a chat stay main quests.
-- **The priority rule lives in dispatch's pump, as a pure helper** (`server/src/crew/quests.ts`):
+- **The priority rule lives in dispatch's pump, as a pure helper** (`server/src/domain/quests.ts`):
   1. queued work is considered main quests first (each kind keeps its own order: oldest goal first, then
      checklist order), so main work claims free seats first;
   2. a side-quest task waits while its agent has main-quest work that could start now. If the agent's main
@@ -48,7 +48,7 @@ reports keep working unchanged. Only the kind, the order and the look differ.
   lands as a side quest.
 
 ### Phase 3 — Main quests first (server) ✅
-- Pure `mainFirst` + `sideMayStart` in `server/src/crew/quests.ts`; `pump` uses them.
+- Pure `mainFirst` + `heldForMain` in `server/src/domain/quests.ts`; `pump` uses them.
 - **Tests:** unit tests of the rule; a dispatch test where one agent has both (main runs first, the side
   quest waits, then runs); a side quest runs when its agent's main work is only waiting on someone else.
 
@@ -63,4 +63,6 @@ reports keep working unchanged. Only the kind, the order and the look differ.
 
 ## Status
 
-- Phases 1–3 done (server). Phase 4 is the front-end item; phase 5 after it.
+- Phases 1–3 done (server). Tests: `server/test/domain/quests.test.ts` (the rule),
+  `server/test/whiteboard/quests.test.ts` (order, side-while-waiting, saved + sent, side + feature refused),
+  `server/test/room/room-calls.test.ts` (a work call is a side quest). Phase 4 is the front-end item; phase 5 after it.

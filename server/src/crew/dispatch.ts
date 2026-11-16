@@ -548,7 +548,8 @@ export function createDispatch(deps: {
         ready: !fresh(it) || orderGate(goal, it) === 'go',
       })),
     );
-    for (const { it, goal: { quest } } of mainFirst(queue, (q) => q.goal.quest)) {
+    for (const { it, goal: queued } of mainFirst(queue, (q) => q.goal.quest)) {
+      const quest = queued.quest;
       if (free <= 0) break;
       const who = holder(it);
       if (busy.has(who) || it.agentId === director) continue;

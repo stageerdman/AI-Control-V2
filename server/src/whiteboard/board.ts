@@ -177,9 +177,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     if (!a.tasks?.length || a.tasks.length > MAX_TASKS) throw invalid(`A goal has 1–${MAX_TASKS} tasks.`);
     const quest = a.quest ?? 'main';
     if (a.feature && quest === 'side')
-      throw invalid(
-        'A side quest never serves a feature — leave "feature" out, or make it a main quest.',
-      );
+      throw invalid('A side quest never serves a feature — leave "feature" out, or make it a main quest.');
     if (a.feature && !features.get(projectId, a.feature.id))
       throw invalid(`No feature '${a.feature.id}' — look with features first.`);
     const items = a.tasks.map((t) => newItem(projectId, t, direct));
