@@ -109,39 +109,31 @@ describe('reports', () => {
     expect((await h.call('GET', '/reports?limit=0')).status).toBe(422);
   });
 
-  it('only reporters file: role or team; others (and big-picture runs) never get the tool', async () => {
+  it('every agent run may file (the user asked: any agent can put a report in Reports); reporters also get the web', async () => {
     const seen: RunSpec[] = [];
     h = studio(() => [{ report: REPORT }, { result: 'ok' }], seen);
     h.runtime.setBaseUrl('http://127.0.0.1:9');
-    await run(h, { agentId: 'a-pete', task: 'x' }); // Frontend, Ship-It: not a reporter
-    expect((await h.call('GET', '/projects/aurora/reports')).body.reports).toEqual([]);
-    expect(seen[0]?.askBridge?.reportUrl).toBeUndefined();
-    // a reporter TEAM: Querious (Data) running for The Expedition
+    await run(h, { agentId: 'a-pete', task: 'x' }); // Frontend, Ship-It: not a reporter — files anyway
+    expect(seen[0]?.askBridge?.reportUrl).toMatch(/\/internal\/runs\/.+\/reports$/);
+    expect(seen[0]?.web).toBeFalsy();
+    expect((await h.call('GET', '/projects/aurora/reports')).body.reports[0].author.agentId).toBe('a-pete');
+    // a reporter TEAM: Querious (Data) running for The Expedition — files and researches on the web
     await run(h, { agentId: 'a-query', teamId: 'expedition', task: 'x' });
-    expect(seen[1]?.askBridge?.reportUrl).toMatch(/\/internal\/runs\/.+\/reports$/);
+    expect(seen[1]?.web).toBe(true);
     const rep = (await h.call('GET', '/projects/aurora/reports')).body.reports[0];
     expect(rep.author).toMatchObject({
       agentId: 'a-query',
       teamId: 'expedition',
       teamName: 'The Expedition',
     });
-    // the same agent without the team is not a reporter
-    await run(h, { agentId: 'a-query', task: 'x' });
-    expect(seen[2]?.askBridge?.reportUrl).toBeUndefined();
-    // turning the flag on for a role makes its agents reporters
-    await h.call('PATCH', '/roles/r-frontend', { reporter: true });
-    await run(h, { agentId: 'a-pete', task: 'x' });
-    expect((await h.call('GET', '/projects/aurora/reports')).body.reports).toHaveLength(2);
-    // CLI wiring: the reporter run gets the MCP env + the allowed tool, the others don't
+    // CLI wiring: every agent run gets the MCP env + the allowed tool
     const argv = (s: RunSpec) => cliArgs(s, { askServer: '/a.ts' });
     const mcp = (s: RunSpec) => JSON.parse(argv(s)[argv(s).indexOf('--mcp-config') + 1] as string);
     const allowed = (s: RunSpec) => argv(s)[argv(s).indexOf('--allowed-tools') + 1];
-    expect(mcp(seen[1] as RunSpec).mcpServers.studio.env.AI_STUDIO_REPORT_URL).toBe(
-      seen[1]?.askBridge?.reportUrl,
+    expect(mcp(seen[0] as RunSpec).mcpServers.studio.env.AI_STUDIO_REPORT_URL).toBe(
+      seen[0]?.askBridge?.reportUrl,
     );
-    expect(allowed(seen[1] as RunSpec)).toContain('mcp__studio__file_report');
-    expect(mcp(seen[0] as RunSpec).mcpServers.studio.env.AI_STUDIO_REPORT_URL).toBeUndefined();
-    expect(allowed(seen[0] as RunSpec)).not.toContain('file_report');
+    expect(allowed(seen[0] as RunSpec)).toContain('mcp__studio__file_report');
   });
 
   it('masks secrets in every field, caps 2 per run, refuses malformed input', async () => {
@@ -180,7 +172,7 @@ describe('reports', () => {
     expect((await h.call('GET', '/projects/aurora/reports')).body.reports).toEqual([]);
   });
 
-  it('end to end through the real MCP server: file_report listed only for reporters, files over HTTP', async () => {
+  it('end to end through the real MCP server: file_report listed, files over HTTP', async () => {
     const seen: RunSpec[] = [];
     h = studio(() => [{ wait: 5000 }, { result: 'ok' }], seen, 100);
     const base = await h.app.listen({ port: 0, host: '127.0.0.1' });
@@ -189,7 +181,7 @@ describe('reports', () => {
     const pete = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'build' })).body;
     const bridge = seen[0]?.askBridge;
     expect(bridge?.reportUrl).toBe(`${base}/internal/runs/${prof.id}/reports`);
-    // the side door: wrong token 404, non-reporter run 409, malformed 422
+    // the side door: wrong token 404, another run's token 404, malformed 422
     const post = (url: string, token: string, body: unknown) =>
       fetch(url, {
         method: 'POST',
@@ -197,10 +189,10 @@ describe('reports', () => {
         body: JSON.stringify(body),
       });
     expect((await post(bridge?.reportUrl as string, 'wrong', REPORT)).status).toBe(404);
-    expect(
-      (await post(`${base}/internal/runs/${pete.id}/reports`, seen[1]?.askBridge?.token as string, REPORT))
-        .status,
-    ).toBe(409);
+    expect(seen[1]?.askBridge?.reportUrl).toBe(`${base}/internal/runs/${pete.id}/reports`);
+    expect((await post(bridge?.reportUrl as string, seen[1]?.askBridge?.token as string, REPORT)).status).toBe(
+      404,
+    );
     expect((await post(bridge?.reportUrl as string, bridge?.token as string, { title: 'x' })).status).toBe(
       422,
     );

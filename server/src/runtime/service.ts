@@ -56,7 +56,8 @@ type Live = {
   handle: RunHandle;
   token: string;
   secrets: string[];
-  reporter: boolean;
+  /** It has file_report. */
+  files: boolean;
   /** STUDIO LIFE: set by `forget` — when this handle ends, the run starts again from the note. */
   forgetting?: DeskNoteBody;
   forgets: number;
@@ -68,6 +69,9 @@ type Live = {
   /** The latest turn's context size (input + cache), for the forget nudge. */
   context: number;
   nudged: boolean;
+  /** Notes from the user or a leader while it runs ("Uncle Bob is already running"): the nudge hook hands them
+      over after its next tool step. */
+  notes: string[];
   /** The agent's latest words in the chat (the final result is saved only when it says something new). */
   said?: string;
   /** Takes it off the running list (src/running) once it has ended. */
@@ -389,7 +393,9 @@ export function createRuntime(deps: RuntimeDeps) {
       kind: req.kind ?? null,
     });
     record(run, secrets, 'user', req.task);
+    /* reporters research on the web; every agent may file a report (the user asked for one, or work ends in one) */
     const reporter = !big && !!deps.reports?.canFile(agent, req.teamId ?? null);
+    const files = !big && !!deps.reports && agent.kind === 'agent';
     const toolkit = big ? null : toolkitFor(agent);
     const ports = big || !deps.ports ? null : deps.ports.take(projectId, runId);
     const forgetTool: BridgeTool | null =
@@ -424,12 +430,13 @@ export function createRuntime(deps: RuntimeDeps) {
       run,
       token,
       secrets,
-      reporter,
+      files,
       handle: { done: Promise.resolve({} as RunOutcome), cancel: () => {} },
       forgets: 0,
       before: { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
       context: 0,
       nudged: false,
+      notes: [],
     };
     live.set(runId, l);
     emit(
@@ -489,8 +496,8 @@ export function createRuntime(deps: RuntimeDeps) {
               AI_STUDIO_APP_PORT: String(ports.block.app),
             }
           : {}),
-        /* STUDIO LIFE: the forget nudge hook asks here after each tool */
-        ...(forgetTool && baseUrl
+        /* STUDIO LIFE: the nudge hook asks here after each tool (forget reminders, notes while it runs) */
+        ...(!big && baseUrl
           ? { AI_STUDIO_NUDGE_URL: `${baseUrl}/internal/runs/${runId}/nudge`, AI_STUDIO_RUN_TOKEN: token }
           : {}),
       }),
@@ -508,7 +515,7 @@ export function createRuntime(deps: RuntimeDeps) {
             askBridge: {
               url: `${baseUrl}/internal/runs/${runId}/asks`,
               token,
-              ...(reporter ? { reportUrl: `${baseUrl}/internal/runs/${runId}/reports` } : {}),
+              ...(files ? { reportUrl: `${baseUrl}/internal/runs/${runId}/reports` } : {}),
             },
           }
         : {}),
@@ -520,7 +527,7 @@ export function createRuntime(deps: RuntimeDeps) {
         if (a.status !== 'answered') throw new Error('cancelled');
         return a.answer as string;
       },
-      ...(reporter ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
+      ...(files ? { report: async (input: unknown) => fileReport(runId, input) } : {}),
       ...(bridge ? { tool: bridge.call } : {}),
     };
     const release = () => {
@@ -628,13 +635,30 @@ export function createRuntime(deps: RuntimeDeps) {
     setTimeout(() => h.cancel(), 50).unref?.(); // let the tool answer first
     return Promise.resolve('Your note is on your desk. Your memory clears now — you continue from the note.');
   }
-  /** The nudge hook asks after each tool: past the threshold, once per memory, say "write your note and forget". */
+  /** The nudge hook asks after each tool: notes left for the run since the last tool, and — past the threshold,
+      once per memory — "write your note and forget". */
   function nudge(runId: string): string | null {
     const l = live.get(runId);
-    if (!l || !deps.desk || l.nudged || l.forgetting) return null;
-    if (l.context < (deps.forgetAt ?? FORGET_AT)) return null;
-    l.nudged = true;
-    return FORGET_NUDGE;
+    if (!l) return null;
+    const notes = l.notes.splice(0);
+    const forgetNow =
+      !!deps.desk && !l.nudged && !l.forgetting && l.context >= (deps.forgetAt ?? FORGET_AT);
+    if (forgetNow) l.nudged = true;
+    const text = [...notes, ...(forgetNow ? [FORGET_NUDGE] : [])].join('\n\n');
+    return text || null;
+  }
+  /** A note for an agent's live run on this project, delivered after its next tool step (and kept in its chat).
+      → the run it went to, or null when the agent isn't running here. */
+  function tell(projectId: string, agentId: string, from: string, text: string): Run | null {
+    const l = [...live.values()].find(
+      (x) => x.run.projectId === projectId && x.run.agentId === agentId && !x.cancelled,
+    );
+    const said = text.trim();
+    if (!l || !said) return null;
+    const note = `AI Studio — a note from ${from} while you work: ${clip(said, 4000)}\nTake it into account from your next step; don't start over.`;
+    l.notes.push(note);
+    record(l.run, l.secrets, 'user', said, { kind: 'note', from });
+    return l.run;
   }
   /** A toolsmith's toolkit: `<toolkitsRoot>/<agentId>/` (created 0700, inside the data dir — never anywhere else). */
   function toolkitFor(agent: { id: string; name: string; roleId: string | null }) {
@@ -643,11 +667,11 @@ export function createRuntime(deps: RuntimeDeps) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
     return { dir, projectDir: `tools/${slugify(agent.name, agent.id)}` };
   }
-  /** file_report from a live reporter run (the MCP side door and the FakeRunner both land here). */
+  /** file_report from a live agent run (the MCP side door and the FakeRunner both land here). */
   function fileReport(runId: string, input: unknown): { id: string } {
     const l = live.get(runId);
     if (!l) throw conflict('That run is not running');
-    if (!l.reporter || !deps.reports) throw conflict('This run does not file reports');
+    if (!l.files || !deps.reports) throw conflict('This run does not file reports');
     return { id: deps.reports.file(l.run, input, l.secrets).id };
   }
   const waitUntilAnswered = async (askId: string): Promise<Ask> => {
@@ -665,6 +689,7 @@ export function createRuntime(deps: RuntimeDeps) {
 
   return {
     start,
+    tell,
     list(projectId: string) {
       store.projects.require(projectId);
       return repo.list(projectId);
