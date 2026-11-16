@@ -89,7 +89,19 @@ The three simplest answer fields become tools, so Pixel sees the result before i
   as "Jony couldn't be reached", comes back to Pixel during the turn and appears in its reply. The tests in
   `director-ask.test.ts` and the stop and resume tests pass through the tools.
 - **Feature:** `f-act-first-then-speak-ask-resume-stop-as`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). `server/src/office/action-tools.ts`: `ask_person` (room.call, waits for the
+  answer and returns "Pete answered: “…”"; nobody on the project or a failed call throws, so Pixel reads the
+  refusal in the same turn), `resume_goal` (dispatch.resume by the summary's `stopped` n, one line per goal) and
+  `stop_work` (the director's stopper). Each has its `can` line; `app.ts` adds them to `directorTools`. The `ask`,
+  `resume` and `stop` answer fields, and threads.ts's after-the-reply `askFor` / `resumeFor` / stop lines, are gone:
+  Pixel's own reply now says what happened. threads.ts keeps only `runningNow` for the summary. `agentByName` and
+  the project seat lookup moved to `office/people.ts` (threads, feature tools, stop and ask share them). **Fix found
+  on the way:** a stop now runs inside Pixel's turn, so "stop everything" would have cancelled Pixel's own run —
+  `running.stop` / `stopper.project` take a `spare` agent, and naming Pixel itself is refused. Tests:
+  `director-ask.test.ts` (answer read in the turn, the office sees the call, not-on-project refusal, a failed call
+  comes back, resume with a missing n) and `director-stop.test.ts` (stop one, stop everyone, Pixel's turn
+  survives); `capabilities.test.ts` covers the three new tools. All 658 server tests and the typecheck pass. No
+  live real-Pixel check this time (the tools ride the same bridge as the whiteboard tools, live-checked in step 1).
 
 ### 4. Act first, then speak: `work`, `staff`, `rebuild` as tools
 The remaining answer fields move to tools. Pixel's answer becomes plain text.
@@ -141,8 +153,9 @@ The chats that went wrong before become a regression suite, so they never come b
 - Feature 1 shipped (2026-11-16): Pixel can see, add, edit, move and remove features from the chat.
 - Fix shipped (2026-11-16): an answered `ask_user` question stays in the agent's office chat as two lines, the
   agent's question then the user's answer (it used to show only a local "Go with X." that vanished on reload).
-- Feature 2 shipped (2026-11-16): Pixel's "what you can do from here" list is built from what is attached. Next:
-  feature 3.
+- Feature 2 shipped (2026-11-16): Pixel's "what you can do from here" list is built from what is attached.
+- Feature 3 shipped (2026-11-16): ask, resume and stop are tools (`ask_person`, `resume_goal`, `stop_work`); Pixel
+  sees the result before it replies. Next: feature 4.
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
@@ -152,6 +165,10 @@ The chats that went wrong before become a regression suite, so they never come b
   list and the answer rules follow by themselves. When the last field goes, `directorAnswer` shrinks to the
   "reply only" shape. `capabilities.ts` checks `add_goal` / `add_feature` by name for the fallback offer; keep those
   names (or update `canStartWork`).
+- **Tools run inside Pixel's turn (from feature 3).** Anything that stops runs must spare the director's own run
+  (`spare` on `running.stop`); feature 4's tools should check the same for anything that cancels work. A tool
+  answers by returning text or throwing (Pixel sees "<tool> refused: …"), never by adding thread lines itself.
+  Feature 5's `answer_question` and feature 7 can reuse `office/people.ts` for names and seats.
 - **Feature 6 can reuse `CapableTool`/`capabilityLines`** for the agents' `feature` tool if their prompt lists
   capabilities too.
 - **Names, not ids, from voice.** Feature owners are agent/team ids, but Pixel hears names; the tool resolves names
