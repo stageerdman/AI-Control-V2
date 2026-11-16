@@ -152,6 +152,16 @@
 .ch-msg.them > :last-child {
   margin-bottom: 0;
 }
+/* "Start it" under the reply that offered work */
+.ch-start {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--ink);
+}
 .ch-tools {
   align-self: flex-start;
   max-width: 86%;

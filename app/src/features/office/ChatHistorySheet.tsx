@@ -42,6 +42,8 @@ export const CHAT_COPY = {
   emptyBody: 'When they finish a task, it’ll show up here.',
   continuePh: 'Continue this chat…',
   pastDivider: 'past chat',
+  startIt: 'Start it',
+  starting: 'Starting…',
 };
 
 /** Plain text from a little markdown: no marks, no link targets, one line. */
@@ -287,6 +289,39 @@ export function foldLines(messages: readonly ChatMessage[]): Line[] {
   return out;
 }
 
+/** Replies whose offered work ("Start it") hasn't been started yet, by seq. */
+export function openOffers(messages: readonly ChatMessage[]): Set<number> {
+  const started = new Set(
+    messages.map((m) => (m.meta?.started as { offer?: number } | undefined)?.offer).filter((s) => s !== undefined),
+  );
+  return new Set(messages.filter((m) => m.meta?.offer && !started.has(m.seq)).map((m) => m.seq));
+}
+
+/** One tap: the offered work goes on the whiteboard for them; the chat gains their "On the whiteboard now" line. */
+function StartIt({ runId, seq }: { runId: string; seq: number }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { message } = await officeApi.startChatWork(runId, seq);
+      setQueryData<ChatMessage[]>(keys.chat(runId), (prev) => [...(prev ?? []), message]);
+    } catch (e) {
+      setError(isApiError(e) && e.code !== 'network' ? e.message : CHAT_COPY.offline);
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="ch-start">
+      <Button small variant="hero" disabled={busy} onClick={() => void start()}>
+        {busy ? CHAT_COPY.starting : CHAT_COPY.startIt}
+      </Button>
+      {error && <span role="alert">{error}</span>}
+    </div>
+  );
+}
+
 const sendError = (e: unknown) => {
   if (isApiError(e) && e.code === 'chat_running') return CHAT_COPY.running;
   if (isApiError(e) && e.code === 'network') return CHAT_COPY.offline;
@@ -365,6 +400,7 @@ export function ChatView({
 
   const tag = STATUS_TAG[status];
   const lines = q.data ? foldLines(q.data) : [];
+  const offers = openOffers(q.data ?? []);
 
   return (
     <div className={`ch-body ch-chat${inPanel ? ' ch-panel' : ''}`}>
@@ -422,10 +458,13 @@ export function ChatView({
                 {l.m.text}
               </div>
             ) : (
-              <div key={l.m.id} className="ch-msg them">
-                <span className="sr-only">{name}: </span>
-                <Markdown source={l.m.text} />
-              </div>
+              <Fragment key={l.m.id}>
+                <div className="ch-msg them">
+                  <span className="sr-only">{name}: </span>
+                  <Markdown source={l.m.text} />
+                </div>
+                {!running && offers.has(l.m.seq) && <StartIt runId={chat.runId} seq={l.m.seq} />}
+              </Fragment>
             ),
           )}
           {mine && (

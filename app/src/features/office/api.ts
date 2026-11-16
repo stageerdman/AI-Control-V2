@@ -175,12 +175,16 @@ export const getChatMessages = (runId: string) => http.get<ChatMessage[]>(`/chat
 /** Keep writing in a finished chat. 409 `chat_running` (live run), 502 `agent_error` (model failed). */
 export const sendChatMessage = (runId: string, text: string) =>
   http.post<ChatReply>(`/chats/${e(runId)}/messages`, { text });
+/** "Start it" under a reply that offered work (meta.offer): a whiteboard goal for this agent + the chat's new line. */
+export const startChatWork = (runId: string, seq: number) =>
+  http.post<{ message: ChatMessage; goalId: string }>(`/chats/${e(runId)}/start`, { seq });
 
 export const officeApi = {
   recap,
   listAgentChats,
   getChatMessages,
   sendChatMessage,
+  startChatWork,
   office: (pid: string) => http.get<OfficeView>(`/projects/${e(pid)}/office`),
   features: (pid: string) => http.get<Feature[]>(`/projects/${e(pid)}/features`),
   createFeature: (pid: string, body: FeatureCreate) =>

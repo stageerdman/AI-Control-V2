@@ -81,6 +81,17 @@ beforeEach(() => {
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
       if (url.startsWith('/agents/a-pixel/chats?')) return answer(chats);
+      if (url === `/chats/${RUN}/start` && method === 'POST')
+        return json(
+          {
+            goalId: 'g1',
+            message: {
+              ...msg('assistant', 'On the whiteboard now: “Add a footer”.'),
+              meta: { followUp: true, started: { goalId: 'g1', offer: body.seq } },
+            },
+          },
+          201,
+        );
       const m = url.match(/^\/chats\/([^/]+)\/messages$/);
       if (m && method === 'POST') return post(body.text);
       if (m && messages[m[1]]) return answer(messages[m[1]]);
@@ -155,6 +166,25 @@ describe('a chat', () => {
       url: `/chats/${RUN}/messages`,
       body: { text: 'Where is the toggle?' },
     });
+  });
+
+  it('a reply that offers work shows Start it; one tap starts it and the button goes', async () => {
+    await openChat();
+    await screen.findByText(/Toggle shipped/);
+    expect(screen.queryByRole('button', { name: CHAT_COPY.startIt })).toBeNull();
+    post = (text) =>
+      json({
+        sent: { ...msg('user', text), meta: { followUp: true } },
+        reply: { ...msg('assistant', 'I would add a footer.'), meta: { followUp: true, offer: { work: 'Add a footer' } } },
+      });
+    fireEvent.change(box(), { target: { value: 'Please add a footer' } });
+    fireEvent.submit(box().closest('form') as HTMLFormElement);
+    const start = await screen.findByRole('button', { name: CHAT_COPY.startIt });
+    fireEvent.click(start);
+    expect(await screen.findByText(/On the whiteboard now/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: CHAT_COPY.startIt })).toBeNull();
+    const call = calls.find((c) => c.url === `/chats/${RUN}/start`);
+    expect(call?.body).toEqual({ seq: expect.any(Number) });
   });
 
   it('Enter sends; Shift+Enter does not', async () => {
