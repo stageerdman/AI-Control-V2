@@ -99,7 +99,10 @@ mkdirSync(dir);
 const git = (...a: string[]) =>
   execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...a], { cwd: dir, encoding: 'utf8' });
 writeFileSync(join(dir, 'README.md'), '# Aurora\n');
-for (let i = 1; i <= 30; i++) writeFileSync(join(dir, `data${i}.txt`), `line ${i}\n`);
+/* a chain: each file names the next (random names), so the reads can't be batched — one step per file */
+const names = Array.from({ length: 31 }, (_, i) => (i === 0 ? 'data1.txt' : `n${Math.random().toString(36).slice(2, 8)}.txt`));
+for (let i = 0; i < 30; i++)
+  writeFileSync(join(dir, names[i] as string), i === 29 ? 'value 30. End of chain.\n' : `value ${i + 1}. Next: ${names[i + 1]}\n`);
 git('init', '-q');
 git('add', '.');
 git('commit', '-qm', 'start');
@@ -113,9 +116,9 @@ const TASKS: Record<string, string> = {
     'When all 10 are committed, reply with exactly: DONE-10.',
   ].join('\n'),
   stall: [
-    'Audit task, READ-ONLY: run `cat data1.txt`, then `cat data2.txt`, … up to `cat data30.txt`, one command per file, in order.',
-    'Never write, edit or commit anything — this is a read-only audit; the folder must stay unchanged.',
-    'When all 30 are read, reply with the sum of the numbers.',
+    'Audit task, READ-ONLY: start with `cat data1.txt`. Each file holds a value and names the next file; follow the chain with `cat`, one file per step, until "End of chain".',
+    'Do not list or search the folder — follow the chain only. Never write, edit or commit anything; the folder must stay unchanged.',
+    'At the end, reply with the sum of all values.',
   ].join('\n'),
 };
 const t0 = Date.now();
