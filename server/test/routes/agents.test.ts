@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ARCHETYPES } from '../../src/cast-packs/archetypes.ts';
+import { installPackIfNeeded } from '../../src/cast-packs/pack.ts';
 import { runsRepo } from '../../src/db/runs.ts';
 import { testApp } from '../helpers.ts';
 
@@ -29,6 +31,31 @@ describe('agents API', () => {
       projectIds: ['aurora'],
       canDelete: { ok: true, why: '' },
     });
+  });
+
+  it('every Cast agent carries a plain tool list: edit, run, reach', async () => {
+    installPackIfNeeded(h.store, ARCHETYPES);
+    const { body } = await h.call('GET', '/agents');
+    for (const a of body)
+      expect(a.toolList).toMatchObject({ edit: expect.any(Array), run: expect.any(Array) });
+
+    const pete = (await h.call('GET', '/agents/a-pete')).body; // no toolset = the full kit
+    expect(pete.toolList.edit).toEqual(['Any file in the project']);
+    expect(pete.toolList.run).toContain('npm');
+    expect(pete.toolList.reach).toContain('Mail to other projects and HQ');
+
+    const sola = body.find((a: { id: string }) => a.id === 'a-sola'); // archetype: docs only, no shell
+    expect(sola.toolList).toMatchObject({ edit: ['updates/**'], run: [] });
+    const sable = body.find((a: { id: string }) => a.id === 'a-sable'); // reporter role: report runs get the web
+    expect(sable.toolList).toMatchObject({ edit: [], run: ['git'] });
+    expect(sable.toolList.reach).toContain('The web (search and fetch)');
+  });
+
+  it('create and patch replies carry the tool list too (mail off drops it from reach)', async () => {
+    const made = await h.call('POST', '/agents', { name: 'Quiet Quinn' });
+    expect(made.body.toolList.edit).toEqual(['Any file in the project']);
+    const p = await h.call('PATCH', `/agents/${made.body.id}`, { canMail: false });
+    expect(p.body.toolList.reach).not.toContain('Mail to other projects and HQ');
   });
 
   it('creates a regular agent with a role, look and prompt', async () => {

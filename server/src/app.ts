@@ -557,8 +557,9 @@ export function buildApp({
   );
 
   app.register(healthRoutes({ config, db, build }));
-  for (const routes of [roleRoutes, agentRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
+  for (const routes of [roleRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
+  app.register(agentRoutes({ store, shell, reporter: (a) => reports.canFile(a) }));
   app.register(blueprintRoutes({ config }));
   app.register(setterRoutes({ store, config, events, github, clock }));
   app.register(timeRoutes({ store, clock }));
