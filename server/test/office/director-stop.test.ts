@@ -64,4 +64,40 @@ describe('the director stops work', () => {
       .map((m) => m.text);
     expect(lines).toEqual(['Done.', 'Done.']);
   });
+
+  it('a stop with a message leaves it on the desk; tell_agent reaches a running agent without stopping it', async () => {
+    const turns: FakeStep[][] = [];
+    const crew = scriptedCrew({}, (s) => {
+      if (!isChat(s)) return [{ wait: 10_000 }, { result: 'never' }];
+      return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
+    });
+    h = testApp({ seed: true, runner: crew.runner });
+    mkdirSync(join(h.config.sandbox, 'aurora'));
+    h.store.projects.update('aurora', { folder: 'aurora', agentIds: ['a-pete', 'a-scar'] });
+    const [pete, scar] = ['a-pete', 'a-scar'].map((id) => h.store.agents.require(id));
+    const run = async (agentId: string) =>
+      (await h.call('POST', '/projects/aurora/runs', { agentId, task: 'long' })).body.id as string;
+    const peteRun = await run('a-pete');
+    const scarRun = await run('a-scar');
+    const turn = async (tool: string, args: Record<string, unknown>) => {
+      turns.push([{ tool, args }]);
+      const r = await h.call('POST', url, { text: 'go' });
+      await h.runtime.settled(r.body.runId);
+      return getChatMessages(h.db, r.body.runId).find((m) => m.role === 'assistant')?.text;
+    };
+
+    const told = await turn('tell_agent', { to: scar!.name, message: 'Use the shared logger.' });
+    expect(told).toMatch(/will read it after their next step\.$/);
+    expect(h.runtime.get('aurora', scarRun).status).toBe('running');
+    const note = getChatMessages(h.db, scarRun).find((m) => m.text === 'Use the shared logger.');
+    expect(note).toBeTruthy();
+
+    const stopped = await turn('stop_work', { agents: [pete!.name], message: 'Wait for the new design.' });
+    expect(stopped).toBe(`Stopped ${pete!.name}: 1 session. Your message is on their desk.`);
+    expect((await h.runtime.settled(peteRun)).status).toBe('cancelled');
+    const desk = (await h.call('GET', '/projects/aurora/desk-notes?agentId=a-pete')).body.notes;
+    expect(desk[0]).toMatchObject({ next: 'Wait for the new design.' });
+
+    expect(await turn('tell_agent', { to: pete!.name, message: 'hi' })).toMatch(/isn’t running now/);
+  });
 });

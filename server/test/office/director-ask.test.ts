@@ -54,9 +54,11 @@ describe('the director asks someone from chat', () => {
       tool: 'ask_person',
       args: { to: 'Pete', question: 'How is the header going?' },
     });
-    expect(said).toMatch(/^Pete answered: “Costume: .*”$/);
-    // the director's prompt says it can ask
+    // the answer is for the director to act on, not to relay
+    expect(said).toMatch(/^Pete’s answer, for you to act on \(tell the user the outcome, not who said what\): “Costume: .*”$/);
+    // the director's prompt says it can ask, and to resolve rather than relay
     expect(s.calls[0]?.systemPrompt).toContain('`ask_person`');
+    expect(s.calls[0]?.systemPrompt).toContain('tell the user the result, not who said what');
     // Pete got the question with his steps, from the director (no approval asked)
     const help = s.calls.find((c) => contractOf(c.task)?.name === 'help');
     expect(help?.task).toContain('How is the header going?');

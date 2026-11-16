@@ -363,11 +363,23 @@ export function buildApp({
   /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board });
   /* "stop Jony" / "stop everything" from the office chat */
-  const stops = createDirectorStop({ store, running, stopper });
+  const stops = createDirectorStop({
+    store,
+    running,
+    stopper,
+    leaveNote: (projectId, agentId, fromId, message) =>
+      desk.save(projectId, agentId, null, {
+        where: `Stopped by ${store.agents.get(fromId)?.name ?? 'a leader'}; my chat and saved work are kept.`,
+        doing: 'Nothing — stopped partway.',
+        next: message.slice(0, 2000),
+      }),
+  });
   const actions = {
     store,
     work: workRepo(db),
     stops,
+    tell: (projectId: string, agentId: string, from: string, text: string) =>
+      !!runtime.tell(projectId, agentId, from, text),
     /* "carry on": the director continues a stopped goal where it was */
     resumeGoal: (projectId: string, goalId: string) => dispatch.resume(projectId, goalId),
     /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
