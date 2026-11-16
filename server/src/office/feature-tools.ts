@@ -3,7 +3,7 @@
 import { FEATURE_STATUSES, type Feature, type FeaturePatch } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import { invalid } from '../errors.ts';
-import type { BridgeTool } from '../room/bridge.ts';
+import type { CapableTool } from '../room/bridge.ts';
 import { agentByName } from './director-stop.ts';
 import type { Features } from './features.ts';
 
@@ -27,7 +27,7 @@ const FIELDS = {
   owner: { type: 'string', description: 'Who carries it: a person or team (name or id); "" for nobody.' },
 };
 
-export function featureTools(features: Features, store: Store, projectId: string): BridgeTool[] {
+export function featureTools(features: Features, store: Store, projectId: string): CapableTool[] {
   const nameOf = (id: string | null) =>
     id ? (store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id) : null;
   /** The voice says a name; the features folder keeps an agent or team id. */
@@ -65,7 +65,9 @@ export function featureTools(features: Features, store: Store, projectId: string
   return [
     {
       name: 'features',
-      description: 'See the features list (Now, Planned, Shipped): every feature with its id, place, pct and owner.',
+      can: 'look at the features list (Now / Planned / Shipped) — what the product has and will have, separate from the whiteboard; look first to get ids',
+      description:
+        'See the features list (Now, Planned, Shipped): every feature with its id, place, pct and owner.',
       inputSchema: { type: 'object', properties: {} },
       run: async () => {
         const all = features.list(projectId);
@@ -74,6 +76,7 @@ export function featureTools(features: Features, store: Store, projectId: string
     },
     {
       name: 'add_feature',
+      can: '"add X to the features list" / "put X on the roadmap": add a feature (Planned unless the user says otherwise). It starts no work — never also put it on the whiteboard unless the user asks for the work',
       description:
         'Add a feature to the features list (Planned unless told otherwise). This does not put anything on the whiteboard or start work.',
       inputSchema: { type: 'object', properties: FIELDS, required: ['name'] },
@@ -84,6 +87,7 @@ export function featureTools(features: Features, store: Store, projectId: string
     },
     {
       name: 'edit_feature',
+      can: 'rename or describe a feature, move it between Now / Planned / Shipped, reorder it, or set its progress or owner',
       description:
         'Change a feature: name, description, vision, status (move between now, planned and shipped), order, pct or owner.',
       inputSchema: {
@@ -95,13 +99,16 @@ export function featureTools(features: Features, store: Store, projectId: string
     },
     {
       name: 'remove_feature',
-      description: 'Take a feature off the features list (wrong, duplicate or no longer wanted). It cannot be undone.',
+      can: 'take a wrong or no-longer-wanted feature off the features list (it can’t be undone)',
+      description:
+        'Take a feature off the features list (wrong, duplicate or no longer wanted). It cannot be undone.',
       inputSchema: {
         type: 'object',
         properties: { feature: { type: 'string', description: 'The feature id.' } },
         required: ['feature'],
       },
-      run: async (a) => `Removed from the features list: ${features.remove(projectId, need(a, 'feature')).name}`,
+      run: async (a) =>
+        `Removed from the features list: ${features.remove(projectId, need(a, 'feature')).name}`,
     },
   ];
 }

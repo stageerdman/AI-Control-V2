@@ -11,6 +11,8 @@ export type BridgeTool = {
   /** The text the agent reads back. Throw to answer with an error (the agent sees the message). */
   run: (args: Record<string, unknown>) => Promise<string>;
 };
+/** A tool plus the one plain line a prompt's capability list shows for it (office/capabilities.ts). */
+export type CapableTool = BridgeTool & { can: string };
 type Job = { done: boolean; text?: string; isError?: boolean; wake: Set<() => void> };
 type Open = { token: string; tools: Map<string, BridgeTool>; jobs: Map<string, Job> };
 

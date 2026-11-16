@@ -1,6 +1,6 @@
 /* The director's whiteboard tools: thin adapters from MCP arguments to the board (src/whiteboard/board.ts). */
 import { invalid } from '../errors.ts';
-import type { BridgeTool } from '../room/bridge.ts';
+import type { CapableTool } from '../room/bridge.ts';
 import type { Board, CleanWhich, TaskInput } from './board.ts';
 
 type Args = Record<string, unknown>;
@@ -39,19 +39,22 @@ const TASK_PROPS = {
 };
 const FORCE = {
   type: 'boolean',
-  description: 'Stop running work first. Without it, a change that touches running work is refused.',
+  description:
+    'Stop running work first — only when the user clearly wants it stopped; then say whose work you stopped. Without it, a change that touches running work is refused.',
 };
 
-export function whiteboardTools(board: Board, projectId: string, by: string): BridgeTool[] {
+export function whiteboardTools(board: Board, projectId: string, by: string): CapableTool[] {
   return [
     {
       name: 'whiteboard',
+      can: 'look at the whiteboard — every goal and task with its id; look first to get ids',
       description: 'See the whiteboard: every goal and task with its id, place, owner and status.',
       inputSchema: { type: 'object', properties: {} },
       run: async () => board.view(projectId),
     },
     {
       name: 'add_goal',
+      can: 'put new work the user wants on the whiteboard as one goal with 1–8 tasks you choose, in order, each for a team captain or specialist',
       description:
         'Put a new goal on the whiteboard with 1–8 tasks, in the order they should happen. The work starts right away.',
       inputSchema: {
@@ -75,6 +78,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'add_task',
+      can: 'add a step missing from a goal',
       description: 'Add a task to a goal (at the end, or at "position"). A finished goal runs again.',
       inputSchema: {
         type: 'object',
@@ -96,6 +100,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'edit_goal',
+      can: 'change a goal’s wording or plan, continue it (running) or stop it (cancelled)',
       description:
         'Change a goal: its text or plan, or its status (running = continue its unfinished tasks; done or cancelled = stop what is left).',
       inputSchema: {
@@ -121,6 +126,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'edit_task',
+      can: 'change a task’s wording, brief, owner, order or parallel, or its status — todo tries a failed task again',
       description:
         'Change a task: text, brief, owner, place, parallel, or status (todo = do it again, done, cancelled).',
       inputSchema: {
@@ -152,6 +158,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'remove_from_board',
+      can: 'take goals or tasks that are wrong, duplicate or no longer wanted off the whiteboard',
       description:
         'Take goals and/or tasks off the whiteboard (wrong, duplicate or no longer wanted). undo_board puts them back within a day.',
       inputSchema: {
@@ -171,6 +178,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'clean_board',
+      can: 'tidy the whiteboard after a goal ships, or when finished or stopped goals crowd it (all only when the user asks for a fresh board)',
       description:
         'Clear old goals off the whiteboard: finished (done), stopped (failed or cancelled), or all. undo_board puts them back within a day.',
       inputSchema: {
@@ -198,6 +206,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'board_history',
+      can: 'see who changed what on the whiteboard, and when',
       description:
         'The latest whiteboard changes, newest first: when, who, what — with the undo id of removals that can still be put back.',
       inputSchema: { type: 'object', properties: {} },
@@ -205,6 +214,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Br
     },
     {
       name: 'undo_board',
+      can: 'put back what was taken off the whiteboard by mistake (within a day)',
       description:
         'Put back what remove_from_board or clean_board took off (the latest, or "change" from board_history). Works for a day.',
       inputSchema: {

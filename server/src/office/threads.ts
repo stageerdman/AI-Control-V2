@@ -28,10 +28,11 @@ import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
 import type { Reports } from '../reports/reports.ts';
-import type { BridgeTool } from '../room/bridge.ts';
+import type { CapableTool } from '../room/bridge.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
-import { DIRECTOR_ANSWER, parseDirectorReply } from './director-reply.ts';
+import { type Capabilities, canStartWork, capabilityText, NO_CAPABILITIES } from './capabilities.ts';
+import { type AnswerField, directorAnswer, parseDirectorReply } from './director-reply.ts';
 import { agentByName, type DirectorStopper } from './director-stop.ts';
 import type { Features } from './features.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
@@ -80,26 +81,11 @@ export function waitsFor<T extends { status: string; parallel: boolean }>(
 export function orchestratorChatPrompt(
   orch: Pick<Agent, 'name' | 'role' | 'prompt'>,
   project: string,
-  hasTools = false,
+  can: Capabilities = NO_CAPABILITIES,
 ): string {
-  const know = hasTools
-    ? 'The user is chatting with you in the project’s office, mostly by voice. Every message carries a fresh summary of the whiteboard, the features list, the team and the latest health check — that is what you know about the work. Your only tools are the whiteboard tools and the features tools.'
-    : 'The user is chatting with you in the project’s office, mostly by voice. You have no tools: every message carries a fresh summary of the whiteboard, the features list, the team and the latest health check — that is what you know about the work.';
-  const tools = hasTools
-    ? [
-        'Whiteboard tools — every change shows on the board at once and is logged under your name. Look with `whiteboard` first to get ids.',
-        '- New work the user wants: `add_goal` (1–8 tasks you choose, in order, each for a team captain or specialist). A step missing from a goal: `add_task`.',
-        '- Wording, brief, owner, order, parallel or status of something already there: `edit_task` / `edit_goal`. A failed task to try again: `edit_task` status todo. A goal to stop: `edit_goal` status cancelled.',
-        '- Something wrong, duplicate or no longer wanted: `remove_from_board`.',
-        '- Tidying: after a goal ships, or when finished or stopped goals crowd the board, `clean_board` (finished or stopped; all only when the user asks for a fresh board).',
-        '- Took off the wrong thing, or the user wants it back: `undo_board` (within a day); `board_history` shows who changed what and when.',
-        'A change that touches running work is refused unless you pass force: true — do that only when the user clearly wants the work stopped, and say whose work you stopped.',
-        '',
-        'Features tools — the features list (Now / Planned / Shipped) is separate from the whiteboard: it is what the product has and will have, not work in progress. Look with `features` first to get ids.',
-        '- "Add X to the features list" / "put X on the roadmap": `add_feature` (Planned unless the user says otherwise). It does not start work — never also put it on the whiteboard unless the user asks for the work.',
-        '- Rename, describe, move between Now / Planned / Shipped, reorder, progress or owner: `edit_feature`. Wrong or no longer wanted: `remove_feature`.',
-      ].join('\n')
-    : '';
+  const doesWork = canStartWork(can)
+    ? 'You do not do the work yourself. When the user clearly asks for work, you put it on the whiteboard as ONE goal and break it into checklist items right after — the user does not split it; say which of the people on the project (the summary’s "people") you will brief. When it is only an idea or a question, answer and ask first.'
+    : 'You do not do the work yourself.';
   return [
     `# ${orch.name}`,
     `You are ${orch.name} (${orch.role}), the orchestrator of the project "${project}" in AI Studio.\n\n${orch.prompt.trim()}`,
@@ -107,14 +93,13 @@ export function orchestratorChatPrompt(
     [
       '## How you talk here',
       '',
-      know,
-      `What you can do from here (each message says how): put work on the whiteboard, ${hasTools ? 'add and change features on the features list, ' : ''}continue work that stopped partway, stop anyone’s work (or everything) at once, bring Cast people and teams onto the project, and ask anyone on the project a question — the studio relays their answer into this chat. When the user wants one of these, do it in this answer instead of saying you can’t or offering to. Only for something truly outside these, say so in one line and offer ${hasTools ? 'to add it to the features list as Planned, or ' : ''}to put the work on the whiteboard as a goal.`,
-      ...(tools ? [tools] : []),
+      'The user is chatting with you in the project’s office, mostly by voice. Every message carries a fresh summary of the whiteboard, the features list, the team and the latest health check — that is what you know about the work.',
+      capabilityText(can),
       'How the whiteboard runs: items run in checklist order. An item is "running" once its owner has been briefed and is working; a "todo" item is waiting its turn — `waitsFor` names the step it waits on, and its owner is briefed automatically the moment that step is done. A captain splits a team item into `team` sub-tasks for members. Explain waiting and progress from this, plainly ("Jony starts when Blair’s design lands").',
       'Names come from voice and can be misheard ("Ivy" for "Ally", "Johnny" for "Jony"). Match an unknown name to the closest person on the project, say who you took it as, and carry on — ask only when two people fit.',
       'The summary is the truth about the project right now. Where it disagrees with anything said earlier in this chat — how many goals there are, what they are, who is on the project, what shipped — trust the summary and drop the older idea. Never bring back a goal or plan the summary does not show as active unless the user asks for it.',
       'Answer in plain, friendly words, a few short sentences, no jargon. Steer: priorities, who carries what, what is next.',
-      'You do not do the work yourself. When the user clearly asks for work, you put it on the whiteboard as ONE goal (each message says how) and break it into checklist items right after — the user does not split it; say which of the people on the project (the summary’s "people") you will brief. When it is only an idea or a question, answer and ask first. Details belong to the teams — the user can tap any agent to talk to them directly.',
+      `${doesWork} Details belong to the teams — the user can tap any agent to talk to them directly.`,
       'Research, comparisons, reviews and write-ups end in a report in the Reports tray, filed by a reporter (a role or team marked "files reports"). Route such requests to a reporter on the project; if nobody on it files reports, say so in one line and offer to add one. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
     ].join('\n'),
   ].join('\n\n');
@@ -147,9 +132,19 @@ export function createThreads(deps: {
   stops?: DirectorStopper;
   /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts) and features
       (office/feature-tools.ts). Absent → it has none. */
-  directorTools?: (projectId: string, directorId: string) => BridgeTool[];
+  directorTools?: (projectId: string, directorId: string) => CapableTool[];
 }) {
   const { db, store, events, runtime } = deps;
+  /* the answer fields this studio really carries out: each needs its service */
+  const wired: Record<AnswerField, unknown> = {
+    work: deps.startWork,
+    staff: deps.staffing,
+    rebuild: deps.rebuilds,
+    ask: deps.ask,
+    resume: deps.resumeGoal,
+    stop: deps.stops,
+  };
+  const answerFields = (Object.keys(wired) as AnswerField[]).filter((f) => !!wired[f]);
   const work = workRepo(db);
   /** runId → the thread its reply belongs to (+ the user's message, for the orchestrator's work) */
   const turns = new Map<
@@ -421,7 +416,7 @@ export function createThreads(deps: {
         recap ?? '',
         about,
         `The user says: ${json(text)}`,
-        DIRECTOR_ANSWER,
+        directorAnswer(answerFields),
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -669,6 +664,7 @@ export function createThreads(deps: {
       if (s.orchestrator) deps.rebuilds?.staleAll(projectId);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
       const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
+      const tools = s.orchestrator ? (deps.directorTools?.(projectId, s.agent.id) ?? []) : [];
       const run = runtime.start(projectId, {
         agentId: s.agent.id,
         ...(s.teamId ? { teamId: s.teamId } : {}),
@@ -680,8 +676,8 @@ export function createThreads(deps: {
           ? {
               caps: deps.orchestratorCaps ?? CREW_CAPS,
               bigPicture: {
-                systemPrompt: orchestratorChatPrompt(s.agent, p.name, !!deps.directorTools),
-                ...(deps.directorTools ? { tools: deps.directorTools(projectId, s.agent.id) } : {}),
+                systemPrompt: orchestratorChatPrompt(s.agent, p.name, { tools, fields: answerFields }),
+                ...(tools.length ? { tools } : {}),
               },
             }
           : {}),
