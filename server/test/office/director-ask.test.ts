@@ -72,14 +72,43 @@ describe('the director asks someone from chat', () => {
     expect(steps).toEqual(['working', 'answered']);
   });
 
-  it('someone not on the project is an honest refusal, not a call', async () => {
+  it('someone nowhere in the studio is an honest refusal, not a call', async () => {
     const s = studio();
     h = s.h;
     const said = await s.turn('Ask Ivy', { tool: 'ask_person', args: { to: 'Ivy', question: 'Status?' } });
     expect(said).toBe(
-      'ask_person refused: Nobody called Ivy is on Lumi Health — use a name from the summary’s people.',
+      'ask_person refused: Nobody called Ivy is in the studio — use a name from the summary’s people or the Cast.',
     );
     expect(h.events.after('project', 'lumi').some((e) => e.type === 'room.call')).toBe(false);
+  });
+
+  it('someone off the project is asked directly: they join the room and answer', async () => {
+    const s = studio();
+    h = s.h;
+    const said = await s.turn('Ask Twinkle directly', {
+      tool: 'ask_person',
+      args: { to: 'Twinkle', question: 'Can you check the docs?' },
+    });
+    expect(said).toMatch(/^Twinkle’s answer, for you to act on/);
+    const joined = h.events.after('project', 'lumi').filter((e) => e.type === 'room.joined');
+    expect(joined.map((e) => (e.payload as { agentId: string }).agentId)).toEqual(['a-twinkle']);
+  });
+
+  it('`work: true` hands them a side quest: it goes on the whiteboard as their task', async () => {
+    const s = studio();
+    h = s.h;
+    const said = await s.turn('Have Twinkle write the docs', {
+      tool: 'ask_person',
+      args: { to: 'Twinkle', question: 'Write the setup docs', work: true },
+    });
+    expect(said).toContain('On the whiteboard as Twinkle’s task');
+    const help = s.calls.find((c) => contractOf(c.task)?.name === 'help');
+    expect(help?.task).toContain('hands you this work');
+    const mine = workRepo(h.db)
+      .goals('lumi')
+      .flatMap((g) => g.items)
+      .filter((i) => i.agentId === 'a-twinkle');
+    expect(mine).toHaveLength(1);
   });
 
   it('a call that fails comes back to the director in the same turn', async () => {

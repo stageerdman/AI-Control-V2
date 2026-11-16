@@ -118,12 +118,12 @@ describe('conversation checks: the chats that went wrong before', () => {
     const calls = h.events.after('project', 'lumi').filter((e) => e.type === 'room.call');
     expect(calls.map((e) => (e.payload as { status: string }).status)).toEqual(['working', 'answered']);
 
-    // someone who isn't on the project is refused in the turn, and nobody is called
+    // someone who isn't in the studio is refused in the turn, and nobody is called
     const nobody = await s.say('have you asked Ivy?', {
       tool: 'ask_person',
       args: { to: 'Ivy', question: 'Hi?' },
     });
-    expect(nobody.tools[0]).toMatch(/^ask_person refused: Nobody called Ivy is on Lumi Health/);
+    expect(nobody.tools[0]).toMatch(/^ask_person refused: Nobody called Ivy is in the studio/);
     expect(h.events.after('project', 'lumi').filter((e) => e.type === 'room.call')).toHaveLength(2);
   });
 

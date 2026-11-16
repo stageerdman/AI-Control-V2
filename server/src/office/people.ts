@@ -25,3 +25,15 @@ export function seatOf(store: Store, p: Project, agentId: string): Seat {
   if (store.guests.get(p.id, agent.id)) return { agent, teamId: null, orchestrator: false }; // brought in by the user
   throw conflict(`${agent.name} isn’t on ${p.name}`, { agentId: agent.id });
 }
+
+/** Seat a Cast agent handed work in a call (a side quest) as a guest the director may plan with; staff stay as they are. */
+export function seatForWork(store: Store, projectId: string, agentId: string, brief: string): void {
+  const p = store.projects.require(projectId);
+  try {
+    seatOf(store, p, agentId);
+    return;
+  } catch {
+    /* not on the project yet: seated below */
+  }
+  store.guests.put({ projectId, agentId, brief: brief.slice(0, 2000), orchestratorMay: true });
+}

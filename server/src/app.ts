@@ -33,6 +33,7 @@ import { agentFeatureTool } from './office/agent-feature-tool.ts';
 import { createChatWork } from './office/chat-work.ts';
 import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
+import { seatForWork } from './office/people.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
@@ -279,6 +280,7 @@ export function buildApp({
     /* `call_agent` with work: true — a direct goal with one task for the callee (built below; runs later) */
     addWork: (projectId, byId, calleeId, request) => {
       const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
+      seatForWork(store, projectId, calleeId, request);
       const goal = board.addDirectGoal(projectId, byId, {
         text,
         tasks: [{ text, owner: calleeId, brief: request }],
@@ -405,10 +407,10 @@ export function buildApp({
     /* "carry on": the director continues a stopped goal where it was */
     resumeGoal: (projectId: string, goalId: string) => dispatch.resume(projectId, goalId),
     /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
-    ask: (projectId: string, directorId: string, to: string, request: string) =>
+    ask: (projectId: string, directorId: string, to: string, request: string, work?: boolean) =>
       room.call(
         { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
-        { agent: to, request, why: 'answer a question for the user' },
+        { agent: to, request, why: work ? 'take on work for the user' : 'answer a question for the user', work },
       ),
   };
   /* any agent pages the user; the director can also page when a goal ends */

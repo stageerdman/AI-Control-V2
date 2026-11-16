@@ -9,8 +9,8 @@ import { agentByName, seatOf } from './people.ts';
 
 export type ActionServices = LeaderServices & {
   work: WorkRepo;
-  /** The director asks someone (a room call from the director) → their answer. */
-  ask: (projectId: string, directorId: string, to: string, request: string) => Promise<string>;
+  /** The director asks someone (a room call from the director; `work` → also their task on the board) → their answer. */
+  ask: (projectId: string, directorId: string, to: string, request: string, work?: boolean) => Promise<string>;
   /** Continue a stopped goal where it was (dispatch.resume). */
   resumeGoal: (projectId: string, goalId: string) => Goal;
 };
@@ -25,12 +25,21 @@ function need(a: Args, k: string): string {
   return v;
 }
 const list = (a: Args, k: string) => (Array.isArray(a[k]) ? (a[k] as unknown[]) : []);
+/** Who the director may call: Cast agents and the Agent Creator (the room's own rule). */
+const ASKABLE = new Set(['agent', 'creator']);
 
 export function actionTools(s: ActionServices, projectId: string, directorId: string): CapableTool[] {
   const { store, work } = s;
   const project = () => store.projects.require(projectId);
 
-  /** Someone on the project the director may ask (never itself). */
+  /** Anyone in the studio the director may ask (never itself): off the project, the call brings them into the room. */
+  function anyone(said: string) {
+    const who = agentByName(store, said);
+    if (who && who.id !== directorId && ASKABLE.has(who.kind)) return who;
+    throw invalid(`Nobody called ${said} is in the studio — use a name from the summary’s people or the Cast.`);
+  }
+
+  /** Someone on the project (a leader's reach: stop and tell). */
   function callee(said: string) {
     const p = project();
     const who = agentByName(store, said);
@@ -59,16 +68,19 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
 
   async function askPerson(a: Args): Promise<string> {
     const question = need(a, 'question');
-    const them = callee(need(a, 'to'));
+    const them = anyone(need(a, 'to'));
+    const work = a.work === true;
     const director = store.agents.get(directorId)?.name ?? 'The director';
     const request = [
-      `${director}, your orchestrator, asks you this for the user: ${json(question)}`,
+      `${director}, your orchestrator, ${work ? 'hands you this work' : 'asks you this'} for the user: ${json(question)}`,
       `Your steps on the whiteboard now: ${json(stepsOf(them.id))}`,
-      'Answer in two to four short, plain sentences: facts your orchestrator can act on.',
+      work
+        ? 'Say in two to four short, plain sentences how you will do it; the studio starts it for you.'
+        : 'Answer in two to four short, plain sentences: facts your orchestrator can act on.',
     ].join('\n');
     const nick = them.nick || them.name.split(' ')[0];
     try {
-      const answer = clip((await s.ask(projectId, directorId, them.name, request)).trim(), 2000);
+      const answer = clip((await s.ask(projectId, directorId, them.name, request, work)).trim(), 2000);
       return `${nick}’s answer, for you to act on (tell the user the outcome, not who said what): “${answer}”`;
     } catch (e) {
       throw new Error(`Couldn’t reach ${nick}: ${clip(message(e), 500)}`);
@@ -97,14 +109,15 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
   return [
     {
       name: 'ask_person',
-      can: 'ask anyone on the project a question ("ask Jony how it’s going", "have you asked him?") — you get their answer in this turn; use it to act or decide, and tell the user the result, not who said what',
+      can: 'ask anyone in the studio a question, on this project or not ("ask Jony how it’s going", "ask Elon directly"), or hand them work face to face (`work: true`) — you get their answer in this turn; use it to act or decide, and tell the user the result, not who said what',
       description:
-        'Ask someone on the project a question and wait for their answer (the office shows you talking). Put the context they need in the question. Use the answer to act or decide (call more tools if it says what to do), then tell the user the outcome in your own words — don’t relay “X said…”. Never claim you asked someone without calling this.',
+        'Ask someone a question and wait for their answer (the office shows you talking). Anyone in the studio: someone off the project is brought into the room. Put the context they need in the question. `work: true` hands them the work: it goes on the whiteboard as their task, so it really gets done and is tracked. Use the answer to act or decide (call more tools if it says what to do), then tell the user the outcome in your own words — don’t relay “X said…”. Never claim you asked someone without calling this.',
       inputSchema: {
         type: 'object',
         properties: {
-          to: { type: 'string', description: 'Their name, from the summary’s people.' },
+          to: { type: 'string', description: 'Their name: the summary’s people, or anyone in the Cast.' },
           question: { type: 'string', description: 'What you ask them, in your own words, with context.' },
+          work: { type: 'boolean', description: 'true = this is work for them (a side quest): start it.' },
         },
         required: ['to', 'question'],
       },
