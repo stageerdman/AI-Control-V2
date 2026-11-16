@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import type { z } from 'zod';
 import { agentError, conflict } from '../errors.ts';
-import type { Track, WorkClock } from '../office/work-time.ts';
+import type { CrewEnd, Track, WorkClock } from '../office/work-time.ts';
+import { addTokens } from '../performance/spans.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import type { Running } from '../running/registry.ts';
 import { ORCHESTRATOR_CAPS } from '../runtime/config.ts';
@@ -98,6 +99,16 @@ export function validateWith<S extends z.ZodType>(
   };
 }
 
+/** A whole crew call for the work clock: every attempt's turns and tokens; no attempt finished → not measured. */
+export function crewEnd(outcomes: readonly RunOutcome[], ok: boolean): CrewEnd {
+  const last = outcomes.at(-1);
+  return {
+    status: ok ? 'succeeded' : last?.status === 'cancelled' ? 'cancelled' : 'failed',
+    turns: outcomes.reduce((n, o) => n + o.turns, 0),
+    ...(outcomes.length ? { usage: outcomes.map((o) => o.usage).reduce(addTokens) } : {}),
+  };
+}
+
 export function createCrew(deps: CrewDeps) {
   const { runner } = deps;
 
@@ -146,33 +157,33 @@ export function createCrew(deps: CrewDeps) {
       },
       handle.done,
     );
-    const clock = call.track && deps.clock;
-    if (!clock) return handle.done;
-    const id = clock.start(call.track as Track);
-    let turns = 0;
-    try {
-      const o = await handle.done;
-      turns = o.turns;
-      return o;
-    } finally {
-      clock.end(id, turns);
-    }
+    return handle.done;
   };
 
   return {
+    /* timed once per call, not per attempt: a contract retry is the same request (its turns and tokens add up) */
     async call<T>(call: CrewCall<T>): Promise<CrewResult<T>> {
       if (runner.unavailable) throw conflict(runner.unavailable);
       const bridge = call.tools?.length && deps.bridges ? deps.bridges.open(call.tools) : null;
+      const outcomes: RunOutcome[] = [];
+      const timing = call.track && deps.clock ? deps.clock.start(call.track) : null;
+      let ok = false;
       try {
-        return await attempts(call, bridge);
+        const r = await attempts(call, bridge, outcomes);
+        ok = true;
+        return r;
       } finally {
         bridge?.close();
+        if (timing) deps.clock?.end(timing, crewEnd(outcomes, ok));
       }
     },
   };
 
-  async function attempts<T>(call: CrewCall<T>, bridge: Open): Promise<CrewResult<T>> {
-    const outcomes: RunOutcome[] = [];
+  async function attempts<T>(
+    call: CrewCall<T>,
+    bridge: Open,
+    outcomes: RunOutcome[],
+  ): Promise<CrewResult<T>> {
     let issues: string[] = [];
     let sessionId: string | undefined;
     for (let attempt = 1; attempt <= 2; attempt++) {

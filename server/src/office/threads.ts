@@ -615,6 +615,7 @@ export function createThreads(deps: {
         task,
         /* the work clock: the director thinks; an agent's chat turn builds (a reporter's researches) */
         kind: s.orchestrator ? 'thinking' : reporter ? 'research' : 'building',
+        asked: 'chat',
         ...(resumeRunId ? { resumeRunId } : {}),
         ...(s.orchestrator
           ? {

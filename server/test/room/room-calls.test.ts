@@ -47,6 +47,10 @@ describe('calls inside a project', () => {
     expect(run.status).toBe('succeeded');
     expect(s.crewCalls().map((c) => c.systemPrompt?.split('\n')[0])).toEqual(['# Pixel']);
     expect(callSteps(h)).toEqual(['a-pete→a-pixel:working', 'a-pete→a-pixel:answered']);
+    // agent performance: Pixel's time answering is a call, with its tokens
+    expect(h.db.prepare('SELECT agent_id, asked, status, input_tokens FROM crew_time').all()).toEqual([
+      { agent_id: 'a-pixel', asked: 'call', status: 'succeeded', input_tokens: 200 },
+    ]);
   });
 
   it("the callee's help task carries its latest desk note", async () => {

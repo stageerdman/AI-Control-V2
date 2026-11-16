@@ -261,7 +261,13 @@ export function createRoom(deps: {
           await crew.call({
             who: approver.name,
             contract: ALLOW_CALL,
-            track: { scope: ctx.scope, ownerId: ctx.ownerId, agentId: approver.id, kind: 'thinking' },
+            track: {
+              scope: ctx.scope,
+              ownerId: ctx.ownerId,
+              agentId: approver.id,
+              kind: 'thinking',
+              asked: 'call',
+            },
             systemPrompt: helperPrompt(approver, approverId === orch ? 'Orchestrator' : 'Captain', false),
             task: [
               `${caller.name} (${caller.role}) wants to bring ${callee.name} (${callee.role}) into the room.`,
@@ -336,7 +342,13 @@ export function createRoom(deps: {
       const { value } = await crew.call({
         who: callee.name,
         contract: HELP,
-        track: { scope: ctx.scope, ownerId: ctx.ownerId, agentId: callee.id, kind: 'thinking' },
+        track: {
+          scope: ctx.scope,
+          ownerId: ctx.ownerId,
+          agentId: callee.id,
+          kind: 'thinking',
+          asked: 'call',
+        },
         systemPrompt: helperPrompt(callee, callee.role, !!folder),
         task: [
           `${caller.name} (${caller.role}) asks you for a hand.`,
