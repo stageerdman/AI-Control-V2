@@ -101,11 +101,13 @@ export function runsRepo(db: Db) {
     insert(
       r: Pick<Run, 'id' | 'projectId' | 'agentId' | 'teamId' | 'task' | 'runner' | 'model' | 'caps'> & {
         kind?: string | null;
+        /** Why the agent works (agent performance); absent = a task. */
+        asked?: string | null;
       },
     ): Run {
       db.prepare(
-        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind)
-         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)`,
+        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind, asked)
+         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.projectId,
@@ -117,6 +119,7 @@ export function runsRepo(db: Db) {
         JSON.stringify(r.caps),
         now(),
         r.kind ?? null,
+        r.asked ?? null,
       );
       return this.get(r.id) as Run;
     },

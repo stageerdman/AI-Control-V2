@@ -616,6 +616,18 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX thread_chats_by_thread ON thread_chats(project_id, agent_id, ended_at);
   `,
+  /* 37 — agent performance: why an agent worked (asked: task | call | chat; NULL = task) on runs and crew calls,
+     and a crew call's tokens and outcome (NULL on older rows = not measured). */
+  `
+  ALTER TABLE runs ADD COLUMN asked TEXT;
+  ALTER TABLE crew_time ADD COLUMN asked TEXT;
+  ALTER TABLE crew_time ADD COLUMN status TEXT;
+  ALTER TABLE crew_time ADD COLUMN input_tokens INTEGER;
+  ALTER TABLE crew_time ADD COLUMN output_tokens INTEGER;
+  ALTER TABLE crew_time ADD COLUMN cache_read_tokens INTEGER;
+  ALTER TABLE crew_time ADD COLUMN cache_write_tokens INTEGER;
+  CREATE INDEX runs_project_started ON runs(project_id, started_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

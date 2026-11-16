@@ -23,7 +23,7 @@ import { redactSecrets } from '../events/redact.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import { type Desk, type DeskNoteBody, DeskNoteSchema, deskBrief } from '../office/desk.ts';
 import { principlesBrief, principlesDir } from '../office/principles.ts';
-import type { WorkKind } from '../office/work-time.ts';
+import type { Asked, WorkKind } from '../performance/spans.ts';
 import type { Bridges, BridgeTool } from '../room/bridge.ts';
 import {
   FORGET_NUDGE,
@@ -59,6 +59,8 @@ export type StartRun = {
   bigPicture?: { systemPrompt: string; tools?: readonly BridgeTool[] };
   /** What kind of work this is, for the office's work clock (office/work-time.ts). Absent → read from the row. */
   kind?: WorkKind;
+  /** Why the agent works, for agent performance (performance/). Absent → a task. */
+  asked?: Asked;
 };
 type Live = {
   run: Run;
@@ -431,6 +433,7 @@ export function createRuntime(deps: RuntimeDeps) {
       model: deps.model,
       caps,
       kind: req.kind ?? null,
+      asked: req.asked ?? null,
     });
     record(run, secrets, 'user', req.task);
     /* reporters research on the web; every agent may file a report (the user asked for one, or work ends in one) */

@@ -82,6 +82,7 @@ import { guestRoutes } from './routes/guests.ts';
 import { healthRoutes } from './routes/health.ts';
 import { mailRoutes } from './routes/mail.ts';
 import { officeRoutes } from './routes/office.ts';
+import { performanceRoutes } from './routes/performance.ts';
 import { portraitRoutes } from './routes/portrait.ts';
 import { portRoutes } from './routes/ports.ts';
 import { principlesRoutes } from './routes/principles.ts';
@@ -571,6 +572,7 @@ export function buildApp({
   app.register(blueprintRoutes({ config }));
   app.register(setterRoutes({ store, config, events, github, clock }));
   app.register(timeRoutes({ store, clock }));
+  app.register(performanceRoutes({ db, store }));
   app.register(portraitRoutes({ portraits: createPortraits({ db, store, events, home: config.home }) }));
   app.register(githubRoutes({ github }));
   app.register(settingsRoutes({ github, autoApprove, hq, store }));

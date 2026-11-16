@@ -3,7 +3,9 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createWorkClock, kindOfRun } from '../../src/office/work-time.ts';
+import { crewEnd } from '../../src/crew/structured.ts';
+import { createWorkClock } from '../../src/office/work-time.ts';
+import { kindOfRun } from '../../src/performance/spans.ts';
 import { scriptedCrew } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
@@ -149,11 +151,48 @@ describe('the work clock', () => {
         { agent_id: 'a-pixel', kind: 'thinking' }, // planning the goal
       ]),
     );
+    // agent performance: crew calls keep their tokens and outcome; the chat turn is a chat, the work a task
+    const planning = h.db
+      .prepare(
+        `SELECT status, asked, input_tokens, output_tokens FROM crew_time
+         WHERE owner_id = 'clock-shop' AND agent_id = 'a-pixel'`,
+      )
+      .all();
+    expect(planning).toContainEqual({
+      status: 'succeeded',
+      asked: null,
+      input_tokens: 200,
+      output_tokens: 40,
+    });
+    const rivet = h.db
+      .prepare("SELECT status, input_tokens FROM crew_time WHERE agent_id = 'a-setter'")
+      .get();
+    expect(rivet).toEqual({ status: 'succeeded', input_tokens: null }); // no model: not measured
+    expect(h.db.prepare('SELECT asked FROM runs WHERE id = ?').get(chat.body.runId)).toEqual({
+      asked: 'chat',
+    });
+    expect(h.db.prepare("SELECT asked FROM runs WHERE agent_id = 'a-semic'").get()).toEqual({ asked: null });
     expect(t.runs).toBe(crewRows.length + runs.length);
     expect(t.live).toBe(0);
     expect(t.byAgent.map((a: { agentId: string }) => a.agentId).sort()).toEqual(
       ['a-pixel', 'a-semic', 'a-setter'].sort(),
     );
+  });
+
+  it('crewEnd: a contract retry is one request — turns and tokens add up; how it ended', () => {
+    const o = (status: 'succeeded' | 'failed' | 'cancelled', n: number) => ({
+      status,
+      turns: n,
+      usage: { input: n * 100, output: n * 10, cacheRead: n, cacheWrite: 0 },
+    });
+    expect(crewEnd([o('succeeded', 1), o('succeeded', 2)], true)).toEqual({
+      status: 'succeeded',
+      turns: 3,
+      usage: { input: 300, output: 30, cacheRead: 3, cacheWrite: 0 },
+    });
+    expect(crewEnd([o('cancelled', 1)], false).status).toBe('cancelled');
+    expect(crewEnd([o('succeeded', 1), o('succeeded', 1)], false).status).toBe('failed'); // bad answer twice
+    expect(crewEnd([], false)).toEqual({ status: 'failed', turns: 0 }); // the runner threw: not measured
   });
 
   it('a crew call cut off by a restart counts as nothing', () => {
