@@ -4,7 +4,7 @@
 
    - an agent runs with its normal composed prompt + tools (team context from its team on this project);
    - the orchestrator runs big picture: its own brain + altitude, only its director tools (whiteboard, features,
-     ask / resume / stop, staff / rebuild), no secrets, and a fresh summary of the whiteboard, features and health
+     ask / resume / stop, staff / rebuild, agents' open questions), no secrets, and a fresh summary of the whiteboard, features and health
      in every message. It acts with its tools during the turn and answers in plain words (director-reply.ts); a
      goal it puts on the whiteboard is linked to the turn's lines by goalId, and a rebuild card rides on its reply.
 
@@ -34,6 +34,7 @@ import { directorAnswer, replyText } from './director-reply.ts';
 import type { DirectorStopper } from './director-stop.ts';
 import type { Features } from './features.ts';
 import { type Seat, seatOf } from './people.ts';
+import { questionView } from './question-tools.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
 import { castAvailable } from './staffing.ts';
 import type { TurnHooks } from './team-tools.ts';
@@ -122,8 +123,9 @@ export function createThreads(deps: {
   /** Who is working on what right now (the summary's `runningNow`, for the director's `stop_work`). */
   runningNow?: DirectorStopper['runningNow'];
   /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts), features
-      (office/feature-tools.ts), ask / resume / stop (office/action-tools.ts) and staff / rebuild
-      (office/team-tools.ts, which hand their card to `turn`). Absent → it has none. */
+      (office/feature-tools.ts), ask / resume / stop (office/action-tools.ts), staff / rebuild
+      (office/team-tools.ts, which hand their card to `turn`) and agents' open questions
+      (office/question-tools.ts). Absent → it has none. */
   directorTools?: (projectId: string, directorId: string, turn: TurnHooks) => CapableTool[];
 }) {
   const { db, store, events, runtime } = deps;
@@ -360,9 +362,10 @@ export function createThreads(deps: {
       /* who is working on what this moment — what the director can stop */
       ...(deps.runningNow ? { runningNow: deps.runningNow(p.id) } : {}),
       unreadReports: deps.reports.unreadTitles(p.id),
+      /* with ids and options: the director answers one for the user (`answer_question`) */
       openQuestions: runtime
         .asks(p.id, 'open')
-        .map((a) => ({ from: name(a.agentId), question: clip(a.question, 200) })),
+        .map((a) => questionView(store, { ...a, question: clip(a.question, 200) })),
     };
   }
 
