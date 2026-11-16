@@ -10,6 +10,7 @@ import {
   DirectorReplySchema,
   directorAnswer,
 } from '../../src/office/director-reply.ts';
+import { actionTools } from '../../src/office/action-tools.ts';
 import { featureTools } from '../../src/office/feature-tools.ts';
 import { orchestratorChatPrompt } from '../../src/office/threads.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -22,6 +23,7 @@ const pixel = { name: 'Pixel', role: 'Director', prompt: 'Steer.' };
 const allTools = () => [
   ...whiteboardTools({} as never, 'p', 'a-pixel'),
   ...featureTools({} as never, {} as never, 'p'),
+  ...actionTools({} as never, 'p', 'a-pixel'),
 ];
 const allFields = Object.keys(DirectorReplySchema.shape).filter((k) => k !== 'reply') as AnswerField[];
 /** The capability lines a prompt shows. */
@@ -42,12 +44,13 @@ describe('honest capability list', () => {
     );
   });
 
-  it('promises nothing that is not attached: no stop without `stop`, no offers it cannot make', () => {
-    const prompt = orchestratorChatPrompt(pixel, 'Aurora', { tools: [], fields: ['ask'] });
-    expect(shown(prompt)).toEqual([`- "ask" in your answer: ${ANSWER_FIELDS.ask.can}`]);
-    expect(prompt).not.toContain(ANSWER_FIELDS.stop.can);
+  it('promises nothing that is not attached: no stop without `stop_work`, no offers it cannot make', () => {
+    const ask = allTools().filter((t) => t.name === 'ask_person');
+    const prompt = orchestratorChatPrompt(pixel, 'Aurora', { tools: ask, fields: ['staff'] });
+    expect(shown(prompt)).toEqual(capabilityLines({ tools: ask, fields: ['staff'] }));
+    expect(prompt).not.toContain('stop_work');
     expect(prompt).not.toMatch(/features list as Planned|whiteboard as a goal|ONE goal/);
-    expect(directorAnswer(['ask'])).not.toMatch(/- (STOP|WORK|CONTINUE):/);
+    expect(directorAnswer(['staff'])).not.toMatch(/- (WORK|REBUILD):/);
     // nothing at all → it can only talk
     expect(orchestratorChatPrompt(pixel, 'Aurora')).toContain('you have no tools and no actions');
   });
