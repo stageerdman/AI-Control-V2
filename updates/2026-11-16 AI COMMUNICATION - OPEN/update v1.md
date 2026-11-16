@@ -55,8 +55,10 @@ Pixel can see, add, edit, move and remove features in the features folder from t
   now has a "Features tools" block that says the features list is not the whiteboard, and the fallback offer is
   "add it to the features list as Planned, or put the work on the whiteboard as a goal". Tests:
   `server/test/office/feature-tools.test.ts` (the "add dark mode to the features list" chat → Planned, one
-  `feature.changed`, no goal; plus view, move, pct, owner, bad input and remove). Not done: a real-brain Pixel turn
-  in a throwaway studio — the fake-brain chat test covers the same path; do the live check with step 8.
+  `feature.changed`, no goal; plus view, move, pct, owner, bad input and remove). Live check: a real Pixel turn in a
+  throwaway studio (own `AI_STUDIO_HOME` and sandbox, port 3569) given "add dark mode to the features list" made
+  `f-dark-mode` under Planned, no goal, and replied "I've added dark mode to the features list as Planned… Do you
+  want me to put it on the whiteboard so a team can start?"
 
 ### 2. Honest capability list
 The "what you can do from here" lines in Pixel's prompt are built from the tools and answer fields Pixel really
