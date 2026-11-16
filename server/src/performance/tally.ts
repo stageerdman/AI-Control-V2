@@ -2,7 +2,7 @@
    how their work ended — with the previous window's totals for trends and a per-local-day breakdown.
    A span counts where it started: its time, tokens and the request all land on that day, so days and windows
    always add up and nothing is counted twice. No money anywhere. */
-import { type Asked, firstStart, type Span, spanMs } from './spans.ts';
+import { type Asked, firstStart, type Span, spanMs, WORK_KINDS, type WorkKind } from './spans.ts';
 import { dayLabel, dayStart, daysOf, type Window } from './window.ts';
 
 /** The three measures of the sheet. */
@@ -22,6 +22,8 @@ export type AgentPerformance = Measures & {
   live: boolean;
   /** Their totals in the window before; null for all time. */
   previous: Measures | null;
+  /** Their time in the window by kind of work (ms). */
+  kinds: Record<WorkKind, number>;
 };
 
 export type DayPerformance = Measures & { day: string; byAgent: Record<string, Measures> };
@@ -72,6 +74,7 @@ function agentOf(agentId: string, w: Window): AgentPerformance {
     lastAskedAt: '',
     live: false,
     previous: w.previous ? zero() : null,
+    kinds: Object.fromEntries(WORK_KINDS.map((k) => [k, 0])) as Record<WorkKind, number>,
   };
 }
 
@@ -100,6 +103,7 @@ export function tally(spans: readonly Span[], w: Window, nowMs: number): Perform
 
     add(totals, s, nowMs);
     add(a, s, nowMs);
+    a.kinds[s.kind] += spanMs(s, nowMs);
     a.turns += s.turns;
     a.split.reread += s.tokens?.cacheRead ?? 0;
     a.split.fresh += tokensOf(s) - (s.tokens?.cacheRead ?? 0);

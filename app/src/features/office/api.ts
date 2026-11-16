@@ -131,6 +131,36 @@ export type WorkTime = {
   live: number;
 };
 
+/** How the team works (GET /projects/:id/performance — server/src/performance/tally.ts). No money anywhere. */
+export type PerfRange = '7d' | '30d' | 'all';
+export type Measures = { ms: number; tokens: number; requests: number };
+export type AgentPerformance = Measures & {
+  agentId: string;
+  turns: number;
+  /** fresh = input + output + cache write; reread = cache read. */
+  split: { fresh: number; reread: number };
+  asked: { task: number; call: number; chat: number };
+  stopped: number;
+  lastAskedAt: string;
+  live: boolean;
+  previous: Measures | null;
+  kinds: Record<WorkKind, number>;
+};
+export type Performance = {
+  range: PerfRange;
+  from: string;
+  to: string;
+  since: string | null;
+  live: number;
+  totals: Measures;
+  previous: Measures | null;
+  /** Spans in the range without a token count (older crew calls). */
+  unmeasured: number;
+  agents: AgentPerformance[];
+  /** Every local day of the range, oldest first; `day` = YYYY-MM-DD. */
+  days: (Measures & { day: string; byAgent: Record<string, Measures> })[];
+};
+
 /** One saved chat (a run) — server/src/db/chats.ts. */
 export type ChatSummary = {
   runId: string;
@@ -234,6 +264,11 @@ export const officeApi = {
   setAppCommand: (pid: string, command: string) =>
     http.patch<ProjectApp>(`/projects/${e(pid)}/app`, { command }),
   time: (pid: string) => http.get<WorkTime>(`/projects/${e(pid)}/time`),
+  /** `tz` = this browser's getTimezoneOffset(), so days are the user's local days. */
+  performance: (pid: string, range: PerfRange) =>
+    http.get<Performance>(
+      `/projects/${e(pid)}/performance?range=${range}&tz=${new Date().getTimezoneOffset()}`,
+    ),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
 };
@@ -254,6 +289,8 @@ export const keys = {
   progress: (pid: string) => `office:${pid}:progress`,
   app: (pid: string) => `office:${pid}:app`,
   time: (pid: string) => `office:${pid}:time`,
+  /** Under `time`: the clock's events read it again too. */
+  performance: (pid: string, range: PerfRange) => `office:${pid}:time:perf:${range}`,
   project: (pid: string) => `office:${pid}:project`,
   /* STUDIO LIFE */
   deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,

@@ -51,7 +51,9 @@ The clock's sheet grows into "How the team works" per `design.md`, on top of the
 - [x] Phase 1 — tokens, outcome and `asked` recorded for crew calls and runs
 - [x] Phase 2 — `performance/spans.ts` + `performance/tally.ts`, work clock on the shared reader
 - [x] Phase 3 — `GET /projects/:id/performance`
-- [ ] Phase 4 — UI sheet
+- [x] Phase 4 — UI sheet: `app/src/features/office/performance/` (pure `model.ts` + `TeamSheet.tsx`), opened
+  from the wall clock; the read adds `kinds` (time per kind of work) per agent. Left out on purpose: the
+  "Work waited" flag (not recorded yet) and the voice path (no voice hook exists yet).
 
 ## Decisions
 - **A span belongs to the moment it started.** Its time, tokens and the request all count on the day (and in
