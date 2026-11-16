@@ -7,6 +7,8 @@
    - "add dark mode to the features list" — Pixel said it couldn't (it had no features tools).
    - "have you asked Twinkle?" — Pixel said yes; the ask only ran after the reply, and a failure was never told.
    - "stop everything" — the stop ran after the reply, and inside the turn it would have stopped Pixel itself.
+   - "stop" four times in a row — each stop must answer plainly, even when nothing is left to stop.
+   - "said it stopped but didn't" — the reply must come after the stop really happened.
    - "carry on" — the resume ran after the reply, so "carrying on" could be false.
    - "tell <agent> option 2" — Pixel couldn't answer an agent's question for the user (the real chat named
      Uncle Bob; here it is Professor Prompt, who is on Lumi), and the agent's chat lost the question. */
@@ -128,6 +130,36 @@ describe('conversation checks: the chats that went wrong before', () => {
     expect(status).toBe('succeeded');
     for (const run of runs) expect((await h.runtime.settled(run)).status).toBe('cancelled');
     expect((await h.call('GET', '/projects/lumi/running')).body).toEqual([]);
+  });
+
+  it('"stop" four times in a row: the first stops, the rest say all quiet, every turn ends well', async () => {
+    const s = studio();
+    h = s.h;
+    const run = await s.startRun('a-twinkle', 'long');
+    const said: (string | undefined)[] = [];
+    for (let i = 0; i < 4; i++) {
+      const { tools, status } = await s.say('stop', { tool: 'stop_work', args: { everyone: true } });
+      expect(status).toBe('succeeded');
+      said.push(tools[0]);
+    }
+    expect(said).toEqual([
+      'Stopped everything: 1 session.',
+      'Nothing was running — all quiet.',
+      'Nothing was running — all quiet.',
+      'Nothing was running — all quiet.',
+    ]);
+    expect((await h.runtime.settled(run)).status).toBe('cancelled');
+  });
+
+  it('"said it stopped but didn’t": the stop has happened before the reply is written', async () => {
+    const s = studio();
+    h = s.h;
+    const run = await s.startRun('a-prof', 'long');
+    const { tools, reply } = await s.say('stop Professor', { tool: 'stop_work', args: { agents: ['Professor Prompt'] } });
+    expect(tools[0]).toMatch(/^Stopped Professor Prompt: 1 session\./);
+    expect(reply).toBe('Done.'); // the reply comes after the tool's answer, in the same turn
+    expect(h.runtime.get('lumi', run).status).not.toBe('running'); // already stopped when the turn ends
+    expect((await h.runtime.settled(run)).status).toBe('cancelled');
   });
 
   it('"carry on" puts the stopped goal back on, and it runs to done', async () => {
