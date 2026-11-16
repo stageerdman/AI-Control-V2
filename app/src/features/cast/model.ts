@@ -43,11 +43,33 @@ export function cycleLook(look: Look, slotId: LookSlotId, d: 1 | -1): Look {
   if (!sl) return look;
   const opts = sl.options;
   const i = Math.max(0, opts.indexOf(look[slotId]));
-  const v = opts[(i + d + opts.length) % opts.length] as string;
+  return wearing(look, slotId, opts[(i + d + opts.length) % opts.length] as string);
+}
+
+/** One slot set to one value; the hat carries its decal (the rule `cycleLook` uses). */
+export function wearing(look: Look, slotId: LookSlotId, v: string): Look {
   const next = { ...look, [slotId]: v };
   if (slotId === 'hat') next.decal = hatDecal(v);
   return next;
 }
+
+export type TrayOption = { value: string; name: string; look: Look; current: boolean };
+/** Every option for a slot, in the slot's own order, each as the whole look with it tried on. */
+export function trayOptions(look: Look, slotId: LookSlotId): TrayOption[] {
+  const sl = LOOK_SLOTS.find((s) => s.id === slotId);
+  if (!sl) return [];
+  return sl.options.map((v) => ({
+    value: v,
+    name: sl.name(v),
+    look: wearing(look, slotId, v),
+    current: look[slotId] === v,
+  }));
+}
+
+const LOOK_KEYS = ['hat', 'tool', 'body', 'antenna', 'face', 'hue', 'decal'] as const;
+/** Same costume, whatever the key order (a missing decal and 'none' both draw nothing). */
+const norm = (l: Look, k: (typeof LOOK_KEYS)[number]) => (k === 'decal' ? (l.decal ?? 'none') : l[k]);
+export const sameLook = (a: Look, b: Look) => LOOK_KEYS.every((k) => norm(a, k) === norm(b, k));
 
 export const lookTag = (look: Look, slotId: LookSlotId) => {
   const sl = LOOK_SLOTS.find((s) => s.id === slotId);

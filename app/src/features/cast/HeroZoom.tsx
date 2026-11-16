@@ -21,7 +21,7 @@ import {
   trapTab,
 } from './fx';
 import { LookRig } from './LookRig';
-import { castOrder, cycleLook, leastUsedHue, lookTag, roleText } from './model';
+import { castOrder, cycleLook, leastUsedHue, lookTag, roleText, sameLook } from './model';
 import { busyReason, createAgent, deleteAgent, fetchBusy, flushAll, saveAgent, saveAgentSoon } from './store';
 
 const BUSY_POLL_MS = 15_000;
@@ -72,7 +72,13 @@ const worldOf = (scene: HTMLElement | null) => scene?.querySelector('.cast-world
 const slotOf = (scene: HTMLElement | null, id: string) =>
   scene?.querySelector<HTMLElement>(`.slot[data-id="${CSS.escape(id)}"]`) ?? null;
 
-type Change = { kind: 'slot'; slot: LookSlotId } | { kind: 'dice' } | { kind: 'step'; d: number } | null;
+type Change =
+  | { kind: 'slot'; slot: LookSlotId }
+  | { kind: 'dice' }
+  | { kind: 'try' }
+  | { kind: 'undo' }
+  | { kind: 'step'; d: number }
+  | null;
 
 export function HeroZoom(p: HeroZoomProps) {
   const zRef = useRef<HTMLElement>(null);
@@ -130,8 +136,15 @@ export function HeroZoom(p: HeroZoomProps) {
     };
   }, []);
 
+  /* ---------- a tray option tried on (shown, never saved) ---------- */
+  const [trying, setTrying] = useState<Look | null>(null);
+  const onTry = (l: Look | null) => {
+    change.current = { kind: 'try' };
+    setTrying(l);
+  };
+
   /* ---------- the big bot: build / crossfade / slide; first build runs the camera push ---------- */
-  const look = agent?.look;
+  const look = trying ?? agent?.look;
   const heroKey = JSON.stringify([panelKey, look]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: rebuilt when the costume, the agent or the size changes
   useLayoutEffect(() => {
@@ -139,12 +152,26 @@ export function HeroZoom(p: HeroZoomProps) {
     const z = zRef.current;
     if (!host || !z || !px || !agent) return;
     const old = host.querySelector<HTMLElement>('.hero');
-    const n = hero({ id: agent.id, name: agent.name, look: agent.look }, { size: px, facing: 'front' });
+    const n = hero({ id: agent.id, name: agent.name, look }, { size: px, facing: 'front' });
     const c = change.current;
     change.current = null;
     if (!old) {
       host.appendChild(n);
       if (opening.current) runOpen(z, n);
+      return;
+    }
+    if (c?.kind === 'try' || c?.kind === 'undo') {
+      for (const h of host.querySelectorAll('.hero.lk-out')) h.remove();
+      if (reducedMotion()) old.remove();
+      else {
+        old.classList.add('lk-out');
+        old.style.cssText += ';position:absolute;left:0;bottom:0';
+        after(old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, fill: 'forwards' }), () =>
+          old.remove(),
+        );
+      }
+      host.prepend(n);
+      if (c.kind === 'undo') hop(n);
       return;
     }
     if (c && (c.kind === 'slot' || c.kind === 'dice') && !reducedMotion()) {
@@ -400,6 +427,9 @@ export function HeroZoom(p: HeroZoomProps) {
     const next = cycleLook(agent.look, slot, d);
     setLook(next, { kind: 'slot', slot });
     announce(lookTag(next, slot));
+    flashRow(slot);
+  };
+  const flashRow = (slot: LookSlotId) => {
     const row = zRef.current?.querySelector(`.lk-row[data-slot="${slot}"]`);
     if (row) {
       row.classList.remove('flash');
@@ -413,6 +443,34 @@ export function HeroZoom(p: HeroZoomProps) {
     setLook(next, { kind: 'dice' });
     announce(`New look: ${LOOK_SLOTS.map((sl) => sl.name(next[sl.id])).join(', ')}`);
   };
+  /* a tray pick: the bot already wears it (tried on), so no crossfade — the row flashes, one hop */
+  const onPick = (slot: LookSlotId, next: Look) => {
+    if (!agent) return;
+    setTrying(null);
+    setLook(next, { kind: 'try' });
+    announce(lookTag(next, slot));
+    flashRow(slot);
+    setTimeout(() => hop(bigHost.current?.querySelector('.hero')), 0);
+  };
+
+  /* ---------- ↺ Undo look: back to the look they had when you opened them (or stepped to them) ---------- */
+  const [start, setStart] = useState<{ id: string; look: Look } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new starting point per agent, not per edit
+  useEffect(() => {
+    setStart(liveId && live ? { id: liveId, look: live.look } : null);
+    setTrying(null);
+  }, [liveId]);
+  const undo =
+    live && start?.id === live.id && !sameLook(start.look, live.look)
+      ? {
+          label: `Undo look changes — back to how ${live.name} looked when you opened them`,
+          onUndo: () => {
+            setLook(start.look, { kind: 'undo' });
+            announce(`${live.name}'s look is back`);
+            setTimeout(() => zRef.current?.querySelector<HTMLElement>('.lk-dice')?.focus(), 0);
+          },
+        }
+      : undefined;
   /* Delete while busy is refused: ask again on Delete, so a session that just started blocks it
      and one that just ended frees it (the button lights up; the next press deletes). */
   const onDelete = async () => {
@@ -453,7 +511,19 @@ export function HeroZoom(p: HeroZoomProps) {
         <div className="z-floor" aria-hidden="true" />
         <div className="z-fig">
           <span ref={bigHost} style={{ display: 'contents' }} />
-          {px > 0 && <LookRig look={agent.look} px={px} onSlot={onSlot} onDice={onDice} />}
+          {px > 0 && (
+            <LookRig
+              key={panelKey}
+              look={agent.look}
+              px={px}
+              name={agent.name}
+              onSlot={onSlot}
+              onDice={onDice}
+              onTry={onTry}
+              onPick={onPick}
+              undo={undo}
+            />
+          )}
         </div>
         <div className="z-nav">
           {idx >= 0 && (

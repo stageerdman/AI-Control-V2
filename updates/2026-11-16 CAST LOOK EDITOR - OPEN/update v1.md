@@ -96,7 +96,15 @@ Each phase ends with tests that lock in what it built, and a real run of the app
 
 ## Status
 - **Done:** Phase 0 (this roadmap, the design, the states preview).
-- **Next:** Phase 1 (parts tray).
+- **Done:** Phase 1 (parts tray: `LookTray.tsx`, in the hero zoom and in design-with-Tinker) and Phase 2
+  (↺ Undo look) — Jony. Plus the office side of Uncle Bob's `agent.changed`: the office reloads the roster
+  and `OfficeEngine.restyle` swaps the robot in place (chair, nameplate and mug colour too), with one hop.
+  Tests: `cast/look-editor.test.tsx`, `office/restyle.test.ts`, `model.test.ts` (trayOptions, sameLook).
+  - Deviation: the Undo chip sits **left of the dice** in the same row, not under it (the antenna row's ›
+    arrow is under the dice). The tray is portalled onto `.z-stage` (the rig has a transform).
+  - `sameLook` treats a missing decal and `'none'` as the same (picking a hat then "No hat" hides the chip).
+  - Not covered by a test yet: stepping to another agent resets the Undo point (by code: keyed on the agent id).
+- **Next:** Phase 3 (server: Tinker sessions for an existing agent), then 4–6.
 
 ## Decisions
 - Look edits from the rig / tray / dice save at once (as today). Tinker's changes wait for **Save changes**.

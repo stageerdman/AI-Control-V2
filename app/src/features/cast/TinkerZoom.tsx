@@ -128,6 +128,9 @@ export function TinkerZoom(p: TinkerZoomProps) {
   const name = draft?.name?.trim() ?? '';
   const look = draftLook(base, draft);
   const working = busy || remote;
+  /* a tray option tried on: shown on the bot, never saved */
+  const [trying, setTrying] = useState<Look | null>(null);
+  if (working && trying) setTrying(null);
   const doing = tinkerDoing(working ? (activity ?? { kind: 'thinking', label: '' }) : null);
 
   useEffect(() => {
@@ -337,6 +340,13 @@ export function TinkerZoom(p: TinkerZoomProps) {
     setLook(next);
     announce(`New look: ${LOOK_SLOTS.map((sl) => sl.name(next[sl.id])).join(', ')}`);
   };
+  const onPick = (slot: LookSlotId, next: Look) => {
+    setTrying(null);
+    setLook(next);
+    announce(lookTag(next, slot));
+    flashRow(zRef.current, slot);
+    setTimeout(() => hop(bot.current?.el), 0);
+  };
 
   /* ---------- add to the Cast / discard ---------- */
   const add = async () => {
@@ -449,13 +459,23 @@ export function TinkerZoom(p: TinkerZoomProps) {
                 <span className={arrived && !reducedMotion() ? 'tk-arrive' : undefined}>
                   <Hero
                     ref={bot}
-                    agent={{ name, look }}
+                    agent={{ name, look: trying ?? look }}
                     size={px}
                     facing="front"
                     pose={arrived ? 'waving' : 'idle'}
                   />
                 </span>
-                {!working && <LookRig look={look} px={px} onSlot={onSlot} onDice={onDice} />}
+                {!working && (
+                  <LookRig
+                    look={look}
+                    px={px}
+                    name={name}
+                    onSlot={onSlot}
+                    onDice={onDice}
+                    onTry={setTrying}
+                    onPick={onPick}
+                  />
+                )}
               </>
             ) : (
               <Hero ghost agent={{ hue: 'sun' }} size={px} facing="front" />

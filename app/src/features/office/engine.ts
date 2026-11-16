@@ -261,6 +261,46 @@ export class OfficeEngine {
     this.deskSync(rec.seat);
   }
 
+  /** Someone was edited in the Cast (a new look, name or role): swap their robot in place — same seat, same
+      pose, same overlays — tint their chair, and rewrite the card and the accessible name.
+      True when they were in the room and something they show changed. */
+  restyle(id: string, ag: SceneAgent): boolean {
+    const was = this.cfg.agents[id];
+    const shows = (a: SceneAgent | undefined) => JSON.stringify([a?.look, a?.name, a?.nick, a?.role]);
+    if (!was || shows(was) === shows(ag)) return false;
+    this.cfg.agents[id] = ag;
+    const rec = this.actors[id];
+    if (!rec) return false;
+    const teamId = this.cfg.teamOf[id];
+    const team = teamId ? this.cfg.teams[teamId] : null;
+    const captain = !!team && team.captain === id;
+    const act = activityOf(rec.actor.kind);
+    const h = hero(ag, {
+      size: id === this.cfg.director ? 184 : 176,
+      pose: act.pose,
+      facing: 'three-quarter',
+      seated: act.seated,
+      props: false,
+      holding: act.holding ?? 'none',
+      captain,
+      armband: captain && team ? team.color : null,
+    });
+    rec.hero.replaceWith(h);
+    rec.hero = h;
+    rec.btn.querySelector<HTMLElement>('.o-blanket')?.style.setProperty('--bk', hueHex(ag.look?.hue));
+    const d = this.desks[rec.seat];
+    if (d) {
+      d.chair.innerHTML = chair(ag.look?.hue ?? d.hue ?? 'grape');
+      /* the nameplate and the mug band wear the owner's colour */
+      if (ag.look?.hue)
+        for (const r of d.el.querySelectorAll('.d-acc')) r.setAttribute('fill', hueHex(ag.look.hue));
+    }
+    rec.cardKey = undefined;
+    this.dress(rec);
+    this.deskSync(rec.seat);
+    return true;
+  }
+
   private dress(rec: Rec, o: { facing?: 'front' } = {}) {
     const a = rec.actor;
     const act = activityOf(a.kind);
