@@ -38,7 +38,13 @@ Whiteboard, chats and history keep them apart because every one of those is keye
    chats, to-dos and history stay per agent. Tests.
 
 ## Status
-Phase 1 done. Next: phase 2.
+Server: phases 1–5 ✅ (2 `506a396`, 3 `84e93af`, 4 `fa36e56`, 5 `ca504f2`); full server suite green (766).
+Phase 5 note: whiteboard items, chats, to-dos, desk notes and runs were already keyed by agent id, so a copy is
+apart by construction; the test proves a copy runs as itself, and the prompt now names its kin
+(`compose.ts` `kin`, filled in `service.ts`).
+
+Next (front-end, not in this branch): the invite-another card (name dice, ↺ Family look) on `copy-draft` +
+`copies`, the bell/office-door entry, and the kin row on an agent's page ("like Pete", `kin[0]`).
 
 ## Risks / next
 - Renaming an agent (PATCH name) is not checked for clashes — true before this work too. Worth a follow-up so
