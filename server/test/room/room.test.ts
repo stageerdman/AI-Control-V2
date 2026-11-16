@@ -225,6 +225,7 @@ describe('calls inside a project', () => {
       'feature',
       'send_mail',
       'mail_directory',
+      'page_user',
       'forget',
     ]);
     expect(agentRun?.systemPrompt).toContain('## Your memory');

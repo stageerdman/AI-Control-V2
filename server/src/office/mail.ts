@@ -12,7 +12,7 @@ import type { Store } from '../db/store.ts';
 import { rows } from '../db/util.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
-import type { BridgeTool } from '../room/bridge.ts';
+import type { BridgeTool, CapableTool } from '../room/bridge.ts';
 
 export const HQ = 'hq';
 export const MAIL_TRIAGE = 'mail-triage';
@@ -111,6 +111,12 @@ export function createMail(deps: {
     const r = db.prepare('SELECT * FROM mail WHERE id = ?').get(id) as Row | undefined;
     return r ? toMail(r) : null;
   };
+  /** "Ivy in Lumi Health" — who wrote it; `user` names the user when no agent did. */
+  const senderOf = (m: Mail, user: string) => {
+    const who = m.fromAgentId ? (store.agents.get(m.fromAgentId)?.name ?? 'an agent') : user;
+    const where = m.fromProjectId ? store.projects.get(m.fromProjectId)?.name : null;
+    return where ? `${who} in ${where}` : who;
+  };
   /** Where a mail lands (for its events): its project, or HQ's. */
   const home = (m: Pick<Mail, 'to'>) => (m.to === HQ ? deps.hq() : m.to);
   const changed = (m: Mail, change: 'arrived' | 'triaged' | 'filed' | 'reopened') => {
@@ -200,11 +206,7 @@ export function createMail(deps: {
           ? { agentId: director.id, status: 'working', activity: { kind: 'mail', label } }
           : { agentId: director.id, status: 'idle' },
       });
-    const sender = (m: Mail) => {
-      const who = m.fromAgentId ? (store.agents.get(m.fromAgentId)?.name ?? 'an agent') : 'you';
-      const where = m.fromProjectId ? store.projects.get(m.fromProjectId)?.name : null;
-      return where ? `${who} in ${where}` : who;
-    };
+    const sender = (m: Mail) => senderOf(m, 'you');
     const say = (text: string, goalId?: string | null) => {
       try {
         deps.say(projectId, director.id, text, goalId);
@@ -295,6 +297,44 @@ export function createMail(deps: {
     /** send_mail + mail_directory for an agent run here (only when the agent may mail). */
     tools(projectId: string, agentId: string): BridgeTool[] {
       if (!store.agents.get(agentId)?.canMail) return [];
+      return letterTools(projectId, agentId);
+    },
+    /** The director's mail in chat: read the inbox, send, look up addresses. */
+    directorTools(projectId: string, directorId: string): CapableTool[] {
+      const [sendTool, directoryTool] = letterTools(projectId, directorId) as [BridgeTool, BridgeTool];
+      return [
+        {
+          name: 'read_mail',
+          can: 'read this office’s mail (from HQ, other projects and their agents) and act on it',
+          description:
+            'This office’s mail, newest first: who sent it, the subject, the letter, and what was done with it. Use it to act (ask someone, put work on the board, answer by send_mail), not just to read it out.',
+          inputSchema: {
+            type: 'object',
+            properties: { limit: { type: 'number', description: 'How many (default 10, at most 30).' } },
+          },
+          run: async (a) => JSON.stringify(readMail(projectId, typeof a.limit === 'number' ? a.limit : 10)),
+        },
+        { ...sendTool, can: 'send mail to HQ or another project (mail_directory lists the addresses)' },
+        { ...directoryTool, can: 'look up who you can mail' },
+      ];
+    },
+  };
+
+  function readMail(projectId: string, limit: number) {
+    return inboxOf(projectId)
+      .slice(0, Math.max(1, Math.min(30, Math.floor(limit))))
+      .map((m) => ({
+        from: senderOf(m, 'the user'),
+        kind: m.kind,
+        subject: m.subject,
+        body: clip(m.body, 3000),
+        status: m.status,
+        ...(m.note ? { note: m.note } : {}),
+        at: m.at,
+      }));
+  }
+
+  function letterTools(projectId: string, agentId: string): BridgeTool[] {
       return [
         {
           name: 'send_mail',
@@ -331,7 +371,6 @@ export function createMail(deps: {
           run: async () => JSON.stringify(directory(projectId)),
         },
       ];
-    },
-  };
+  }
 }
 export type MailDesk = ReturnType<typeof createMail>;

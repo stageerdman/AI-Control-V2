@@ -9,7 +9,7 @@ import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
-import { createCreatorChat, proposeTool } from './crew/creator-chat.ts';
+import { createCreatorChat, hireTool, proposeTool } from './crew/creator-chat.ts';
 import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
@@ -104,6 +104,7 @@ import {
 import { createBoard } from './whiteboard/board.ts';
 import { workRepo } from './db/work.ts';
 import { actionTools } from './office/action-tools.ts';
+import { createPager, pagerTools, pageTool } from './office/pager.ts';
 import { agentFeatureTool } from './office/agent-feature-tool.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { questionTools } from './office/question-tools.ts';
@@ -389,13 +390,22 @@ export function buildApp({
         { agent: to, request, why: 'answer a question for the user' },
       ),
   };
+  /* any agent pages the user; the director can also page when a goal ends */
+  const pager = createPager({ comms, events, goals: (projectId) => actions.work.goals(projectId) });
   const threads = createThreads({
+    /* mail and creatorChats are built after threads; these run only in a chat turn, by then they exist */
     directorTools: (projectId, directorId, turn) => [
       ...whiteboardTools(board, projectId, directorId),
       ...featureTools(features, store, projectId),
       ...actionTools(actions, projectId, directorId),
       ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
       ...questionTools({ store, runtime }, projectId),
+      ...mail.directorTools(projectId, directorId),
+      ...pagerTools(pager, projectId, directorId),
+      hireTool(creatorChats, () => ({
+        name: store.agents.get(directorId)?.name ?? 'The director',
+        projectName: store.projects.get(projectId)?.name ?? 'this project',
+      })),
     ],
     db,
     store,
@@ -444,6 +454,7 @@ export function buildApp({
     ...historyTools(db, { projectId, agentId, runId }),
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     ...mail.tools(projectId, agentId),
+    pageTool(pager, projectId, agentId),
     ...(hq.get() === projectId
       ? [
           proposeTool(creatorChats, () => ({
@@ -475,6 +486,7 @@ export function buildApp({
     lifecycle.stop();
     comms.stop();
     reportIn.stop();
+    pager.stop();
     github.stop();
     installer?.stop();
     for (const res of open) res.end();

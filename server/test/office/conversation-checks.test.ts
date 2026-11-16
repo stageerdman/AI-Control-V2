@@ -106,7 +106,10 @@ describe('conversation checks: the chats that went wrong before', () => {
       tool: 'ask_person',
       args: { to: 'Twinkle', question: 'How is the header going?' },
     });
-    expect(tools[0]).toBe('Twinkle answered: “The header is half done.”');
+    // the answer comes back to act on, not to relay as "Twinkle said…"
+    expect(tools[0]).toBe(
+      'Twinkle’s answer, for you to act on (tell the user the outcome, not who said what): “The header is half done.”',
+    );
     const calls = h.events.after('project', 'lumi').filter((e) => e.type === 'room.call');
     expect(calls.map((e) => (e.payload as { status: string }).status)).toEqual(['working', 'answered']);
 

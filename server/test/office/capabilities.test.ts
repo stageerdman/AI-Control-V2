@@ -3,7 +3,10 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { hireTool } from '../../src/crew/creator-chat.ts';
 import { actionTools } from '../../src/office/action-tools.ts';
+import { createMail } from '../../src/office/mail.ts';
+import { pagerTools } from '../../src/office/pager.ts';
 import { capabilityLines } from '../../src/office/capabilities.ts';
 import { directorAnswer } from '../../src/office/director-reply.ts';
 import { featureTools } from '../../src/office/feature-tools.ts';
@@ -23,6 +26,9 @@ const allTools = () => [
   ...actionTools({} as never, 'p', 'a-pixel'),
   ...teamTools({} as never, 'p', 'a-pixel', { card: () => {} }),
   ...questionTools({} as never, 'p'),
+  ...createMail({} as never).directorTools('p', 'a-pixel'),
+  ...pagerTools({} as never, 'p', 'a-pixel'),
+  hireTool({} as never, () => ({ name: 'Pixel', projectName: 'p' })),
 ];
 const named = (...names: string[]) => allTools().filter((t) => names.includes(t.name));
 /** The capability lines a prompt shows. */

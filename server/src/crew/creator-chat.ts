@@ -268,3 +268,11 @@ export function proposeTool(chats: CreatorChat, by: () => { name: string; projec
     },
   };
 }
+
+/** The director hires from chat: propose_agent with its capability line. */
+export function hireTool(chats: CreatorChat, by: () => { name: string; projectName: string }) {
+  return {
+    ...proposeTool(chats, by),
+    can: 'hire someone new: propose a new Cast agent (the user reviews the draft with Tinker), when nobody in the Cast fits',
+  };
+}
