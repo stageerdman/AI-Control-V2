@@ -34,19 +34,17 @@ import { agentFeatureTool } from './office/agent-feature-tool.ts';
 import { createChatWork } from './office/chat-work.ts';
 import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
-import { seatForWork } from './office/people.ts';
-import { todoTools } from './todos/tools.ts';
-import { tracked } from './usage/usage.ts';
-import { createTodos } from './todos/todos.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
+import { createKinCopies } from './office/kin-copies.ts';
 import { captainTools } from './office/leader-tools.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
 import { createPager, pagerTools, pageTool } from './office/pager.ts';
 import { createPages } from './office/pages.ts';
+import { seatForWork } from './office/people.ts';
 import { createPortraits } from './office/portrait.ts';
 import { createPrinciples } from './office/principles.ts';
 import { questionTools } from './office/question-tools.ts';
@@ -72,8 +70,6 @@ import { creatorChatRoutes } from './routes/creator-chat.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { deskRoutes } from './routes/desk.ts';
-import { todoRoutes } from './routes/todos.ts';
-import { usageRoutes } from './routes/usage.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
@@ -99,7 +95,9 @@ import { settingsRoutes } from './routes/settings.ts';
 import { teamRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
+import { todoRoutes } from './routes/todos.ts';
 import { trashRoutes } from './routes/trash.ts';
+import { usageRoutes } from './routes/usage.ts';
 import { createRunning } from './running/registry.ts';
 import { createStopper } from './running/stop.ts';
 import { runningTools } from './running/tools.ts';
@@ -119,6 +117,9 @@ import {
   type Installer,
   studioProject,
 } from './self-install/self-install.ts';
+import { createTodos } from './todos/todos.ts';
+import { todoTools } from './todos/tools.ts';
+import { tracked } from './usage/usage.ts';
 import { createBoard } from './whiteboard/board.ts';
 import { whiteboardTools } from './whiteboard/tools.ts';
 
@@ -419,7 +420,12 @@ export function buildApp({
     ask: (projectId: string, directorId: string, to: string, request: string, work?: boolean) =>
       room.call(
         { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
-        { agent: to, request, why: work ? 'take on work for the user' : 'answer a question for the user', work },
+        {
+          agent: to,
+          request,
+          why: work ? 'take on work for the user' : 'answer a question for the user',
+          work,
+        },
       ),
   };
   /* any agent pages the user; the director can also page when a goal ends */
@@ -565,6 +571,7 @@ export function buildApp({
     agentRoutes({
       store,
       edits: createAgentEdits({ store, events }),
+      copies: createKinCopies({ store }),
       shell,
       reporter: (a) => reports.canFile(a),
     }),

@@ -53,6 +53,15 @@ export function assertCanDelete(agent: HasKind, cast: readonly HasKind[]): void 
   if (!v.ok) throw conflict(v.why, { agentId: agent.id, kind: agent.kind });
 }
 
+/** Only regular agents get copies (kin): the crew have one job each. */
+export function assertCanCopy(agent: HasKind): void {
+  if (isSystemKind(agent.kind))
+    throw conflict(`The ${KIND_LABEL[agent.kind]} has one job in the studio; it can't be copied.`, {
+      agentId: agent.id,
+      kind: agent.kind,
+    });
+}
+
 /** Who takes over the projects of an orchestrator being deleted: the first other one. */
 export function replacementOrchestrator(leaving: HasKind, cast: readonly HasKind[]): string | null {
   return cast.find((a) => a.kind === 'orchestrator' && a.id !== leaving.id)?.id ?? null;

@@ -525,6 +525,7 @@ export function createRuntime(deps: RuntimeDeps) {
         big?.systemPrompt ??
         composePrompt({
           agent,
+          kin: store.agents.kinOf(agent.id).map((k) => k.name),
           team,
           project: { name: project.name },
           toolkit,

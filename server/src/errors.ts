@@ -8,6 +8,7 @@ export type ErrorCode =
   | 'conflict'
   | 'chat_running'
   | 'agent_busy'
+  | 'name_taken'
   | 'invalid'
   | 'agent_error';
 
@@ -19,6 +20,8 @@ const STATUS: Record<ErrorCode, number> = {
   chat_running: 409,
   /* a 409 the app tells apart: the agent is in a running session, so it can't be deleted yet */
   agent_busy: 409,
+  /* a 409 the app tells apart: a copy's name is already someone's in the Cast (the name field shows it) */
+  name_taken: 409,
   invalid: 422,
   agent_error: 502,
 };

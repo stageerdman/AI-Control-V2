@@ -56,6 +56,16 @@ describe('composePrompt', () => {
     const solo = composePrompt({ agent, team: null, project: { name: 'P' } });
     expect(solo).not.toContain('Your team');
   });
+
+  it('tells a copy who its kin are and to read their names in the shared instructions as itself', () => {
+    const copy = { ...agent, name: 'Pixel Bea', prompt: 'You are Pixel Pete, a frontend engineer.' };
+    const p = composePrompt({ agent: copy, kin: ['Pixel Pete', 'Pixel Sol'], project: { name: 'P' } });
+    expect(p).toContain(
+      'You share these instructions with your kin Pixel Pete and Pixel Sol (other copies of the same agent). Wherever they name one of your kin, read it as you, Pixel Bea.',
+    );
+    expect(p.indexOf('You share these instructions')).toBeLessThan(p.indexOf('You are Pixel Pete, a frontend'));
+    expect(composePrompt({ agent, kin: [], project: { name: 'P' } })).not.toContain('your kin');
+  });
 });
 
 describe('stream-json parser', () => {
