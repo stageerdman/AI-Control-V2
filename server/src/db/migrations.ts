@@ -604,6 +604,18 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX todos_agent ON todos(project_id, agent_id, status, created_at);
   `,
+  /* 36 — "New chat with Pixel": one row per closed chat of a thread. Messages stay where they are; the current
+     chat is everything since the newest ended_at (design/new-chat/new-chat.md). */
+  `
+  CREATE TABLE thread_chats (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id   TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at   TEXT NOT NULL
+  );
+  CREATE INDEX thread_chats_by_thread ON thread_chats(project_id, agent_id, ended_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

@@ -456,6 +456,7 @@ export function buildApp({
     events,
     runtime,
     runningNow: stops.runningNow,
+    liveSessions: (projectId) => running.list({ projectId }).filter((i) => i.kind === 'session'),
     features,
     health,
     reports,

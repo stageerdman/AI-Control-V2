@@ -25,4 +25,17 @@ export const threadRoutes =
       const { text, reportId } = parse(SayBody, req.body);
       return reply.status(202).send(threads.say(id, agentId, text, reportId ? { reportId } : {}));
     });
+    /* "New chat with Pixel" (director only): 201 the chat that closed; 409 work_running / chat_empty */
+    app.post('/projects/:id/threads/:agentId/new', async (req, reply) => {
+      const { id, agentId } = parse(ThreadParams, req.params);
+      return reply.status(201).send(threads.startNew(id, agentId));
+    });
+    app.get('/projects/:id/threads/:agentId/chats', async (req) => {
+      const { id, agentId } = parse(ThreadParams, req.params);
+      return threads.chats(id, agentId);
+    });
+    app.get('/projects/:id/threads/:agentId/chats/:chatId/messages', async (req) => {
+      const { id, agentId, chatId } = parse(ThreadParams.extend({ chatId: Id }), req.params);
+      return threads.chatMessages(id, agentId, chatId);
+    });
   };

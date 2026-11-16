@@ -238,6 +238,8 @@ export const EVENT_SCHEMAS = {
     url: text(300).optional(),
     exitCode: z.number().int().nullable().optional(),
   }),
+  /** "New chat with Pixel": the director's thread started a fresh chat (the old one is in its History). */
+  'thread.reset': z.strictObject({ agentId: id }),
   /** Project conversations (U1): a message in the user's thread with an agent (the orchestrator or anyone on the project). */
   'thread.message': z.strictObject({
     agentId: id,

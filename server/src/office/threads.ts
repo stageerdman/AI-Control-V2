@@ -21,7 +21,7 @@ import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
-import { conflict } from '../errors.ts';
+import { conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
@@ -34,11 +34,13 @@ import { type Capabilities, canStartWork, capabilityText, NO_CAPABILITIES } from
 import { directorAnswer, replyText } from './director-reply.ts';
 import type { DirectorStopper } from './director-stop.ts';
 import type { Features } from './features.ts';
+import { canStartNew } from './new-chat.ts';
 import { type Seat, seatOf } from './people.ts';
 import { questionView } from './question-tools.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
 import { castAvailable } from './staffing.ts';
 import type { TurnHooks } from './team-tools.ts';
+import { type ChatWindow, type ThreadChat, threadChats } from './thread-chats.ts';
 
 export type ThreadMessage = {
   id: string;
@@ -67,6 +69,9 @@ const RECAP = 6;
 const REPORT_EXCERPT = 4000;
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const json = (v: unknown) => JSON.stringify(v);
+/** What the user calls an agent: its nick, else its first name. */
+const shortName = (a: Pick<Agent, 'name' | 'nick'> | null | undefined) =>
+  a?.nick ?? a?.name.split(' ')[0] ?? 'Someone';
 
 /** The step a todo item waits on (checklist order, as dispatch's orderGate): the first unfinished item before
     its parallel group. */
@@ -124,6 +129,8 @@ export function createThreads(deps: {
   rebuilds?: Pick<Rebuilds, 'staleAll'>;
   /** Who is working on what right now (the summary's `runningNow`, for the director's `stop_work`). */
   runningNow?: DirectorStopper['runningNow'];
+  /** Live sessions in a project (running registry, kind 'session'): "New chat" waits until there are none. */
+  liveSessions?: (projectId: string) => { agentId: string | null }[];
   /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts), features
       (office/feature-tools.ts), ask / resume / stop (office/action-tools.ts), staff / rebuild
       (office/team-tools.ts, which hand their card to `turn`) and agents' open questions
@@ -132,6 +139,7 @@ export function createThreads(deps: {
 }) {
   const { db, store, events, runtime } = deps;
   const work = workRepo(db);
+  const chats = threadChats(db);
   /** runId → the thread its reply belongs to (+ for the director: the user's message, the goals there were
       before the turn, and the rebuild card a tool handed over) */
   type Turn = {
@@ -221,16 +229,17 @@ export function createThreads(deps: {
     };
   };
 
-  /** The last session of this thread, to resume (null → a fresh one). */
+  /** The last session of this thread's current chat, to resume (null → a fresh one: a new chat starts clean). */
   const lastRunWithSession = (projectId: string, agentId: string): string | null =>
     rows<{ run_id: string }>(
       db
         .prepare(
           `SELECT m.run_id FROM thread_messages m JOIN runs r ON r.id = m.run_id
-           WHERE m.project_id = ? AND m.agent_id = ? AND r.agent_id = m.agent_id AND r.session_id IS NOT NULL
+           WHERE m.project_id = ? AND m.agent_id = ? AND m.created_at >= ? AND r.agent_id = m.agent_id
+             AND r.session_id IS NOT NULL
            ORDER BY m.created_at DESC, m.rowid DESC LIMIT 1`,
         )
-        .all(projectId, agentId),
+        .all(projectId, agentId, chats.currentStart(projectId, agentId)),
     )[0]?.run_id ?? null;
 
   /* ---- the orchestrator's session (G1): rotate after ROTATE_AFTER_TURNS turns, or when a new goal follows a finished one */
@@ -261,9 +270,10 @@ export function createThreads(deps: {
       db
         .prepare(
           `SELECT sender, text FROM thread_messages WHERE project_id = ? AND agent_id = ? AND kind = 'text'
+             AND created_at >= ?
            ORDER BY created_at DESC, rowid DESC LIMIT ?`,
         )
-        .all(projectId, agentId, RECAP),
+        .all(projectId, agentId, chats.currentStart(projectId, agentId), RECAP),
     ).reverse();
     if (!last.length) return null;
     return [
@@ -464,7 +474,7 @@ export function createThreads(deps: {
     const filed = deps.reports.byRun(run.id).at(-1);
     if (filed) {
       const a = store.agents.get(t.agentId);
-      const who = a?.nick ?? a?.name.split(' ')[0] ?? filed.author.name;
+      const who = a ? shortName(a) : filed.author.name;
       insert(t.projectId, t.agentId, {
         sender: 'agent',
         kind: 'text',
@@ -488,19 +498,69 @@ export function createThreads(deps: {
     });
   });
 
+  /** The newest HISTORY messages of one chat window, oldest first. */
+  const messagesIn = (projectId: string, agentId: string, w: ChatWindow): ThreadMessage[] =>
+    rows<Row>(
+      db
+        .prepare(
+          `SELECT * FROM (SELECT *, rowid AS rid FROM thread_messages
+             WHERE project_id = ? AND agent_id = ? AND created_at >= ? AND (? IS NULL OR created_at < ?)
+             ORDER BY created_at DESC, rid DESC LIMIT ?) ORDER BY created_at, rid`,
+        )
+        .all(projectId, agentId, w.from, w.to, w.to, HISTORY),
+    ).map(toMessage);
+  const current = (projectId: string, agentId: string): ChatWindow => ({
+    from: chats.currentStart(projectId, agentId),
+    to: null,
+  });
+  /** The director's thread only (404 for anyone else's: other agents' chats are already split by run). */
+  const directorOf = (projectId: string, agentId: string): Agent => {
+    const p = store.projects.require(projectId);
+    const s = seat(p, agentId);
+    if (!s.orchestrator) throw notFound('Chat', `${agentId} new chat`);
+    return s.agent;
+  };
+
   return {
+    /** The current chat (everything since the last New chat). */
     get(projectId: string, agentId: string): Thread {
       const p = store.projects.require(projectId);
       const { agent } = seat(p, agentId);
-      const messages = rows<Row>(
-        db
-          .prepare(
-            `SELECT * FROM (SELECT *, rowid AS rid FROM thread_messages WHERE project_id = ? AND agent_id = ?
-             ORDER BY created_at DESC, rid DESC LIMIT ?) ORDER BY created_at, rid`,
-          )
-          .all(projectId, agent.id, HISTORY),
-      ).map(toMessage);
+      const messages = messagesIn(projectId, agent.id, current(projectId, agent.id));
       return { projectId, agentId: agent.id, busy: busy.has(key(projectId, agent.id)), messages };
+    },
+
+    /** "New chat with Pixel": close the director's current chat when nothing runs; the next turn starts a fresh
+        session. Throws 409 `work_running` (with the reason line) or `chat_empty`. */
+    startNew(projectId: string, agentId: string): ThreadChat {
+      const director = directorOf(projectId, agentId);
+      const verdict = canStartNew({
+        busy: busy.has(key(projectId, director.id)),
+        sessions: deps.liveSessions?.(projectId) ?? [],
+        asks: runtime.asks(projectId, 'open'),
+        hasMessages: messagesIn(projectId, director.id, current(projectId, director.id)).length > 0,
+        directorId: director.id,
+        nameOf: (id) => shortName(store.agents.get(id)),
+      });
+      if (!verdict.ok)
+        throw verdict.code === 'chat_empty'
+          ? conflict('This chat is already new', { code: 'chat_empty' })
+          : conflict(verdict.reason, { code: 'work_running', reason: verdict.reason });
+      const closed = chats.close(projectId, director.id);
+      setSession(projectId, director.id, { startedAt: now(), rotate: false });
+      events.append('project', projectId, { type: 'thread.reset', payload: { agentId: director.id } });
+      return closed;
+    },
+
+    /** The director's past chats, newest first. */
+    chats(projectId: string, agentId: string): ThreadChat[] {
+      return chats.list(projectId, directorOf(projectId, agentId).id);
+    },
+
+    /** One past chat's messages (read-only). */
+    chatMessages(projectId: string, agentId: string, chatId: string): ThreadMessage[] {
+      const id = directorOf(projectId, agentId).id;
+      return messagesIn(projectId, id, chats.windowOf(projectId, id, chatId));
     },
 
     /** One user turn → a run. Resolves once the run started (the reply comes as an event). */
