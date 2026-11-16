@@ -68,7 +68,7 @@ describe('calls inside a project', () => {
     expect(task).toContain('doing the checkout button');
   });
 
-  it('work: true puts the request on the whiteboard as the callee’s task', async () => {
+  it('work: true puts the request on the whiteboard as the callee’s task, a side quest', async () => {
     project(
       callOnce('a-pete', {
         agent: 'Twinkle',
@@ -81,10 +81,12 @@ describe('calls inside a project', () => {
     await h.runtime.settled(await start('a-pete'));
     const goals = (await h.call('GET', '/projects/aurora/work')).body as {
       text: string;
+      quest: string;
       items: { agentId: string }[];
     }[];
     const goal = goals.find((g) => g.text === 'Restyle the checkout button.');
     expect(goal?.items.map((i) => i.agentId)).toEqual(['a-twinkle']);
+    expect(goal?.quest).toBe('side');
   });
 
   it('two calls to the same callee run one after the other', async () => {

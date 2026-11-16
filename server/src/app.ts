@@ -285,7 +285,8 @@ export function buildApp({
     helpCaps: caps.review,
     comms,
     memoryOf: notesOf({ runs: (id) => runsRepo(db).list(id), desk: (p, a) => desk.list(p, a) }),
-    /* `call_agent` with work: true — a direct goal with one task for the callee (built below; runs later) */
+    /* `call_agent` with work: true — a side quest with one task for the callee (built below; runs later, after
+       the callee's main quest work) */
     addWork: (projectId, byId, calleeId, request) => {
       const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
       seatForWork(store, projectId, calleeId, request);
@@ -294,6 +295,7 @@ export function buildApp({
       const goal = board.addDirectGoal(projectId, byId, {
         text,
         tasks: [{ text, owner: calleeId, brief: request }],
+        quest: 'side',
       });
       return goal.summary || goal.text;
     },

@@ -634,6 +634,11 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE agents ADD COLUMN kin_id TEXT;
   CREATE INDEX agents_kin ON agents(kin_id);
   `,
+  /* 39 — main & side quests: a goal is the main storyline (the feature being built) or a side quest (a quick fix
+     or short research job). Main quests run first (src/crew/quests.ts). Every older goal is a main quest. */
+  `
+  ALTER TABLE goals ADD COLUMN quest TEXT NOT NULL DEFAULT 'main' CHECK (quest IN ('main', 'side'));
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

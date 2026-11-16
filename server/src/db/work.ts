@@ -1,6 +1,7 @@
 /* The whiteboard repository: goals and their checklist items (plain SQL, no rules —
    src/crew/dispatch.ts owns those). */
 import type { ItemGate } from '../domain/collaboration.ts';
+import type { Quest } from '../domain/quests.ts';
 import type { Workspace } from '../git/worktrees.ts';
 import type { Db } from './connection.ts';
 import { now } from './util.ts';
@@ -101,6 +102,8 @@ export type Goal = {
   /** F1c: the feature this goal works on (null = none, e.g. research), and whether finishing it ships the feature. */
   featureId: string | null;
   ships: boolean;
+  /** The main storyline (the feature being built) or a side quest (a quick fix, a short research job). */
+  quest: Quest;
   createdAt: string;
   updatedAt: string;
 };
@@ -194,6 +197,7 @@ export function workRepo(db: Db) {
       caps: r.caps ? JSON.parse(r.caps as string) : null,
       featureId: (r.feature_id as string | null) ?? null,
       ships: r.ships !== 0,
+      quest: (r.quest as Quest | null) ?? 'main',
       pct: its.length ? Math.round((its.filter((i) => i.status === 'done').length / its.length) * 100) : 0,
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
@@ -250,13 +254,22 @@ export function workRepo(db: Db) {
           .all(projectId) as Row[]
       ).map(toGoal),
     insertGoal(
-      g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps'] },
+      g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps']; quest?: Quest },
       list: NewItem[],
     ): Goal {
       const t = now();
       db.prepare(
-        `INSERT INTO goals (id, project_id, text, summary, status, caps, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?)`,
-      ).run(g.id, g.projectId, g.text, g.summary, g.caps ? JSON.stringify(g.caps) : null, t, t);
+        `INSERT INTO goals (id, project_id, text, summary, status, caps, quest, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
+      ).run(
+        g.id,
+        g.projectId,
+        g.text,
+        g.summary,
+        g.caps ? JSON.stringify(g.caps) : null,
+        g.quest ?? 'main',
+        t,
+        t,
+      );
       insertItems(g.id, g.projectId, 0, list);
       return repo.goal(g.id) as Goal;
     },
