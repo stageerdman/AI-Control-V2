@@ -214,7 +214,7 @@ describe('rebuild apply and undo', () => {
       task: 't',
       runner: 'fake',
       model: 'm',
-      caps: {},
+      caps: { maxTurns: 1, maxBudgetUsd: 1 },
     });
     runs.finish('r-done', {
       status: 'succeeded',

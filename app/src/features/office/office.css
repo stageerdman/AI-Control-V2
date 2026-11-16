@@ -575,6 +575,8 @@
 .dn-note{margin:0;display:grid;gap:12px}
 .dn-note dt{font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
 .dn-note dd{margin:2px 0 0;font-size:15.5px;line-height:1.5;white-space:pre-line}
+.td-list{margin:0 0 12px;padding-left:22px;display:grid;gap:8px;font-size:15px;line-height:1.45}
+.td-done{color:var(--ink-soft);list-style:none;padding-left:0}
 .lf-foot{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:18px}
 .ml-meta{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--ink-soft)}
 .ml-kind{font-size:11px;font-weight:900;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:rgba(155,108,255,.14);color:var(--ink)}

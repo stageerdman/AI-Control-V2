@@ -236,6 +236,7 @@ export const keys = {
   project: (pid: string) => `office:${pid}:project`,
   /* STUDIO LIFE */
   deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,
+  todos: (pid: string, agentId: string) => `office:${pid}:todos:${agentId}`,
   principles: (pid: string) => `office:${pid}:principles`,
   recap: (agentId: string) => `recap:${agentId}`,
   chats: (agentId: string) => `chats:${agentId}`,

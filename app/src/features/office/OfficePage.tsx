@@ -539,6 +539,9 @@ function Office({
         case 'report.archived':
           void invalidateReports(pid);
           break;
+        case 'todo.changed':
+          void invalidate(keys.todos(pid, ev.payload.agentId));
+          break;
         case 'desk.note': {
           const a = ev.payload.agentId;
           void invalidate(keys.deskNotes(pid));
@@ -1057,6 +1060,7 @@ function Office({
         pid={pid}
         agentId={noteFor}
         nick={noteFor ? nickOf(noteFor) : ''}
+        nameOf={nickOf}
         open={!!noteFor}
         onClose={() => setNoteFor(null)}
         onSeen={markSeen}

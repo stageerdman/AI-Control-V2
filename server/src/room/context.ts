@@ -38,6 +38,7 @@ export const ORCHESTRATOR_ROOM = `You bring people into the room: the Agent Crea
 
 /** For agent runs that have `forget`. */
 export const YOUR_MEMORY = [
+  '- You have your own to-do list, kept across sessions: work others asked of you lands there in the order it came. Read it with `my_todos` when you start and before you finish; `add_todo` for your own reminders (`notify: true` pages the user when you tick it off), `done_todo` when one is done.',
   '- When your context gets long, you feel lost, or a big chunk of work is done, you may forget on purpose: call `forget` with where you are, what you are doing and the next step (plus anything you must not lose). The note goes on your desk and you continue with a fresh memory from it.',
   '- Write the note for a stranger: concrete file paths, decisions, what is done and what is not. Commit finished work before you forget.',
   '- If the studio reminds you that your context is large, finish the step you are on, then forget.',

@@ -111,6 +111,12 @@ describe('the director asks someone from chat', () => {
       .flatMap((g) => g.items)
       .filter((i) => i.agentId === 'a-twinkle');
     expect(mine).toHaveLength(1);
+    // …and it queues on Twinkle's own to-do list, asked by the director
+    const orch = h.store.projects.require('lumi').orchestratorId;
+    const listed = await h.call('GET', '/projects/lumi/todos?agentId=a-twinkle');
+    expect(listed.body.todos).toEqual([
+      expect.objectContaining({ text: expect.stringContaining('Write the setup docs'), fromId: orch, status: 'open' }),
+    ]);
   });
 
   it('a call that fails comes back to the director in the same turn', async () => {

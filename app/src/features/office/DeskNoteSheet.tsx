@@ -7,6 +7,7 @@ import { Button, Sheet } from '../../ui';
 import { relWhen } from '../reports';
 import { keys } from './api';
 import { clip } from './life';
+import { TodoPaper } from './TodoPaper';
 
 const EARLIER = 20;
 
@@ -14,6 +15,7 @@ export function DeskNoteSheet({
   pid,
   agentId,
   nick,
+  nameOf,
   open,
   onClose,
   onSeen,
@@ -21,6 +23,8 @@ export function DeskNoteSheet({
   pid: string;
   agentId: string | null;
   nick: string;
+  /** Who asked, for the to-do paper. */
+  nameOf: (agentId: string) => string;
   open: boolean;
   onClose: () => void;
   /** The newest note's time once it's on screen. */
@@ -28,7 +32,12 @@ export function DeskNoteSheet({
 }) {
   return (
     <Sheet open={open && !!agentId} onClose={onClose} label={`${nick}’s notes to self`}>
-      {open && agentId && <NoteBody pid={pid} agentId={agentId} nick={nick} onSeen={onSeen} />}
+      {open && agentId && (
+        <>
+          <TodoPaper pid={pid} agentId={agentId} nameOf={nameOf} />
+          <NoteBody pid={pid} agentId={agentId} nick={nick} onSeen={onSeen} />
+        </>
+      )}
     </Sheet>
   );
 }

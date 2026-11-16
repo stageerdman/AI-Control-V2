@@ -14,6 +14,7 @@ import { questionTools } from '../../src/office/question-tools.ts';
 import { teamTools } from '../../src/office/team-tools.ts';
 import { orchestratorChatPrompt } from '../../src/office/threads.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+import { todoTools } from '../../src/todos/tools.ts';
 import { whiteboardTools } from '../../src/whiteboard/tools.ts';
 import { scriptedCrew } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
@@ -28,6 +29,7 @@ const allTools = () => [
   ...questionTools({} as never, 'p'),
   ...createMail({} as never).directorTools('p', 'a-pixel'),
   ...pagerTools({} as never, 'p', 'a-pixel'),
+  ...todoTools({} as never, String, 'p', 'a-pixel'),
   hireTool({} as never, () => ({ name: 'Pixel', projectName: 'p' })),
 ];
 const named = (...names: string[]) => allTools().filter((t) => names.includes(t.name));

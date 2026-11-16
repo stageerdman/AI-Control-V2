@@ -3,11 +3,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearQueryCache } from '../../api';
-import type { Agent, DeskNote, Mail } from '../../api/types';
+import type { Agent, DeskNote, Mail, Todo } from '../../api/types';
 import { BringInBody } from './BringInSheet';
 import { NoteBody } from './DeskNoteSheet';
 import { MailBody } from './MailSheet';
 import { PrinciplesBody } from './PrinciplesSheet';
+import { TodoPaper } from './TodoPaper';
 
 const look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'bob', face: 'none', hue: 'rose' };
 const agent = (id: string, name: string, kind: Agent['kind'] = 'agent') =>
@@ -46,6 +47,7 @@ const letter = (id: string, p: Partial<Mail> = {}): Mail => ({
 
 type Db = {
   notes: DeskNote[];
+  todos: Todo[];
   files: { file: string; title: string; updatedAt: string }[];
   bodies: Record<string, string>;
   inbox: Mail[];
@@ -59,7 +61,7 @@ const json = (v: unknown, status = 200) =>
 beforeEach(() => {
   clearQueryCache();
   calls = [];
-  db = { notes: [], files: [], bodies: {}, inbox: [], sent: [] };
+  db = { notes: [], todos: [], files: [], bodies: {}, inbox: [], sent: [] };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string, init?: RequestInit) => {
@@ -71,6 +73,7 @@ beforeEach(() => {
       if (url === '/projects')
         return json([{ id: 'kite', name: 'Kite', tile: { g1: '#000', g2: '#fff', glyph: 'star' } }]);
       if (url.startsWith('/projects/aurora/desk-notes')) return json({ notes: db.notes });
+      if (url.startsWith('/projects/aurora/todos?agentId=a-pixel')) return json({ todos: db.todos });
       if (url === '/projects/aurora/principles')
         return json({
           teams: [
@@ -127,6 +130,36 @@ describe('DeskNoteSheet', () => {
     expect(screen.getByText('Where n1')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '← Latest note' }));
     expect(screen.getByText('Where n2')).toBeTruthy();
+  });
+});
+
+describe('TodoPaper', () => {
+  const todo = (id: string, p: Partial<Todo> = {}): Todo => ({
+    id,
+    projectId: 'aurora',
+    agentId: 'a-pixel',
+    fromId: null,
+    text: `Todo ${id}`,
+    dueAt: null,
+    notify: false,
+    goalId: null,
+    status: 'open',
+    createdAt: ago(10),
+    doneAt: null,
+    ...p,
+  });
+  it('lists open items with who asked, and the recently done ones crossed out', async () => {
+    db.todos = [
+      todo('t1', { fromId: 'a-ada', text: 'Review the login\nmore detail' }),
+      todo('t2', { notify: true }),
+      todo('t3', { status: 'done', doneAt: ago(1) }),
+    ];
+    render(<TodoPaper pid="aurora" agentId="a-pixel" nameOf={(id) => (id === 'a-ada' ? 'Ada' : id)} />);
+    expect(await screen.findByText('Review the login')).toBeTruthy();
+    expect(screen.getByText(/asked by Ada/)).toBeTruthy();
+    expect(screen.getByText(/pages you when done/)).toBeTruthy();
+    expect(screen.getByText('Done lately')).toBeTruthy();
+    expect(screen.getByText('Todo t3').tagName).toBe('S');
   });
 });
 

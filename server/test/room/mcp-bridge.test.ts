@@ -74,6 +74,9 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
       'send_mail',
       'mail_directory',
       'page_user',
+      'my_todos',
+      'add_todo',
+      'done_todo',
       'forget',
     ]);
     const room = (await rpc(3, 'tools/call', { name: 'room', arguments: {} })).result as {

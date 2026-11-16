@@ -34,6 +34,7 @@ import { createChatWork } from './office/chat-work.ts';
 import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
 import { seatForWork } from './office/people.ts';
+import { todoTools } from './todos/tools.ts';
 import { createTodos } from './todos/todos.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
@@ -69,6 +70,7 @@ import { creatorChatRoutes } from './routes/creator-chat.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { deskRoutes } from './routes/desk.ts';
+import { todoRoutes } from './routes/todos.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
@@ -282,6 +284,8 @@ export function buildApp({
     addWork: (projectId, byId, calleeId, request) => {
       const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
       seatForWork(store, projectId, calleeId, request);
+      /* the request also queues on the callee's own to-do list, in the order requests came */
+      todos.add({ projectId, agentId: calleeId, fromId: byId, text: request });
       const goal = board.addDirectGoal(projectId, byId, {
         text,
         tasks: [{ text, owner: calleeId, brief: request }],
@@ -433,6 +437,7 @@ export function buildApp({
       ...questionTools({ store, runtime }, projectId),
       ...mail.directorTools(projectId, directorId),
       ...pagerTools(pager, projectId, directorId),
+      ...todoTools(todos, agentName, projectId, directorId),
       hireTool(creatorChats, () => ({
         name: store.agents.get(directorId)?.name ?? 'The director',
         projectName: store.projects.get(projectId)?.name ?? 'this project',
@@ -486,6 +491,7 @@ export function buildApp({
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     ...mail.tools(projectId, agentId),
     pageTool(pager, projectId, agentId),
+    ...todoTools(todos, agentName, projectId, agentId),
     /* a team captain stops and tells their own team (the director does the whole project) */
     ...captainTools(actions, projectId, agentId),
     ...(hq.get() === projectId
@@ -569,6 +575,7 @@ export function buildApp({
   app.register(recapRoutes({ db, store, recapChat: createRecapper(crew) }));
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
+  app.register(todoRoutes({ todos, store }));
   app.register(rebuildRoutes({ rebuilds, staffing, store }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));

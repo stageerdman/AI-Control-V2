@@ -22,6 +22,7 @@ import type {
   CreatorSession,
   Deleted,
   DeskNote,
+  Todo,
   Draft,
   DraftCreate,
   DraftPatch,
@@ -166,6 +167,8 @@ export const studio = {
     http.get<{ notes: DeskNote[] }>(
       `/projects/${e(projectId)}/desk-notes${agentId ? `?agentId=${e(agentId)}` : ''}`,
     ),
+  todos: (projectId: string, agentId: string) =>
+    http.get<{ todos: Todo[] }>(`/projects/${e(projectId)}/todos?agentId=${e(agentId)}`),
   principles: {
     list: (projectId: string) =>
       http.get<{ teams: PrinciplesTeam[] }>(`/projects/${e(projectId)}/principles`),

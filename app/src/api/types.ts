@@ -318,6 +318,21 @@ export type DeskNote = {
   notes?: string;
   at: string;
 };
+/** One item on an agent's saved to-do list (GET /projects/:id/todos?agentId=): open first, in order. */
+export type Todo = {
+  id: string;
+  projectId: string;
+  agentId: string;
+  /** Who asked (an agent id), or null for the agent's own reminder. */
+  fromId: string | null;
+  text: string;
+  dueAt: string | null;
+  notify: boolean;
+  goalId: string | null;
+  status: 'open' | 'done';
+  createdAt: string;
+  doneAt: string | null;
+};
 /** GET /projects/:id/principles — each team's principles folder (kept by its captain). */
 export type PrinciplesTeam = {
   teamId: string;
@@ -579,6 +594,7 @@ export type EventPayloads = {
   };
   /** STUDIO LIFE */
   'desk.note': { agentId: string; noteId: string; runId?: string };
+  'todo.changed': { agentId: string; todoId: string; change: 'added' | 'done' };
   'guest.changed': { agentId: string; change: 'joined' | 'updated' | 'left' };
   /** The director staffed the project from chat. */
   'staff.changed': { teamIds: string[]; agentIds: string[]; added: string[]; removed?: string[]; moved?: string[] };
@@ -735,6 +751,7 @@ export const EVENT_TYPES = [
   'room.joined',
   'room.call',
   'desk.note',
+  'todo.changed',
   'guest.changed',
   'staff.changed',
   'mail.changed',
