@@ -23,7 +23,7 @@ import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { BridgeTool } from './bridge.ts';
 import { CALLS_ARE_FOR_QUESTIONS, WORKING_WITH_OTHERS } from './context.ts';
-import { approverFor, callRefusal } from './rule.ts';
+import { approverFor, callRefusal, contactOf } from './rule.ts';
 
 export const ALLOW_CALL = 'allow-call';
 export const HELP = 'help';
@@ -199,7 +199,16 @@ export function createRoom(deps: {
       .filter((a) => CALLABLE.has(a.kind) && !here.includes(a.id))
       .slice(0, 40)
       .map((a) => ({ name: a.name, role: a.role }));
-    return { inTheRoom: here.map(person), elsewhereInTheStudio: others };
+    const contact = contactOf(
+      ctx.agentId,
+      orch,
+      (id) => teams.find((t) => t.members.some((m) => m.agentId === id))?.captainId ?? null,
+    );
+    return {
+      ...(contact ? { yourContact: store.agents.get(contact)?.name ?? contact } : {}),
+      inTheRoom: here.map(person),
+      elsewhereInTheStudio: others,
+    };
   }
 
   async function call(ctx: RoomCtx, args: CallArgs): Promise<string> {

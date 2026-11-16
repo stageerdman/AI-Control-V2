@@ -14,11 +14,19 @@ export type CallCheck = {
 
 /** The agent who must allow this call, or null when no one has to. */
 export function approverFor(c: CallCheck): string | null {
-  if (c.callerId === c.orchestratorId) return null;
   if (c.inRoom(c.calleeId)) return null;
-  const captain = c.captainOf(c.callerId);
-  if (captain && captain !== c.callerId) return captain;
-  return c.orchestratorId;
+  return contactOf(c.callerId, c.orchestratorId, c.captainOf);
+}
+
+/** The one an agent reports to (and asks first): their captain, else the orchestrator; the orchestrator → nobody. */
+export function contactOf(
+  agentId: string,
+  orchestratorId: string | null,
+  captainOf: (agentId: string) => string | null,
+): string | null {
+  if (agentId === orchestratorId) return null;
+  const captain = captainOf(agentId);
+  return captain && captain !== agentId ? captain : orchestratorId;
 }
 
 /** How deep calls may nest: A calls B calls C — and no further. */

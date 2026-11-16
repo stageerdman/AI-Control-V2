@@ -81,6 +81,7 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
     };
     const view = JSON.parse(room.content[0]?.text ?? '{}');
     expect(view.inTheRoom[0]).toEqual({ name: 'Pixel', role: 'Orchestrator' });
+    expect(view.yourContact).toBe('Captain Semicolon'); // Pete reports to his captain
     expect(view.inTheRoom.find((p: { you?: boolean }) => p.you)).toMatchObject({
       name: 'Pixel Pete',
       team: 'The Ship-It Squad',

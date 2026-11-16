@@ -9,13 +9,18 @@ export const CALLS_RULE =
 export const CALLS_ARE_FOR_QUESTIONS =
   'You answer from your notes (below) and can only read files. If they ask you to make, change or commit something, don’t try: answer any question in it, then say whether it is on the whiteboard as your task (see above) or that they should call again with `work: true`.';
 
+/** Who may stop or interrupt whom: leaders do (stop_work / tell_agent); everyone else waits for them. */
+export const LEADERS_RULE =
+  'Only leaders stop or interrupt others: the orchestrator anyone, a captain their own team. Need someone stopped? Ask your contact, then wait for them. A leader’s note reaches you after your next step: take it in before you go on.';
+
 /** For agent runs and helpers who have `room` + `call_agent`. */
 export const WORKING_WITH_OTHERS = [
   '- You share a room with the people on this work. The `room` tool shows who is in it, who leads whom, and who else is in the studio — the orchestrator too: you may call them.',
   '- Need a hand outside your lane (a design, a second opinion, a quick check)? Use `call_agent` with their name, a self-contained request (they know nothing else), and a few words of why. They answer once; you carry on with their answer. They stay in the room. If they are busy with another call, yours waits its turn.',
   `- ${CALLS_RULE}`,
   '- Calling someone already in the room is fine. Bringing in someone new needs a yes: your captain’s if you are on a team, else the orchestrator’s — the studio asks them for you. A no is final; do it yourself.',
-  '- The orchestrator keeps the big picture and briefs captains; captains run their teams. Don’t go around your captain on scope or plans.',
+  '- The orchestrator keeps the big picture and briefs captains; captains run their teams. Don’t go around your captain on scope or plans. `room` names your contact (`yourContact`): the one you report to and ask first.',
+  `- ${LEADERS_RULE}`,
   '- Call rarely and only when it clearly helps. Your own job stays yours.',
 ].join('\n');
 

@@ -65,6 +65,8 @@ describe('the director asks someone from chat', () => {
     const help = s.calls.find((c) => contractOf(c.task)?.name === 'help');
     expect(help?.task).toContain('How is the header going?');
     expect(help?.task).toContain('Your steps on the whiteboard now');
+    // every agent knows only leaders stop or interrupt, and to wait for them
+    expect(help?.systemPrompt).toContain('Only leaders stop or interrupt others');
     const steps = h.events
       .after('project', 'lumi')
       .filter((e) => e.type === 'room.call')

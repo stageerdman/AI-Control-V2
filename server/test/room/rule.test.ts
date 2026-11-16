@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { approverFor, callRefusal, MAX_CHAIN } from '../../src/room/rule.ts';
+import { approverFor, callRefusal, contactOf, MAX_CHAIN } from '../../src/room/rule.ts';
 
 const base = {
   orchestratorId: 'orch',
   inRoom: (id: string) => ['orch', 'cap', 'mem', 'creator'].includes(id),
   captainOf: (id: string) => (id === 'mem' || id === 'cap' ? 'cap' : null),
 };
+
+describe('who an agent reports to', () => {
+  it('a member → their captain; a captain or a specialist → the orchestrator; the orchestrator → nobody', () => {
+    expect(contactOf('mem', 'orch', base.captainOf)).toBe('cap');
+    expect(contactOf('cap', 'orch', base.captainOf)).toBe('orch');
+    expect(contactOf('solo', 'orch', base.captainOf)).toBe('orch');
+    expect(contactOf('orch', 'orch', base.captainOf)).toBeNull();
+  });
+});
 
 describe('who must OK a call', () => {
   it('the orchestrator brings anyone in; anyone may call someone already in the room', () => {
