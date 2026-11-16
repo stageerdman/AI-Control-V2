@@ -167,6 +167,59 @@ describe('project conversations (threads)', () => {
     expect((await h.call('GET', url('a-query'))).body).toMatchObject({ busy: false, messages: [] }); // a specialist
   });
 
+  it('an answered question stays in the agent’s chat: the agent’s question, then the user’s answer', async () => {
+    const seen: RunSpec[] = [];
+    h = studio(
+      () => [{ ask: 'Blue or green?', options: ['Blue', 'Green'] }, { result: 'Green it is.' }],
+      seen,
+    );
+    const answerOpen = async () => {
+      let open: { id: string }[] = [];
+      while (open.length === 0) {
+        await new Promise((x) => setTimeout(x, 10));
+        open = (await h.call('GET', '/projects/aurora/asks?status=open')).body;
+      }
+      const r = await h.call('POST', `/projects/aurora/asks/${open[0]?.id}/answer`, { answer: 'Green' });
+      expect(r.status).toBe(200);
+    };
+    const lines = async (agentId: string) =>
+      ((await h.call('GET', url(agentId))).body.messages as { from: string; text: string }[]).map((m) => [
+        m.from,
+        m.text,
+      ]);
+
+    // asked during a chat turn
+    const q = await h.call('POST', url('a-twinkle'), { text: 'pick a colour' });
+    await answerOpen();
+    await h.runtime.settled(q.body.runId);
+    expect(await lines('a-twinkle')).toEqual([
+      ['user', 'pick a colour'],
+      ['a-twinkle', 'Blue or green?'],
+      ['user', 'Green'],
+      ['a-twinkle', 'Green it is.'],
+    ]);
+    expect(threadEvents(h).filter((e) => e.agentId === 'a-twinkle').map((e) => [e.from, e.text])).toEqual([
+      ['user', 'pick a colour'],
+      ['agent', 'Blue or green?'],
+      ['user', 'Green'],
+      ['agent', 'Green it is.'],
+    ]);
+    // the saved question and answer never take over which session the next turn resumes
+    const next = await h.call('POST', url('a-twinkle'), { text: 'thanks' });
+    await answerOpen();
+    await h.runtime.settled(next.body.runId);
+    expect(seen[1]?.resumeSessionId).toBe(`fake-${q.body.runId}`);
+
+    // asked during dispatched work (not a chat turn): it still lands in that agent's chat
+    const run = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' })).body;
+    await answerOpen();
+    await h.runtime.settled(run.id);
+    expect(await lines('a-baron')).toEqual([
+      ['a-baron', 'Blue or green?'],
+      ['user', 'Green'],
+    ]);
+  });
+
   it('a failed or stopped turn leaves an error message; asks are answered on the asks endpoint; secrets are scrubbed', async () => {
     h = studio((s) =>
       s.task.includes('"please fail"')

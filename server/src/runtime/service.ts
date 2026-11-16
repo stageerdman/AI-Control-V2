@@ -134,6 +134,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const live = new Map<string, Live>();
   const waiters = new Map<string, Set<Waiter>>();
   const finishedListeners = new Set<(run: Run) => void>();
+  const answeredListeners = new Set<(ask: Ask) => void>();
   let baseUrl: string | null = null;
   let studioToolsFor: StudioToolsFor | null = null;
 
@@ -708,6 +709,13 @@ export function createRuntime(deps: RuntimeDeps) {
       if (l) record(l.run, l.secrets, 'user', answer, { kind: 'answer', askId, by: 'user' });
       emit(projectId, { type: 'ask.answered', payload: { askId, answer: clip(answer, 2000) } }, l?.secrets);
       settle(done);
+      for (const fn of answeredListeners) {
+        try {
+          fn(done);
+        } catch {
+          /* a listener never breaks the answer */
+        }
+      }
       return done;
     },
     /* the ask_user MCP server's side door (token per run) */
@@ -734,6 +742,12 @@ export function createRuntime(deps: RuntimeDeps) {
     onFinished(fn: (run: Run) => void): () => void {
       finishedListeners.add(fn);
       return () => finishedListeners.delete(fn);
+    },
+    /** Called once per ask the user answered (never for the studio's own auto answers): the office thread
+        keeps the question and the answer together. */
+    onAnswered(fn: (ask: Ask) => void): () => void {
+      answeredListeners.add(fn);
+      return () => answeredListeners.delete(fn);
     },
     setBaseUrl: (url: string) => {
       baseUrl = url;

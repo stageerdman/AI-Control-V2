@@ -494,7 +494,9 @@ function Office({
             setQueryData<Thread>(k, (prev) => ({
               projectId: pid,
               agentId: ev.payload.agentId,
-              busy: ev.payload.from === 'agent' ? false : (prev?.busy ?? false),
+              /* a turn's reply (it carries the run) ends the typing; a line without one — an answered
+                 question the server saved mid-run — leaves it as it was */
+              busy: ev.payload.from === 'agent' && ev.payload.runId ? false : (prev?.busy ?? false),
               messages: mergeMessage(prev?.messages ?? [], m),
             }));
           if (ev.payload.from === 'agent') void e?.say(ev.payload.agentId, { ms: 1300 });
