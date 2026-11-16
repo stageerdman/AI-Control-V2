@@ -148,7 +148,21 @@ The agent carrying a feature can tick it off as its work ships, and the feature 
   its description). A goal can name the feature it serves. When that goal finishes, the feature moves to Shipped
   with pct 100, unless an agent has already set it. Tests cover the link and the automatic shipping.
 - **Feature:** `f-agents-keep-features-up-to-date`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). The goal→feature link and the auto-ship already existed for planned goals
+  (F1c: `featureId`, `ships`, dispatch's `featureFollows`); this step opens them to Pixel and the agents.
+  `add_goal` takes `feature` (an id from `features`) and `ships` (false = one step of it): the board checks the id
+  first (an unknown one is refused, nothing added), then dispatch's `linkFeature` (now on the board port) links it,
+  Planned → Now. The link shows in the tool's reply ("It serves the feature “Dark mode”"), on every whiteboard goal
+  block (`Feature: <id> (ships when this goal is done)`), in the UI's existing "Ships “X” when done" button, and in
+  the agent's brief (`featureNote`: which feature, and to use the `feature` tool). Working agents get the studio
+  tool `feature` (`server/src/office/agent-feature-tool.ts`): defaults to the feature of the goal the run works on
+  (`itemByRun` → goal), or any feature of the project by id; reads it, sets `pct` / `status` (shipped alone sets
+  pct 100) and appends one `line` to its description. Status and pct checks are shared with `edit_feature`
+  (`progressPatch` in `feature-tools.ts`). The agent's update wins: a running goal now only raises the feature's
+  pct, never lowers it, and a feature the agent shipped stays shipped. Tests:
+  `server/test/office/agent-features.test.ts` (link from the chat, brief, agent reads and updates it, the finished
+  goal ships it with the agent's line kept; the agent ships it itself; `ships: false` leaves it in Now; unknown
+  feature refused); the room and MCP tool lists include `feature`. All 664 server tests and the typecheck pass.
 
 ### 7. A reply in an agent's chat can start work
 Talking to an agent directly is no longer a dead end.
@@ -180,7 +194,9 @@ The chats that went wrong before become a regression suite, so they never come b
 - Feature 4 shipped (2026-11-16): work, staff and rebuild are tools (`add_goal`, `staff_project`,
   `rebuild_teams`); every answer field is gone and Pixel's answer is plain text.
 - Feature 5 shipped (2026-11-16): Pixel answers agents' open questions for the user (`open_questions`,
-  `answer_question`, through the user's own answer path). Next: feature 6.
+  `answer_question`, through the user's own answer path).
+- Feature 6 shipped (2026-11-16): `add_goal` names the feature a goal builds; working agents read and update it
+  with their `feature` tool; the finished goal ships it unless the agent already did. Next: feature 7.
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
@@ -210,6 +226,10 @@ The chats that went wrong before become a regression suite, so they never come b
   If Pixel's answer should read "Pixel answered for you", add a `by` to the listener rather than a second path.
 - **Feature 8's "tell Uncle Bob option 2" check (from feature 5)** can reuse the setup in
   `director-questions.test.ts`: a fake run that asks, then a director turn calling `answer_question`.
+- **Agents' studio tools are plain `BridgeTool`s (from feature 6)**, listed in order in `app.ts`'s
+  `setStudioTools`; `room.test.ts` and `mcp-bridge.test.ts` pin the list, so a new one (feature 7?) updates both.
+  Feature 7's "Start it" run goes through the normal run path, so it gets the `feature` tool too, but with no
+  whiteboard item behind it the tool needs a feature id.
 - **Installing in a fresh checkout:** `npm install --prefix server` touches the root `package-lock.json`; revert it
   before committing.
 - The server's `npm run lint` already fails on older files (formatting, comma operators); new files follow the

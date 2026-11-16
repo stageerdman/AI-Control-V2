@@ -262,6 +262,9 @@ merged into main (`item.merged`). Cancelling the goal stops the members' parts f
 description; while the goal runs the feature's `pct` follows the goal; when every item has landed (goal done) and no other running goal
 works on it, the feature moves to **Shipped** (pct 100) → `feature.changed` + `feature.shipped {featureId, goalId, name}`; overall
 progress follows (shipped / total). Failed/cancelled goals leave the feature where it is; `ships: false` never ships it.
+The director's `add_goal` links one too (`feature` id, `ships`). Working agents have the studio tool `feature`
+(office/agent-feature-tool.ts: their goal's feature, or one by id; read it, set `pct` / `status`, add a `line`); a running goal
+only ever raises the feature's pct, and one the agent shipped stays shipped.
 **Real-app prompts:** every build brief says "do not push" (the studio merges) and to record `run: <command>` in `.project` when the
 work sets up how the app starts.
 
