@@ -113,6 +113,36 @@ describe('agents API', () => {
     expect(p.body).toMatchObject({ look, nick: null, roleId: null, role: '' });
   });
 
+  describe('saving a new look (Cast look editor)', () => {
+    const changes = (projectId: string) =>
+      h.events.after('project', projectId).filter((e) => e.type === 'agent.changed');
+
+    it('changes only the look: prompt, name, teams and projects stay', async () => {
+      const before = (await h.call('GET', '/agents/a-pete')).body;
+      const r = await h.call('PATCH', '/agents/a-pete', { look });
+      expect(r.status).toBe(200);
+      const { look: _old, updatedAt: _u, toolList: _t, ...rest } = before;
+      expect(r.body).toMatchObject({ ...rest, look });
+      expect((await h.call('GET', '/agents/a-pete')).body.look).toEqual(look);
+    });
+
+    it('tells every office the agent is in (staff and guest), once each', async () => {
+      h.store.guests.put({ projectId: 'lumi', agentId: 'a-pete', brief: 'Help out', orchestratorMay: false });
+      await h.call('PATCH', '/agents/a-pete', { look });
+      for (const p of ['aurora', 'lumi'])
+        expect(changes(p).map((e) => e.payload)).toEqual([{ agentId: 'a-pete', fields: ['look'] }]);
+      expect(changes('atlas')).toEqual([]);
+    });
+
+    it('says nothing when the look is the same or the edit is refused', async () => {
+      await h.call('PATCH', '/agents/a-pete', { look });
+      await h.call('PATCH', '/agents/a-pete', { look: { ...look } });
+      expect((await h.call('PATCH', '/agents/a-pete', { look: { hat: 'x' } })).status).toBe(422);
+      expect(changes('aurora')).toHaveLength(1);
+      expect((await h.call('GET', '/agents/a-pete')).body.look).toEqual(look);
+    });
+  });
+
   it('never deletes the setter or creator; orchestrators only down to the last one', async () => {
     expect((await h.call('DELETE', '/agents/a-setter')).status).toBe(409);
     expect((await h.call('DELETE', '/agents/a-creator')).status).toBe(409);

@@ -51,6 +51,13 @@ export function guestsRepo(db: Db) {
           )
           .all(projectId),
       ).map((r) => r.agent_id),
+    /** Every project this agent is a guest in. */
+    projectIdsOf: (agentId: string): string[] =>
+      rows<{ project_id: string }>(
+        db
+          .prepare('SELECT project_id FROM project_guests WHERE agent_id = ? ORDER BY added_at, rowid')
+          .all(agentId),
+      ).map((r) => r.project_id),
     put(g: Omit<Guest, 'addedAt'>): Guest {
       db.prepare(
         `INSERT INTO project_guests (project_id, agent_id, brief, orchestrator_may, added_at) VALUES (?, ?, ?, ?, ?)

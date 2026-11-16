@@ -3,6 +3,7 @@
    here before it reaches the log, and payloads reference ids (agents, credentials),
    never secret values. */
 import { z } from 'zod';
+import { AGENT_FIELDS } from './agent-changes.ts';
 import { GATE_KINDS } from './collaboration.ts';
 
 const id = z.string().trim().min(1).max(80);
@@ -93,6 +94,11 @@ export const EVENT_SCHEMAS = {
     agentIds: z.array(id).max(40),
     newAgents: count,
     newTeams: count,
+  }),
+  /** A Cast agent on this project (staff or guest) was edited: which fields changed (GET /agents/:id has them). */
+  'agent.changed': z.strictObject({
+    agentId: id,
+    fields: z.array(z.enum(AGENT_FIELDS)).min(1).max(AGENT_FIELDS.length),
   }),
   /** The Agent Creator added something to the Cast. */
   'cast.created': z.strictObject({

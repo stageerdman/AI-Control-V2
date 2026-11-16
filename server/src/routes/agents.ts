@@ -6,6 +6,7 @@ import { AGENT_KINDS } from '../domain/cast.ts';
 import { LookSchema } from '../domain/look.ts';
 import { type ToolList, toolList } from '../domain/tool-list.ts';
 import { parse } from '../errors.ts';
+import type { AgentEdits } from '../office/agent-edits.ts';
 import { Id, IdParams, Name, Text } from './schemas.ts';
 
 const fields = {
@@ -21,6 +22,8 @@ const AgentPatch = z.strictObject({ ...fields, name: Name.optional(), canMail: z
 
 export type AgentRouteDeps = {
   store: Store;
+  /** Saves an edit and tells the offices showing the agent (a new look redraws live). */
+  edits: AgentEdits;
   /** The commands the studio grants agent runs (the runtime's shell). */
   shell: readonly string[];
   /** Does this agent's role file reports? (report runs get the web) */
@@ -28,7 +31,7 @@ export type AgentRouteDeps = {
 };
 
 export const agentRoutes =
-  ({ store, shell, reporter }: AgentRouteDeps): FastifyPluginAsync =>
+  ({ store, edits, shell, reporter }: AgentRouteDeps): FastifyPluginAsync =>
   async (app) => {
     /* every Cast reply carries the plain tool list, so the panel never has to work it out */
     const withTools = (a: Agent): Agent & { toolList: ToolList } => ({
@@ -43,7 +46,7 @@ export const agentRoutes =
     );
     app.patch('/agents/:id', async (req) => {
       const { id } = parse(IdParams, req.params);
-      return withTools(store.tx(() => store.agents.update(id, parse(AgentPatch, req.body))));
+      return withTools(edits.update(id, parse(AgentPatch, req.body)));
     });
     /* lets the app block Delete before anyone clicks; the delete itself checks again */
     app.get('/agents/:id/busy', async (req) => store.trash.agentBusy(parse(IdParams, req.params).id));

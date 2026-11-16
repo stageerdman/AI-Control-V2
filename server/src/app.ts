@@ -29,6 +29,7 @@ import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { actionTools } from './office/action-tools.ts';
+import { createAgentEdits } from './office/agent-edits.ts';
 import { agentFeatureTool } from './office/agent-feature-tool.ts';
 import { createChatWork } from './office/chat-work.ts';
 import { createDesk } from './office/desk.ts';
@@ -559,7 +560,14 @@ export function buildApp({
   app.register(healthRoutes({ config, db, build }));
   for (const routes of [roleRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
-  app.register(agentRoutes({ store, shell, reporter: (a) => reports.canFile(a) }));
+  app.register(
+    agentRoutes({
+      store,
+      edits: createAgentEdits({ store, events }),
+      shell,
+      reporter: (a) => reports.canFile(a),
+    }),
+  );
   app.register(blueprintRoutes({ config }));
   app.register(setterRoutes({ store, config, events, github, clock }));
   app.register(timeRoutes({ store, clock }));
