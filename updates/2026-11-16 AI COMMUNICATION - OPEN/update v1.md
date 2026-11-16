@@ -128,6 +128,8 @@ The chats that went wrong before become a regression suite, so they never come b
 - All 8 features added to the features list as Planned, in roadmap order (orders 19–26, after the user's existing
   planned items), each saying it is part of Revision of AI Communication. None are on the whiteboard.
 - Feature 1 shipped (2026-11-16): Pixel can see, add, edit, move and remove features from the chat. Next: feature 2.
+- Fix shipped (2026-11-16): an answered `ask_user` question stays in the agent's office chat as two lines, the
+  agent's question then the user's answer (it used to show only a local "Go with X." that vanished on reload).
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` now takes `directorTools` (whiteboard + features) instead of
@@ -140,6 +142,10 @@ The chats that went wrong before become a regression suite, so they never come b
   user ever loses a feature by mistake, add the same undo there rather than a soft-delete flag.
 - **Feature 6 can reuse `feature-tools.ts`:** an agent's `feature` tool is `edit_feature` limited to pct, status and
   one appended description line.
+- **Answered questions go through `runtime.onAnswered`.** `runtime.answer` calls it (never for auto answers), and
+  `threads.ts` saves the question and answer in the asking agent's thread with no runId (so they never decide which
+  session resumes). Feature 4's `answer_question` should call `runtime.answer` too, so it gets these lines for free.
+  If Pixel's answer should read "Pixel answered for you", add a `by` to the listener rather than a second path.
 - The server's `npm run lint` already fails on older files (formatting, comma operators); new files follow the
   existing style. Worth a cleanup pass, separate from this update.
 
