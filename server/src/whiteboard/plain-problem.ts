@@ -9,6 +9,15 @@ const SAVED = 'The work is saved and can continue.';
 
 const RULES: { test: RegExp; message: string }[] = [
   { test: /'s review didn't finish/, message: "The review didn't finish." },
+  /* runtime/limits.ts: a build that kept hitting its step limit without committing anything new */
+  {
+    test: /^Stopped: no new commits in its last/,
+    message: `Stuck: no new work after fresh starts. ${SAVED}`,
+  },
+  {
+    test: /^Stopped: used all \d+ fresh sessions/,
+    message: `Still not done after many fresh starts. ${SAVED}`,
+  },
   { test: /reached the turn cap|error_max_turns/, message: `Ran out of steps. ${SAVED}` },
   { test: /max[_ -]?budget/i, message: `Hit its size limit. ${SAVED}` },
   { test: /^Stopped by you/, message: 'You stopped this. It can continue whenever you like.' },

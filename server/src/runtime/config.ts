@@ -8,8 +8,9 @@ import { isAbsolute, join } from 'node:path';
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 /* Turn caps: real work needs room (B6 live: 8 turns were too tight for read → write → status → commit).
    Budgets are the CLI's API-equivalent size cap (`--max-budget-usd`); runs use the Claude Code subscription, nothing is charged. */
-/** An agent's run (a checklist item, a chat turn with an agent). */
-export const DEFAULT_CAPS = { maxTurns: 30, maxBudgetUsd: 10 };
+/** An agent's run (a checklist item, a chat turn with an agent) — per session: a build that reaches it carries
+    on in a fresh session while it keeps committing (runtime/limits.ts). */
+export const DEFAULT_CAPS = { maxTurns: 120, maxBudgetUsd: 10 };
 /** A reviewer's run at a collaboration gate. */
 export const REVIEW_CAPS = { maxTurns: 15, maxBudgetUsd: 5 };
 /** The orchestrator / Agent Creator (big picture, no tools): plans, designs, office chat. */

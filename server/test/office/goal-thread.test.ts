@@ -100,9 +100,9 @@ describe('the orchestrator thread records goals; follow-ups carry the report', (
 });
 
 describe('caps + agent shell', () => {
-  it('sane defaults (agent 30, review 15, orchestrator 6 turns), turn caps from env', () => {
+  it('sane defaults (agent 120, review 15, orchestrator 6 turns), turn caps from env', () => {
     expect(loadCaps({})).toEqual({
-      agent: { maxTurns: 30, maxBudgetUsd: 10 },
+      agent: { maxTurns: 120, maxBudgetUsd: 10 },
       review: { maxTurns: 15, maxBudgetUsd: 5 },
       orchestrator: { maxTurns: 6, maxBudgetUsd: 2 },
     });
