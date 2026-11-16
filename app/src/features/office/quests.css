@@ -1,0 +1,560 @@
+/* Quest Board (QuestBoard.tsx · design-quest-board.md). Existing tokens only: sun / sun-deep (the quest),
+   teal (done), coral (stuck), sky (you are here), ink / ink-soft, paper. */
+
+/* header: #main glyph + title, compact project ring on the right */
+.qb-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 18px;
+}
+.qb-head h2 {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qb-head .qb-g {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.qb-to {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  min-width: 0;
+}
+.qb-to b {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qb-to .ob-target {
+  margin-right: -6px;
+}
+.qb-ring {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+.qb-ring svg {
+  position: absolute;
+  inset: 0;
+}
+.qb-ring b {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.qb-ring b small {
+  font-size: 9px;
+}
+
+.qb .ob-how {
+  display: block;
+  margin-left: auto;
+}
+.qb-sec {
+  margin-bottom: 26px;
+  min-width: 0;
+}
+.qb-sh {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.qb-sh h3 {
+  flex: 1;
+}
+.qb-count {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* the open main quest */
+/* the ribbon (parts/quest-ribbon.svg): sun band + sun-deep tails behind it, tail tip 14 px past the card edge */
+.qb-main {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px var(--line);
+  padding: 14px 20px 20px;
+}
+.qb-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 0 12px -34px;
+  min-width: 0;
+}
+.qb-rh {
+  position: relative;
+  z-index: 0;
+  margin: 0;
+  padding: 0 18px 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+  font: inherit;
+  transform-origin: left center;
+  animation: qb-unfurl 0.26s var(--spring, ease-out) both;
+}
+.qb-rh::before,
+.qb-rh::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  width: 30px;
+  height: 28px;
+  background: var(--sun-deep);
+  z-index: -1;
+}
+.qb-rh::before {
+  left: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%);
+}
+.qb-rh::after {
+  right: 0;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%);
+}
+.qb-ribbon {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 30px;
+  margin: 0;
+  padding: 0 18px;
+  appearance: none;
+  border: 0;
+  border-radius: 4px;
+  background: var(--sun);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: left;
+  outline: 1.2px dashed rgba(255, 246, 233, 0.85);
+  outline-offset: -4.5px;
+}
+button.qb-ribbon {
+  cursor: pointer;
+}
+.qb-ribbon > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+button.qb-ribbon:hover {
+  filter: brightness(1.04);
+}
+button.qb-ribbon:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 2px;
+}
+.qb-ships {
+  margin-top: 2px;
+}
+.qb-main.empty {
+  background: transparent;
+  box-shadow: none;
+  outline: 1.5px dashed var(--line);
+  outline-offset: -1.5px;
+}
+.qb-main.empty .qb-rh {
+  width: 200px;
+}
+.qb-main.empty .qb-ribbon {
+  width: 100%;
+  background: color-mix(in srgb, var(--sun) 35%, transparent);
+  outline-color: rgba(36, 26, 68, 0.2);
+}
+.qb-main.empty .qb-rh::before,
+.qb-main.empty .qb-rh::after {
+  background: color-mix(in srgb, var(--sun-deep) 35%, transparent);
+}
+.qb-main.empty .ob-empty {
+  margin: 0;
+}
+.qb-ships {
+  appearance: none;
+  flex: none;
+  border: 0;
+  background: rgba(36, 26, 68, 0.06);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  cursor: pointer;
+  margin-left: auto;
+}
+.qb-ships:hover {
+  color: var(--ink);
+  background: rgba(36, 26, 68, 0.1);
+}
+.qb-ships:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 2px;
+}
+
+.qb-prog {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 8px;
+  margin-bottom: 18px;
+}
+.qb-prog b {
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.qb-prog b small {
+  font-size: 16px;
+}
+.qb-prog > span:not(.ob-track) {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.qb-prog .ob-track {
+  height: 10px;
+}
+
+/* the trail: one line through the step marks — solid teal up to the last done step, dotted after */
+.qb-trail > .ob-task {
+  position: relative;
+}
+.qb-trail > .ob-task > .ob-box {
+  position: relative;
+  z-index: 1;
+}
+.qb-trail > .ob-task:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7.5px;
+  width: 3px;
+  top: 11px;
+  bottom: -23px;
+  border-radius: 3px;
+  background:
+    radial-gradient(circle, rgba(36, 26, 68, 0.25) 1.5px, transparent 1.6px) center top / 3px 8px repeat-y;
+}
+.qb-trail > .ob-task.qb-lit::before {
+  background: var(--teal);
+}
+.qb-trail > .m-todo > .ob-box,
+.qb-trail > .m-active > .ob-box,
+.qb-trail > .m-stopped > .ob-box {
+  background-color: #fdfcf7;
+}
+.qb-trail > .m-active > .ob-box::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: var(--sky);
+  opacity: 0.18;
+  z-index: -1;
+  animation: qb-breathe 1.8s ease-in-out infinite;
+}
+.ob-acts {
+  grid-column: 2 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* the other main quests, folded */
+.qb-others {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.qb-others {
+  gap: 8px;
+}
+.qb-others button {
+  appearance: none;
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--line);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-radius: 12px;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.qb-others button:hover {
+  box-shadow: 0 0 0 2px var(--sun-deep);
+}
+.qb-others button:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 1px;
+}
+.qb-others .qb-g {
+  flex: none;
+}
+.qb-on {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 800;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.qb-others .ob-track {
+  width: 200px;
+  flex: none;
+}
+.qb-others .ob-pct {
+  width: 38px;
+  text-align: right;
+}
+
+/* side quests: pinned cards */
+.qb-grid {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 14px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 20px 16px;
+}
+.qb-side {
+  position: relative;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 4px 10px rgba(36, 26, 68, 0.06);
+  padding: 16px 14px 12px;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.2s var(--ease-out);
+  animation: qb-pinned 0.32s var(--spring, ease-out) both;
+}
+.qb-side.t0 {
+  --tilt: -1.2deg;
+}
+.qb-side.t1 {
+  --tilt: 0.8deg;
+}
+.qb-side.t2 {
+  --tilt: -0.6deg;
+}
+.qb-side.t3 {
+  --tilt: 1.2deg;
+}
+.qb-side {
+  transform: rotate(var(--tilt, 0deg));
+}
+.qb-side:hover,
+.qb-side:focus-visible,
+.qb-side:focus-within {
+  transform: none;
+}
+.qb-side:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 2px;
+}
+.qb-side.m-failed {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--coral) 55%, transparent),
+    0 4px 10px rgba(36, 26, 68, 0.06);
+}
+.qb-pin {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 20px;
+  height: 22px;
+  margin-left: -10px;
+  transform-origin: 50% 100%;
+  animation: qb-squash 0.18s ease-out 0.3s both;
+}
+.qb-st {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.qb-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qb-side.m-done .qb-title,
+.qb-side.m-stopped .qb-title {
+  color: var(--ink-soft);
+}
+.qb-side > .qb-st > .ob-box {
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+}
+.qb-side > .qb-st > .ob-box svg {
+  width: 12px;
+  height: 12px;
+}
+.qb-who {
+  margin-top: auto;
+  min-width: 0;
+}
+.qb-who .ob-problem p {
+  font-size: 12.5px;
+}
+.qb-who .ob-problem.bad p > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.qb-wait {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* finished side quests, folded */
+.qb-done {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 16px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--teal) 14%, transparent);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.qb-tick {
+  color: #0b7d72;
+  font-weight: 900;
+}
+.qb-dpeople {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.qb-dn {
+  font-weight: 700;
+  color: var(--ink-soft);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.qb-done .ob-more {
+  margin-left: auto;
+}
+.qb-done + .qb-grid {
+  margin-top: 4px;
+}
+
+@keyframes qb-unfurl {
+  from {
+    transform: scaleX(0.92);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes qb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.18;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.08;
+  }
+}
+@keyframes qb-pinned {
+  0% {
+    translate: 0 -8px;
+    opacity: 0;
+  }
+  70% {
+    translate: 0 1.5px;
+    opacity: 1;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+@keyframes qb-squash {
+  0% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.8);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+@media (max-width: 599px) {
+  .qb-grid {
+    grid-template-columns: 1fr;
+  }
+  .qb-grid > .qb-side {
+    transform: none;
+  }
+  .qb-others .ob-track {
+    width: 72px;
+  }
+  .qb-to b {
+    max-width: 110px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qb-grid > .qb-side {
+    transform: none;
+    animation: none;
+    transition: none;
+  }
+  .qb-rh,
+  .qb-pin,
+  .qb-trail > .m-active > .ob-box::after {
+    animation: none;
+  }
+}

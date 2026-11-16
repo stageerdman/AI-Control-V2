@@ -52,7 +52,7 @@ reports keep working unchanged. Only the kind, the order and the look differ.
 - **Tests:** unit tests of the rule; a dispatch test where one agent has both (main runs first, the side
   quest waits, then runs); a side quest runs when its agent's main work is only waiting on someone else.
 
-### Phase 4 — The quest board (front-end, separate item)
+### Phase 4 — The quest board (front-end, separate item) ✅
 - Board split into Main Quests and Side Quests, with a fantasy/game look (UX pass first).
 - Side quests compact; they never count toward a feature's progress.
 - **Tests:** board state splits by `quest`; UI tests for both sections and the empty side-quest state.
@@ -65,4 +65,10 @@ reports keep working unchanged. Only the kind, the order and the look differ.
 
 - Phases 1–3 done (server). Tests: `server/test/domain/quests.test.ts` (the rule),
   `server/test/whiteboard/quests.test.ts` (order, side-while-waiting, saved + sent, side + feature refused),
-  `server/test/room/room-calls.test.ts` (a work call is a side quest). Phase 4 is the front-end item; phase 5 after it.
+  `server/test/room/room-calls.test.ts` (a work call is a side quest).
+- Phase 4 done (Jony), from Blair's `updates/2026-11-16 MAIN AND SIDE QUESTS - OPEN/design-quest-board.md`:
+  `app/src/features/office/quests.ts` (the split, pure), `QuestBoard.tsx` + `quests.css` (ribbon, trail, folded
+  main strips, pinned side cards, done strip), header ring in `Board.tsx`. Tests: `quests.test.ts`, `QuestBoard.test.tsx`.
+  Left out on purpose: kind glyphs / kind words on side cards (the server has no fix/research kind; the design's
+  "no kind" case applies), the step-done pop and pin flip animations (need status-change tracking; later).
+- Phase 5 (live check) next.

@@ -1,25 +1,33 @@
 /* A whiteboard task card (design/whiteboard-task-card.md): status mark · title · who has it (avatar +
    name, one status word when it adds something). A stopped task shows one plain line; the raw note
    waits behind "Details". A team item lists its members' parts under it, same anatomy, one size down. */
-import { useId, useState } from 'react';
+import { type ReactNode, useId, useState } from 'react';
 import type { ChecklistItem } from '../../api';
 import { Hero } from '../../characters';
 import { type CardMark, type TaskCardView, taskCard, taskHover } from './state';
 
-type Props = { item: ChecklistItem; nameOf: (id: string) => string; sub?: boolean };
+type Props = {
+  item: ChecklistItem;
+  nameOf: (id: string) => string;
+  sub?: boolean;
+  /** A stopped step's Continue / Drop, on its own row (the quest trail). */
+  actions?: ReactNode;
+  className?: string;
+};
 
-export function TaskCard({ item, nameOf, sub }: Props) {
+export function TaskCard({ item, nameOf, sub, actions, className }: Props) {
   const v = taskCard(item, nameOf);
   const hover = taskHover(item, nameOf);
   const kids = sub ? [] : (item.subtasks ?? []);
   return (
-    <li className={`ob-task m-${v.mark}`}>
+    <li className={`ob-task m-${v.mark}${className ? ` ${className}` : ''}`}>
       <Mark mark={v.mark} />
       <span className="ob-tt" title={hover ?? item.text}>
         <span className="sr-only">{v.sr} </span>
         {item.text}
       </span>
       <People v={v} />
+      {actions && <div className="ob-acts">{actions}</div>}
       {v.problem && <Problem problem={v.problem} failed={v.mark === 'failed'} />}
       {kids.length > 0 && (
         <ul className="ob-sub" aria-label={`${item.text}: the team’s parts`}>
@@ -32,7 +40,7 @@ export function TaskCard({ item, nameOf, sub }: Props) {
   );
 }
 
-const Mark = ({ mark }: { mark: CardMark }) => (
+export const Mark = ({ mark }: { mark: CardMark }) => (
   <span className="ob-box" aria-hidden="true">
     {mark === 'done' && (
       <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -51,7 +59,7 @@ const Mark = ({ mark }: { mark: CardMark }) => (
 );
 
 /** Up to 3 faces overlapped, then the name (or "Ava +2"), then the status word. Faces are decorative. */
-function People({ v }: { v: TaskCardView }) {
+export function People({ v }: { v: TaskCardView }) {
   if (!v.people.length && !v.status) return null;
   const shown = v.people.slice(0, 3);
   const label = v.people.length > 1 ? `${v.people[0].name} +${v.people.length - 1}` : v.people[0]?.name;
@@ -72,7 +80,7 @@ function People({ v }: { v: TaskCardView }) {
   );
 }
 
-function Problem({
+export function Problem({
   problem,
   failed,
 }: {

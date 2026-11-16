@@ -27,8 +27,8 @@ import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
 import { GithubRow } from './GithubRow';
-import { ASPECTS, appView, boardProgress, boardTasks, nowFeatures, stoppedGoals } from './state';
-import { TaskCard } from './TaskCard';
+import { Glyph, QuestBoard } from './QuestBoard';
+import { ASPECTS, appView, boardProgress } from './state';
 import { ago } from './time';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
@@ -229,83 +229,52 @@ export const useProgress = (pid: string) =>
 export const useHealth = (pid: string) =>
   useQuery<ProjectHealth>(keys.health(pid), () => studio.projects.health(pid));
 
+/** The Quest Board (QuestBoard.tsx): header with the project's compact ring, then Main / Side Quests. */
 function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
   const work = useWork(pid);
   const features = useFeatures(pid);
   const progress = useProgress(pid);
   const goals = work.data ?? [];
   const { pct, target, shipped, aria } = boardProgress(goals, progress.data);
-  const now = nowFeatures(features.data ?? []);
-  const tasks = boardTasks(goals);
-  const goal = goals.find((g) => g.status === 'running') ?? goals[0];
-  const feature = goal?.featureId ? features.data?.find((f) => f.id === goal.featureId) : undefined;
-  const C = 2 * Math.PI * 58;
+  const C = 2 * Math.PI * 20;
   return (
-    <div className="ob-wb">
-      <div className="ob-ring">
-        <div className="ob-big" role="img" aria-label={aria}>
-          <svg viewBox="0 0 140 140" aria-hidden="true">
-            <circle cx="70" cy="70" r="58" fill="none" stroke="#ece8f5" strokeWidth="14" />
+    <div className="qb">
+      <header className="qb-head">
+        <h2>
+          <Glyph id="main" size={22} />
+          Quest Board
+        </h2>
+        <div className="qb-to">
+          {target && <b title={target}>to {target}</b>}
+          <TargetEdit pid={pid} target={target} />
+        </div>
+        <div
+          className="qb-ring"
+          role="img"
+          aria-label={shipped ? `${aria}. ${shipped}` : aria}
+          title={shipped ?? undefined}
+        >
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <circle cx="24" cy="24" r="20" fill="none" stroke="#ece8f5" strokeWidth="7" />
             <circle
-              cx="70"
-              cy="70"
-              r="58"
+              cx="24"
+              cy="24"
+              r="20"
               fill="none"
               stroke="var(--coral)"
-              strokeWidth="14"
+              strokeWidth="7"
               strokeLinecap="round"
-              transform="rotate(-90 70 70)"
+              transform="rotate(-90 24 24)"
               strokeDasharray={`${((C * pct) / 100).toFixed(1)} ${C.toFixed(1)}`}
             />
           </svg>
-          <b>
+          <b aria-hidden="true">
             {pct}
             <small>%</small>
           </b>
-          {target && <span className="ob-toward">to {clip(target, 20)}</span>}
         </div>
-        {shipped && <p className="ob-shipped">{shipped}</p>}
-        <TargetEdit pid={pid} target={target} />
-      </div>
-      <div className="ob-cols">
-        <section aria-labelledby="obN">
-          <h3 id="obN">In progress</h3>
-          <ul className="ob-now">
-            {now.length ? (
-              now.map((f) => (
-                <li key={f.id}>
-                  <button type="button" onClick={() => go('feature', f.id)}>
-                    <span className="ob-fn">{f.name}</span>
-                    <span className="ob-pct">{f.pct ?? 0}%</span>
-                    <span className="ob-track">
-                      <i style={{ width: `${f.pct ?? 0}%` }} />
-                    </span>
-                  </button>
-                </li>
-              ))
-            ) : (
-              <li className="ob-empty">Nothing in progress.</li>
-            )}
-          </ul>
-        </section>
-        <section aria-labelledby="obT">
-          <h3 id="obT">Tasks</h3>
-          {feature && (
-            <button type="button" className="ob-ships" onClick={() => go('feature', feature.id)}>
-              {goal?.ships ? `Ships “${feature.name}” when done` : `Part of “${feature.name}”`}
-            </button>
-          )}
-          <StoppedBar pid={pid} goals={stoppedGoals(goals)} />
-          <ul className="ob-tasks">
-            {!tasks.length && (
-              <li className="ob-empty">No tasks yet — {dir} writes them here as the plan takes shape.</li>
-            )}
-            {tasks.map((t) => (
-              <TaskCard key={t.id} item={t.item} nameOf={nameOf} />
-            ))}
-          </ul>
-        </section>
-      </div>
+      </header>
+      <QuestBoard pid={pid} dir={dir} goals={goals} features={features.data ?? []} go={go} nameOf={nameOf} />
       <button type="button" className="ob-back ob-how" onClick={() => go('how')}>
         How we work →
       </button>
@@ -313,44 +282,7 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
   );
 }
 
-/** The ring's target: a ghost link under it — "Set a target" / "to v1.0 ✎" → a 40-char field. */
-/** Work that stopped partway: carry on where it was, or drop it off the board. */
-function StoppedBar({ pid, goals }: { pid: string; goals: Goal[] }) {
-  const [busy, setBusy] = useState(false);
-  if (!goals.length) return null;
-  const all = async (fn: (goalId: string) => Promise<unknown>, what: string) => {
-    setBusy(true);
-    try {
-      for (const g of goals) await fn(g.id);
-    } catch (e) {
-      toast(`Couldn’t ${what} — ${isApiError(e) ? e.message : 'try again'}`);
-    } finally {
-      void invalidate(keys.work(pid));
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="ob-stopped">
-      <span>Work stopped partway.</span>
-      <Button
-        small
-        variant="hero"
-        disabled={busy}
-        onClick={() => void all((id) => studio.projects.resumeGoal(pid, id), 'continue')}
-      >
-        Continue
-      </Button>
-      <Button
-        small
-        disabled={busy}
-        onClick={() => void all((id) => studio.projects.cancelGoal(pid, id), 'drop it')}
-      >
-        Drop
-      </Button>
-    </div>
-  );
-}
-
+/** The ring's target: a ghost link under it — "Set a target" / "Change target" → a 40-char field. */
 function TargetEdit({ pid, target }: { pid: string; target: string | null }) {
   const [edit, setEdit] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -984,8 +916,5 @@ function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
     </>
   );
 }
-
-/* ------------------------------------------------------------ helpers */
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export { ago };
