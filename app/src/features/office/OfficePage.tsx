@@ -42,6 +42,7 @@ import { MailSheet, refreshMail } from './MailSheet';
 import { type FollowUpContext, Panel, resetThread, shortOf } from './Panel';
 import { PortraitSheet } from './PortraitSheet';
 import { PrinciplesSheet } from './PrinciplesSheet';
+import { TeamSheet } from './performance/TeamSheet';
 import { RecapSheet } from './RecapSheet';
 import { Rearrange } from './rebuild/Rearrange';
 import {
@@ -56,7 +57,6 @@ import {
   reduce,
   threadMessageOf,
 } from './state';
-import { TeamSheet } from './performance/TeamSheet';
 import { clockLabel, useWorkTime } from './TimeSheet';
 import './office.css';
 

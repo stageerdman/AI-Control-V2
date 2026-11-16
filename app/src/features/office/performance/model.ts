@@ -45,7 +45,12 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 export type Trend = { arrow: '↑' | '↓' | ''; text: string; short: string; spoken: string };
 
 /** A card's line under its number: "↑ 24% vs last week" · "↓ 3 vs last month" · "new this week". All time: none. */
-export function trend(m: Measure, now: number, prev: number | null | undefined, range: PerfRange): Trend | null {
+export function trend(
+  m: Measure,
+  now: number,
+  prev: number | null | undefined,
+  range: PerfRange,
+): Trend | null {
   if (prev == null || range === 'all') return null;
   const period = range === '7d' ? 'week' : 'month';
   if (now === prev) {
@@ -167,7 +172,9 @@ export function chartWords(
   const range = p.range;
   const word = MEASURES.find((x) => x.id === m)?.word ?? '';
   const unit = p.days.length > 30 ? 'week' : 'day';
-  const title = who ? `${who} · ${word} per ${unit}` : `${word[0]?.toUpperCase()}${word.slice(1)} per ${unit}`;
+  const title = who
+    ? `${who} · ${word} per ${unit}`
+    : `${word[0]?.toUpperCase()}${word.slice(1)} per ${unit}`;
   const top = bs.reduce<Bar | null>((a, b) => (b.value > (a?.value ?? 0) ? b : a), null);
   const rangeWords = RANGES.find((r) => r.id === range)?.words ?? '';
   const most = top ? `most on ${top.name}, ${valueText(m, top.value)}` : 'nothing yet';
@@ -196,12 +203,7 @@ const pct = (x: number) => `${Math.round(100 * x)}%`;
 const H = 3_600_000;
 
 /** At most three plain hints, in the design's order. null = too little work to judge (fewer than 3 requests). */
-export function flags(
-  p: Performance,
-  c: Crew,
-  who: (id: string) => Person | null,
-  max = 3,
-): Flag[] | null {
+export function flags(p: Performance, c: Crew, who: (id: string) => Person | null, max = 3): Flag[] | null {
   if (p.totals.requests < 3) return null;
   const out: Flag[] = [];
   const team = members(c);
@@ -249,7 +251,8 @@ export function flags(
     const asked = new Set(active.map((a) => a.agentId));
     const period = p.range === '7d' ? 'this week' : 'this month';
     for (const id of team)
-      if (!asked.has(id) && who(id)) out.push({ agentId: id, lead: '', name: name(id), rest: ` wasn’t asked ${period}.` });
+      if (!asked.has(id) && who(id))
+        out.push({ agentId: id, lead: '', name: name(id), rest: ` wasn’t asked ${period}.` });
   }
   return out.slice(0, max);
 }
@@ -270,7 +273,13 @@ export type Group = { id: string; title: string | null; total: number; rows: Row
 
 /** The list: by team when the office has 2+ teams (director on top, captain first, teams by total), else flat.
     Agents on the team with nothing in the range sit at the bottom of their group. */
-export function groups(p: Performance, c: Crew, m: Measure, flat: boolean, name: (id: string) => string): Group[] {
+export function groups(
+  p: Performance,
+  c: Crew,
+  m: Measure,
+  flat: boolean,
+  name: (id: string) => string,
+): Group[] {
   const byId = new Map(p.agents.map((a) => [a.agentId, a]));
   const ids = [...new Set([...p.agents.filter((a) => a.requests > 0).map((a) => a.agentId), ...members(c)])];
   const total = p.totals[m];
@@ -299,7 +308,8 @@ export function groups(p: Performance, c: Crew, m: Measure, flat: boolean, name:
     );
   const sumOf = (rs: Row[]) => rs.reduce((s, r) => s + r.value, 0);
 
-  if (flat || c.teams.length < 2) return [{ id: 'all', title: null, total, rows: order(ids.map(row), false) }];
+  if (flat || c.teams.length < 2)
+    return [{ id: 'all', title: null, total, rows: order(ids.map(row), false) }];
 
   const placed = new Set<string>([c.director]);
   const teamGroups = c.teams.map((t) => {
@@ -312,7 +322,9 @@ export function groups(p: Performance, c: Crew, m: Measure, flat: boolean, name:
   return [
     { id: 'director', title: 'Director', total: sumOf(director), rows: director },
     ...teamGroups.filter((g) => g.rows.length).sort((x, y) => y.total - x.total),
-    ...(others.length ? [{ id: 'others', title: 'Also on this office', total: sumOf(others), rows: order(others, false) }] : []),
+    ...(others.length
+      ? [{ id: 'others', title: 'Also on this office', total: sumOf(others), rows: order(others, false) }]
+      : []),
   ];
 }
 
@@ -332,10 +344,17 @@ export function detailLine(a: AgentPerformance, now = Date.now()): string {
 }
 
 /** Kind of work over the range (time), for the team or one agent; kinds with no time are left out. */
-export function kinds(p: Performance, agentId: string | null): { kind: WorkKind; label: string; ms: number }[] {
+export function kinds(
+  p: Performance,
+  agentId: string | null,
+): { kind: WorkKind; label: string; ms: number }[] {
   const from = agentId ? p.agents.filter((a) => a.agentId === agentId) : p.agents;
   return (Object.keys(KIND_LABELS) as WorkKind[])
-    .map((kind) => ({ kind, label: KIND_LABELS[kind], ms: from.reduce((s, a) => s + (a.kinds?.[kind] ?? 0), 0) }))
+    .map((kind) => ({
+      kind,
+      label: KIND_LABELS[kind],
+      ms: from.reduce((s, a) => s + (a.kinds?.[kind] ?? 0), 0),
+    }))
     .filter((k) => k.ms > 0);
 }
 

@@ -12,8 +12,8 @@ import { keys, officeApi, type Performance, type PerfRange } from '../api';
 import { worked } from '../time';
 import {
   type Bar,
-  barTip,
   bars,
+  barTip,
   type Crew,
   chartWords,
   detailLine,
@@ -359,11 +359,17 @@ function Chart({
       <div className="pf-chart-head">
         <h3>{words.title}</h3>
         {pickedName && (
-          <button type="button" className="chip pf-clear" onClick={onClear} aria-label="Back to the whole team">
+          <button
+            type="button"
+            className="chip pf-clear"
+            onClick={onClear}
+            aria-label="Back to the whole team"
+          >
             {pickedName} ✕
           </button>
         )}
       </div>
+      {/* biome-ignore lint/a11y/useSemanticElements: a chart's bars, not form fields — a fieldset would mislead */}
       <div
         className="pf-bars"
         role="group"
@@ -530,9 +536,7 @@ function Who({
                     />
                     <span className="pf-who-name">
                       <b>{ag?.name ?? 'A retired agent'}</b>
-                      <span className="pf-role">
-                        {r.captain ? '★ Captain' : ag?.role}
-                      </span>
+                      <span className="pf-role">{r.captain ? '★ Captain' : ag?.role}</span>
                     </span>
                     {r.share != null && (
                       <span className="pf-share" aria-hidden="true">
@@ -540,15 +544,20 @@ function Who({
                       </span>
                     )}
                     <span className="ts-num pf-num">
-                      {r.a?.live && <span className="pf-live" aria-label="working now" />}
+                      {r.a?.live && <span className="pf-live" role="img" aria-label="working now" />}
                       {value}
                     </span>
-                    <span
-                      className="pf-arrow"
-                      aria-label={r.arrow === '↑' ? 'more than before' : r.arrow === '↓' ? 'less than before' : undefined}
-                    >
-                      {r.arrow}
-                    </span>
+                    {r.arrow ? (
+                      <span
+                        className="pf-arrow"
+                        role="img"
+                        aria-label={r.arrow === '↑' ? 'more than before' : 'less than before'}
+                      >
+                        {r.arrow}
+                      </span>
+                    ) : (
+                      <span className="pf-arrow" />
+                    )}
                   </button>
                   {open && r.a && <p className="pf-detail">{detailLine(r.a, now)}</p>}
                 </li>
@@ -563,7 +572,15 @@ function Who({
 
 /* ---------- kind of work (always time; follows the range and the picked agent) */
 
-function Kinds({ p, picked, nameOf }: { p: Performance; picked: string | null; nameOf: (id: string) => string }) {
+function Kinds({
+  p,
+  picked,
+  nameOf,
+}: {
+  p: Performance;
+  picked: string | null;
+  nameOf: (id: string) => string;
+}) {
   const ks = kinds(p, picked);
   const total = ks.reduce((s, k) => s + k.ms, 0);
   if (!ks.length) return null;

@@ -7,7 +7,14 @@ const H = 3_600_000;
 const M = 60_000;
 export const NOW = Date.parse('2026-11-16T12:00:00.000Z');
 
-const look = (hue: string) => ({ hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue });
+const look = (hue: string) => ({
+  hat: 'none',
+  tool: 'none',
+  body: 'hero',
+  antenna: 'none',
+  face: 'none',
+  hue,
+});
 export const agents = {
   'a-pixel': { id: 'a-pixel', name: 'Pixel', role: 'Orchestrator', look: look('grape') },
   'a-blair': { id: 'a-blair', name: 'Blair', role: 'Studio Design', look: look('rose') },
