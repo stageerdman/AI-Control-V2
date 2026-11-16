@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- Cast look editor: every state from design.md, on stand-in bots (flat shapes, not the real renderer). Open in a browser. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Cast look editor — states</title>
+<style>
+  :root { --sun:#ffc24b; --ink:#241a44; --ink-soft:#5b5280; --cream:#fff6e9; --cream-72:rgba(255,246,233,.72);
+          --glass:rgba(48,36,88,.82); --glass-line:rgba(255,246,233,.16); --stage:#2c2160; }
+  body { margin:0; padding:32px; background:#efe7dc; font:15px/1.4 system-ui, sans-serif; color:var(--ink); }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 24px; color:var(--ink-soft); max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:28px; }
+  figure { margin:0; }
+  figcaption { font-weight:800; margin:0 0 8px; }
+  figcaption small { display:block; font-weight:500; color:var(--ink-soft); }
+  .stage { position:relative; height:330px; border-radius:18px; overflow:hidden; color:var(--cream);
+           background:radial-gradient(ellipse 60% 70% at 35% 30%, #46357f, var(--stage) 70%); }
+  .floor { position:absolute; left:10%; right:30%; bottom:22px; height:26px; border-radius:50%; background:rgba(0,0,0,.25); }
+  .fig { position:absolute; left:30%; bottom:30px; width:150px; height:200px; transform:translateX(-50%); }
+  .fig svg { width:100%; height:100%; display:block; }
+  .row { position:absolute; left:-46px; right:-46px; display:flex; justify-content:space-between; align-items:center; height:30px; margin-top:-15px; }
+  .arrow, .dice { width:30px; height:30px; border-radius:50%; border:1px solid var(--glass-line); background:rgba(48,36,88,.55);
+                  color:var(--cream); display:grid; place-items:center; font-weight:900; font-size:16px; }
+  .tag { position:absolute; left:100%; margin-left:8px; white-space:nowrap; font-size:12px; font-weight:800; color:var(--cream-72);
+         border:1px solid transparent; border-radius:999px; padding:3px 9px; }
+  .tag.on { border-color:var(--glass-line); color:var(--cream); }
+  .tag .car { opacity:.7; margin-left:3px; }
+  .dice { position:absolute; right:-46px; top:-18px; font-size:15px; }
+  .undo { position:absolute; right:-82px; top:18px; font-size:12px; font-weight:800; color:var(--sun); background:rgba(255,194,75,.1);
+          border:1px solid rgba(255,194,75,.3); border-radius:999px; padding:5px 11px; white-space:nowrap; }
+  .tray { position:absolute; right:14px; top:16px; width:236px; background:var(--glass); border:1px solid var(--glass-line);
+          border-radius:18px; padding:10px; box-shadow:0 10px 30px rgba(0,0,0,.3); }
+  .tray-h { display:flex; justify-content:space-between; font-size:12.5px; font-weight:800; margin:0 2px 8px; }
+  .tray-h span { color:var(--cream-72); }
+  .cells { display:grid; grid-template-columns:repeat(4, 50px); gap:6px; }
+  .cell { position:relative; width:50px; height:50px; border-radius:12px; background:rgba(255,246,233,.06); display:grid; place-items:end center; overflow:hidden; }
+  .cell svg { width:40px; height:48px; }
+  .cell.cur { box-shadow:inset 0 0 0 2px var(--sun); }
+  .cell.cur::after { content:"✓"; position:absolute; top:3px; right:3px; width:14px; height:14px; border-radius:50%; background:var(--sun);
+                     color:var(--ink); font-size:10px; font-weight:900; display:grid; place-items:center; }
+  .cell.focus { background:rgba(255,246,233,.12); outline:3px solid var(--sun); outline-offset:1px; transform:translateY(-2px); }
+  .swatches { display:flex; gap:8px; }
+  .sw { display:flex; flex-direction:column; align-items:center; gap:4px; font-size:10.5px; color:var(--cream-72); font-weight:700; }
+  .sw i { width:28px; height:28px; border-radius:50%; border:2px solid var(--ink); display:block; }
+  .sw.cur i { box-shadow:0 0 0 2px var(--sun); }
+  .sw.focus i { outline:3px solid var(--sun); outline-offset:3px; }
+  .note { position:absolute; left:12px; bottom:8px; font-size:11.5px; color:var(--cream-72); }
+  .panel { background:#1f1746; color:var(--cream); border-radius:18px; padding:18px; min-height:150px; }
+  .top { display:flex; align-items:center; gap:10px; }
+  .kicker { font-size:11px; font-weight:900; letter-spacing:.16em; color:var(--sun); flex:1; }
+  .chip { font-size:12px; font-weight:800; color:var(--sun); background:rgba(255,194,75,.1); border:1px solid rgba(255,194,75,.3);
+          border-radius:999px; padding:6px 12px; white-space:nowrap; }
+  .saved { font-size:12px; color:var(--cream-72); }
+  .name { font-size:26px; font-weight:900; margin:10px 0 0; }
+  .role { color:var(--cream-72); font-weight:700; }
+  .before { position:absolute; left:14px; bottom:44px; width:62px; text-align:center; opacity:.6; font-size:11px; font-weight:800; }
+  .before svg { width:54px; height:70px; }
+  .nav { position:absolute; left:30%; transform:translateX(-50%); bottom:6px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .btn { background:var(--sun); color:#4a2600; font-weight:900; border-radius:999px; padding:8px 18px; font-size:14px; white-space:nowrap; }
+  .btn.off { opacity:.45; }
+  .why { font-size:11.5px; color:var(--cream-72); white-space:nowrap; }
+  .lineup { display:flex; gap:22px; background:var(--stage); border-radius:18px; padding:22px; color:var(--cream); }
+  .slot { position:relative; text-align:center; font-size:12px; font-weight:800; }
+  .slot svg { width:70px; height:92px; }
+  .dot { position:absolute; top:94px; right:-4px; width:8px; height:8px; border-radius:50%; background:var(--sun); box-shadow:0 0 0 2px var(--stage); }
+</style>
+</head>
+<body>
+<h1>Cast look editor — states</h1>
+<p class="sub">Spec: <code>design.md</code>. The bots are flat stand-ins (the app draws the real ones with <code>hero()</code>). Each stage is the hero zoom's left side; arrows and tags sit where they are today.</p>
+
+<div class="grid" id="grid"></div>
+
+<script>
+  const HUE = { sun:'#ffc24b', coral:'#ff6f73', teal:'#2fd3c3', sky:'#4ea8ff', grape:'#9b6cff', mint:'#8be88b', rose:'#ff9ecf' };
+  const NAMES = { sun:'Amber', coral:'Coral', teal:'Teal', sky:'Sky', grape:'Grape', mint:'Mint', rose:'Rose' };
+  const INK = '#241a44';
+  const HATS = {
+    none: '',
+    beret: `<ellipse cx="50" cy="26" rx="26" ry="9" fill="#ff6f73" stroke="${INK}" stroke-width="3"/><circle cx="50" cy="16" r="3" fill="${INK}"/>`,
+    captain: `<rect x="28" y="12" width="44" height="16" rx="6" fill="#fff6e9" stroke="${INK}" stroke-width="3"/><rect x="22" y="26" width="56" height="6" rx="3" fill="${INK}"/>`,
+    crown: `<path d="M32 30 L34 12 L43 22 L50 8 L57 22 L66 12 L68 30Z" fill="#ffc24b" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>`,
+    headphones: `<path d="M24 46 Q24 14 50 14 Q76 14 76 46" fill="none" stroke="${INK}" stroke-width="5"/><rect x="17" y="40" width="12" height="18" rx="5" fill="#4ea8ff" stroke="${INK}" stroke-width="3"/><rect x="71" y="40" width="12" height="18" rx="5" fill="#4ea8ff" stroke="${INK}" stroke-width="3"/>`,
+    goggles: `<rect x="28" y="24" width="44" height="10" rx="5" fill="#8a7fb8" stroke="${INK}" stroke-width="3"/>`,
+    hardhat: `<path d="M26 32 Q26 10 50 10 Q74 10 74 32Z" fill="#ffc24b" stroke="${INK}" stroke-width="3"/>`,
+    starhat: `<path d="M34 30 L50 0 L66 30Z" fill="#9b6cff" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/><circle cx="50" cy="16" r="3" fill="#ffc24b"/>`,
+  };
+  /* a flat stand-in bot: head, eyes, body, antenna; viewBox 100×130 */
+  function bot(hue = 'grape', hat = 'beret', tall = false) {
+    const c = HUE[hue];
+    const bh = tall ? 52 : 40;
+    return `<svg viewBox="0 0 100 130" aria-hidden="true">
+      <path d="M50 30 L50 14" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="12" r="5" fill="#fff6e9" stroke="${INK}" stroke-width="3"/>
+      <rect x="26" y="${126 - bh}" width="48" height="${bh}" rx="14" fill="${c}" stroke="${INK}" stroke-width="3"/>
+      <rect x="24" y="28" width="52" height="46" rx="20" fill="${c}" stroke="${INK}" stroke-width="3"/>
+      <rect x="32" y="38" width="36" height="24" rx="11" fill="#2a2150"/>
+      <circle cx="42" cy="50" r="4" fill="#fff6e9"/><circle cx="58" cy="50" r="4" fill="#fff6e9"/>
+      ${HATS[hat] ? `<g transform="translate(0 6)">${HATS[hat]}</g>` : ''}
+    </svg>`;
+  }
+  const SLOTS = [['Antenna','Spring',38],['Hat','Beret',62],['Face','Plain',92],['Body','Classic',130],['Tool','Paint palette',160],['Colour','Grape',190]];
+  function rig(on = -1) {
+    return SLOTS.map(([s, v, y], i) => `<div class="row" style="top:${y}px"><span class="arrow">‹</span><span class="arrow">›</span>
+      ${i === on || on === -2 ? `<span class="tag on">${s}: ${v}<span class="car">▾</span></span>` : ''}</div>`).join('');
+  }
+  const stage = (inner, figInner = '', look = ['grape', 'beret']) =>
+    `<div class="stage"><div class="floor"></div><div class="fig">${bot(...look)}${figInner}</div>${inner}</div>`;
+  const cells = (hue, cur, focus) => Object.keys(HATS).map((h) =>
+    `<span class="cell${h === cur ? ' cur' : ''}${h === focus ? ' focus' : ''}">${bot(hue, h)}</span>`).join('');
+
+  const figs = [
+    ['1 · At rest', 'Today’s rig. New: each tag is a button (▾). Hover / focus shows it; here, all tags shown for reference.',
+      stage('', rig(-2) + '<span class="dice">🎲</span>')],
+    ['2 · Hat tray — trying on', 'Tapped “Hat: Beret ▾”. Focus is on Captain’s cap, so the big bot wears it (not saved). Current = sun ring + ✓.',
+      stage(`<div class="tray"><div class="tray-h">Hat · <span style="flex:1;margin-left:4px;color:var(--cream)">Captain’s cap</span><span>✕</span></div>
+        <div class="cells">${cells('grape', 'beret', 'captain')}</div></div><span class="note">Esc / ✕ / click outside → back to Beret, nothing saved</span>`,
+        rig(1), ['grape', 'captain'])],
+    ['3 · Colour tray', 'Seven named swatches. Focus on Teal tries it on; Grape is current.',
+      stage(`<div class="tray" style="width:auto;top:200px"><div class="tray-h">Colour · <span style="flex:1;margin-left:4px;color:var(--cream)">Teal</span><span>✕</span></div>
+        <div class="swatches">${Object.keys(HUE).map((h) => `<span class="sw${h === 'grape' ? ' cur' : ''}${h === 'teal' ? ' focus' : ''}"><i style="background:${HUE[h]}"></i>${NAMES[h]}</span>`).join('')}</div></div>`,
+        rig(5), ['teal', 'beret'])],
+    ['4 · After the dice — Undo look', 'Any change this visit shows ↺ Undo look under the dice. Tap → the opening look comes back (one save).',
+      stage('', rig() + '<span class="dice">🎲</span><span class="undo">↺ Undo look</span>', ['mint', 'crown', true])],
+  ];
+  const panels = [
+    ['5 · The door — Improve with Tinker', 'Regular agents only. With a waiting chat it reads “✦ Tinker’s changes (waiting)”.',
+      `<div class="panel"><div class="top"><span class="kicker">AGENT</span><span class="chip">✦ Improve with Tinker</span><span class="saved">Saved ✓</span></div>
+       <p class="name">Blair</p><span class="role">Studio Design</span>
+       <div class="top" style="margin-top:18px"><span class="kicker">AGENT</span><span class="chip">✦ Tinker’s changes (waiting)</span></div></div>`],
+    ['6 · Improve stage — no change yet', 'Blair as she is, “Before” in the corner. Save is off until something differs.',
+      stage(`<div class="before">${bot('grape', 'beret')}<br>Before</div><div class="nav"><span class="btn off">Save changes</span><span class="why">No changes yet</span></div>`,
+        rig(), ['grape', 'beret'])],
+    ['7 · Improve stage — Tinker changed things', 'Tinker gave her headphones and Sky. Changed rows flash; Save is on. Busy agents get the one line under it.',
+      stage(`<div class="before">${bot('grape', 'beret')}<br>Before</div><div class="nav"><span class="btn">Save changes</span><span class="why">Blair keeps working; the new version starts with their next task.</span></div>`,
+        rig(), ['sky', 'headphones'])],
+    ['8 · Lineup — changes waiting', 'Left the improve chat without saving: a small sun dot on the slot.',
+      `<div class="lineup">${[['coral','hardhat','Rex'],['grape','beret','Blair',1],['teal','goggles','Ada'],['sun','starhat','Moss']].map(([h, hat, n, d]) =>
+        `<div class="slot">${bot(h, hat)}${d ? '<span class="dot" title="Tinker has changes waiting"></span>' : ''}<div>${n}</div></div>`).join('')}</div>`],
+  ];
+  document.getElementById('grid').innerHTML = [...figs, ...panels]
+    .map(([t, s, html]) => `<figure><figcaption>${t}<small>${s}</small></figcaption>${html}</figure>`).join('');
+</script>
+</body>
+</html>
