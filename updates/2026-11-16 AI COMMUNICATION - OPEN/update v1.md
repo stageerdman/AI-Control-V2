@@ -39,6 +39,8 @@ them as `openQuestions`, but it can't answer or pass on an answer for the user.
 ## Features, in build order
 
 Each feature is small and ships on its own with tests. Tick the status line as each piece lands.
+Each one is also in the studio's features list (Planned, same order), under the id on its **Feature** line;
+open it at `GET /projects/ai-studio/features/<id>`. Update that feature too when its status changes.
 
 ### 1. Features tools for Pixel
 Pixel can see, add, edit, move and remove features in the features folder from the chat.
@@ -47,6 +49,7 @@ Pixel can see, add, edit, move and remove features in the features folder from t
   change sends `feature.changed` and the office updates live. A test runs "add dark mode to the features list"
   through the director's chat and finds it under Planned. A real Pixel turn in a throwaway studio does the same.
   The prompt's "as a feature" wording is fixed.
+- **Feature:** `f-features-tools-for-pixel`
 - **Status:** ⬜ not started
 
 ### 2. Honest capability list
@@ -57,6 +60,7 @@ has, not written by hand.
   checks that every attached tool shows up in the prompt and nothing missing is promised. For a request that is
   truly outside what Pixel can do, it offers a real next step it *can* take (a feature in Planned, or a goal on the
   whiteboard).
+- **Feature:** `f-honest-capability-list`
 - **Status:** ⬜ not started
 
 ### 3. Act first, then speak: `ask`, `resume`, `stop` as tools
@@ -65,6 +69,7 @@ The three simplest answer fields become tools, so Pixel sees the result before i
   today (`room.call`, `dispatch.resume`, `DirectorStopper`), and their answer fields are removed. A failure, such
   as "Jony couldn't be reached", comes back to Pixel during the turn and appears in its reply. The tests in
   `director-ask.test.ts` and the stop and resume tests pass through the tools.
+- **Feature:** `f-act-first-then-speak-ask-resume-stop-as`
 - **Status:** ⬜ not started
 
 ### 4. Act first, then speak: `work`, `staff`, `rebuild` as tools
@@ -73,6 +78,7 @@ The remaining answer fields move to tools. Pixel's answer becomes plain text.
   card, and the reply says "confirm below". `work` is covered by `add_goal`. `DirectorReplySchema` shrinks to
   `{reply}` and `DIRECTOR_ANSWER` loses its action rules. The existing staffing, rebuild and work-from-chat tests
   pass through the tools.
+- **Feature:** `f-act-first-then-speak-work-staff-rebuild`
 - **Status:** ⬜ not started
 
 ### 5. Pixel answers agents' questions for the user
@@ -81,6 +87,7 @@ The remaining answer fields move to tools. Pixel's answer becomes plain text.
   using the same path as the user's own answer. The waiting run then continues. Pixel only answers what the user
   actually said, never on its own. A test covers it end to end: an agent asks, the user tells Pixel, the run gets
   the answer.
+- **Feature:** `f-pixel-answers-agents-questions-for-the-u`
 - **Status:** ⬜ not started
 
 ### 6. Agents keep features up to date
@@ -88,6 +95,7 @@ The agent carrying a feature can tick it off as its work ships, and the feature 
 - **Done when:** working agents get a small `feature` tool (read one feature, set pct and status, add a line to
   its description). A goal can name the feature it serves. When that goal finishes, the feature moves to Shipped
   with pct 100, unless an agent has already set it. Tests cover the link and the automatic shipping.
+- **Feature:** `f-agents-keep-features-up-to-date`
 - **Status:** ⬜ not started
 
 ### 7. A reply in an agent's chat can start work
@@ -95,6 +103,7 @@ Talking to an agent directly is no longer a dead end.
 - **Done when:** when the user's message in an agent's past chat asks for work, the agent's reply offers "Start it"
   in one tap. That continues the same agent's session on that project with the message as its brief, through the
   normal run path, so the agent remembers the chat. A question still gets a plain answer. A test covers both cases.
+- **Feature:** `f-a-reply-in-an-agent-s-chat-can-start-wor`
 - **Status:** ⬜ not started
 
 ### 8. Conversation checks
@@ -103,10 +112,13 @@ The chats that went wrong before become a regression suite, so they never come b
   "add to features list", "have you asked Twinkle?", "stop everything", "carry on", "tell Uncle Bob option 2". Each
   one checks what actually changed (features, board, runs, asks), not just the wording of the reply. It runs in
   `npm test`.
+- **Feature:** `f-conversation-checks`
 - **Status:** ⬜ not started
 
 ## Status
-- Roadmap written (2026-11-16). Next: feature 1.
+- Roadmap written (2026-11-16).
+- All 8 features added to the features list as Planned, in roadmap order (orders 19–26, after the user's existing
+  planned items), each saying it is part of Revision of AI Communication. None are on the whiteboard. Next: feature 1.
 
 ## Decisions
 - **Tools rather than answer fields** for everything new. Answer fields run after the reply, so the reply can't
