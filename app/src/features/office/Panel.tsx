@@ -207,7 +207,7 @@ export function Panel(p: PanelProps) {
     try {
       await studio.projects.answer(pid, a.id, value);
       setAnswers((m) => ({ ...m, [a.id]: value }));
-      addLocal(note('user', `Go with ${value}.`));
+      /* the server saves the question and this answer in the thread (two `thread.message` lines) */
       p.answered(a.id);
     } catch (e) {
       addLocal(note(a.agentId, isApiError(e) ? e.message : 'The answer didn’t go through.', 'error'));

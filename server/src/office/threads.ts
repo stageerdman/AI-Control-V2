@@ -540,6 +540,19 @@ export function createThreads(deps: {
     );
   }
 
+  /* an agent's question the user answered stays in the agent's thread as two lines: the question, then the
+     answer (the open-ask card is gone once answered). No runId: these lines never pick the session to resume. */
+  runtime.onAnswered((ask) => {
+    if (!ask.answer?.trim()) return;
+    insert(ask.projectId, ask.agentId, { sender: 'agent', kind: 'text', text: ask.question, runId: null });
+    insert(ask.projectId, ask.agentId, {
+      sender: 'user',
+      kind: 'text',
+      text: clip(ask.answer.trim(), 20_000),
+      runId: null,
+    });
+  });
+
   runtime.onFinished((run: Run) => {
     const t = turns.get(run.id);
     if (!t) return;
