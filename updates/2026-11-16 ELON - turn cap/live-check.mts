@@ -22,7 +22,7 @@ import { seedIfNeeded } from '../../server/src/seed.ts';
 import { plainProblem } from '../../server/src/whiteboard/plain-problem.ts';
 import { writeModules } from '../../server/test/helpers.ts';
 
-const [scenario = 'progress', capArg = '12'] = process.argv.slice(2);
+const [scenario = 'progress', capArg = '12', kindArg = 'building'] = process.argv.slice(2);
 const cap = Number(capArg);
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'ais-live-cap-')));
 const config = {
@@ -125,7 +125,7 @@ const t0 = Date.now();
 const started = (runtime as Runtime).start('aurora', {
   agentId: 'a-pete',
   task: TASKS[scenario] as string,
-  kind: 'building',
+  kind: kindArg as 'building' | 'research',
 });
 const run = await (runtime as Runtime).settled(started.id);
 const mins = ((Date.now() - t0) / 60000).toFixed(1);
