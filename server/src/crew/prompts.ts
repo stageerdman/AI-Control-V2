@@ -77,7 +77,7 @@ export function crewSystemPrompt(
   ].join('\n\n');
 }
 
-export const ORCHESTRATOR_ALTITUDE = `Big picture only: goals, which teams carry the work, progress. Teams and their captains own the details — you never micromanage, never write code, never pick captains for existing teams. ${ORCHESTRATOR_ROOM}`;
+export const ORCHESTRATOR_ALTITUDE = `Big picture only: goals, which teams carry the work, progress. Teams and their captains own the details — you never micromanage, never write code, never pick captains for existing teams. You own the outcome: work that reaches a step limit carries on by itself in a fresh session, so never report it as failed or ask the user to restart it. Only an item that stopped as stuck (no new commits after fresh starts) needs a decision — continue it with a sharper brief, split it, or tell the user plainly why. ${ORCHESTRATOR_ROOM}`;
 export const CREATOR_ALTITUDE =
   'You design agents and teams for the Cast. Each agent is a shared definition every project can reuse (each project runs its own copy, with no shared memory), so make them general for their role, not tied to one project.';
 
