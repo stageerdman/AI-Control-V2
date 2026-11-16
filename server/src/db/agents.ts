@@ -12,7 +12,7 @@ import {
 import { slugify, uniqueId } from '../domain/ids.ts';
 import { DEFAULT_LOOK, type Look } from '../domain/look.ts';
 import type { Toolset } from '../domain/toolset.ts';
-import { invalid, notFound } from '../errors.ts';
+import { AppError, conflict, invalid, notFound } from '../errors.ts';
 import type { Db } from './connection.ts';
 import type { RolesRepo } from './roles.ts';
 import { exists, nextPosition, now, row, rows } from './util.ts';
@@ -32,6 +32,8 @@ export type AgentRecord = {
   tools?: string | null;
   /** Set while the agent sits in the trash (absent on rows read before migration 33). */
   deleted_at?: string | null;
+  /** Kin group: copies of one agent share it and one set of instructions; NULL = alone (absent before migration 38). */
+  kin_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -55,6 +57,10 @@ export type Agent = {
   /** Projects using this agent (as orchestrator, specialist, or via a team). */
   projectIds: string[];
   canDelete: DeleteVerdict;
+  /** Kin group (copies of one agent), null = alone. */
+  kinId: string | null;
+  /** The other live kin, first-made first (`kin[0]` is who a copy is "like"). */
+  kin: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -80,6 +86,13 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
     );
   const record = (id: string) =>
     row<AgentRecord>(db.prepare('SELECT * FROM agents WHERE id = ? AND deleted_at IS NULL').get(id));
+  /** The live kin of r (itself left out), first-made first. */
+  const kinRecords = (r: Pick<AgentRecord, 'id' | 'kin_id'>, cast = records()): AgentRecord[] =>
+    r.kin_id
+      ? cast
+          .filter((x) => x.kin_id === r.kin_id && x.id !== r.id)
+          .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.position - b.position)
+      : [];
   const hiddenRecord = (id: string) =>
     row<AgentRecord>(db.prepare('SELECT * FROM agents WHERE id = ? AND deleted_at IS NOT NULL').get(id));
 
@@ -124,6 +137,8 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
     teamIds: teamIds(r.id),
     projectIds: projectIds(r.id),
     canDelete: canDelete(r, cast),
+    kinId: r.kin_id ?? null,
+    kin: kinRecords(r, cast).map((k) => k.id),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -187,19 +202,88 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         prompt: patch.prompt ?? r.prompt,
         updated_at: now(),
       };
-      db.prepare(
-        'UPDATE agents SET name = ?, nick = ?, role_id = ?, look = ?, prompt = ?, updated_at = ? WHERE id = ?',
-      ).run(next.name, next.nick, next.role_id, next.look, next.prompt, next.updated_at, id);
+      db.prepare('UPDATE agents SET name = ?, nick = ?, look = ?, updated_at = ? WHERE id = ?').run(
+        next.name,
+        next.nick,
+        next.look,
+        next.updated_at,
+        id,
+      );
+      /* the instructions are one set for all kin: write them to every one */
+      const together = [id, ...kinRecords(r).map((k) => k.id)];
+      const setInstructions = db.prepare(
+        'UPDATE agents SET role_id = ?, prompt = ?, updated_at = ? WHERE id = ?',
+      );
+      if (patch.roleId !== undefined || patch.prompt !== undefined)
+        for (const k of together) setInstructions.run(next.role_id, next.prompt, next.updated_at, k);
       if (patch.canMail !== undefined)
-        db.prepare('UPDATE agents SET can_mail = ? WHERE id = ?').run(patch.canMail ? 1 : 0, id);
+        for (const k of together)
+          db.prepare('UPDATE agents SET can_mail = ? WHERE id = ?').run(patch.canMail ? 1 : 0, k);
       return repo.require(id);
+    },
+
+    /** The live kin of an agent (itself left out), first-made first. */
+    kinOf: (id: string): AgentRecord[] => {
+      const r = record(id);
+      return r ? kinRecords(r) : [];
+    },
+
+    /** Is a name already someone's in the Cast (name or nick, case-blind)? */
+    nameTaken(name: string): boolean {
+      const k = name.trim().toLowerCase();
+      return records().some((a) => a.name.toLowerCase() === k || a.nick?.toLowerCase() === k);
+    },
+
+    /** A copy of a regular agent: its own id, name and look; the same instructions (role, prompt, tools, mail)
+        and kin group. The first copy puts the original in the group too. */
+    copy(id: string, identity: { name: string; look: Look }): Agent {
+      const r = record(id);
+      if (!r) throw notFound('Agent', id);
+      if (isSystemKind(r.kind))
+        throw conflict(`The ${KIND_LABEL[r.kind]} has one job in the studio; it can't be copied.`, {
+          agentId: id,
+          kind: r.kind,
+        });
+      if (repo.nameTaken(identity.name))
+        throw new AppError('name_taken', `There's already a ${identity.name.trim()} in the Cast.`, {
+          name: identity.name.trim(),
+        });
+      const kinId = r.kin_id ?? r.id;
+      if (!r.kin_id) db.prepare('UPDATE agents SET kin_id = ? WHERE id = ?').run(kinId, r.id);
+      const aid = uniqueId(`a-${slugify(identity.name, 'agent')}`, (x) => exists(db, 'agents', x));
+      const t = now();
+      repo.insertRecord({
+        ...r,
+        id: aid,
+        name: identity.name.trim(),
+        nick: null,
+        look: JSON.stringify(identity.look),
+        position: nextPosition(db, 'agents'),
+        kin_id: kinId,
+        created_at: t,
+        updated_at: t,
+      });
+      return repo.require(aid);
+    },
+
+    /** A kin back from the trash takes the group's current instructions (they may have changed meanwhile). */
+    rejoinKin(id: string): void {
+      const current = repo.kinOf(id)[0];
+      if (!current) return;
+      db.prepare('UPDATE agents SET role_id = ?, prompt = ?, can_mail = ?, tools = ? WHERE id = ?').run(
+        current.role_id,
+        current.prompt,
+        current.can_mail ?? 1,
+        current.tools ?? null,
+        id,
+      );
     },
 
     /** Every column, so a restored agent comes back exactly as it was (mail rights and tools included). */
     insertRecord(r: AgentRecord): void {
       db.prepare(
-        `INSERT INTO agents (id, kind, name, nick, role_id, look, prompt, position, can_mail, tools, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO agents (id, kind, name, nick, role_id, look, prompt, position, can_mail, tools, kin_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.kind,
@@ -211,6 +295,7 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         r.position,
         r.can_mail ?? 1,
         r.tools ?? null,
+        r.kin_id ?? null,
         r.created_at,
         r.updated_at,
       );

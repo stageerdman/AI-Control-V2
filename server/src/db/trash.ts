@@ -227,6 +227,7 @@ export function trashRepo(db: Db, r: Repos) {
   /** Returns the names of teams whose seat could not come back (the team filled up meanwhile). */
   const restoreAgent = ({ agent, seats, specialistOn, handedOver }: AgentSnap): string[] => {
     bringBackRecord(agent);
+    r.agents.rejoinKin(agent.id);
     const ref = { id: agent.id, kind: agent.kind };
     const seatsLost: string[] = [];
     for (const s of seats) {

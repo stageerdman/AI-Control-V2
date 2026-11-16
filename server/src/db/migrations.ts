@@ -628,6 +628,12 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE crew_time ADD COLUMN cache_write_tokens INTEGER;
   CREATE INDEX runs_project_started ON runs(project_id, started_at);
   `,
+  /* 38 — invite another: copies of one Cast agent share a kin group (NULL = alone) and keep one set of
+     instructions (updates/2026-11-16 INVITE ANOTHER). The group key is a plain value, not a reference. */
+  `
+  ALTER TABLE agents ADD COLUMN kin_id TEXT;
+  CREATE INDEX agents_kin ON agents(kin_id);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {
