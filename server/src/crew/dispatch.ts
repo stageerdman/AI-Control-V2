@@ -326,7 +326,9 @@ export function createDispatch(deps: {
   function featureNote(goal: Goal): string {
     const f = goal.featureId ? deps.features?.repo.get(goal.projectId, goal.featureId) : null;
     if (!f) return '';
-    const ends = goal.ships ? 'it moves to Shipped by itself when this goal finishes' : 'this goal is one step of it';
+    const ends = goal.ships
+      ? 'it moves to Shipped by itself when this goal finishes'
+      : 'this goal is one step of it';
     return `This goal serves the feature “${f.name}” (${f.id}; ${ends}). Use the \`feature\` tool to read it, set its pct as your part lands, and add one line on what shipped; set status shipped only when the whole feature is done.`;
   }
 

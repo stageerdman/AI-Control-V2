@@ -58,7 +58,10 @@ export function createStaffing(deps: { store: Store; events: EventLog }) {
   const agentNamed = (n: string): Agent => {
     const a = store.agents
       .list()
-      .find((x) => x.kind === 'agent' && (x.id === n || key(x.name) === key(n) || (x.nick && key(x.nick) === key(n))));
+      .find(
+        (x) =>
+          x.kind === 'agent' && (x.id === n || key(x.name) === key(n) || (x.nick && key(x.nick) === key(n))),
+      );
     if (!a)
       throw invalid(`There's nobody called "${n}" in the Cast — new agents are designed with Tinker first`);
     return a;
@@ -149,8 +152,14 @@ export function createStaffing(deps: { store: Store; events: EventLog }) {
     const p = store.projects.require(projectId);
     const a = store.agents.get(agentId);
     if (a?.kind !== 'agent') return { ok: false, error: `${a?.name ?? 'That agent'} is not in the Cast` };
-    const team = p.teamIds.map((t) => store.teams.get(t)).find((t) => t?.members.some((m) => m.agentId === a.id));
-    if (team) return { ok: false, error: `${a.name} is already on this project, on ${team.name} — move them with Rearrange instead` };
+    const team = p.teamIds
+      .map((t) => store.teams.get(t))
+      .find((t) => t?.members.some((m) => m.agentId === a.id));
+    if (team)
+      return {
+        ok: false,
+        error: `${a.name} is already on this project, on ${team.name} — move them with Rearrange instead`,
+      };
     if (p.agentIds.includes(a.id)) return { ok: false, error: `${a.name} is already on this project` };
     apply(projectId, { specialists: [a.id] }, p.orchestratorId); // by id: two agents may share a name
     return { ok: true, name: a.name };

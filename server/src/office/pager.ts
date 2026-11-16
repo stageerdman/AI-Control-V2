@@ -8,7 +8,11 @@ import { invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import type { CapableTool } from '../room/bridge.ts';
 
-const ENDED: Record<string, string> = { done: 'is done', failed: 'stopped partway', cancelled: 'was cancelled' };
+const ENDED: Record<string, string> = {
+  done: 'is done',
+  failed: 'stopped partway',
+  cancelled: 'was cancelled',
+};
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 type Watch = { projectId: string; fromId: string; goalId: string; text: string };
 
@@ -21,10 +25,20 @@ export function createPager(deps: {
   const watches: Watch[] = [];
 
   function page(projectId: string, fromId: string, text: string, refs: Record<string, unknown> = {}): void {
-    deps.comms.record({ scope: 'project', scopeId: projectId, kind: 'page', from: fromId, to: 'user', text, refs });
+    deps.comms.record({
+      scope: 'project',
+      scopeId: projectId,
+      kind: 'page',
+      from: fromId,
+      to: 'user',
+      text,
+      refs,
+    });
   }
   const fire = (w: Watch, status: string) =>
-    page(w.projectId, w.fromId, `${w.text} — “${clip(goalText(w), 120)}” ${ENDED[status]}.`, { goalId: w.goalId });
+    page(w.projectId, w.fromId, `${w.text} — “${clip(goalText(w), 120)}” ${ENDED[status]}.`, {
+      goalId: w.goalId,
+    });
   const goalText = (w: Watch) => {
     const g = deps.goals(w.projectId).find((x) => x.id === w.goalId);
     return g?.summary || g?.text || 'the goal';
@@ -46,7 +60,10 @@ export function createPager(deps: {
   function whenDone(projectId: string, fromId: string, which: number | undefined, text: string): string {
     const running = deps.goals(projectId).filter((g) => g.status === 'running');
     const g = running[running.length - (which ?? 1)];
-    if (!g) return running.length ? `No running goal ${which} — ${running.length} are running.` : 'Nothing is running to watch.';
+    if (!g)
+      return running.length
+        ? `No running goal ${which} — ${running.length} are running.`
+        : 'Nothing is running to watch.';
     const w = { projectId, fromId, goalId: g.id, text };
     watches.push(w);
     return `I’ll page the user when “${clip(goalText(w), 120)}” ends.`;
@@ -92,12 +109,20 @@ export function pagerTools(pager: Pager, projectId: string, directorId: string):
       type: 'object',
       properties: {
         goal: { type: 'number', description: '1 = the newest running goal (default).' },
-        message: { type: 'string', description: 'What the page says, e.g. "The login page you asked about".' },
+        message: {
+          type: 'string',
+          description: 'What the page says, e.g. "The login page you asked about".',
+        },
       },
       required: ['message'],
     },
     run: async (a) =>
-      pager.whenDone(projectId, directorId, typeof a.goal === 'number' ? a.goal : undefined, need(a, 'message')),
+      pager.whenDone(
+        projectId,
+        directorId,
+        typeof a.goal === 'number' ? a.goal : undefined,
+        need(a, 'message'),
+      ),
   };
   return [pageTool(pager, projectId, directorId), watch];
 }

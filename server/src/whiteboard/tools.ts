@@ -69,7 +69,8 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
           feature: { type: 'string', description: 'The id of the feature this goal builds (optional).' },
           ships: {
             type: 'boolean',
-            description: 'false = the goal is only one step of the feature, so finishing it does not ship it.',
+            description:
+              'false = the goal is only one step of the feature, so finishing it does not ship it.',
           },
         },
         required: ['text', 'tasks'],

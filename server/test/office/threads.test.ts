@@ -145,7 +145,8 @@ describe('project conversations (threads)', () => {
     // another thread runs alongside
     expect((await h.call('POST', url('a-scar'), { text: 'hi' })).status).toBe(202);
     // an agent on dispatched work: the note reaches that run, and the thread keeps the message
-    const work = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' })).body.id;
+    const work = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' })).body
+      .id;
     const c = await h.call('POST', url('a-baron'), { text: 'hello?' });
     expect(c.status).toBe(202);
     expect(c.body.runId).toBe(work);
@@ -204,7 +205,11 @@ describe('project conversations (threads)', () => {
       ['user', 'Green'],
       ['a-twinkle', 'Green it is.'],
     ]);
-    expect(threadEvents(h).filter((e) => e.agentId === 'a-twinkle').map((e) => [e.from, e.text])).toEqual([
+    expect(
+      threadEvents(h)
+        .filter((e) => e.agentId === 'a-twinkle')
+        .map((e) => [e.from, e.text]),
+    ).toEqual([
       ['user', 'pick a colour'],
       ['agent', 'Blue or green?'],
       ['user', 'Green'],

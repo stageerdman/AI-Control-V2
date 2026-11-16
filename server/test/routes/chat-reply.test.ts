@@ -112,6 +112,8 @@ describe('POST /chats/:runId/messages', () => {
     const before = (await h.call('GET', `/chats/${runId}/messages`)).body;
     expect((await send(runId, { text: 'Still there?' })).status).toBe(502);
     expect((await h.call('GET', `/chats/${runId}/messages`)).body).toEqual(before);
-    expect(h.asked[1]?.match(/Still there\?/g)).toHaveLength(h.asked[0]?.match(/Still there\?/g)?.length ?? 0);
+    expect(h.asked[1]?.match(/Still there\?/g)).toHaveLength(
+      h.asked[0]?.match(/Still there\?/g)?.length ?? 0,
+    );
   });
 });

@@ -1,7 +1,6 @@
 /* The director's action tools: ask someone, continue stopped goals, and a leader's stop/tell (leader-tools.ts). Thin adapters
    over the services the studio already has (room.call, dispatch.resume, the stopper, runtime.tell). They run during the director's
    turn, so it reads what really happened — an answer, or why not — before it writes its reply. */
-import type { Store } from '../db/store.ts';
 import type { Goal, WorkRepo } from '../db/work.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';

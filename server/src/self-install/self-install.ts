@@ -87,12 +87,18 @@ export function createSelfInstall(deps: {
   });
   try {
     if (deps.isBehind()) {
-      deps.log.info({ module: 'self-install' }, 'The installed AI Studio is behind this checkout; installing');
+      deps.log.info(
+        { module: 'self-install' },
+        'The installed AI Studio is behind this checkout; installing',
+      );
       void kick();
     }
   } catch (e) {
     const err = (e as Error).message;
-    deps.log.error({ module: 'self-install', err }, 'Could not tell whether the installed AI Studio is current');
+    deps.log.error(
+      { module: 'self-install', err },
+      'Could not tell whether the installed AI Studio is current',
+    );
   }
   return { kick, stop, status: (): InstallStatus | null => last };
 }

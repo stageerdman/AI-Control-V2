@@ -3,11 +3,12 @@
    (meta.started), which is also what stops a second tap from starting it twice.
    The new run gets its own checkout, where the old session can't be resumed (sessions live per folder), so its
    brief carries the user's words and points at the chat to read with my_history. */
-import type { Db } from '../db/connection.ts';
+
 import { appendChatMessage, type ChatMessage, getChat, getChatMessages } from '../db/chats.ts';
+import type { Db } from '../db/connection.ts';
 import type { Store } from '../db/store.ts';
-import { conflict, invalid, notFound } from '../errors.ts';
 import type { Goal } from '../db/work.ts';
+import { conflict, invalid, notFound } from '../errors.ts';
 import type { NewGoal } from '../whiteboard/board.ts';
 
 export type Offer = { work: string };

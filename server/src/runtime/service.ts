@@ -641,8 +641,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const l = live.get(runId);
     if (!l) return null;
     const notes = l.notes.splice(0);
-    const forgetNow =
-      !!deps.desk && !l.nudged && !l.forgetting && l.context >= (deps.forgetAt ?? FORGET_AT);
+    const forgetNow = !!deps.desk && !l.nudged && !l.forgetting && l.context >= (deps.forgetAt ?? FORGET_AT);
     if (forgetNow) l.nudged = true;
     const text = [...notes, ...(forgetNow ? [FORGET_NUDGE] : [])].join('\n\n');
     return text || null;

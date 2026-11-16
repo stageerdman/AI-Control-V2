@@ -333,8 +333,12 @@ export function createRoom(deps: {
           `${caller.name} (${caller.role}) asks you for a hand.`,
           `Their request: ${json(clip(request, 4000))}`,
           `Where: ${json(project ? { project: project.name } : { projectBeingSetUp: draft?.name, about: draft?.about })}`,
-          ...(onBoard ? [`On the whiteboard now as your task: ${json(onBoard)} — you will do it there.`] : []),
-          ...(project ? [`Your notes on this project: ${notes ? json(notes) : 'none yet.'}`, CALLS_ARE_FOR_QUESTIONS] : []),
+          ...(onBoard
+            ? [`On the whiteboard now as your task: ${json(onBoard)} — you will do it there.`]
+            : []),
+          ...(project
+            ? [`Your notes on this project: ${notes ? json(notes) : 'none yet.'}`, CALLS_ARE_FOR_QUESTIONS]
+            : []),
           'Answer with one JSON object: {"answer": "everything they need, self-contained (they only get this)", "say": "one short line for the room on what you made, e.g. a teal visor and a tool belt"}',
         ].join('\n\n'),
         validate: validateWith(HelpSchema),
@@ -345,7 +349,9 @@ export function createRoom(deps: {
       log('answer', callee.id, caller.id, value.answer);
       step('answered', value.say);
       say(ctx, callee.id, `Done — ${value.say}`, caller.id);
-      return onBoard ? `${value.answer}\n\n(On the whiteboard as ${callee.name}’s task: ${onBoard})` : value.answer;
+      return onBoard
+        ? `${value.answer}\n\n(On the whiteboard as ${callee.name}’s task: ${onBoard})`
+        : value.answer;
     } catch (e) {
       step('failed', (e as Error).message);
       say(ctx, caller.id, `${nick(callee)} couldn’t finish — I’ll carry on.`);
@@ -380,7 +386,8 @@ export function createRoom(deps: {
             },
             work: {
               type: 'boolean',
-              description: 'true = this is work for them: put it on the whiteboard as their task (projects only).',
+              description:
+                'true = this is work for them: put it on the whiteboard as their task (projects only).',
             },
           },
           required: ['agent', 'request', 'why'],

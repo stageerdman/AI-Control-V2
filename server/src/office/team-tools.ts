@@ -7,7 +7,7 @@ import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { RebuildSchema } from './rebuild.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
-import { StaffSchema, type Staffing } from './staffing.ts';
+import { type Staffing, StaffSchema } from './staffing.ts';
 
 export type TeamServices = { staffing: Staffing; rebuilds: Rebuilds };
 /** What a tool may hand to the turn it runs in: the rebuild card shown under the reply. */
@@ -93,7 +93,11 @@ export function teamTools(
             type: 'array',
             items: {
               type: 'object',
-              properties: { agent: NAME, to: { type: 'string', description: 'A team name, or "specialist".' }, job: NAME },
+              properties: {
+                agent: NAME,
+                to: { type: 'string', description: 'A team name, or "specialist".' },
+                job: NAME,
+              },
               required: ['agent', 'to'],
             },
           },

@@ -55,7 +55,9 @@ describe('the director asks someone from chat', () => {
       args: { to: 'Pete', question: 'How is the header going?' },
     });
     // the answer is for the director to act on, not to relay
-    expect(said).toMatch(/^Pete’s answer, for you to act on \(tell the user the outcome, not who said what\): “Costume: .*”$/);
+    expect(said).toMatch(
+      /^Pete’s answer, for you to act on \(tell the user the outcome, not who said what\): “Costume: .*”$/,
+    );
     // the director's prompt says it can ask, and to resolve rather than relay
     expect(s.calls[0]?.systemPrompt).toContain('`ask_person`');
     expect(s.calls[0]?.systemPrompt).toContain('tell the user the result, not who said what');

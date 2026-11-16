@@ -74,7 +74,9 @@ describe('the director staffs from chat', () => {
     });
     await h.runtime.settled(r.body.runId);
     const [joined, added] = turnSaid(r.body.runId);
-    expect(joined).toMatch(/^Joined the project: .*Pixel Pete.*Twinkle.*Teams on the project now include: The Founders\.$/);
+    expect(joined).toMatch(
+      /^Joined the project: .*Pixel Pete.*Twinkle.*Teams on the project now include: The Founders\.$/,
+    );
     expect(added).not.toMatch(/refused/);
     expect((await thread()).every((m: { goalId: string | null }) => !!m.goalId)).toBe(true);
     // the director saw who it may add

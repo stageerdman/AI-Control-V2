@@ -38,7 +38,9 @@ describe('rebuild planner', () => {
     items([{ id: 'i1', agentId: 'a-pete', teamId: 'ship-it' }]);
     const r = ok(planRebuild(s, 'aurora', { remove: ['a-pete'] }));
     expect(r.needsConfirm).toBe(true);
-    expect(r.steps).toContainEqual(expect.objectContaining({ kind: 'item.assign', itemId: 'i1', agentId: 'a-semic' }));
+    expect(r.steps).toContainEqual(
+      expect.objectContaining({ kind: 'item.assign', itemId: 'i1', agentId: 'a-semic' }),
+    );
     expect(r.after).not.toContain('a-pete');
     expect(r.card.leaves[0]?.openItems[0]).toMatchObject({ to: 'captain' });
   });
@@ -53,7 +55,10 @@ describe('rebuild planner', () => {
     const s = boot();
     s.projects.update('aurora', { agentIds: ['a-baron', 'a-query', 'a-merge', 'a-prof'] });
     const r = planRebuild(s, 'aurora', {
-      move: ['a-lint', 'a-doc', 'a-twinkle', 'a-baron', 'a-query'].map((agent) => ({ agent, to: 'The Ship-It Squad' })),
+      move: ['a-lint', 'a-doc', 'a-twinkle', 'a-baron', 'a-query'].map((agent) => ({
+        agent,
+        to: 'The Ship-It Squad',
+      })),
     });
     expect(r.ok).toBe(false);
   });
@@ -62,7 +67,9 @@ describe('rebuild planner', () => {
     const s = boot();
     s.projects.update('atlas', { teamIds: ['polish'] });
     const r = ok(planRebuild(s, 'aurora', { move: [{ agent: 'a-doc', to: 'specialist' }] }));
-    expect(r.card.copies).toEqual([expect.objectContaining({ teamName: 'The Polish Patrol', otherProjects: ['Atlas Analytics'] })]);
+    expect(r.card.copies).toEqual([
+      expect.objectContaining({ teamName: 'The Polish Patrol', otherProjects: ['Atlas Analytics'] }),
+    ]);
     expect(r.steps.some((x) => x.kind === 'team.update' && x.key === 'polish')).toBe(false);
     expect(r.steps.find((x) => x.kind === 'team.create')).toMatchObject({
       from: 'polish',
@@ -107,7 +114,10 @@ describe('rebuild planner', () => {
     const s = boot();
     s.teams.addMember('ship-it', 'a-twinkle', 'Look');
     const r = ok(
-      planRebuild(s, 'aurora', { remove: ['a-semic', 'a-pete', 'a-scar'], lone: [{ agent: 'a-twinkle', to: 'remove' }] }),
+      planRebuild(s, 'aurora', {
+        remove: ['a-semic', 'a-pete', 'a-scar'],
+        lone: [{ agent: 'a-twinkle', to: 'remove' }],
+      }),
     );
     const leaving = r.card.leaves.map((l) => l.id);
     expect(leaving.includes('a-twinkle')).toBe(!r.after.includes('a-twinkle'));
@@ -152,7 +162,9 @@ describe('rebuild apply and undo', () => {
     const s = boot();
     s.projects.update('atlas', { teamIds: ['polish'] });
     const before = s.teams.require('polish').members.map((m) => m.agentId);
-    const plan = await h.call('POST', '/projects/aurora/rebuild/plan', { move: [{ agent: 'a-doc', to: 'specialist' }] });
+    const plan = await h.call('POST', '/projects/aurora/rebuild/plan', {
+      move: [{ agent: 'a-doc', to: 'specialist' }],
+    });
     const done = await h.call('POST', `/rebuild/${plan.body.planId}/apply`, {});
     expect(done.status).toBe(200);
     expect(s.teams.require('polish').members.map((m) => m.agentId)).toEqual(before);
@@ -227,14 +239,18 @@ describe('the director rebuilds from chat', () => {
   it('a rebuild with something to decide comes back as a card under the reply; nothing changes yet', async () => {
     const orch = setup({ remove: ['Pixel Pete'] }, 'Here is the plan — confirm below.');
     items([{ id: 'i1', agentId: 'a-pete', teamId: 'ship-it' }]);
-    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Take Pete off the project' });
+    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, {
+      text: 'Take Pete off the project',
+    });
     await h.runtime.settled(r.body.runId);
     expect(turnSaid(r.body.runId)).toMatch(/nothing has changed yet.*confirm below/);
     const reply = (await thread(orch)).find((m) => m.from !== 'user');
     expect(reply?.text).toBe('Here is the plan — confirm below.');
     expect(reply?.rebuild?.needsConfirm).toBe(true);
     expect(h.store.teams.require('ship-it').members.map((m) => m.agentId)).toContain('a-pete');
-    const ev = h.events.after('project', 'aurora').find((e) => e.type === 'thread.message' && (e.payload as { rebuild?: unknown }).rebuild);
+    const ev = h.events
+      .after('project', 'aurora')
+      .find((e) => e.type === 'thread.message' && (e.payload as { rebuild?: unknown }).rebuild);
     expect(ev).toBeTruthy();
   });
 
@@ -243,7 +259,9 @@ describe('the director rebuilds from chat', () => {
       { move: [{ agent: 'a-baron', to: 'The Ship-It Squad' }] },
       'Done — Baron joins the Ship-It Squad.',
     );
-    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Put Baron on Ship-It' });
+    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, {
+      text: 'Put Baron on Ship-It',
+    });
     await h.runtime.settled(r.body.runId);
     expect(turnSaid(r.body.runId)).toMatch(/^Done: .*Undo/);
     const reply = (await thread(orch)).find((m) => m.from !== 'user');

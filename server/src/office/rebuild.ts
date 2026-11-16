@@ -122,7 +122,14 @@ export type PlanResult =
 /* ---------------------------------------------------------------- the world as it is */
 
 type Person = { id: string; name: string; nick: string | null; role: string };
-type OpenItem = { id: string; title: string; agentId: string; teamId: string | null; runId: string | null; running: boolean };
+type OpenItem = {
+  id: string;
+  title: string;
+  agentId: string;
+  teamId: string | null;
+  runId: string | null;
+  running: boolean;
+};
 type TeamNow = {
   id: string;
   name: string;
@@ -265,7 +272,9 @@ function simulator(w: World) {
   const nameOf = (id: string) => (w.people.get(id) ?? w.outsiders.get(id))?.name ?? id;
   const find = (n: string, pool: Map<string, Person>): string | null => {
     if (pool.has(n)) return n;
-    const hits = [...pool.values()].filter((p) => key(p.name) === key(n) || (p.nick && key(p.nick) === key(n)));
+    const hits = [...pool.values()].filter(
+      (p) => key(p.name) === key(n) || (p.nick && key(p.nick) === key(n)),
+    );
     if (hits.length > 1) throw invalid(`two people are called "${n}" — say which`);
     return hits[0]?.id ?? null;
   };
@@ -354,20 +363,27 @@ function simulator(w: World) {
           if (placed.has(id)) throw invalid(`${nameOf(id)} is in two of the new teams`);
           placed.add(id);
         }
-        if (ids.length > TEAM_MAX) throw invalid(`${part.name} would have ${ids.length} people — a team has at most ${TEAM_MAX}`);
+        if (ids.length > TEAM_MAX)
+          throw invalid(`${part.name} would have ${ids.length} people — a team has at most ${TEAM_MAX}`);
         if (ids.length < 2)
           throw invalid(`${part.name} would have one person — that's a specialist, not a team`);
         return { name: part.name, captainId, members: ids.map((id) => seat.get(id) as Member) };
       });
       const missing = t.members.find((m) => !placed.has(m.agentId));
       if (missing)
-        throw invalid(`${nameOf(missing.agentId)} isn't in any of the new teams — everyone keeps a seat in a split`);
+        throw invalid(
+          `${nameOf(missing.agentId)} isn't in any of the new teams — everyone keeps a seat in a split`,
+        );
       const shared = t.sharedWith.length > 0;
       if (shared) d.copies.push({ teamId: t.origin, teamName: t.name, otherProjects: t.sharedWith });
       const seen = new Set<string>();
       const made = parts.map((p, i): Table => {
         const reuse = !shared && i === 0; // a team used only here is edited directly
-        if (seen.has(key(p.name)) || taken(p.name, reuse ? t : undefined) || (!reuse && key(p.name) === key(t.name)))
+        if (
+          seen.has(key(p.name)) ||
+          taken(p.name, reuse ? t : undefined) ||
+          (!reuse && key(p.name) === key(t.name))
+        )
           throw invalid(`a team called "${p.name}" already exists`);
         seen.add(key(p.name));
         return {
@@ -479,7 +495,13 @@ function simulator(w: World) {
 
 type Handed = OpenItem & { to: Handover; toName: string; receiver: string };
 
-function handOver(w: World, d: Draft, rb: RebuildInput, person: (n: string) => string, nameOf: (id: string) => string) {
+function handOver(
+  w: World,
+  d: Draft,
+  rb: RebuildInput,
+  person: (n: string) => string,
+  nameOf: (id: string) => string,
+) {
   /* a pick names a leaver: a person, or a whole team leaving (its id or name) */
   const picks = new Map<string, Handover>();
   const teamPicks = new Map<string, Handover>();
@@ -525,7 +547,12 @@ function handOver(w: World, d: Draft, rb: RebuildInput, person: (n: string) => s
 
 /* ---------------------------------------------------------------- the plan */
 
-export function planRebuild(store: Store, projectId: string, rebuild: RebuildInput, planId: string = randomUUID()): PlanResult {
+export function planRebuild(
+  store: Store,
+  projectId: string,
+  rebuild: RebuildInput,
+  planId: string = randomUUID(),
+): PlanResult {
   try {
     const w = readWorld(store, projectId);
     const sim = simulator(w);
@@ -534,7 +561,11 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
     const { kept, handed } = handOver(w, d, rebuild, sim.person, nameOf);
     const tableKey = (t: Table | null) => t?.key ?? null;
     const heirKey = (teamId: string | null, agentId: string) =>
-      tableKey(d.tables.find((t) => t.origin === teamId && seated(t, agentId)) ?? d.tables.find((t) => t.origin === teamId) ?? null);
+      tableKey(
+        d.tables.find((t) => t.origin === teamId && seated(t, agentId)) ??
+          d.tables.find((t) => t.origin === teamId) ??
+          null,
+      );
 
     const steps: RebuildStep[] = [];
     const original = new Map(w.teams.map((t) => [t.id, t]));
@@ -550,14 +581,30 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
           captainId: t.captainId as string,
           members: t.members,
         });
-      else if (t.touched) steps.push({ kind: 'team.update', key: t.key, name: t.name, captainId: t.captainId, members: t.members });
+      else if (t.touched)
+        steps.push({
+          kind: 'team.update',
+          key: t.key,
+          name: t.name,
+          captainId: t.captainId,
+          members: t.members,
+        });
     }
     const onTeams = new Set(d.tables.flatMap((t) => t.members.map((m) => m.agentId)));
-    const agentIds = [...new Set(d.specialists)].filter((id) => !onTeams.has(id) && !d.leftPeople.includes(id));
+    const agentIds = [...new Set(d.specialists)].filter(
+      (id) => !onTeams.has(id) && !d.leftPeople.includes(id),
+    );
     steps.push({ kind: 'project.lineup', teamKeys: d.tables.map((t) => t.key), agentIds });
     for (const { item, table } of kept)
       if (item.teamId && tableKey(table) !== item.teamId)
-        steps.push({ kind: 'item.assign', itemId: item.id, agentId: item.agentId, teamKey: tableKey(table), stopRunId: null, note: null });
+        steps.push({
+          kind: 'item.assign',
+          itemId: item.id,
+          agentId: item.agentId,
+          teamKey: tableKey(table),
+          stopRunId: null,
+          note: null,
+        });
     for (const h of handed) {
       const teamKey = h.receiver === w.directorId ? null : heirKey(h.teamId, h.receiver);
       const who = nameOf(h.agentId);
@@ -591,10 +638,20 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
           members: people(t.members),
           ...owned((h) => h.teamId === t.origin),
         })),
-        ...d.leftPeople.map((id) => ({ kind: 'agent' as const, id, name: nameOf(id), ...owned((h) => h.agentId === id && !d.leftTeams.some((t) => t.origin === h.teamId)) })),
+        ...d.leftPeople.map((id) => ({
+          kind: 'agent' as const,
+          id,
+          name: nameOf(id),
+          ...owned((h) => h.agentId === id && !d.leftTeams.some((t) => t.origin === h.teamId)),
+        })),
       ],
       specialists: d.solo.map((id) => ({ id, name: nameOf(id) })),
-      moves: d.moves.map((m) => ({ agentId: m.agentId, name: nameOf(m.agentId), fromTeam: m.fromName, toTeam: m.to.name })),
+      moves: d.moves.map((m) => ({
+        agentId: m.agentId,
+        name: nameOf(m.agentId),
+        fromTeam: m.fromName,
+        toTeam: m.to.name,
+      })),
       newTeams: d.tables
         .filter((t) => t.split)
         .map((t) => ({
@@ -623,7 +680,8 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
     };
     const before = [...w.people.keys()];
     const after = [...onTeams, ...agentIds];
-    const needsConfirm = card.leaves.length > 0 || handed.length > 0 || card.copies.length > 0 || card.lone.length > 0;
+    const needsConfirm =
+      card.leaves.length > 0 || handed.length > 0 || card.copies.length > 0 || card.lone.length > 0;
     return { ok: true, planId, steps, needsConfirm, card, before, after };
   } catch (e) {
     if (e instanceof AppError) return { ok: false, error: e.message };
@@ -633,11 +691,15 @@ export function planRebuild(store: Store, projectId: string, rebuild: RebuildInp
 
 /** One plain line for the chat: "Done — Elon left, Humanitarian works solo, the Founders are now Design and Build." */
 export function summaryOf(card: RebuildCard): string {
-  const and = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+  const and = (xs: string[]) =>
+    xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
   const parts: string[] = [];
   const left = card.leaves.map((l) => l.name);
   if (left.length) parts.push(`${and(left)} left`);
-  const solo = [...card.specialists.map((s) => s.name), ...card.lone.filter((l) => !left.includes(l.name)).map((l) => l.name)];
+  const solo = [
+    ...card.specialists.map((s) => s.name),
+    ...card.lone.filter((l) => !left.includes(l.name)).map((l) => l.name),
+  ];
   if (solo.length) parts.push(`${and(solo)} ${solo.length > 1 ? 'work' : 'works'} solo`);
   if (card.newTeams.length) parts.push(`the new teams are ${and(card.newTeams.map((t) => t.name))}`);
   for (const m of card.moves) parts.push(`${m.name} joined ${m.toTeam}`);

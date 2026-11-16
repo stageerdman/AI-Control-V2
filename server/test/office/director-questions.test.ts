@@ -92,9 +92,9 @@ describe('the director answers agents’ questions for the user', () => {
     expect(await s.turn('Say it', { tool: 'answer_question', args: { id: ask.id } })).toBe(
       'answer_question refused: Give "answer" (the user’s words) or "option" (its number).',
     );
-    expect(await s.turn('Answer it', { tool: 'answer_question', args: { id: 'nope', answer: 'Blue' } })).toMatch(
-      /^answer_question refused: No open question nope/,
-    );
+    expect(
+      await s.turn('Answer it', { tool: 'answer_question', args: { id: 'nope', answer: 'Blue' } }),
+    ).toMatch(/^answer_question refused: No open question nope/);
     expect(h.runtime.asks('lumi', 'open').map((a) => a.id)).toEqual([ask.id]);
 
     // the user's own words, with an option, pass through as one answer

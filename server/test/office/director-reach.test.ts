@@ -78,7 +78,10 @@ describe('the director reaches out from chat', () => {
     expect(await s.turn({ tool: 'page_when_done', args: { message: 'Your login fix' } })).toBe(
       'Nothing is running to watch.',
     );
-    workRepo(h.db).insertGoal({ id: 'g1', projectId: 'lumi', text: 'Fix login', summary: 'Login is fast.' }, []);
+    workRepo(h.db).insertGoal(
+      { id: 'g1', projectId: 'lumi', text: 'Fix login', summary: 'Login is fast.' },
+      [],
+    );
     expect(await s.turn({ tool: 'page_when_done', args: { message: 'Your login fix' } })).toBe(
       'I’ll page the user when “Login is fast.” ends.',
     );

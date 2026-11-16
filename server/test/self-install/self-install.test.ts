@@ -168,7 +168,12 @@ describe('self-install', () => {
     const folders: Record<string, string> = { a: 'AI-Control-V2', b: 'other', c: '/etc' };
     const store = { projects: { get: (id: string) => ({ folder: folders[id] }) } } as unknown as Store;
     const isStudio = studioProject(store, join(root, 'sandbox'), join(root, 'link'));
-    expect([isStudio('a'), isStudio('b'), isStudio('c'), isStudio('none')]).toEqual([true, false, false, false]);
+    expect([isStudio('a'), isStudio('b'), isStudio('c'), isStudio('none')]).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
     rmSync(root, { recursive: true, force: true });
   });
 });

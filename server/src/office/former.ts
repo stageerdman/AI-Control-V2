@@ -12,7 +12,13 @@ export function staffIds(store: Store, projectId: string): Set<string> {
   return new Set([...onTeams, ...p.agentIds]);
 }
 
-type Staffed = { agentId?: string; agentIds?: string[]; added?: string[]; removed?: string[]; moved?: string[] };
+type Staffed = {
+  agentId?: string;
+  agentIds?: string[];
+  added?: string[];
+  removed?: string[];
+  moved?: string[];
+};
 const named = (e: Staffed) => [
   ...(e.agentId ? [e.agentId] : []),
   ...(e.removed ?? []),

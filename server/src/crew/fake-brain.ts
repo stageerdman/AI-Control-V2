@@ -144,7 +144,8 @@ function fakeDirectorTurn(task: string, said: string): FakeStep[] {
   const owner = d.goal ? firstOwner(task) : null;
   const add: FakeStep[] =
     d.goal && owner ? [{ tool: 'add_goal', args: { text: d.goal, tasks: [{ text: d.goal, owner }] } }] : [];
-  const reply = d.goal && !owner ? 'Nobody staffs this project yet — add a team or a specialist first.' : d.reply;
+  const reply =
+    d.goal && !owner ? 'Nobody staffs this project yet — add a team or a specialist first.' : d.reply;
   return [...add, { result: reply }];
 }
 

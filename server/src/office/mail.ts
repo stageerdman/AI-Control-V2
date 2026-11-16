@@ -246,22 +246,18 @@ export function createMail(deps: {
         if (d.action === 'board') {
           try {
             const goal = await deps.startWork(projectId, d.goal ?? m.subject);
-            deps.say(projectId, director.id, `📬 ${m.subject} — ${d.say}`, goal.id);
+            say(`📬 ${m.subject} — ${d.say}`, goal.id);
             changed(setStatus(m.id, 'board', { goalId: goal.id, note: d.say }), 'triaged');
           } catch (e) {
-            deps.say(
-              projectId,
-              director.id,
-              `📬 ${m.subject} — ${d.say} (I couldn’t put it on the board: ${(e as Error).message})`,
-            );
+            say(`📬 ${m.subject} — ${d.say} (I couldn’t put it on the board: ${(e as Error).message})`);
             changed(setStatus(m.id, 'discussed', { note: d.say }), 'triaged');
           }
         } else if (d.action === 'discuss') {
-          deps.say(projectId, director.id, `📬 ${m.subject} (from ${sender(m)}) — ${d.say}`);
+          say(`📬 ${m.subject} (from ${sender(m)}) — ${d.say}`);
           changed(setStatus(m.id, 'discussed', { note: d.say }), 'triaged');
         } else changed(setStatus(m.id, 'filed', { note: d.say }), 'triaged');
       }
-      deps.say(projectId, director.id, value.summary);
+      say(value.summary);
     } finally {
       triaging.delete(projectId);
       status();
@@ -335,42 +331,42 @@ export function createMail(deps: {
   }
 
   function letterTools(projectId: string, agentId: string): BridgeTool[] {
-      return [
-        {
-          name: 'send_mail',
-          description:
-            'Send mail to another project or to HQ (the AI Studio itself). For findings that affect another project, or a ticket / idea to improve the studio. Their director reads it and decides. Self-contained: they know nothing of your work.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              to: { type: 'string', description: '"HQ" or a project name from mail_directory.' },
-              subject: { type: 'string', description: 'A short subject line.' },
-              body: { type: 'string', description: 'The letter, in plain words.' },
-              kind: {
-                type: 'string',
-                enum: [...MAIL_KINDS],
-                description: 'mail (default), ticket (a problem), idea (an improvement).',
-              },
+    return [
+      {
+        name: 'send_mail',
+        description:
+          'Send mail to another project or to HQ (the AI Studio itself). For findings that affect another project, or a ticket / idea to improve the studio. Their director reads it and decides. Self-contained: they know nothing of your work.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            to: { type: 'string', description: '"HQ" or a project name from mail_directory.' },
+            subject: { type: 'string', description: 'A short subject line.' },
+            body: { type: 'string', description: 'The letter, in plain words.' },
+            kind: {
+              type: 'string',
+              enum: [...MAIL_KINDS],
+              description: 'mail (default), ticket (a problem), idea (an improvement).',
             },
-            required: ['to', 'subject', 'body'],
           },
-          run: async (a) => {
-            const r = SendSchema.safeParse(a);
-            if (!r.success)
-              throw new Error(
-                `Not sent: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
-              );
-            const m = send({ projectId, agentId }, r.data);
-            return `Sent to ${m.to === HQ ? 'HQ' : (store.projects.get(m.to)?.name ?? m.to)}.`;
-          },
+          required: ['to', 'subject', 'body'],
         },
-        {
-          name: 'mail_directory',
-          description: 'Who you can mail: HQ and the other projects in the studio, with a line about each.',
-          inputSchema: { type: 'object', properties: {} },
-          run: async () => JSON.stringify(directory(projectId)),
+        run: async (a) => {
+          const r = SendSchema.safeParse(a);
+          if (!r.success)
+            throw new Error(
+              `Not sent: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+            );
+          const m = send({ projectId, agentId }, r.data);
+          return `Sent to ${m.to === HQ ? 'HQ' : (store.projects.get(m.to)?.name ?? m.to)}.`;
         },
-      ];
+      },
+      {
+        name: 'mail_directory',
+        description: 'Who you can mail: HQ and the other projects in the studio, with a line about each.',
+        inputSchema: { type: 'object', properties: {} },
+        run: async () => JSON.stringify(directory(projectId)),
+      },
+    ];
   }
 }
 export type MailDesk = ReturnType<typeof createMail>;

@@ -17,8 +17,12 @@ export function notesOf(deps: {
       .find((r) => r.agentId === agentId && r.status === 'succeeded' && r.result?.trim());
     const note = deps.desk(projectId, agentId)[0];
     const lines = [
-      ...(last ? [`Latest delivery (${last.endedAt ?? last.startedAt}): ${clip((last.result ?? '').trim(), 1500)}`] : []),
-      ...(note ? [`Desk note (${note.at}): where ${note.where}; doing ${note.doing}; next ${note.next}`] : []),
+      ...(last
+        ? [`Latest delivery (${last.endedAt ?? last.startedAt}): ${clip((last.result ?? '').trim(), 1500)}`]
+        : []),
+      ...(note
+        ? [`Desk note (${note.at}): where ${note.where}; doing ${note.doing}; next ${note.next}`]
+        : []),
     ];
     return lines.length ? lines.join('\n') : null;
   };

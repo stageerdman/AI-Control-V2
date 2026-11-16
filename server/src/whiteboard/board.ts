@@ -179,7 +179,10 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     const linked = a.feature ? port.linkFeature(goal, a.feature) : null;
     history.record(projectId, by, 'add', `Added goal '${goal.text}' with ${items.length} task(s)`);
     const serves = linked ? ` It serves the feature “${linked.name}”.` : '';
-    return { goal, text: reply(projectId, [goal.id], `Added to the whiteboard; the work starts in order.${serves}`) };
+    return {
+      goal,
+      text: reply(projectId, [goal.id], `Added to the whiteboard; the work starts in order.${serves}`),
+    };
   }
 
   return {

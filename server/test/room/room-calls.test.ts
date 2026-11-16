@@ -31,15 +31,18 @@ describe('calls inside a project', () => {
   /** Whose run this is: the agent's own prompt opens with `# <name>`. */
   const isRunOf = (spec: RunSpec, agentId: string) =>
     spec.systemPrompt.startsWith(`# ${h.store.agents.require(agentId).name}\n`);
-  const callOnce = (agent: string, args: Record<string, unknown>) => (spec: RunSpec): FakeStep[] =>
-    isRunOf(spec, agent)
-      ? [{ tool: 'call_agent', args }, { result: 'ok' }]
-      : [{ result: 'Done.' }];
+  const callOnce =
+    (agent: string, args: Record<string, unknown>) =>
+    (spec: RunSpec): FakeStep[] =>
+      isRunOf(spec, agent) ? [{ tool: 'call_agent', args }, { result: 'ok' }] : [{ result: 'Done.' }];
 
   it('an agent calls the orchestrator by name and gets an answer, no refusal', async () => {
-    const s = project(callOnce('a-pete', { agent: 'Pixel', request: 'Is checkout in scope?', why: 'check scope' }), {
-      help: [{ answer: 'Yes, checkout is in scope.', say: 'in scope' }],
-    });
+    const s = project(
+      callOnce('a-pete', { agent: 'Pixel', request: 'Is checkout in scope?', why: 'check scope' }),
+      {
+        help: [{ answer: 'Yes, checkout is in scope.', say: 'in scope' }],
+      },
+    );
     const run = await h.runtime.settled(await start('a-pete'));
     expect(run.status).toBe('succeeded');
     expect(s.crewCalls().map((c) => c.systemPrompt?.split('\n')[0])).toEqual(['# Pixel']);
@@ -63,7 +66,12 @@ describe('calls inside a project', () => {
 
   it('work: true puts the request on the whiteboard as the callee’s task', async () => {
     project(
-      callOnce('a-pete', { agent: 'Twinkle', request: 'Restyle the checkout button.', why: 'restyle', work: true }),
+      callOnce('a-pete', {
+        agent: 'Twinkle',
+        request: 'Restyle the checkout button.',
+        why: 'restyle',
+        work: true,
+      }),
       { help: [{ answer: 'On it.', say: 'on it' }] },
     );
     await h.runtime.settled(await start('a-pete'));
@@ -83,7 +91,10 @@ describe('calls inside a project', () => {
     project(
       (spec) =>
         isRunOf(spec, 'a-pete') || isRunOf(spec, 'a-semic')
-          ? [{ tool: 'call_agent', args: { agent: 'Twinkle', request: 'Quick look?', why: 'look' } }, { result: 'ok' }]
+          ? [
+              { tool: 'call_agent', args: { agent: 'Twinkle', request: 'Quick look?', why: 'look' } },
+              { result: 'ok' },
+            ]
           : [{ result: 'Done.' }],
       { help: [slow('first'), slow('second')] },
     );

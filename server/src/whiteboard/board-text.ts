@@ -20,7 +20,9 @@ export function goalBlock(g: Goal, name: (id: string) => string): string {
   return [
     `Goal ${g.id} [${g.status}, ${g.pct}% done, updated ${g.updatedAt.slice(0, 10)}]: ${clip(g.text, 300)}`,
     ...(g.summary && g.summary !== g.text ? [`  Plan: ${clip(g.summary, 300)}`] : []),
-    ...(g.featureId ? [`  Feature: ${g.featureId}${g.ships ? ' (ships when this goal is done)' : ' (one step of it)'}`] : []),
+    ...(g.featureId
+      ? [`  Feature: ${g.featureId}${g.ships ? ' (ships when this goal is done)' : ' (one step of it)'}`]
+      : []),
     ...(g.items.length ? g.items.map((i) => taskLine(i, name)) : ['  (no tasks)']),
   ].join('\n');
 }

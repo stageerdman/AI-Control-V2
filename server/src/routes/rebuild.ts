@@ -13,7 +13,15 @@ const PlanParams = z.object({ planId: Id });
 const BringBackBody = z.object({ agentId: Id });
 
 export const rebuildRoutes =
-  ({ rebuilds, staffing, store }: { rebuilds: Rebuilds; staffing: Staffing; store: Store }): FastifyPluginAsync =>
+  ({
+    rebuilds,
+    staffing,
+    store,
+  }: {
+    rebuilds: Rebuilds;
+    staffing: Staffing;
+    store: Store;
+  }): FastifyPluginAsync =>
   async (app) => {
     app.get('/projects/:id/lineup', async (req) => projectLineup(store, parse(IdParams, req.params).id));
     /* bring someone (back) as a solo specialist: adding a person happens at once, no card */
@@ -28,5 +36,8 @@ export const rebuildRoutes =
       ok: true,
       ...rebuilds.apply(parse(PlanParams, req.params).planId, parse(OverridesSchema, req.body ?? {})),
     }));
-    app.post('/rebuild/undo/:token', async (req) => ({ ok: true, ...rebuilds.undo(parse(TokenParams, req.params).token) }));
+    app.post('/rebuild/undo/:token', async (req) => ({
+      ok: true,
+      ...rebuilds.undo(parse(TokenParams, req.params).token),
+    }));
   };

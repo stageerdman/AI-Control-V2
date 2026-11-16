@@ -99,9 +99,7 @@ export function leaderTools(s: LeaderServices, l: Leader, reach: Reach): Capable
 /** A captain's tools on a project: stop and tell, scoped to the teams they captain here (none → []). */
 export function captainTools(s: LeaderServices, projectId: string, agentId: string): CapableTool[] {
   const p = s.store.projects.get(projectId);
-  const led = (p?.teamIds ?? [])
-    .map((id) => s.store.teams.get(id))
-    .filter((t) => t?.captainId === agentId);
+  const led = (p?.teamIds ?? []).map((id) => s.store.teams.get(id)).filter((t) => t?.captainId === agentId);
   if (!led.length) return [];
   const team = [...new Set(led.flatMap((t) => t?.members.map((m) => m.agentId) ?? []))];
   return leaderTools(s, { projectId, byId: agentId, team }, teamReach(s.store, team));

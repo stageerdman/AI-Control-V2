@@ -23,12 +23,25 @@ type Snapshot = {
   agentIds: string[];
   rosters: { id: string; name: string; captainId: string | null; members: Member[] }[];
   created: string[];
-  items: { id: string; agentId: string; teamId: string | null; note: string | null; status: string; runId: string | null }[];
+  items: {
+    id: string;
+    agentId: string;
+    teamId: string | null;
+    note: string | null;
+    status: string;
+    runId: string | null;
+  }[];
   before: string[];
   after: string[];
 };
 
-export type Offer = { planId: string; needsConfirm: boolean; card: RebuildCard; undoToken?: string; summary?: string };
+export type Offer = {
+  planId: string;
+  needsConfirm: boolean;
+  card: RebuildCard;
+  undoToken?: string;
+  summary?: string;
+};
 
 export function createRebuilds(deps: {
   store: Store;
@@ -81,7 +94,11 @@ export function createRebuilds(deps: {
   });
 
   /** Apply it all or nothing → the Undo token and the one-line summary. */
-  function apply(planId: string, picks: Overrides = {}, by?: string): { undoToken: string; summary: string; card: RebuildCard } {
+  function apply(
+    planId: string,
+    picks: Overrides = {},
+    by?: string,
+  ): { undoToken: string; summary: string; card: RebuildCard } {
     const saved = plans.get(planId);
     if (!saved) throw notFound('Plan', planId);
     if (saved.stale || saved.stamp !== stampOf(saved.projectId))
@@ -135,7 +152,14 @@ export function createRebuilds(deps: {
         } else {
           const it = work.item(s.itemId);
           if (!it) continue;
-          snap.items.push({ id: it.id, agentId: it.agentId, teamId: it.teamId, note: it.note, status: it.status, runId: it.runId });
+          snap.items.push({
+            id: it.id,
+            agentId: it.agentId,
+            teamId: it.teamId,
+            note: it.note,
+            status: it.status,
+            runId: it.runId,
+          });
           work.reassign(it.id, { agentId: s.agentId, teamId: real(s.teamKey), note: s.note ?? it.note });
           if (s.stopRunId && it.status === 'running') {
             work.setItem(it.id, { status: 'todo', runId: null }); // the run's end then finds no item: it waits for its new owner
@@ -159,11 +183,20 @@ export function createRebuilds(deps: {
     for (const agentId of left)
       events.append('project', projectId, { type: 'room.left', payload: { agentId, ...(by ? { by } : {}) } });
     for (const agentId of joined)
-      events.append('project', projectId, { type: 'room.joined', payload: { agentId, ...(by ? { by } : {}) } });
+      events.append('project', projectId, {
+        type: 'room.joined',
+        payload: { agentId, ...(by ? { by } : {}) },
+      });
     const p = store.projects.require(projectId);
     events.append('project', projectId, {
       type: 'staff.changed',
-      payload: { teamIds: p.teamIds, agentIds: p.agentIds, added: joined, removed: left, moved: after.filter((id) => before.includes(id)) },
+      payload: {
+        teamIds: p.teamIds,
+        agentIds: p.agentIds,
+        added: joined,
+        removed: left,
+        moved: after.filter((id) => before.includes(id)),
+      },
     });
   }
 
@@ -196,7 +229,8 @@ export function createRebuilds(deps: {
         work.reassign(it.id, { agentId: it.agentId, teamId: it.teamId, note: it.note });
         const cur = work.item(it.id);
         /* a run stopped by the rebuild can't come back: the item waits for its old owner instead */
-        if (it.status === 'running' && cur?.status === 'todo') work.setItem(it.id, { status: 'todo', runId: null });
+        if (it.status === 'running' && cur?.status === 'todo')
+          work.setItem(it.id, { status: 'todo', runId: null });
       }
     });
     undos.delete(token);

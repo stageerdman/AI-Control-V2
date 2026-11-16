@@ -190,9 +190,9 @@ describe('reports', () => {
       });
     expect((await post(bridge?.reportUrl as string, 'wrong', REPORT)).status).toBe(404);
     expect(seen[1]?.askBridge?.reportUrl).toBe(`${base}/internal/runs/${pete.id}/reports`);
-    expect((await post(bridge?.reportUrl as string, seen[1]?.askBridge?.token as string, REPORT)).status).toBe(
-      404,
-    );
+    expect(
+      (await post(bridge?.reportUrl as string, seen[1]?.askBridge?.token as string, REPORT)).status,
+    ).toBe(404);
     expect((await post(bridge?.reportUrl as string, bridge?.token as string, { title: 'x' })).status).toBe(
       422,
     );

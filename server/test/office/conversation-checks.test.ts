@@ -96,7 +96,10 @@ describe('conversation checks: the chats that went wrong before', () => {
     expect(s.prompts[0]).not.toContain('as a feature'); // the old "on the whiteboard as a feature" mix-up
     expect(tools[0]).toMatch(/^Added to the features list: f-dark-mode — Dark mode \[planned #/);
     expect(reply).toBe('Done.');
-    const features = (await h.call('GET', '/projects/lumi/features')).body as { id: string; status: string }[];
+    const features = (await h.call('GET', '/projects/lumi/features')).body as {
+      id: string;
+      status: string;
+    }[];
     expect(features).toContainEqual(expect.objectContaining({ id: 'f-dark-mode', status: 'planned' }));
     expect(workRepo(h.db).goals('lumi')).toEqual([]);
   });
@@ -116,7 +119,10 @@ describe('conversation checks: the chats that went wrong before', () => {
     expect(calls.map((e) => (e.payload as { status: string }).status)).toEqual(['working', 'answered']);
 
     // someone who isn't on the project is refused in the turn, and nobody is called
-    const nobody = await s.say('have you asked Ivy?', { tool: 'ask_person', args: { to: 'Ivy', question: 'Hi?' } });
+    const nobody = await s.say('have you asked Ivy?', {
+      tool: 'ask_person',
+      args: { to: 'Ivy', question: 'Hi?' },
+    });
     expect(nobody.tools[0]).toMatch(/^ask_person refused: Nobody called Ivy is on Lumi Health/);
     expect(h.events.after('project', 'lumi').filter((e) => e.type === 'room.call')).toHaveLength(2);
   });
@@ -155,7 +161,10 @@ describe('conversation checks: the chats that went wrong before', () => {
     const s = studio();
     h = s.h;
     const run = await s.startRun('a-prof', 'long');
-    const { tools, reply } = await s.say('stop Professor', { tool: 'stop_work', args: { agents: ['Professor Prompt'] } });
+    const { tools, reply } = await s.say('stop Professor', {
+      tool: 'stop_work',
+      args: { agents: ['Professor Prompt'] },
+    });
     expect(tools[0]).toMatch(/^Stopped Professor Prompt: 1 session\./);
     expect(reply).toBe('Done.'); // the reply comes after the tool's answer, in the same turn
     expect(h.runtime.get('lumi', run).status).not.toBe('running'); // already stopped when the turn ends
@@ -166,9 +175,10 @@ describe('conversation checks: the chats that went wrong before', () => {
     const s = studio();
     h = s.h;
     const work = workRepo(h.db);
-    work.insertGoal({ id: 'g1', projectId: 'lumi', text: 'Chat history', summary: 'Agents keep their chats.' }, [
-      { id: 'i1', text: 'Build the history view', brief: 'b', agentId: 'a-twinkle', teamId: null },
-    ]);
+    work.insertGoal(
+      { id: 'g1', projectId: 'lumi', text: 'Chat history', summary: 'Agents keep their chats.' },
+      [{ id: 'i1', text: 'Build the history view', brief: 'b', agentId: 'a-twinkle', teamId: null }],
+    );
     work.setItem('i1', { status: 'failed', note: 'Stopped' });
     work.setGoalStatus('g1', 'failed');
 

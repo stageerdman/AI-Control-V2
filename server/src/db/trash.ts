@@ -52,7 +52,13 @@ export type Deleted = { deleted: { kind: Kind; id: string }; restoreToken: strin
 /** `seatsLost`: team names whose seat a restored agent could not get back (the team filled up). */
 export type Restored = { restored: { kind: Kind; id: string }; seatsLost?: string[] };
 /** A running session that keeps an agent from being deleted. */
-export type BusySession = { runId: string; projectId: string; projectName: string; task: string; startedAt: string };
+export type BusySession = {
+  runId: string;
+  projectId: string;
+  projectName: string;
+  task: string;
+  startedAt: string;
+};
 export type AgentBusy = { busy: boolean; sessions: BusySession[] };
 
 type Repos = {

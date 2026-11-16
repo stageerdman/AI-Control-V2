@@ -19,7 +19,11 @@ const until = async (fn: () => Promise<boolean>) => {
 };
 type Who = { id: string };
 const lineup = async () =>
-  (await h.call('GET', '/projects/aurora/lineup')).body as { specialists: Who[]; left: Who[]; teams: unknown[] };
+  (await h.call('GET', '/projects/aurora/lineup')).body as {
+    specialists: Who[];
+    left: Who[];
+    teams: unknown[];
+  };
 const ids = (xs: Who[]) => xs.map((x) => x.id);
 
 /** Take people off Aurora through the rebuild routes (confirm card → apply). */
@@ -31,7 +35,9 @@ const removeFromAurora = async (remove: string[]) => {
 
 describe('bring someone back as a specialist', () => {
   it('remove, then bring back: specialist again, off the left list, joins the room, and gets their work', async () => {
-    const crew = scriptedCrew({ dispatch: [{ summary: 's', items: [{ text: 'Seed the data', assignee: 'a-baron', brief: 'b' }] }] });
+    const crew = scriptedCrew({
+      dispatch: [{ summary: 's', items: [{ text: 'Seed the data', assignee: 'a-baron', brief: 'b' }] }],
+    });
     h = testApp({ seed: true, runner: crew.runner });
     mkdirSync(join(h.config.sandbox, 'aurora'));
     h.store.projects.update('aurora', { folder: 'aurora' });
@@ -40,7 +46,9 @@ describe('bring someone back as a specialist', () => {
     await removeFromAurora(['a-baron']);
     let l = await lineup();
     expect(ids(l.left)).toEqual(['a-baron', 'a-pete']); // newest first
-    expect(castAvailable(h.store, 'aurora').agents.find((a) => a.name === 'Baron von Backup')).toMatchObject({ wasHere: true });
+    expect(castAvailable(h.store, 'aurora').agents.find((a) => a.name === 'Baron von Backup')).toMatchObject({
+      wasHere: true,
+    });
 
     const seen = h.events.after('project', 'aurora').at(-1)?.id ?? 0;
     const r = await h.call('POST', '/projects/aurora/specialists', { agentId: 'a-baron' });
@@ -53,19 +61,27 @@ describe('bring someone back as a specialist', () => {
     expect(evs.some((e) => e.type === 'staff.changed')).toBe(true);
 
     const g = await h.call('POST', '/projects/aurora/work', { goal: 'Seed it' });
-    await until(async () => (await h.call('GET', `/projects/aurora/work/${g.body.id}`)).body.status === 'done');
+    await until(
+      async () => (await h.call('GET', `/projects/aurora/work/${g.body.id}`)).body.status === 'done',
+    );
     const [item] = workRepo(h.store.db).projectItems('aurora', 'done');
     expect(item).toMatchObject({ agentId: 'a-baron', teamId: null });
-    const run = h.store.db.prepare('SELECT agent_id FROM runs WHERE id = ?').get(item?.runId ?? '') as { agent_id: string };
+    const run = h.store.db.prepare('SELECT agent_id FROM runs WHERE id = ?').get(item?.runId ?? '') as {
+      agent_id: string;
+    };
     expect(run.agent_id).toBe('a-baron');
   });
 
   it('refuses someone not in the Cast, or already on the project (on a team: use Rearrange)', async () => {
     h = testApp({ seed: true });
     const before = JSON.stringify(h.store.projects.require('aurora'));
-    const ask = async (agentId: string) => (await h.call('POST', '/projects/aurora/specialists', { agentId })).body;
+    const ask = async (agentId: string) =>
+      (await h.call('POST', '/projects/aurora/specialists', { agentId })).body;
     expect(await ask('a-nobody')).toEqual({ ok: false, error: expect.stringContaining('not in the Cast') });
-    expect(await ask('a-baron')).toEqual({ ok: false, error: expect.stringContaining('already on this project') });
+    expect(await ask('a-baron')).toEqual({
+      ok: false,
+      error: expect.stringContaining('already on this project'),
+    });
     expect((await ask('a-pete')).error).toMatch(/already on this project.*Rearrange/);
     expect(JSON.stringify(h.store.projects.require('aurora'))).toBe(before);
   });
@@ -73,7 +89,9 @@ describe('bring someone back as a specialist', () => {
   it('a rebuild "specialist" move brings a leaver back at once; Undo takes them off again', async () => {
     h = testApp({ seed: true });
     await removeFromAurora(['a-baron']);
-    const plan = await h.call('POST', '/projects/aurora/rebuild/plan', { move: [{ agent: 'Baron', to: 'specialist' }] });
+    const plan = await h.call('POST', '/projects/aurora/rebuild/plan', {
+      move: [{ agent: 'Baron', to: 'specialist' }],
+    });
     expect(plan.status).toBe(200);
     expect(plan.body.needsConfirm).toBe(false);
     expect(plan.body.card.specialists).toEqual([{ id: 'a-baron', name: 'Baron von Backup' }]);

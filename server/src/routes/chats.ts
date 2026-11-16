@@ -84,7 +84,8 @@ export const chatRoutes =
       if (retry) earlier = earlier.slice(0, -1);
       const sent = retry ? last : say(chat, 'user', text);
       const answer = await replyInChat(chat, earlier, text);
-      const offer = answer.work && chatWork.canOffer(chat.projectId, chat.agentId) ? { work: answer.work } : null;
+      const offer =
+        answer.work && chatWork.canOffer(chat.projectId, chat.agentId) ? { work: answer.work } : null;
       const reply = say(chat, 'assistant', answer.reply, offer ? { offer } : {});
       return { sent, reply };
     });
