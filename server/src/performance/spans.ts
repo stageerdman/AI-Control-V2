@@ -111,6 +111,13 @@ export function readSpans(db: Db, projectId: string): Span[] {
   return [...runSpans(db, projectId), ...crewSpans(db, projectId)];
 }
 
+/** The first work on an office (ISO timestamps sort as text); null before any. */
+export function firstStart(spans: readonly Span[]): string | null {
+  let first: string | null = null;
+  for (const s of spans) if (!first || s.start < first) first = s.start;
+  return first;
+}
+
 /** How long a span lasted: still going → up to `nowMs`; ended without a time (shouldn't happen) → nothing. */
 export function spanMs(s: Span, nowMs: number): number {
   const from = Date.parse(s.start);

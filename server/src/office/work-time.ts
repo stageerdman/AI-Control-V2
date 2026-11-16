@@ -14,6 +14,7 @@ import type { Db } from '../db/connection.ts';
 import { now } from '../db/util.ts';
 import {
   type Asked,
+  firstStart,
   readSpans,
   spanMs,
   type Tokens,
@@ -113,13 +114,11 @@ export function createWorkClock(db: Db) {
       let totalMs = 0;
       let turns = 0;
       let live = 0;
-      let since: string | null = null;
       for (const s of spans) {
         const ms = spanMs(s, nowMs);
         totalMs += ms;
         turns += s.turns;
         if (s.outcome === 'live') live++;
-        if (!since || s.start < since) since = s.start;
         kinds.set(s.kind, (kinds.get(s.kind) ?? 0) + ms);
         const a = agents.get(s.agentId) ?? { ms: 0, runs: 0 };
         a.ms += ms;
@@ -134,7 +133,7 @@ export function createWorkClock(db: Db) {
           .sort((x, y) => y.ms - x.ms || y.runs - x.runs),
         runs: spans.length,
         turns,
-        since,
+        since: firstStart(spans),
         live,
       };
     },
