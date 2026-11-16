@@ -156,7 +156,7 @@ export function LookTray({
         }}
       >
         {opts.map((o, i) => (
-          // biome-ignore lint/a11y/useSemanticElements: a listbox option with a bot inside
+          // biome-ignore lint/a11y/useKeyWithClickEvents: Enter / Space are handled on the tray (onKey), roving focus
           <div
             key={o.value}
             ref={(el) => {
@@ -186,8 +186,12 @@ export function LookTray({
                 </span>
               </>
             ) : (
-              // biome-ignore lint/security/noDangerouslySetInnerHtml: our own bot SVG
-              <span className="lk-mini" aria-hidden="true" dangerouslySetInnerHTML={{ __html: thumbs[i] ?? '' }} />
+              <span
+                className="lk-mini"
+                aria-hidden="true"
+                // biome-ignore lint/security/noDangerouslySetInnerHtml: our own bot SVG
+                dangerouslySetInnerHTML={{ __html: thumbs[i] ?? '' }}
+              />
             )}
           </div>
         ))}

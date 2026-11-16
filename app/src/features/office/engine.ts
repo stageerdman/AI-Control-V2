@@ -289,7 +289,12 @@ export class OfficeEngine {
     rec.hero = h;
     rec.btn.querySelector<HTMLElement>('.o-blanket')?.style.setProperty('--bk', hueHex(ag.look?.hue));
     const d = this.desks[rec.seat];
-    if (d) d.chair.innerHTML = chair(ag.look?.hue ?? d.hue ?? 'grape');
+    if (d) {
+      d.chair.innerHTML = chair(ag.look?.hue ?? d.hue ?? 'grape');
+      /* the nameplate and the mug band wear the owner's colour */
+      if (ag.look?.hue)
+        for (const r of d.el.querySelectorAll('.d-acc')) r.setAttribute('fill', hueHex(ag.look.hue));
+    }
     rec.cardKey = undefined;
     this.dress(rec);
     this.deskSync(rec.seat);

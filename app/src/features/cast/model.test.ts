@@ -102,9 +102,17 @@ describe('look arrows + recruit colour', () => {
     expect(trayOptions(look, 'hue')).toHaveLength(7);
   });
   it('sameLook ignores key order and a missing decal', () => {
-    const shuffled = { hue: 'sun', face: 'none', antenna: 'none', body: 'hero', tool: 'none', hat: 'none' } as Look;
+    const shuffled = {
+      hue: 'sun',
+      face: 'none',
+      antenna: 'none',
+      body: 'hero',
+      tool: 'none',
+      hat: 'none',
+    } as Look;
     expect(sameLook(look, shuffled)).toBe(true);
     expect(sameLook(look, { ...look, decal: undefined })).toBe(true);
+    expect(sameLook(look, { ...look, decal: 'none' })).toBe(true);
     expect(sameLook(look, { ...look, hat: 'beret' })).toBe(false);
     expect(sameLook(look, { ...look, decal: 'Design' })).toBe(false);
   });

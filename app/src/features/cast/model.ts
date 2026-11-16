@@ -67,8 +67,9 @@ export function trayOptions(look: Look, slotId: LookSlotId): TrayOption[] {
 }
 
 const LOOK_KEYS = ['hat', 'tool', 'body', 'antenna', 'face', 'hue', 'decal'] as const;
-/** Same costume, whatever the key order (a missing decal equals a missing decal). */
-export const sameLook = (a: Look, b: Look) => LOOK_KEYS.every((k) => a[k] === b[k]);
+/** Same costume, whatever the key order (a missing decal and 'none' both draw nothing). */
+const norm = (l: Look, k: (typeof LOOK_KEYS)[number]) => (k === 'decal' ? (l.decal ?? 'none') : l[k]);
+export const sameLook = (a: Look, b: Look) => LOOK_KEYS.every((k) => norm(a, k) === norm(b, k));
 
 export const lookTag = (look: Look, slotId: LookSlotId) => {
   const sl = LOOK_SLOTS.find((s) => s.id === slotId);

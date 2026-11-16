@@ -636,7 +636,7 @@ export function desk(kind: DeskKind, o: DeskOpts = {}): string {
       ? `<rect x="${L}" y="-18" width="${R - L}" height="6" fill="${hueHex(o.hue)}" ${_o(2)}/>`
       : '';
   const items = {
-    mug: `<g transform="translate(${L + 26} -28)"><rect x="-6" y="-12" width="12" height="12" rx="2" fill="${OT.paper}" ${_o(1.8)}/><path d="M6 -9 c5 0 5 6 0 6" fill="none" ${_o(1.6)}/><rect x="-6" y="-8" width="12" height="3" fill="${hueHex(o.accent)}"/></g>`,
+    mug: `<g transform="translate(${L + 26} -28)"><rect x="-6" y="-12" width="12" height="12" rx="2" fill="${OT.paper}" ${_o(1.8)}/><path d="M6 -9 c5 0 5 6 0 6" fill="none" ${_o(1.6)}/><rect class="d-acc" x="-6" y="-8" width="12" height="3" fill="${hueHex(o.accent)}"/></g>`,
     plant: `<g transform="translate(${L + 26} -28)"><path d="M-7 0 L-6 -8 H6 L7 0Z" fill="${OT.paper}" ${_o(1.8)}/><path d="M0 -8 C-10 -14 -8 -22 -2 -20 C0 -16 0 -12 0 -8 C2 -16 8 -22 10 -16 C8 -12 4 -10 0 -8" fill="#5fbf73" ${_o(1.6)}/></g>`,
     /* STUDIO LIFE: the captain's principles — two upright binders, the front one with a team-hue spine */
     binder: `<g transform="translate(${L + 26} -28)"><rect x="-12" y="-28" width="11" height="28" rx="2" fill="${OT.steel}" ${_o(1.6)}/><rect x="-3" y="-32" width="14" height="32" rx="2" fill="${OT.paper}" ${_o(1.8)}/><rect x="-3" y="-32" width="5" height="32" rx="1.5" fill="${hueHex(o.hue)}" ${_o(1.4)}/><circle cx="6" cy="-22" r="2" fill="none" stroke="${OT_INK}" stroke-width="1.4"/></g>`,
@@ -657,7 +657,7 @@ export function desk(kind: DeskKind, o: DeskOpts = {}): string {
     <rect x="${L}" y="-18" width="${R - L}" height="${wide ? 46 : 42}" rx="3" fill="${frontC}" ${_o(2.5)}/>
     ${stripe}
     <rect x="${L + 10}" y="-3" width="${R - L - 20}" height="${wide ? 28 : 24}" rx="3" fill="none" stroke="${shade(frontC, -26)}" stroke-width="2" opacity=".5"/>
-    ${o.accent ? `<rect x="${(L + R) / 2 - 13}" y="13" width="26" height="8" rx="2" fill="${hueHex(o.accent)}" ${_o(1.6)}/>` : ''}
+    ${o.accent ? `<rect class="d-acc" x="${(L + R) / 2 - 13}" y="13" width="26" height="8" rx="2" fill="${hueHex(o.accent)}" ${_o(1.6)}/>` : ''}
     <g class="d-kbd"><path d="M-17 -26 H17 L19 -21 H-19Z" fill="#efe9f7" ${_o(1.6)}/></g>
     <g class="d-tray" transform="translate(${R - 18} -25)" style="display:none"><g class="d-tray-in"><path d="M-12 0 L-10 -8 H10 L12 0Z" fill="${OT.steel}" ${_o(1.6)}/><rect x="-9" y="-12" width="18" height="10" rx="1" fill="#e8c38c" ${_o(1.5)} transform="rotate(-6)"/></g></g>
     ${o.item ? items[o.item] : ''}

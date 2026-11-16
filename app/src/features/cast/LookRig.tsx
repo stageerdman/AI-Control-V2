@@ -126,7 +126,11 @@ export function LookRig({
                 aria-label={`${tag} — show all ${PLURAL_LOW[sl.id]}`}
                 aria-expanded={isOpen}
                 aria-haspopup="listbox"
-                onClick={() => (isOpen ? close('dismiss') : (tryOn(null), setOpen(sl.id)))}
+                onClick={() => {
+                  if (isOpen) return close('dismiss');
+                  tryOn(null);
+                  setOpen(sl.id);
+                }}
               >
                 {tag}
                 <span className="lk-caret" aria-hidden="true">
