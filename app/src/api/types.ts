@@ -631,6 +631,11 @@ export type EventPayloads = {
     newAgents: number;
     newTeams: number;
   };
+  /** A Cast agent on this project was edited (GET /agents/:id has the new values). */
+  'agent.changed': {
+    agentId: string;
+    fields: ('name' | 'nick' | 'role' | 'look' | 'prompt' | 'canMail')[];
+  };
   'cast.created': { kind: 'agent' | 'team' | 'role'; id: string; name: string; by?: string };
   'health.checked': {
     reportId: string;
@@ -775,6 +780,7 @@ export const EVENT_TYPES = [
   'staff.changed',
   'mail.changed',
   'plan.changed',
+  'agent.changed',
   'cast.created',
   'health.checked',
   'goal.changed',
