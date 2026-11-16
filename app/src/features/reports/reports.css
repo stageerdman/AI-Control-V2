@@ -123,6 +123,7 @@
 }
 .rp-foot {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 14px;
 }
@@ -151,6 +152,42 @@
   line-height: 1.55;
   font-weight: 600;
   margin: 6px 0 4px;
+}
+.rp-comms h3 {
+  margin: 14px 0 8px;
+  font-size: 15px;
+}
+.rp-comm-rows,
+.rp-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.rp-comm {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(36, 26, 68, 0.04);
+  font-size: 14px;
+}
+.rp-comm .rp-r1 {
+  gap: 6px;
+}
+.rp-kind {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.rp-tools {
+  gap: 4px;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.rp-err {
+  color: var(--coral);
 }
 .rp-empty a {
   color: var(--ink);

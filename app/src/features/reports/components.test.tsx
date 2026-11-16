@@ -32,6 +32,28 @@ const rep = (id: string, p: Partial<Report> = {}): Report => ({
   ...p,
 });
 
+const at = new Date(Date.now() - 2 * 60_000).toISOString();
+const comm = (id: number, from: string, to: string | null, kind: string, text: string) => ({
+  id,
+  scope: 'project',
+  scopeId: 'aurora',
+  kind,
+  from,
+  to,
+  text,
+  refs: {},
+  at,
+});
+const COMMS = [
+  comm(1, 'a-pixel', 'a-scout', 'call', 'Is the checkout endpoint built yet?'),
+  comm(2, 'a-scout', 'a-pixel', 'answer', 'Not yet — starting it now.'),
+];
+const USES = [
+  { tool: 'ask_person', agentId: 'a-pixel', uses: 3, errors: 1, lastAt: at },
+  { tool: 'ask_person', agentId: 'a-scout', uses: 2, errors: 0, lastAt: at },
+  { tool: 'my_todos', agentId: 'a-scout', uses: 1, errors: 0, lastAt: at },
+];
+
 type Db = { active: Report[]; archived: Report[]; teamReporter: boolean; one?: Report | null };
 let db: Db;
 let calls: { method: string; url: string; body?: unknown }[];
@@ -73,6 +95,8 @@ beforeEach(() => {
         return json({ reports: db.active.map(strip), unread: db.active.filter((r) => !r.readAt).length });
       if (url === '/projects/aurora/reports?archived=1')
         return json({ reports: db.archived.map(strip), unread: 0 });
+      if (url === '/projects/aurora/comms') return json({ comms: COMMS });
+      if (url === '/projects/aurora/tool-use') return json({ uses: USES });
       const m = /^\/projects\/aurora\/reports\/(.+)$/.exec(url);
       if (m) {
         const r = db.one === undefined ? [...db.active, ...db.archived].find((x) => x.id === m[1]) : db.one;
@@ -125,6 +149,26 @@ describe('ReportsList', () => {
     render(<ReportsList projectId="aurora" onOpen={() => {}} />);
     expect(await screen.findByText(/Nobody on this project files reports yet/)).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Cast' }).getAttribute('href')).toBe('#cast');
+  });
+
+  it('Communication drawer: who talked to whom (newest first), tool totals, how-to link', async () => {
+    render(<ReportsList projectId="aurora" onOpen={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Communication' }));
+    expect(await screen.findByRole('heading', { name: 'Communication' })).toBeTruthy();
+    const rows = await waitFor(() => {
+      const r = document.querySelectorAll('.rp-comm');
+      expect(r).toHaveLength(2);
+      return r;
+    });
+    expect(rows[0]?.textContent).toContain('Not yet — starting it now.');
+    expect(rows[1]?.textContent).toMatch(/Pixel → Scout Ranger.*call/);
+    expect(await screen.findByText(/5 uses/)).toBeTruthy();
+    expect(screen.getByText(/1 failed/)).toBeTruthy();
+    expect(screen.getByText(/1 use$/)).toBeTruthy();
+    const link = screen.getByRole('link', { name: /How every office object is used/ });
+    expect(link.getAttribute('href')).toMatch(/\/projects\/aurora\/how-to$/);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Reports' }));
+    expect(await screen.findByRole('heading', { name: 'Reports' })).toBeTruthy();
   });
 
   it('loading shows 3 placeholder rows; an error offers Try again', async () => {

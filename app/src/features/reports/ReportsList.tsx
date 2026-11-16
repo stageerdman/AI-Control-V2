@@ -6,7 +6,10 @@ import { Button } from '../../ui';
 import { type ReportRow, reportsApi, reportsKey } from './api';
 import { isUnread, relWhen, rowLabel } from './model';
 import { AuthorLine, useCast, useHasReporter } from './parts';
+import { CommsDrawer } from './CommsDrawer';
 import './reports.css';
+
+const TITLE = { reports: 'Reports', archived: 'Archived reports', comms: 'Communication' } as const;
 
 export function ReportsList({
   projectId,
@@ -17,7 +20,8 @@ export function ReportsList({
   onOpen: (row: ReportRow) => void;
   back?: { label: string; onClick: () => void };
 }) {
-  const [archived, setArchived] = useState(false);
+  const [view, setView] = useState<'reports' | 'archived' | 'comms'>('reports');
+  const archived = view === 'archived';
   const backRef = useRef<HTMLButtonElement>(null);
   const first = useRef(true);
   const list = useQuery(reportsKey(projectId, archived), () => reportsApi.list(projectId, archived));
@@ -36,13 +40,14 @@ export function ReportsList({
       return;
     }
     backRef.current?.focus({ preventScroll: true });
-  }, [archived]);
+  }, [view]);
 
-  const backBtn = archived ? { label: 'Reports', onClick: () => setArchived(false) } : back;
+  const backBtn = view !== 'reports' ? { label: 'Reports', onClick: () => setView('reports') } : back;
   const rows = list.data?.reports ?? [];
 
   let body: React.ReactNode;
-  if (list.error && !list.data)
+  if (view === 'comms') body = <CommsDrawer projectId={projectId} />;
+  else if (list.error && !list.data)
     body = (
       <div className="rp-error" role="alert">
         <span>Couldn't load reports.</span>
@@ -123,13 +128,18 @@ export function ReportsList({
         </button>
       )}
       <header className="rp-hhead">
-        <h2>{archived ? 'Archived reports' : 'Reports'}</h2>
+        <h2>{TITLE[view]}</h2>
       </header>
       {body}
-      {!archived && nArchived > 0 && (
+      {view === 'reports' && (
         <footer className="rp-foot">
-          <button type="button" className="rp-link" onClick={() => setArchived(true)}>
-            Archived ({nArchived})
+          {nArchived > 0 && (
+            <button type="button" className="rp-link" onClick={() => setView('archived')}>
+              Archived ({nArchived})
+            </button>
+          )}
+          <button type="button" className="rp-link" onClick={() => setView('comms')}>
+            Communication
           </button>
         </footer>
       )}

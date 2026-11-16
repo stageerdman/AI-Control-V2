@@ -397,6 +397,8 @@ export type Comm = {
   refs: Record<string, unknown>;
   at: string;
 };
+/** How often one agent used one office tool (GET /projects/:id/tool-use). */
+export type ToolUse = { tool: string; agentId: string; uses: number; errors: number; lastAt: string };
 
 /* ---------- Ports (G1): GET /ports ---------- */
 export type PortsView = {
@@ -595,6 +597,8 @@ export type EventPayloads = {
   /** STUDIO LIFE */
   'desk.note': { agentId: string; noteId: string; runId?: string };
   'todo.changed': { agentId: string; todoId: string; change: 'added' | 'done' };
+  /** An agent (or the director) used one of the office's tools. */
+  'tool.used': { agentId: string; runId?: string; tool: string; ok: boolean };
   'guest.changed': { agentId: string; change: 'joined' | 'updated' | 'left' };
   /** The director staffed the project from chat. */
   'staff.changed': { teamIds: string[]; agentIds: string[]; added: string[]; removed?: string[]; moved?: string[] };
@@ -752,6 +756,7 @@ export const EVENT_TYPES = [
   'room.call',
   'desk.note',
   'todo.changed',
+  'tool.used',
   'guest.changed',
   'staff.changed',
   'mail.changed',

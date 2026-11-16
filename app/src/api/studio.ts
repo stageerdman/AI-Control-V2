@@ -23,6 +23,7 @@ import type {
   Deleted,
   DeskNote,
   Todo,
+  ToolUse,
   Draft,
   DraftCreate,
   DraftPatch,
@@ -213,4 +214,7 @@ export const studio = {
     drop: (id: string) => http.del<void>(`/creator/sessions/${e(id)}`),
   },
   comms: (projectId: string) => http.get<{ comms: Comm[] }>(`/projects/${e(projectId)}/comms`),
+  toolUse: (projectId: string) => http.get<{ uses: ToolUse[] }>(`/projects/${e(projectId)}/tool-use`),
+  /** The HTML how-to page: every office object, how the AIs use it and how often. */
+  howToPath: (projectId: string) => `/projects/${e(projectId)}/how-to`,
 };
