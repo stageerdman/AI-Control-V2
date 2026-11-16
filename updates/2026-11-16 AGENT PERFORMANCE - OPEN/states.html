@@ -1,0 +1,198 @@
+<!doctype html>
+<!-- Agent performance ("How the team works" sheet): every state from design.md, on stand-in bots (flat shapes, not
+     the real renderer) and made-up numbers. Open in a browser. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>How the team works — states</title>
+<style>
+  :root { --sun:#ffc24b; --sun-deep:#ff9b3d; --ink:#241a44; --ink-soft:#5b5280; --line:rgba(36,26,68,.1);
+          --coral:#ff6f73; --teal:#2fd3c3; --sky:#4ea8ff; --grape:#9b6cff; --mint:#8be88b; --rose:#ff9ecf; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:32px; background:#2c2160; font:15px/1.4 -apple-system, system-ui, sans-serif; color:#fff6e9; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 24px; color:rgba(255,246,233,.72); max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(440px, 1fr)); gap:28px; align-items:start; }
+  figure { margin:0; }
+  figcaption { font-weight:800; margin:0 0 8px; }
+  figcaption small { display:block; font-weight:500; color:rgba(255,246,233,.72); }
+
+  .sheet { background:#fff; color:var(--ink); border-radius:26px; padding:22px 22px 18px; box-shadow:0 18px 40px -18px rgba(20,10,45,.55); }
+  .sheet.narrow { max-width:360px; padding:18px 16px; }
+  .top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .top h2 { margin:0 0 4px; font-size:22px; }
+  .x { width:30px; height:30px; border-radius:50%; background:rgba(36,26,68,.06); display:grid; place-items:center; font-weight:900; color:var(--ink-soft); }
+  .hint { color:var(--ink-soft); margin:0; font-size:14px; }
+  .bar1 { display:flex; justify-content:space-between; align-items:center; margin:14px 0 12px; gap:8px; }
+  .seg { display:inline-flex; background:rgba(36,26,68,.06); border-radius:999px; padding:3px; }
+  .seg span { padding:5px 12px; border-radius:999px; font-size:13px; font-weight:800; color:var(--ink-soft); }
+  .seg span.on { background:var(--sun); color:var(--ink); }
+  .live { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; color:#0f6b5f;
+          background:rgba(47,211,195,.16); border-radius:999px; padding:4px 10px; }
+  .live::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--teal); }
+  .cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .card { border-radius:18px; padding:10px 12px 12px; background:rgba(36,26,68,.04); }
+  .card.on { background:#fff; box-shadow:inset 0 0 0 1px var(--line), inset 0 -3px 0 var(--sun); }
+  .card .k { font-size:11.5px; letter-spacing:.04em; text-transform:uppercase; font-weight:800; color:var(--ink-soft); }
+  .card .n { font-size:30px; font-weight:900; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .card .n sup { font-size:14px; color:var(--ink-soft); }
+  .card .t { font-size:12.5px; color:var(--ink-soft); font-weight:600; }
+  .narrow .card .n { font-size:22px; }
+  .narrow .card { padding:8px 9px 10px; }
+  .skel { display:block; height:26px; width:70%; border-radius:8px; background:rgba(36,26,68,.08); margin:4px 0; }
+  .skel.s { height:10px; width:85%; }
+
+  .chart { margin:16px 0 4px; }
+  .chart .ttl { font-size:12.5px; font-weight:800; color:var(--ink-soft); display:flex; gap:8px; align-items:center; }
+  .chip { display:inline-flex; gap:5px; align-items:center; font-size:12px; font-weight:800; border-radius:999px; padding:2px 9px; background:rgba(36,26,68,.07); color:var(--ink); }
+  .bars { display:flex; align-items:flex-end; gap:4px; height:96px; margin-top:8px; position:relative; }
+  .narrow .bars { height:72px; }
+  .bars i { flex:1; background:var(--sun); border-radius:6px 6px 2px 2px; position:relative; min-height:3px; }
+  .bars i.stub { background:var(--line); height:3px !important; }
+  .bars i.today { box-shadow:inset 0 0 0 2px var(--sun-deep); }
+  .bars i.focus { outline:3px solid var(--sun); outline-offset:2px; }
+  .bars i b { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); font-size:11px; font-style:normal; color:var(--ink); white-space:nowrap; margin-bottom:2px; }
+  .days { display:flex; gap:4px; margin-top:4px; }
+  .days span { flex:1; text-align:center; font-size:11px; font-weight:700; color:var(--ink-soft); }
+  .tip { position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--ink); color:#fff6e9;
+         font-size:12px; font-weight:700; padding:5px 9px; border-radius:10px; white-space:nowrap; z-index:2; }
+
+  h3 { margin:18px 0 8px; font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft); display:flex; justify-content:space-between; }
+  h3 a { text-transform:none; letter-spacing:0; font-weight:800; color:var(--ink); text-decoration:none; }
+  .flags { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .flags li { display:flex; gap:9px; align-items:baseline; font-weight:700; }
+  .flags li .d { flex:none; width:10px; height:10px; border-radius:50%; transform:translateY(1px); }
+  .flags u { text-decoration-color:rgba(36,26,68,.35); text-underline-offset:3px; }
+  .team { font-size:13px; font-weight:800; margin:10px 0 4px; }
+  .team span { color:var(--ink-soft); font-weight:700; }
+  .rows { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+  .rows li { display:grid; grid-template-columns:28px 112px 1fr auto 14px; gap:10px; align-items:center; padding:4px 6px; border-radius:12px; }
+  .narrow .rows li { grid-template-columns:28px 70px 1fr auto 14px; gap:8px; }
+  .rows li.open { background:rgba(36,26,68,.05); }
+  .rows li.faded { opacity:.55; }
+  .rows .nm { display:flex; flex-direction:column; min-width:0; line-height:1.15; }
+  .rows .nm b { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:14px; }
+  .rows .nm span { font-size:12px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .narrow .rows .nm span { display:none; }
+  .share { height:8px; border-radius:999px; background:rgba(36,26,68,.06); overflow:hidden; }
+  .share div { height:100%; border-radius:999px; }
+  .num { font-weight:800; font-variant-numeric:tabular-nums; font-size:14px; white-space:nowrap; position:relative; }
+  .num.live::after { content:""; position:absolute; right:-6px; top:0; width:6px; height:6px; border-radius:50%; background:var(--teal); }
+  .tr { font-size:12px; color:var(--ink-soft); font-weight:900; }
+  .detail { grid-column:2 / -1; font-size:12.5px; color:var(--ink-soft); font-weight:600; padding-bottom:4px; }
+  .kinds { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .kinds li { display:grid; grid-template-columns:1fr auto; gap:3px 12px; font-weight:700; font-size:14px; }
+  .kinds .share { grid-column:1/-1; height:6px; }
+  .empty { margin:14px 0 4px; font-weight:700; color:var(--ink-soft); }
+  .btn { display:inline-block; font-weight:800; font-size:13px; border-radius:999px; padding:5px 12px; background:var(--sun); color:var(--ink); }
+  .btn.ghost { background:rgba(36,26,68,.07); }
+  .btn.focus { outline:3px solid var(--sun); outline-offset:2px; background:rgba(36,26,68,.07); }
+
+  /* stand-in bot: flat head + body in the agent's hue, ink outline */
+  .bot { width:28px; height:28px; position:relative; }
+  .bot::before { content:""; position:absolute; left:6px; top:2px; width:16px; height:13px; border-radius:6px; background:var(--h); box-shadow:0 0 0 1.5px var(--ink); }
+  .bot::after  { content:""; position:absolute; left:8px; top:16px; width:12px; height:11px; border-radius:5px 5px 3px 3px; background:var(--h); box-shadow:0 0 0 1.5px var(--ink); }
+  .bot.work::before { transform:rotate(-8deg); }
+  .bot.ghost { opacity:.35; --h:#cfc8e4; }
+</style>
+</head>
+<body>
+<h1>How the team works — states</h1>
+<p class="sub">The office's wall clock sheet, grown into the performance view (design.md). Stand-in bots and made-up
+numbers. Bars in the list are each agent's own hue; the chart is sun until an agent is picked.</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const A = {
+  pixel: { n:'Pixel', r:'Director', h:'var(--grape)' },
+  blair: { n:'Blair', r:'Studio Design', h:'var(--rose)' },
+  quill: { n:'Quill', r:'Writer', h:'var(--mint)' },
+  jony:  { n:'Jony', r:'UX', h:'var(--sky)' },
+  rivet: { n:'Rivet', r:'★ Captain', h:'var(--coral)' },
+  bolt:  { n:'Bolt', r:'Engineer', h:'var(--teal)' },
+};
+const DAYS = ['T','W','T','F','S','S','M'];
+
+const head = (o={}) => `
+  <div class="top"><div><h2>How the team works</h2>
+  <p class="hint">${o.sub ?? 'Everything the crew did on AI Studio.'}</p></div><div class="x">✕</div></div>`;
+const range = (on=0, live) => `<div class="bar1"><div class="seg" role="radiogroup" aria-label="Range">
+  ${['7 days','30 days','All time'].map((t,i)=>`<span class="${i===on?'on':''}">${t}</span>`).join('')}</div>
+  ${live?`<span class="live">${live} working</span>`:''}</div>`;
+const cards = (c, on=0) => `<div class="cards" role="radiogroup" aria-label="Measure">${c.map((x,i)=>
+  `<div class="card ${i===on?'on':''}"><div class="k">${x[0]}</div>${x[1]===null?'<span class="skel"></span><span class="skel s"></span>':
+  `<div class="n">${x[1]}</div><div class="t">${x[2]}</div>`}</div>`).join('')}</div>`;
+const chart = (vals, o={}) => {
+  const max = Math.max(...vals, 1);
+  const top = vals.indexOf(max);
+  return `<div class="chart"><div class="ttl">${o.title ?? 'Agent time per day'}${o.chip?` <span class="chip">${o.chip} ✕</span>`:''}</div>
+  <div class="bars" role="img" aria-label="${o.title ?? 'Agent time per day'}">${vals.map((v,i)=>
+    `<i class="${v===0?'stub':''} ${o.today&&i===vals.length-1?'today':''} ${o.focus===i?'focus':''}"
+      style="height:${(v/max)*100}%;${o.hue?`background:${o.hue}`:''}">${i===top&&v&&!o.loading?`<b>${o.topLabel ?? ''}</b>`:''}
+      ${o.focus===i?`<span class="tip">${o.tip}</span>`:''}</i>`).join('')}</div>
+  <div class="days">${(o.days ?? DAYS).map(d=>`<span>${d}</span>`).join('')}</div></div>`;
+};
+const flags = (list) => `<h3>Worth a look</h3><ul class="flags">${list.map(([a,t])=>
+  `<li><span class="d" style="background:${A[a]?.h ?? 'var(--line)'}"></span><span>${t}</span></li>`).join('')}</ul>`;
+const row = ([id, share, num, tr, o={}]) => { const a = A[id] ?? { n:'A retired agent', r:'', h:'#cfc8e4' };
+  return `<li class="${o.open?'open':''} ${o.faded?'faded':''}"><div class="bot ${o.work?'work':''} ${A[id]?'':'ghost'}" style="--h:${a.h}"></div>
+  <span class="nm"><b>${a.n}</b><span>${a.r}</span></span>
+  <div class="share">${share?`<div style="width:${Math.max(2,share)}%;background:${a.h}"></div>`:''}</div>
+  <span class="num ${o.work?'live':''}">${num}</span><span class="tr" aria-label="${tr==='↑'?'up':tr==='↓'?'down':'about the same'}">${tr}</span>
+  ${o.open?`<div class="detail">${o.open}</div>`:''}</li>`; };
+const who = (groups, o={}) => `<h3>Who does the work ${o.noSwitch?'':'<a>by team ▾</a>'}</h3>${groups.map(([t, rows])=>
+  `${t?`<div class="team">${t}</div>`:''}<ul class="rows">${rows.map(row).join('')}</ul>`).join('')}`;
+const kinds = (list, title='Kind of work') => `<h3>${title}</h3><ul class="kinds">${list.map(([k,v,p])=>
+  `<li><span>${k}</span><span class="num">${v}</span><div class="share"><div style="width:${p}%;background:var(--sun)"></div></div></li>`).join('')}</ul>`;
+
+const NORMAL_CARDS = [['Agent time','6h 20m','↑ 24% vs last week'],['Tokens','4.1M','↑ 9% vs last week'],['Requests','38','↓ 3 vs last week']];
+const TEAMS = [
+  ['Director <span>· 40m</span>', [['pixel',11,'40m','']]],
+  ['Design <span>· 3h 10m</span>', [['blair',48,'3h 02m','↑'],['jony',2,'8m','↓'],['quill',0,'—','',{faded:true}]]],
+  ['Engineering <span>· 2h 30m</span>', [['rivet',29,'1h 50m',''],['bolt',11,'40m','↑']]],
+];
+const KINDS = [['Coding & building','3h 40m',58],['Thinking & planning','1h 30m',24],['Reviewing','50m',13],['Research & reports','20m',5]];
+
+const S = [
+  ['1 · Normal', 'Default: 7 days, Agent time picked. Teams grouped, director on top, Quill unasked and faded.',
+    head()+range(0)+cards(NORMAL_CARDS)+chart([40,95,60,150,220,30,85],{topLabel:'2h 40m'})
+    +flags([['blair','<u>Blair</u> did 52% of the work. Another designer could share it.'],['quill','<u>Quill</u> wasn’t asked this week.']])
+    +who(TEAMS)+kinds(KINDS)],
+  ['2 · Tokens picked, bar in focus', 'The cards are the chooser: chart and list switch to tokens. Hover/focus a bar shows all three.',
+    head()+range(0)+cards(NORMAL_CARDS,1)+chart([300,820,410,900,1200,90,380],{title:'Tokens per day',topLabel:'1.2M',focus:2,tip:'Thu, Nov 13 · 2h 10m · 410k tokens · 9 requests'})
+    +flags([['blair','<u>Blair</u> did 52% of the work. Another designer could share it.'],['pixel','<u>Pixel</u> used 40% of the tokens in 15% of the time.']])
+    +who([[null,[['pixel',40,'1.6M',''],['blair',33,'1.4M','↑'],['rivet',15,'610k',''],['bolt',9,'380k','↑'],['jony',3,'110k','↓'],['quill',0,'—','',{faded:true}]]]],{})],
+  ['3 · Live + agent picked', 'Two agents working: pill, today’s bar outlined, work pose + live dot. Blair picked: chart in her hue, row open.',
+    head()+range(0,2)+cards([['Agent time','6h 41m','↑ 31% vs last week'],['Tokens','4.3M','↑ 14% vs last week'],['Requests','40','↓ 1 vs last week']])
+    +chart([20,60,30,90,130,0,70],{title:'Blair · agent time per day',chip:'Blair',hue:'var(--rose)',today:true,topLabel:'1h 20m'})
+    +who([[null,[['blair',48,'3h 14m','↑',{work:true,open:'9 runs · 112 turns · 0.4M new + 1.0M re-read tokens · 5 tasks · 3 calls · 1 chat · last asked 4m ago'}],
+      ['rivet',29,'1h 58m','',{work:true}],['pixel',11,'40m',''],['bolt',11,'40m','↑']]]],{noSwitch:true})
+    +kinds([['Coding & building','2h 10m',67],['Reviewing','40m',21],['Research & reports','24m',12]],'Blair’s kind of work')],
+  ['4 · Loading', 'Shapes hold their place: grey bars for numbers, chart keeps its height. No spinner.',
+    head({sub:'Reading the clock…'})+range(0)+cards([['Agent time',null],['Tokens',null],['Requests',null]])
+    +chart([1,1,1,1,1,1,1].map(()=>0),{loading:true})],
+  ['5 · Quiet range', 'There was work, but not in the last 7 days. One line + a way to all time.',
+    head()+range(0)+cards([['Agent time','0','↓ 2h 05m vs last week'],['Tokens','0','↓ 1.3M vs last week'],['Requests','0','↓ 14 vs last week']])
+    +chart([0,0,0,0,0,0,0])+`<p class="empty">Nobody worked on AI Studio in the last 7 days.</p><span class="btn ghost">See all time</span>`],
+  ['6 · Empty office', 'No work ever: one line, nothing else to compare.',
+    head({sub:'Everything the crew does on AI Studio adds up here.'})+`<p class="empty">No work yet. This fills in once the crew starts.</p>`],
+  ['7 · One agent', 'No share bars, no grouping, no “carrying the load”. Trends and chart still help.',
+    head({sub:'Everything the crew did on Sketchbook.'})+range(1)+cards([['Agent time','4h 05m','↑ 1h 10m vs last month'],['Tokens','2.2M<sup>*</sup>','new this month'],['Requests','17','↑ 6 vs last month']])
+    +chart([0,30,0,60,0,0,20,80,0,40,0,0,90,10,0,0,50,0,70,0,30,0,0,110,0,20,60,0,40,15],{title:'Agent time per day',topLabel:'1h 50m',days:['Oct 18','','','','','','','','','','Oct 28','','','','','','','Nov 4','','','','','','','Nov 11','','','','','']})
+    +flags([])
+    .replace('<ul class="flags"></ul>','<p class="hint">Nothing stands out. The work is spread well.</p>')
+    +who([[null,[['bolt',0,'4h 05m','↑']]]],{noSwitch:true})
+    +'<p class="hint" style="margin-top:10px;font-size:12.5px">* Some early work wasn’t measured in tokens.</p>'],
+  ['8 · Error', 'Same as today’s clock error: the reason + Try again, focus on the button.',
+    head()+`<p class="hint" role="alert" style="margin-top:12px">Couldn’t read how the team works: the server didn’t answer. <span class="btn focus">Try again</span></p>`],
+  ['9 · Narrow (≤ 640 px)', 'Full-width sheet: smaller numbers, 72 px chart, roles move into the detail line.',
+    head()+range(0)+cards([['Agent time','6h 20m','↑ 24%'],['Tokens','4.1M','↑ 9%'],['Requests','38','↓ 3']])
+    +chart([40,95,60,150,220,30,85],{topLabel:'2h 40m'})
+    +flags([['blair','<u>Blair</u> did 52% of the work. Another designer could share it.']])
+    +who([[null,[['blair',48,'3h 02m','↑'],['rivet',29,'1h 50m',''],['pixel',11,'40m',''],['bolt',11,'40m','↑'],['x',1,'4m','']]]],{}), 'narrow'],
+];
+document.getElementById('grid').innerHTML = S.map(([t,s,body,cls]) =>
+  `<figure><figcaption>${t}<small>${s}</small></figcaption><div class="sheet ${cls??''}">${body}</div></figure>`).join('');
+</script>
+</body>
+</html>
