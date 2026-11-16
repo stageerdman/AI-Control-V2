@@ -4,8 +4,8 @@ import { FEATURE_STATUSES, type Feature, type FeaturePatch } from '../db/feature
 import type { Store } from '../db/store.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
-import { agentByName } from './director-stop.ts';
 import type { Features } from './features.ts';
+import { agentByName } from './people.ts';
 
 type Args = Record<string, unknown>;
 const str = (a: Args, k: string) => (typeof a[k] === 'string' ? (a[k] as string) : undefined);

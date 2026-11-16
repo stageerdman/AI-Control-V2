@@ -1,21 +1,13 @@
 /* The director sees what is running on its project and stops it from the office chat (voice path for
-   RUNNING's stop): `runningNow` goes into its summary; `apply` carries out a `stop` answer and says, in
-   one line per target, what was stopped. */
-import type { Agent } from '../db/agents.ts';
+   RUNNING's stop): `runningNow` goes into its summary; `apply` stops one agent or everything and says, in
+   one line per target, what was stopped (the `stop_work` tool's answer). */
 import type { Store } from '../db/store.ts';
 import type { Running, RunningItem } from '../running/registry.ts';
 import type { Stopper } from '../running/stop.ts';
-import type { DirectorStop } from './director-reply.ts';
+import { agentByName } from './people.ts';
 
-export type StopLine = { kind: 'text' | 'error'; text: string };
-
-/** An agent by name, nick or id, as the director (or voice) says it. */
-export function agentByName(store: Store, said: string): Agent | undefined {
-  const k = said.trim().toLowerCase();
-  return store.agents
-    .list()
-    .find((a) => a.name.toLowerCase() === k || a.nick?.toLowerCase() === k || a.id === said.trim());
-}
+/** Stop work now: everything in the project, or these people (names). */
+export type DirectorStop = { everyone: true } | { agents: string[] };
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 /** "1 session and 2 code runs" — what a stop hit, in words. */
@@ -36,22 +28,18 @@ export function createDirectorStop(deps: { store: Store; running: Running; stopp
     runningNow: (projectId: string) =>
       deps.running.list({ projectId }).map((i) => ({ who: name(i.agentId), kind: i.kind, what: i.label })),
 
-    apply(projectId: string, stop: DirectorStop): StopLine[] {
+    /** Stop as `directorId` asks, from inside its own turn: its own run is never stopped. */
+    apply(projectId: string, directorId: string, stop: DirectorStop): string[] {
       if ('everyone' in stop) {
-        const what = describeStopped(deps.stopper.project(projectId).stopped);
-        return [
-          { kind: 'text', text: what ? `Stopped everything: ${what}.` : 'Nothing was running — all quiet.' },
-        ];
+        const what = describeStopped(deps.stopper.project(projectId, directorId).stopped);
+        return [what ? `Stopped everything: ${what}.` : 'Nothing was running — all quiet.'];
       }
-      return [...new Set(stop.agents)].map((said): StopLine => {
+      return [...new Set(stop.agents)].map((said) => {
         const a = agentByName(store, said);
-        if (!a)
-          return { kind: 'error', text: `I couldn’t stop ${said}: nobody by that name is in the studio.` };
+        if (!a) return `Couldn’t stop ${said}: nobody by that name is in the studio.`;
+        if (a.id === directorId) return 'That’s you — you can’t stop your own turn.';
         const what = describeStopped(deps.stopper.agent(projectId, a.id).stopped);
-        return {
-          kind: 'text',
-          text: what ? `Stopped ${a.name}: ${what}.` : `${a.name} had nothing running.`,
-        };
+        return what ? `Stopped ${a.name}: ${what}.` : `${a.name} had nothing running.`;
       });
     },
   };

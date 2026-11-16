@@ -18,9 +18,10 @@ export function createStopper(deps: {
     agent: (projectId: string, agentId: string): Stopped => ({
       stopped: deps.running.stop({ projectId, agentId }),
     }),
-    project(projectId: string): Stopped {
+    /** `spare`: an agent that keeps running (the director asking from its own chat turn). */
+    project(projectId: string, spare?: string): Stopped {
       deps.cancelGoals(projectId);
-      return { stopped: deps.running.stop({ projectId }) };
+      return { stopped: deps.running.stop({ projectId, ...(spare ? { spare } : {}) }) };
     },
   };
 }

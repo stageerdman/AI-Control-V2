@@ -3,11 +3,10 @@
    resumes the thread's last session, in the project folder:
 
    - an agent runs with its normal composed prompt + tools (team context from its team on this project);
-   - the orchestrator runs big picture: its own brain + altitude, only its whiteboard and features tools, no secrets, and a fresh
-     summary of the whiteboard, features and health in every message. It decides whether the message is
-     work (OFFICE: one Send): its answer is `{reply, work}` (director-reply.ts); work becomes a goal exactly
-     as `POST /work` would, linked to this thread by goalId. It can also ask someone on the project a question
-     (`ask`): the studio calls them (room.call — the office shows it) and relays their answer here.
+   - the orchestrator runs big picture: its own brain + altitude, only its director tools (whiteboard, features,
+     ask / resume / stop), no secrets, and a fresh summary of the whiteboard, features and health in every
+     message. It decides whether the message is work (OFFICE: one Send): its answer is `{reply, work}`
+     (director-reply.ts); work becomes a goal exactly as `POST /work` would, linked to this thread by goalId.
 
    One turn at a time per thread; the runtime's rules still hold (one live run per agent per
    project, caps). The reply arrives later as a `thread.message` event and is stored; asks the run
@@ -33,8 +32,9 @@ import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { type Capabilities, canStartWork, capabilityText, NO_CAPABILITIES } from './capabilities.ts';
 import { type AnswerField, directorAnswer, parseDirectorReply } from './director-reply.ts';
-import { agentByName, type DirectorStopper } from './director-stop.ts';
+import type { DirectorStopper } from './director-stop.ts';
 import type { Features } from './features.ts';
+import { type Seat, seatOf } from './people.ts';
 import type { Offer, Rebuilds } from './rebuild-service.ts';
 import { castAvailable, type Staffing } from './staffing.ts';
 
@@ -124,14 +124,10 @@ export function createThreads(deps: {
   staffing?: Staffing;
   /** The director rebuilds teams from chat (office/rebuild-service.ts). */
   rebuilds?: Rebuilds;
-  /** Continue a stopped goal where it was (dispatch.resume). Absent → the director can't. */
-  resumeGoal?: (projectId: string, goalId: string) => Goal;
-  /** The director asks someone a question (room.call from the director) → their answer. */
-  ask?: (projectId: string, directorId: string, to: string, request: string) => Promise<string>;
-  /** The director sees what is running and stops it (one agent, or everything). Absent → it can't. */
-  stops?: DirectorStopper;
-  /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts) and features
-      (office/feature-tools.ts). Absent → it has none. */
+  /** Who is working on what right now (the summary's `runningNow`, for the director's `stop_work`). */
+  runningNow?: DirectorStopper['runningNow'];
+  /** The director's chat tools for this project: whiteboard (src/whiteboard/tools.ts), features
+      (office/feature-tools.ts) and ask / resume / stop (office/action-tools.ts). Absent → it has none. */
   directorTools?: (projectId: string, directorId: string) => CapableTool[];
 }) {
   const { db, store, events, runtime } = deps;
@@ -140,9 +136,6 @@ export function createThreads(deps: {
     work: deps.startWork,
     staff: deps.staffing,
     rebuild: deps.rebuilds,
-    ask: deps.ask,
-    resume: deps.resumeGoal,
-    stop: deps.stops,
   };
   const answerFields = (Object.keys(wired) as AnswerField[]).filter((f) => !!wired[f]);
   const work = workRepo(db);
@@ -154,6 +147,7 @@ export function createThreads(deps: {
   const key = (projectId: string, agentId: string) => `${projectId}\u0000${agentId}`;
   const busy = new Set<string>();
   const scrub = (s: string) => redactSecrets(s, deps.secretValues()).value;
+  const seat = (p: Project, agentId: string) => seatOf(store, p, agentId);
 
   const toMessage = (r: Row): ThreadMessage => ({
     id: r.id as string,
@@ -227,17 +221,6 @@ export function createThreads(deps: {
       at,
     };
   };
-
-  /** Who the user may talk to here: the orchestrator, a specialist, or a member of a project team. */
-  function seat(p: Project, agentId: string): { agent: Agent; teamId: string | null; orchestrator: boolean } {
-    const agent = store.agents.require(store.agents.ref(agentId).id);
-    if (agent.id === p.orchestratorId) return { agent, teamId: null, orchestrator: true };
-    const teamId = p.teamIds.find((t) => store.teams.get(t)?.members.some((m) => m.agentId === agent.id));
-    if (teamId) return { agent, teamId, orchestrator: false };
-    if (p.agentIds.includes(agent.id)) return { agent, teamId: null, orchestrator: false };
-    if (store.guests.get(p.id, agent.id)) return { agent, teamId: null, orchestrator: false }; // brought in by the user
-    throw conflict(`${agent.name} isn’t on ${p.name}`, { agentId: agent.id });
-  }
 
   /** The last session of this thread, to resume (null → a fresh one). */
   const lastRunWithSession = (projectId: string, agentId: string): string | null =>
@@ -353,7 +336,7 @@ export function createThreads(deps: {
         }),
       })),
       activeGoals: active.length,
-      /* stopped partway (still on the board): the director can continue them — `resume` by n */
+      /* stopped partway (still on the board): the director can continue them — `resume_goal` by n */
       stopped: stopped.map((g, n) => ({
         n: n + 1,
         goal: clip(g.text, 300),
@@ -380,7 +363,7 @@ export function createThreads(deps: {
           }
         : null,
       /* who is working on what this moment — what the director can stop */
-      ...(deps.stops ? { runningNow: deps.stops.runningNow(p.id) } : {}),
+      ...(deps.runningNow ? { runningNow: deps.runningNow(p.id) } : {}),
       unreadReports: deps.reports.unreadTitles(p.id),
       openQuestions: runtime
         .asks(p.id, 'open')
@@ -401,7 +384,7 @@ export function createThreads(deps: {
 
   function taskFor(
     p: Project,
-    s: ReturnType<typeof seat>,
+    s: Seat,
     text: string,
     reportId?: string,
     recap?: string | null,
@@ -460,78 +443,6 @@ export function createThreads(deps: {
           text: `I couldn’t plan that: ${clip(e instanceof Error ? e.message : String(e), 2000)}`,
           runId: null,
         }),
-    );
-  }
-
-  /** The director continues stopped goals (the summary's `stopped`, by number): each says what's back on, or why not. */
-  function resumeFor(t: { projectId: string; agentId: string }, picks: number[]) {
-    const stopped = work.goals(t.projectId).filter((g) => g.status === 'failed');
-    for (const n of new Set(picks)) {
-      const g = stopped[n - 1];
-      if (!g) continue;
-      try {
-        (deps.resumeGoal as NonNullable<typeof deps.resumeGoal>)(t.projectId, g.id);
-        insert(t.projectId, t.agentId, {
-          sender: 'agent',
-          kind: 'text',
-          text: clip(`Back on the whiteboard: ${g.summary}`, 2000),
-          runId: null,
-          goalId: g.id,
-        });
-      } catch (e) {
-        insert(t.projectId, t.agentId, {
-          sender: 'agent',
-          kind: 'error',
-          text: `I couldn’t continue “${clip(g.text, 80)}”: ${clip(e instanceof Error ? e.message : String(e), 500)}`,
-          runId: null,
-        });
-      }
-    }
-  }
-
-  /** The director asks someone on the project: their answer (or why not) lands in the director's thread. */
-  function askFor(t: { projectId: string; agentId: string }, a: { to: string; question: string }) {
-    const p = store.projects.require(t.projectId);
-    const fail = (why: string) =>
-      insert(t.projectId, t.agentId, { sender: 'agent', kind: 'error', text: clip(why, 2000), runId: null });
-    const who = agentByName(store, a.to);
-    let callee: Agent;
-    try {
-      if (!who || who.id === p.orchestratorId) throw new Error();
-      callee = seat(p, who.id).agent;
-    } catch {
-      fail(`I couldn’t ask ${a.to}: nobody by that name is on ${p.name}.`);
-      return;
-    }
-    const director = store.agents.get(t.agentId)?.name ?? 'The director';
-    /* running goals, and stopped ones (still on the board: "my whiteboard is empty" was wrong) */
-    const theirs = work
-      .goals(p.id)
-      .filter((g) => g.status === 'running' || g.status === 'failed')
-      .flatMap((g) =>
-        g.items.flatMap((i) => [i, ...i.subtasks]).map((i) => ({ i, stopped: g.status === 'failed' })),
-      )
-      .filter(({ i }) => i.agentId === callee.id)
-      .map(({ i, stopped }) => ({
-        step: clip(i.text, 160),
-        status: i.status,
-        ...(stopped ? { goal: 'stopped partway — the director can continue it' } : {}),
-      }));
-    const request = [
-      `${director}, your orchestrator, asks you this for the user: ${json(a.question)}`,
-      `Your steps on the whiteboard now: ${json(theirs)}`,
-      'Answer in two to four short, plain sentences — the user reads it in the office chat.',
-    ].join('\n');
-    const nick = callee.nick || callee.name.split(' ')[0];
-    (deps.ask as NonNullable<typeof deps.ask>)(p.id, t.agentId, callee.name, request).then(
-      (answer) =>
-        insert(t.projectId, t.agentId, {
-          sender: 'agent',
-          kind: 'text',
-          text: `${nick}: “${clip(answer.trim(), 600)}”`,
-          runId: null,
-        }),
-      () => fail(`Couldn’t reach ${nick} just now — want me to try again?`),
     );
   }
 
@@ -599,9 +510,6 @@ export function createThreads(deps: {
           text: `I couldn’t change the teams: ${rebuildError}`,
           runId: null,
         });
-      if (d.stop && deps.stops)
-        for (const line of deps.stops.apply(t.projectId, d.stop))
-          insert(t.projectId, t.agentId, { sender: 'agent', ...line, runId: null });
       if (d.staff && deps.staffing) {
         try {
           deps.staffing.apply(t.projectId, d.staff, t.agentId);
@@ -616,8 +524,6 @@ export function createThreads(deps: {
         }
       }
       if (d.goal && deps.startWork) startWork(t, d.goal, [t.messageId, reply.id]);
-      if (d.resume && deps.resumeGoal) resumeFor(t, d.resume);
-      if (d.ask && deps.ask) askFor(t, d.ask);
       return;
     }
     insert(t.projectId, t.agentId, {

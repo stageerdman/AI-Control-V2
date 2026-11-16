@@ -132,9 +132,10 @@ export function createRunning(
   }
 
   /** Stop every session and code run that matches, right now (apps are the user's own and stay up).
-      One that refuses to stop is reported and the rest still stop. Returns what was stopped. */
-  function stop(f: RunningFilter): RunningItem[] {
-    const hit = list(f).filter((i) => i.kind !== 'app');
+      One that refuses to stop is reported and the rest still stop. `spare` keeps one agent running (the
+      director stopping everything from inside its own turn). Returns what was stopped. */
+  function stop(f: RunningFilter & { spare?: string }): RunningItem[] {
+    const hit = list(f).filter((i) => i.kind !== 'app' && (!f.spare || i.agentId !== f.spare));
     const stopped: RunningItem[] = [];
     for (const i of hit) {
       try {

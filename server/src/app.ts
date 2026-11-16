@@ -101,6 +101,8 @@ import {
   studioProject,
 } from './self-install/self-install.ts';
 import { createBoard } from './whiteboard/board.ts';
+import { workRepo } from './db/work.ts';
+import { actionTools } from './office/action-tools.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { whiteboardTools } from './whiteboard/tools.ts';
 
@@ -356,17 +358,32 @@ export function buildApp({
   const staffing = createStaffing({ store, events });
   /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board });
+  /* "stop Jony" / "stop everything" from the office chat */
+  const stops = createDirectorStop({ store, running, stopper });
+  const actions = {
+    store,
+    work: workRepo(db),
+    stops,
+    /* "carry on": the director continues a stopped goal where it was */
+    resumeGoal: (projectId: string, goalId: string) => dispatch.resume(projectId, goalId),
+    /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
+    ask: (projectId: string, directorId: string, to: string, request: string) =>
+      room.call(
+        { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
+        { agent: to, request, why: 'answer a question for the user' },
+      ),
+  };
   const threads = createThreads({
     directorTools: (projectId, directorId) => [
       ...whiteboardTools(board, projectId, directorId),
       ...featureTools(features, store, projectId),
+      ...actionTools(actions, projectId, directorId),
     ],
     db,
     store,
     events,
     runtime,
-    /* "stop Jony" / "stop everything" from the office chat */
-    stops: createDirectorStop({ store, running, stopper }),
+    runningNow: stops.runningNow,
     features,
     health,
     reports,
@@ -376,14 +393,6 @@ export function buildApp({
     rebuilds,
     /* one Send: the director's chat turn decides it's work → the same goal POST /work makes */
     startWork: (projectId, goal) => dispatch.start(projectId, goal, undefined, { fromChat: true }),
-    /* "carry on": the director continues a stopped goal where it was */
-    resumeGoal: (projectId, goalId) => dispatch.resume(projectId, goalId),
-    /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
-    ask: (projectId, directorId, to, request) =>
-      room.call(
-        { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
-        { agent: to, request, why: 'answer a question for the user' },
-      ),
   });
   threadsRef = threads;
   /* someone finished a step → they tell the director, who decides what the user hears (chat, page or keep) */

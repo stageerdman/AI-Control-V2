@@ -1,9 +1,8 @@
 /* The director's office-chat answer (one Send): every orchestrator chat turn ends in ONE JSON object
    `{reply, work}` — `work: {goal}` only when the user clearly asked for work now, else null. The thread
    (threads.ts) posts the reply and, for work, makes the goal exactly as `POST /work` would; `staff` adds people;
-   `ask: {to, question}` sends a question to someone on the project and relays their answer into the chat;
-   `resume: [n…]` continues stopped goals (the summary's `stopped`, by number) where they were;
-   `stop: {everyone} | {agents}` stops work now — the whole project, or those people.
+   `rebuild` changes teams. Asking, continuing and stopping are tools (action-tools.ts), so their result is
+   known before the reply is written.
 
    Read with the crew's structured-output helpers (extractJson + zod). Anything that isn't a valid answer
    is a plain reply and never starts work: a question must never auto-start. */
@@ -22,34 +21,15 @@ export const DirectorReplySchema = z.object({
     .optional(),
   staff: StaffSchema.nullable().optional(),
   rebuild: RebuildSchema.nullable().optional(),
-  ask: z
-    .object({ to: z.string().trim().min(1).max(80), question: z.string().trim().min(1).max(2000) })
-    .nullable()
-    .optional(),
-  resume: z.array(z.number().int().min(1)).max(20).nullable().optional(),
-  stop: z
-    .object({
-      everyone: z.boolean().optional(),
-      agents: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
-    })
-    .nullable()
-    .optional(),
 });
 const validate = validateWith(DirectorReplySchema);
 
-export type DirectorAsk = { to: string; question: string };
 export type DirectorReply = {
   reply: string;
   goal: string | null;
   staff?: Staff | null;
   rebuild?: Rebuild | null;
-  ask?: DirectorAsk;
-  /** Stopped goals to continue (1-based, the summary's `stopped` list). */
-  resume?: number[];
-  /** Stop work now: everything in the project, or these people (names). */
-  stop?: DirectorStop;
 };
-export type DirectorStop = { everyone: true } | { agents: string[] };
 
 /** Every action field of the answer (all but `reply`). */
 export type AnswerField = Exclude<keyof typeof DirectorReplySchema.shape, 'reply'>;
@@ -96,24 +76,6 @@ export const ANSWER_FIELDS: Record<AnswerField, { can: string; rule: string[]; e
       '- REBUILD: the user asks to take people or teams off this project, split, merge or reshuffle teams, move someone to another team, make someone a solo specialist, or change a captain. Set "rebuild" using ONLY names of the summary’s teams and specialists (who is on this project now): {"remove": [people], "removeTeams": [teams], "move": [{agent, to: team name or "specialist", job?}], "split": [{team, into: [{name, captain, members}]}], "captain": [{team, agent}]}. Removing never deletes anyone from the Cast. Never claim it is done when it needs a confirm — say "Here’s the plan — confirm below." (the studio shows the card; plain moves with no open work apply at once with an Undo).',
     ],
   },
-  ask: {
-    can: 'ask anyone on the project a question — the studio relays their answer into this chat',
-    rule: [
-      '- ASK: the user wants you to check with, ask, brief or nudge someone on the project ("ask Jony how it’s going", "tell Uncle Bob to…", or "have you asked him?" — then ask now instead of offering to). Set "ask": {"to": "<a name from people>", "question": "what you ask them, in your own words, with the context they need"}. The studio asks them right away (the office shows you talking) and posts their answer in this chat; "reply" says in one short line that you’re asking them. Never claim you asked someone without setting "ask".',
-    ],
-  },
-  resume: {
-    can: 'continue goals that stopped partway, where they were',
-    rule: [
-      '- CONTINUE: the user wants stopped work picked up again ("continue", "carry on", "get Jony back on it", "restart the chat history work") and the summary lists it under `stopped`. Set "resume": [the `n` of each stopped goal to continue] — every one when they don’t say which. The studio puts them back on the whiteboard and their owners carry on where they stopped, from their saved work. Do this instead of asking anyone to continue, and never make a new goal for stopped work. "reply" says in one short line what is back on.',
-    ],
-  },
-  stop: {
-    can: 'stop anyone’s work, or everything on the project, at once',
-    rule: [
-      '- STOP: the user wants work stopped now ("stop Jony", "stop everything", "everyone stop", "kill it all"). The summary’s `runningNow` shows who is working on what. Set "stop": {"everyone": true} to stop every agent and code run on this project at once (running goals stop too; nothing new starts), or "stop": {"agents": [names from people]} to stop just those people. It takes effect at once — their chat and saved work stay, so it can be continued later. "reply" says in one short line who you stopped. Never set "work" in the same answer.',
-    ],
-  },
 };
 
 /** The last block of every orchestrator chat task: how to answer — only with the fields attached here. */
@@ -130,12 +92,6 @@ export function directorAnswer(fields: AnswerField[]): string {
   ].join('\n');
 }
 
-/** `everyone` wins over a name list; an empty ask is no stop at all. */
-function toStop(s: z.output<typeof DirectorReplySchema>['stop']): DirectorStop | null {
-  if (s?.everyone) return { everyone: true };
-  return s?.agents?.length ? { agents: s.agents } : null;
-}
-
 /** The run's final text → the reply (+ a goal only from a valid answer). */
 export function parseDirectorReply(raw: string): DirectorReply {
   const text = raw.trim();
@@ -146,18 +102,13 @@ export function parseDirectorReply(raw: string): DirectorReply {
     return { reply: text, goal: null }; // plain words: a reply, never work
   }
   const v = validate(parsed);
-  if (v.ok) {
-    const stop = toStop(v.value.stop);
+  if (v.ok)
     return {
       reply: v.value.reply,
       goal: v.value.work?.goal ?? null,
       ...(v.value.staff ? { staff: v.value.staff } : {}),
       ...(v.value.rebuild ? { rebuild: v.value.rebuild } : {}),
-      ...(v.value.ask ? { ask: v.value.ask } : {}),
-      ...(v.value.resume?.length ? { resume: v.value.resume } : {}),
-      ...(stop ? { stop } : {}),
     };
-  }
   const reply = (parsed as { reply?: unknown } | null)?.reply;
   return { reply: typeof reply === 'string' && reply.trim() ? reply.trim() : text, goal: null };
 }
