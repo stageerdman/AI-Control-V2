@@ -22,7 +22,7 @@ import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { BridgeTool } from './bridge.ts';
-import { WORKING_WITH_OTHERS } from './context.ts';
+import { CALLS_ARE_FOR_QUESTIONS, WORKING_WITH_OTHERS } from './context.ts';
 import { approverFor, callRefusal } from './rule.ts';
 
 export const ALLOW_CALL = 'allow-call';
@@ -37,7 +37,7 @@ const READ_ONLY = ['Read', 'Glob', 'Grep'];
 export type RoomScope = 'draft' | 'project';
 /** Who is acting, where, and through whom they were reached (cycle + depth guard). */
 export type RoomCtx = { scope: RoomScope; ownerId: string; agentId: string; chain: readonly string[] };
-export type CallArgs = { agent: string; request: string; why?: string };
+export type CallArgs = { agent: string; request: string; why?: string; work?: boolean };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const nick = (a: Pick<Agent, 'name' | 'nick'>) => a.nick || a.name;
@@ -53,8 +53,25 @@ export function createRoom(deps: {
   helpCaps?: Caps;
   /** STUDIO LIFE: every call, verdict and answer is kept whole here. */
   comms?: Comms;
+  /** What the callee left on this project: latest delivery and desk note, in a few lines (or null). */
+  memoryOf?: (projectId: string, agentId: string) => string | null;
+  /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them. */
+  addWork?: (projectId: string, byId: string, calleeId: string, request: string) => string;
 }) {
   const { db, store, events, crew } = deps;
+  /** One call at a time per callee: the next caller waits its turn (calleeId → the call in progress). */
+  const talking = new Map<string, Promise<unknown>>();
+  async function inTurn<T>(calleeId: string, fn: () => Promise<T>): Promise<T> {
+    const before = talking.get(calleeId) ?? Promise.resolve();
+    const mine = before.catch(() => undefined).then(fn);
+    const tail = mine.catch(() => undefined);
+    talking.set(calleeId, tail);
+    try {
+      return await mine;
+    } finally {
+      if (talking.get(calleeId) === tail) talking.delete(calleeId);
+    }
+  }
 
   const emit = (ctx: Pick<RoomCtx, 'scope' | 'ownerId'>, e: EventInput) => {
     try {
@@ -150,14 +167,14 @@ export function createRoom(deps: {
         : { agentId, status: 'idle' },
     });
 
-  /** Find a callable agent by id, name or nick (case-insensitive). */
-  function resolve(who: string): Agent | null {
+  /** Find a callable agent by id, name or nick (case-insensitive): Cast agents, the creator, and this room's orchestrator. */
+  function resolve(who: string, orchestratorId: string | null): Agent | null {
     const k = who.trim().toLowerCase();
     const hit = store.agents
       .list()
       .find(
         (a) =>
-          CALLABLE.has(a.kind) &&
+          (CALLABLE.has(a.kind) || a.id === orchestratorId) &&
           (a.id === who.trim() || a.name.toLowerCase() === k || a.nick?.toLowerCase() === k),
       );
     return hit ?? null;
@@ -188,7 +205,8 @@ export function createRoom(deps: {
   async function call(ctx: RoomCtx, args: CallArgs): Promise<string> {
     const request = args.request?.trim() ?? '';
     if (!request) throw new Error('Say what you need in `request`.');
-    const callee = resolve(args.agent ?? '');
+    const orch = orchestratorOf(ctx.scope, ctx.ownerId);
+    const callee = resolve(args.agent ?? '', orch);
     if (!callee)
       throw new Error(
         `Nobody called '${args.agent}' can be called. Use \`room\` to see who is here and in the studio.`,
@@ -197,7 +215,6 @@ export function createRoom(deps: {
     if (refusal) throw new Error(refusal);
     const caller = store.agents.require(ctx.agentId);
     const here = present(ctx.scope, ctx.ownerId);
-    const orch = orchestratorOf(ctx.scope, ctx.ownerId);
     const teams = teamsOf(ctx.scope, ctx.ownerId);
     const approverId = approverFor({
       callerId: caller.id,
@@ -279,11 +296,32 @@ export function createRoom(deps: {
 
     join(ctx, callee.id, caller.id, why);
     log('call', caller.id, callee.id, request);
+    const project = ctx.scope === 'project' ? store.projects.require(ctx.ownerId) : null;
+    /* the work goes on the board at once, so it is never lost in the call */
+    const onBoard =
+      args.work && project && deps.addWork ? deps.addWork(project.id, caller.id, callee.id, request) : null;
+    return inTurn(callee.id, () => help(ctx, { caller, callee, request, project, onBoard, step, log }));
+  }
+
+  /** The callee answers one call (its turn; others wait). */
+  async function help(
+    ctx: RoomCtx,
+    c: {
+      caller: Agent;
+      callee: Agent;
+      request: string;
+      project: ReturnType<Store['projects']['require']> | null;
+      onBoard: string | null;
+      step: (s: 'working' | 'answered' | 'failed', note?: string) => void;
+      log: (kind: 'answer', from: string, to: string, text: string) => void;
+    },
+  ): Promise<string> {
+    const { caller, callee, request, project, onBoard, step, log } = c;
     step('working');
     status(ctx, callee.id, `For ${nick(caller)}`);
-    const project = ctx.scope === 'project' ? store.projects.require(ctx.ownerId) : null;
     const draft = ctx.scope === 'draft' ? store.drafts.require(ctx.ownerId) : null;
     const folder = project?.folder ? resolveInSandbox(deps.sandbox, project.folder) : null;
+    const notes = project ? deps.memoryOf?.(project.id, callee.id) : null;
     const inner: RoomCtx = { ...ctx, agentId: callee.id, chain: [...ctx.chain, caller.id] };
     try {
       const { value } = await crew.call({
@@ -295,6 +333,8 @@ export function createRoom(deps: {
           `${caller.name} (${caller.role}) asks you for a hand.`,
           `Their request: ${json(clip(request, 4000))}`,
           `Where: ${json(project ? { project: project.name } : { projectBeingSetUp: draft?.name, about: draft?.about })}`,
+          ...(onBoard ? [`On the whiteboard now as your task: ${json(onBoard)} — you will do it there.`] : []),
+          ...(project ? [`Your notes on this project: ${notes ? json(notes) : 'none yet.'}`, CALLS_ARE_FOR_QUESTIONS] : []),
           'Answer with one JSON object: {"answer": "everything they need, self-contained (they only get this)", "say": "one short line for the room on what you made, e.g. a teal visor and a tool belt"}',
         ].join('\n\n'),
         validate: validateWith(HelpSchema),
@@ -305,7 +345,7 @@ export function createRoom(deps: {
       log('answer', callee.id, caller.id, value.answer);
       step('answered', value.say);
       say(ctx, callee.id, `Done — ${value.say}`, caller.id);
-      return value.answer;
+      return onBoard ? `${value.answer}\n\n(On the whiteboard as ${callee.name}’s task: ${onBoard})` : value.answer;
     } catch (e) {
       step('failed', (e as Error).message);
       say(ctx, caller.id, `${nick(callee)} couldn’t finish — I’ll carry on.`);
@@ -328,7 +368,7 @@ export function createRoom(deps: {
       {
         name: 'call_agent',
         description:
-          'Ask a fellow agent for a hand and wait for their answer. Someone already in the room: right away. Someone new: your captain (or the orchestrator) must OK it first — the studio asks for you; accept a no. Make `request` self-contained: they only see what you write.',
+          'Ask a fellow agent (or the orchestrator) a question and wait for their answer; they answer from their notes. To hand them work, set `work: true`: it goes on the whiteboard as their task. Someone already in the room: right away. Someone new: your captain (or the orchestrator) must OK it first — the studio asks for you; accept a no. If they are on another call, yours waits its turn. Make `request` self-contained: they only see what you write.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -338,6 +378,10 @@ export function createRoom(deps: {
               type: 'string',
               description: 'A few words for the room, starting with a verb: "design the costume".',
             },
+            work: {
+              type: 'boolean',
+              description: 'true = this is work for them: put it on the whiteboard as their task (projects only).',
+            },
           },
           required: ['agent', 'request', 'why'],
         },
@@ -346,6 +390,7 @@ export function createRoom(deps: {
             agent: String(a.agent ?? ''),
             request: String(a.request ?? ''),
             why: String(a.why ?? ''),
+            work: a.work === true,
           }),
       },
     ];

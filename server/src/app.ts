@@ -43,6 +43,8 @@ import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
 import { createBridges } from './room/bridge.ts';
+import { runsRepo } from './db/runs.ts';
+import { notesOf } from './room/notes-of.ts';
 import { createRoom } from './room/room.ts';
 import { accessesRoutes } from './routes/accesses.ts';
 import { agentRoutes } from './routes/agents.ts';
@@ -264,7 +266,25 @@ export function buildApp({
   });
   const chat = createSetupChat({ store, events, crew });
   /* AGENT MCP: who is in the room, and agents calling each other into it */
-  const room = createRoom({ db, store, events, crew, sandbox: config.sandbox, helpCaps: caps.review, comms });
+  const room = createRoom({
+    db,
+    store,
+    events,
+    crew,
+    sandbox: config.sandbox,
+    helpCaps: caps.review,
+    comms,
+    memoryOf: notesOf({ runs: (id) => runsRepo(db).list(id), desk: (p, a) => desk.list(p, a) }),
+    /* `call_agent` with work: true — a direct goal with one task for the callee (built below; runs later) */
+    addWork: (projectId, byId, calleeId, request) => {
+      const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
+      const goal = board.addDirectGoal(projectId, byId, {
+        text,
+        tasks: [{ text, owner: calleeId, brief: request }],
+      });
+      return goal.summary || goal.text;
+    },
+  });
   const creator = createCreator({ store, events, crew, room });
   /* the orchestrator's thread records goals and designs (threads are built below) */
   let threadsRef: ReturnType<typeof createThreads> | null = null;
