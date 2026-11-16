@@ -28,6 +28,7 @@ import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
+import { captainTools } from './office/leader-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
 import { createLifecycle } from './office/lifecycle.ts';
@@ -475,6 +476,8 @@ export function buildApp({
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     ...mail.tools(projectId, agentId),
     pageTool(pager, projectId, agentId),
+    /* a team captain stops and tells their own team (the director does the whole project) */
+    ...captainTools(actions, projectId, agentId),
     ...(hq.get() === projectId
       ? [
           proposeTool(creatorChats, () => ({

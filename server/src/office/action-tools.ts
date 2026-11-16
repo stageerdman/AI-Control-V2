@@ -1,23 +1,19 @@
-/* The director's action tools: ask someone, continue stopped goals, stop work, tell someone running. Thin adapters
+/* The director's action tools: ask someone, continue stopped goals, and a leader's stop/tell (leader-tools.ts). Thin adapters
    over the services the studio already has (room.call, dispatch.resume, the stopper, runtime.tell). They run during the director's
    turn, so it reads what really happened — an answer, or why not — before it writes its reply. */
 import type { Store } from '../db/store.ts';
 import type { Goal, WorkRepo } from '../db/work.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
-import type { DirectorStopper } from './director-stop.ts';
+import { type LeaderServices, leaderTools } from './leader-tools.ts';
 import { agentByName, seatOf } from './people.ts';
 
-export type ActionServices = {
-  store: Store;
+export type ActionServices = LeaderServices & {
   work: WorkRepo;
   /** The director asks someone (a room call from the director) → their answer. */
   ask: (projectId: string, directorId: string, to: string, request: string) => Promise<string>;
   /** Continue a stopped goal where it was (dispatch.resume). */
   resumeGoal: (projectId: string, goalId: string) => Goal;
-  stops: DirectorStopper;
-  /** A note for someone's live run, read after their next step (runtime.tell) → false when they aren't running. */
-  tell: (projectId: string, agentId: string, from: string, text: string) => boolean;
 };
 
 type Args = Record<string, unknown>;
@@ -99,27 +95,6 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
       .join('\n');
   }
 
-  function stopWork(a: Args): string {
-    const agents = list(a, 'agents')
-      .map(String)
-      .map((x) => x.trim())
-      .filter(Boolean);
-    const message = typeof a.message === 'string' ? a.message : undefined;
-    if (a.everyone === true)
-      return s.stops.apply(projectId, directorId, { everyone: true }, { message }).join('\n');
-    if (!agents.length) throw invalid('Say who to stop: "agents" (names) or "everyone": true.');
-    return s.stops.apply(projectId, directorId, { agents }, { message }).join('\n');
-  }
-
-  function tellAgent(a: Args): string {
-    const text = need(a, 'message');
-    const them = callee(need(a, 'to'));
-    const director = store.agents.get(directorId)?.name ?? 'your orchestrator';
-    const nick = them.nick || them.name.split(' ')[0];
-    if (s.tell(projectId, them.id, director, text)) return `${nick} will read it after their next step.`;
-    return `${nick} isn’t running now — use ask_person, or put the work on the whiteboard.`;
-  }
-
   return [
     {
       name: 'ask_person',
@@ -154,35 +129,6 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
       },
       run: async (a) => resumeGoals(a),
     },
-    {
-      name: 'stop_work',
-      can: 'stop anyone’s work, or everything on the project, at once, optionally with a message for them (the summary’s `runningNow` shows who is working)',
-      description:
-        'Stop work now: these people, or everyone (every agent and code run on this project; running goals stop too). Their chats and saved work stay, so it can be continued later. A `message` (why, or what to do instead) is left on each stopped agent’s desk. Do not start work in the same turn.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          agents: { type: 'array', items: { type: 'string' }, description: 'Names from the summary’s people.' },
-          everyone: { type: 'boolean', description: 'Stop everything on the project.' },
-          message: { type: 'string', description: 'Optional: why, left on their desk.' },
-        },
-      },
-      run: async (a) => stopWork(a),
-    },
-    {
-      name: 'tell_agent',
-      can: 'tell someone who is working right now something without stopping them ("tell Bob to use the existing logger") — they read it after their next step',
-      description:
-        'Send a note to someone running on this project; it reaches them after their next tool step and they take it into account without starting over. Use this for suggestions or corrections while they work; stop_work to stop them.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          to: { type: 'string', description: 'Their name, from the summary’s people.' },
-          message: { type: 'string', description: 'What to tell them, with the context they need.' },
-        },
-        required: ['to', 'message'],
-      },
-      run: async (a) => tellAgent(a),
-    },
+    ...leaderTools(s, { projectId, byId: directorId }, (said) => callee(said)),
   ];
 }
