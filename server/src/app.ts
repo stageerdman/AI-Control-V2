@@ -103,6 +103,7 @@ import {
 import { createBoard } from './whiteboard/board.ts';
 import { workRepo } from './db/work.ts';
 import { actionTools } from './office/action-tools.ts';
+import { agentFeatureTool } from './office/agent-feature-tool.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { questionTools } from './office/question-tools.ts';
 import { teamTools } from './office/team-tools.ts';
@@ -423,11 +424,12 @@ export function buildApp({
     creator,
     scratchDir: join(config.home, 'scratch'),
   });
-  /* every agent run's studio tools: the room (call_agent, comms_log) + mail when it may (+ propose_agent at HQ) */
+  /* every agent run's studio tools: the room (call_agent, comms_log), its feature, mail when it may (+ propose_agent at HQ) */
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
     ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
     ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
     ...historyTools(db, { projectId, agentId, runId }),
+    agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     ...mail.tools(projectId, agentId),
     ...(hq.get() === projectId
       ? [

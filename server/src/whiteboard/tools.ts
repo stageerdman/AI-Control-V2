@@ -54,9 +54,9 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
     },
     {
       name: 'add_goal',
-      can: 'put new work the user wants on the whiteboard as one goal with 1–8 tasks you choose, in order, each for a team captain or specialist',
+      can: 'put new work the user wants on the whiteboard as one goal with 1–8 tasks you choose, in order, each for a team captain or specialist; name the feature it builds so the feature ships when the goal is done',
       description:
-        'Put a new goal on the whiteboard with 1–8 tasks, in the order they should happen. The work starts right away.',
+        'Put a new goal on the whiteboard with 1–8 tasks, in the order they should happen. The work starts right away. "feature" links it to a feature from the features list (Planned moves to Now; it ships when the goal is done).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -66,15 +66,23 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
             type: 'array',
             items: { type: 'object', properties: TASK_PROPS, required: ['text', 'owner'] },
           },
+          feature: { type: 'string', description: 'The id of the feature this goal builds (optional).' },
+          ships: {
+            type: 'boolean',
+            description: 'false = the goal is only one step of the feature, so finishing it does not ship it.',
+          },
         },
         required: ['text', 'tasks'],
       },
-      run: async (a) =>
-        board.addGoal(projectId, by, {
+      run: async (a) => {
+        const feature = str(a, 'feature')?.trim();
+        return board.addGoal(projectId, by, {
           text: need(a, 'text'),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),
           tasks: Array.isArray(a.tasks) ? (a.tasks as Args[]).map(task) : [],
-        }),
+          ...(feature ? { feature: { id: feature, ships: bool(a, 'ships') !== false } } : {}),
+        });
+      },
     },
     {
       name: 'add_task',
