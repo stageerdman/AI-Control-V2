@@ -1,12 +1,13 @@
 /* Paging the user (DIRECTOR POWERS): any agent may page the user (`page_user`, comms kind 'page' → the pager,
-   office/pages.ts); the director may also ask to be told when a goal ends (`page_when_done`): a one-shot watch on
-   the goal that pages when it is done, stopped or cancelled. Watches live in memory: a restart drops them (the
-   whiteboard still shows the goal). */
+   office/pages.ts); the director may also ask to be told when a goal ends (`page_when_done`): a `notify` item on
+   its to-do list tied to the goal, ticked off (and paged) when the goal is done, stopped or cancelled. The list is
+   saved, so the watch survives a restart. Any other `notify` item pages when its owner ticks it off. */
 import type { Comms } from '../comms/comms.ts';
 import type { Goal } from '../db/work.ts';
 import { invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import type { CapableTool } from '../room/bridge.ts';
+import type { Todo, Todos } from '../todos/todos.ts';
 
 const ENDED: Record<string, string> = {
   done: 'is done',
@@ -14,16 +15,15 @@ const ENDED: Record<string, string> = {
   cancelled: 'was cancelled',
 };
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-type Watch = { projectId: string; fromId: string; goalId: string; text: string };
 
 export function createPager(deps: {
   comms: Comms;
   events: EventLog;
   /** The project's goals, newest last (work.goals). */
   goals: (projectId: string) => Goal[];
+  /** The to-do lists (built after the pager: read only when a goal ends or a watch is set). */
+  todos: () => Todos;
 }) {
-  const watches: Watch[] = [];
-
   function page(projectId: string, fromId: string, text: string, refs: Record<string, unknown> = {}): void {
     deps.comms.record({
       scope: 'project',
@@ -35,25 +35,25 @@ export function createPager(deps: {
       refs,
     });
   }
-  const fire = (w: Watch, status: string) =>
-    page(w.projectId, w.fromId, `${w.text} — “${clip(goalText(w), 120)}” ${ENDED[status]}.`, {
-      goalId: w.goalId,
-    });
-  const goalText = (w: Watch) => {
-    const g = deps.goals(w.projectId).find((x) => x.id === w.goalId);
-    return g?.summary || g?.text || 'the goal';
-  };
+  const goalOf = (projectId: string, goalId: string) => deps.goals(projectId).find((x) => x.id === goalId);
+  const goalText = (g: Goal | undefined) => g?.summary || g?.text || 'the goal';
 
+  /** Its owner ticked off a `notify` item → the page. */
+  const notify = (t: Todo): void => page(t.projectId, t.agentId, `Done: ${t.text}`, { todoId: t.id });
+
+  /** A goal ended: its watches are ticked off (once each) and each pages how it ended. */
   const stop = deps.events.bus.subscribeAll((e) => {
     if (e.scope !== 'project' || e.type !== 'goal.changed') return;
     const p = e.payload as { goalId: string; status: string };
     if (!ENDED[p.status]) return;
-    for (let i = watches.length - 1; i >= 0; i--) {
-      const w = watches[i] as Watch;
-      if (w.projectId !== e.scopeId || w.goalId !== p.goalId) continue;
-      watches.splice(i, 1);
-      fire(w, p.status);
-    }
+    const todos = deps.todos();
+    const what = clip(goalText(goalOf(e.scopeId, p.goalId)), 120);
+    for (const t of todos.forGoal(e.scopeId, p.goalId))
+      if (todos.close(e.scopeId, t.id))
+        page(e.scopeId, t.agentId, `${t.text} — “${what}” ${ENDED[p.status]}.`, {
+          todoId: t.id,
+          goalId: p.goalId,
+        });
   });
 
   /** Page when goal `n` (1 = newest running) ends → what the tool says. */
@@ -64,12 +64,11 @@ export function createPager(deps: {
       return running.length
         ? `No running goal ${which} — ${running.length} are running.`
         : 'Nothing is running to watch.';
-    const w = { projectId, fromId, goalId: g.id, text };
-    watches.push(w);
-    return `I’ll page the user when “${clip(goalText(w), 120)}” ends.`;
+    deps.todos().add({ projectId, agentId: fromId, text, notify: true, goalId: g.id });
+    return `On my to-do list: I’ll page the user when “${clip(goalText(g), 120)}” ends.`;
   }
 
-  return { page, whenDone, stop };
+  return { page, notify, whenDone, stop };
 }
 export type Pager = ReturnType<typeof createPager>;
 

@@ -585,6 +585,25 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX board_changes_by_project ON board_changes(project_id, created_at);
   `,
+  /* 35 — each agent's to-do list on its desk: callers' requests and its own reminders, kept across sessions.
+     due_at = when it is scheduled (optional); notify = page the user when it is done; goal_id = done when that
+     goal ends ("page me when it's done"). */
+  `
+  CREATE TABLE todos (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    agent_id   TEXT NOT NULL,
+    from_id    TEXT,
+    text       TEXT NOT NULL,
+    due_at     TEXT,
+    notify     INTEGER NOT NULL DEFAULT 0,
+    goal_id    TEXT,
+    status     TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL,
+    done_at    TEXT
+  );
+  CREATE INDEX todos_agent ON todos(project_id, agent_id, status, created_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

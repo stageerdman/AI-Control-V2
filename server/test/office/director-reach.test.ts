@@ -83,8 +83,14 @@ describe('the director reaches out from chat', () => {
       [],
     );
     expect(await s.turn({ tool: 'page_when_done', args: { message: 'Your login fix' } })).toBe(
-      'I’ll page the user when “Login is fast.” ends.',
+      'On my to-do list: I’ll page the user when “Login is fast.” ends.',
     );
+    // the watch is saved on the director's to-do list (it survives a restart)
+    const orch = h.store.projects.require('lumi').orchestratorId;
+    const listed = await h.call('GET', `/projects/lumi/todos?agentId=${orch}`);
+    expect(listed.body.todos).toEqual([
+      expect.objectContaining({ text: 'Your login fix', goalId: 'g1', notify: true, status: 'open' }),
+    ]);
     const ended = { type: 'goal.changed' as const, payload: { goalId: 'g1', status: 'done' as const } };
     h.events.append('project', 'lumi', ended);
     h.events.append('project', 'lumi', ended); // one-shot: a second end pages nothing

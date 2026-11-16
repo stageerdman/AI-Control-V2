@@ -64,6 +64,8 @@ export const EVENT_SCHEMAS = {
   }),
   /** STUDIO LIFE: an agent left a note on its desk and forgot (GET …/desk-notes/:noteId has the text). */
   'desk.note': z.strictObject({ agentId: id, noteId: id, runId: id.optional() }),
+  /** STUDIO LIFE: something on an agent's to-do list was added or done (GET …/todos has the list). */
+  'todo.changed': z.strictObject({ agentId: id, todoId: id, change: z.enum(['added', 'done']) }),
   /** STUDIO LIFE: the user brought someone in, changed their brief / lock, or sent them home. */
   'guest.changed': z.strictObject({ agentId: id, change: z.enum(['joined', 'updated', 'left']) }),
   /** STUDIO LIFE: mail arrived in this office, or its director / the user dealt with it. */

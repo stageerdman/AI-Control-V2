@@ -34,6 +34,7 @@ import { createChatWork } from './office/chat-work.ts';
 import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
 import { seatForWork } from './office/people.ts';
+import { createTodos } from './todos/todos.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
@@ -414,7 +415,14 @@ export function buildApp({
       ),
   };
   /* any agent pages the user; the director can also page when a goal ends */
-  const pager = createPager({ comms, events, goals: (projectId) => actions.work.goals(projectId) });
+  const pager = createPager({
+    comms,
+    events,
+    goals: (projectId) => actions.work.goals(projectId),
+    todos: () => todos,
+  });
+  /* each agent's saved to-do list; a `notify` item pages the user when it is ticked off */
+  const todos = createTodos({ db, events, onNotify: (t) => pager.notify(t) });
   const threads = createThreads({
     /* mail and creatorChats are built after threads; these run only in a chat turn, by then they exist */
     directorTools: (projectId, directorId, turn) => [
