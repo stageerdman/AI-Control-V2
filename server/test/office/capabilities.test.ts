@@ -7,6 +7,7 @@ import { actionTools } from '../../src/office/action-tools.ts';
 import { capabilityLines } from '../../src/office/capabilities.ts';
 import { directorAnswer } from '../../src/office/director-reply.ts';
 import { featureTools } from '../../src/office/feature-tools.ts';
+import { questionTools } from '../../src/office/question-tools.ts';
 import { teamTools } from '../../src/office/team-tools.ts';
 import { orchestratorChatPrompt } from '../../src/office/threads.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -21,6 +22,7 @@ const allTools = () => [
   ...featureTools({} as never, {} as never, 'p'),
   ...actionTools({} as never, 'p', 'a-pixel'),
   ...teamTools({} as never, 'p', 'a-pixel', { card: () => {} }),
+  ...questionTools({} as never, 'p'),
 ];
 const named = (...names: string[]) => allTools().filter((t) => names.includes(t.name));
 /** The capability lines a prompt shows. */

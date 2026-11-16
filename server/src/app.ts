@@ -104,6 +104,7 @@ import { createBoard } from './whiteboard/board.ts';
 import { workRepo } from './db/work.ts';
 import { actionTools } from './office/action-tools.ts';
 import { featureTools } from './office/feature-tools.ts';
+import { questionTools } from './office/question-tools.ts';
 import { teamTools } from './office/team-tools.ts';
 import { whiteboardTools } from './whiteboard/tools.ts';
 
@@ -380,6 +381,7 @@ export function buildApp({
       ...featureTools(features, store, projectId),
       ...actionTools(actions, projectId, directorId),
       ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
+      ...questionTools({ store, runtime }, projectId),
     ],
     db,
     store,
