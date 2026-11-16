@@ -536,6 +536,12 @@ export function createThreads(deps: {
       // an unknown report is a 404 before anything starts
       const task = taskFor(p, s, text, { tools }, opts.reportId, recap);
       const k = key(projectId, s.agent.id);
+      /* an agent already at work (its chat turn or dispatched work): the message is a note it reads after its next step */
+      const told = s.orchestrator ? null : runtime.tell(projectId, s.agent.id, 'the user', text);
+      if (told) {
+        const message = insert(projectId, s.agent.id, { sender: 'user', kind: 'text', text, runId: told.id });
+        return { message, runId: told.id };
+      }
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
       /* a newer message to the director: any open rebuild card goes stale (spec §3) */
       if (s.orchestrator) deps.rebuilds?.staleAll(projectId);

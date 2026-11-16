@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { getChatMessages } from '../../src/db/chats.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
@@ -134,19 +135,24 @@ describe('project conversations (threads)', () => {
     expect(s3.people.specialists).toEqual([{ name: 'Professor Prompt', role: 'Research', reporter: true }]);
   });
 
-  it('one turn at a time per thread; a busy agent (running work) refuses and nothing is stored', async () => {
+  it('a message to an agent at work becomes a note for its run, not a refusal', async () => {
     h = studio(() => [{ wait: 150 }, { result: 'ok' }]);
     const a = await h.call('POST', url('a-pete'), { text: 'one' });
+    // while it answers: the second message goes to the same run as a note
     const b = await h.call('POST', url('a-pete'), { text: 'two' });
-    expect(b.status).toBe(409);
-    expect(b.body.error.message).toMatch(/still answering/);
+    expect(b.status).toBe(202);
+    expect(b.body.runId).toBe(a.body.runId);
     // another thread runs alongside
     expect((await h.call('POST', url('a-scar'), { text: 'hi' })).status).toBe(202);
-    // an agent already on a run (e.g. dispatched work) → the runtime says no
-    await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' });
+    // an agent on dispatched work: the note reaches that run, and the thread keeps the message
+    const work = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' })).body.id;
     const c = await h.call('POST', url('a-baron'), { text: 'hello?' });
-    expect(c.status).toBe(409);
-    expect((await h.call('GET', url('a-baron'))).body.messages).toEqual([]);
+    expect(c.status).toBe(202);
+    expect(c.body.runId).toBe(work);
+    expect(getChatMessages(h.db, work).some((m) => m.text === 'hello?')).toBe(true);
+    expect((await h.call('GET', url('a-baron'))).body.messages.map((m: { text: string }) => m.text)).toEqual([
+      'hello?',
+    ]);
     await h.runtime.settled(a.body.runId);
     expect((await h.call('POST', url('a-pete'), { text: 'three' })).status).toBe(202);
   });
