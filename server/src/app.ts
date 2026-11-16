@@ -35,6 +35,7 @@ import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
 import { seatForWork } from './office/people.ts';
 import { todoTools } from './todos/tools.ts';
+import { tracked } from './usage/usage.ts';
 import { createTodos } from './todos/todos.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
@@ -71,6 +72,7 @@ import { credentialRoutes } from './routes/credentials.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { deskRoutes } from './routes/desk.ts';
 import { todoRoutes } from './routes/todos.ts';
+import { usageRoutes } from './routes/usage.ts';
 import { draftRoutes } from './routes/drafts.ts';
 import { eventRoutes } from './routes/events.ts';
 import { featureRoutes } from './routes/features.ts';
@@ -429,20 +431,26 @@ export function buildApp({
   const todos = createTodos({ db, events, onNotify: (t) => pager.notify(t) });
   const threads = createThreads({
     /* mail and creatorChats are built after threads; these run only in a chat turn, by then they exist */
-    directorTools: (projectId, directorId, turn) => [
-      ...whiteboardTools(board, projectId, directorId),
-      ...featureTools(features, store, projectId),
-      ...actionTools(actions, projectId, directorId),
-      ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
-      ...questionTools({ store, runtime }, projectId),
-      ...mail.directorTools(projectId, directorId),
-      ...pagerTools(pager, projectId, directorId),
-      ...todoTools(todos, agentName, projectId, directorId),
-      hireTool(creatorChats, () => ({
-        name: store.agents.get(directorId)?.name ?? 'The director',
-        projectName: store.projects.get(projectId)?.name ?? 'this project',
-      })),
-    ],
+    /* each use lands in the object-use log (usage/usage.ts) */
+    directorTools: (projectId, directorId, turn) =>
+      tracked(
+        [
+          ...whiteboardTools(board, projectId, directorId),
+          ...featureTools(features, store, projectId),
+          ...actionTools(actions, projectId, directorId),
+          ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
+          ...questionTools({ store, runtime }, projectId),
+          ...mail.directorTools(projectId, directorId),
+          ...pagerTools(pager, projectId, directorId),
+          ...todoTools(todos, agentName, projectId, directorId),
+          hireTool(creatorChats, () => ({
+            name: store.agents.get(directorId)?.name ?? 'The director',
+            projectName: store.projects.get(projectId)?.name ?? 'this project',
+          })),
+        ],
+        { projectId, agentId: directorId },
+        (pid, e) => events.append('project', pid, e),
+      ),
     db,
     store,
     events,
@@ -576,6 +584,7 @@ export function buildApp({
   app.register(commsRoutes({ comms }));
   app.register(deskRoutes({ desk, store }));
   app.register(todoRoutes({ todos, store }));
+  app.register(usageRoutes({ db, store }));
   app.register(rebuildRoutes({ rebuilds, staffing, store }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));

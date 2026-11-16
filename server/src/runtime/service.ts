@@ -34,6 +34,7 @@ import {
 } from '../room/context.ts';
 import type { Running } from '../running/registry.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
+import { tracked } from '../usage/usage.ts';
 import { composePrompt } from './compose.ts';
 import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
@@ -458,8 +459,14 @@ export function createRuntime(deps: RuntimeDeps) {
           }
         : null;
     const studioTools = [
-      ...(!big && studioToolsFor ? studioToolsFor({ projectId, agentId: agent.id, runId }) : []),
-      ...(forgetTool ? [forgetTool] : []),
+      ...tracked(
+        [
+          ...(!big && studioToolsFor ? studioToolsFor({ projectId, agentId: agent.id, runId }) : []),
+          ...(forgetTool ? [forgetTool] : []),
+        ],
+        { projectId, agentId: agent.id, runId },
+        emit,
+      ),
       ...(big?.tools ?? []),
     ];
     const bridge = studioTools.length && deps.bridges ? deps.bridges.open(studioTools) : null;

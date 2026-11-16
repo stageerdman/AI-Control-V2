@@ -66,6 +66,8 @@ export const EVENT_SCHEMAS = {
   'desk.note': z.strictObject({ agentId: id, noteId: id, runId: id.optional() }),
   /** STUDIO LIFE: something on an agent's to-do list was added or done (GET …/todos has the list). */
   'todo.changed': z.strictObject({ agentId: id, todoId: id, change: z.enum(['added', 'done']) }),
+  /** STUDIO LIFE: an agent run used one of its studio tools (the object-use log; GET …/tool-use counts them). */
+  'tool.used': z.strictObject({ agentId: id, runId: id.optional(), tool: text(80), ok: z.boolean() }),
   /** STUDIO LIFE: the user brought someone in, changed their brief / lock, or sent them home. */
   'guest.changed': z.strictObject({ agentId: id, change: z.enum(['joined', 'updated', 'left']) }),
   /** STUDIO LIFE: mail arrived in this office, or its director / the user dealt with it. */

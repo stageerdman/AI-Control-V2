@@ -117,6 +117,12 @@ describe('the director asks someone from chat', () => {
     expect(listed.body.todos).toEqual([
       expect.objectContaining({ text: expect.stringContaining('Write the setup docs'), fromId: orch, status: 'open' }),
     ]);
+    // the object-use log saw the director use ask_person, and the how-to page shows it
+    const used = await h.call('GET', '/projects/lumi/tool-use');
+    expect(used.body.uses).toContainEqual(expect.objectContaining({ tool: 'ask_person', agentId: orch, uses: 1 }));
+    const page = await h.app.inject({ method: 'GET', url: '/projects/lumi/how-to' });
+    expect(page.headers['content-type']).toMatch(/text\/html/);
+    expect(page.body).toMatch(/<code>ask_person<\/code><\/td><td>the director<\/td><td>1 — /);
   });
 
   it('a call that fails comes back to the director in the same turn', async () => {
