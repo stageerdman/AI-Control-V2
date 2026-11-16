@@ -130,7 +130,17 @@ The remaining answer fields move to tools. Pixel's answer becomes plain text.
   actually said, never on its own. A test covers it end to end: an agent asks, the user tells Pixel, the run gets
   the answer.
 - **Feature:** `f-pixel-answers-agents-questions-for-the-u`
-- **Status:** ⬜ not started
+- **Status:** ✅ shipped (2026-11-16). `server/src/office/question-tools.ts`: `open_questions` (id, who asked, the
+  question, numbered options) and `answer_question` (`id` plus `option` number and/or the user's words as
+  `answer`; both → "Blue — make it lighter"). It calls `runtime.answer`, the user's own path, so the waiting run
+  carries on and `onAnswered` puts the question and the answer in the agent's chat like any user answer (no
+  "Pixel answered for you" `by` was needed). A bad option, a gone or answered question, or no answer is refused in
+  the turn; the run keeps waiting. The summary's `openQuestions` now carry the same view (`questionView`: id and
+  options), so Pixel can answer in one call. Its `can` line and description say: only what the user said, never on
+  its own. Tests: `server/test/office/director-questions.test.ts` (Pete asks during work → Pixel lists it → "tell
+  Pete option 2" → the run succeeds with "Green", Pete's chat shows the question then "Green"; refusals and the
+  option-plus-words answer); `capabilities.test.ts` covers the two tools. All 660 server tests and the typecheck
+  pass. No live real-Pixel check (same bridge as steps 1–4).
 
 ### 6. Agents keep features up to date
 The agent carrying a feature can tick it off as its work ships, and the feature can link to its whiteboard goal.
@@ -168,7 +178,9 @@ The chats that went wrong before become a regression suite, so they never come b
 - Feature 3 shipped (2026-11-16): ask, resume and stop are tools (`ask_person`, `resume_goal`, `stop_work`); Pixel
   sees the result before it replies.
 - Feature 4 shipped (2026-11-16): work, staff and rebuild are tools (`add_goal`, `staff_project`,
-  `rebuild_teams`); every answer field is gone and Pixel's answer is plain text. Next: feature 5.
+  `rebuild_teams`); every answer field is gone and Pixel's answer is plain text.
+- Feature 5 shipped (2026-11-16): Pixel answers agents' open questions for the user (`open_questions`,
+  `answer_question`, through the user's own answer path). Next: feature 6.
 
 ## Learned (changes later steps)
 - **One list of director tools.** `threads.ts` takes `directorTools` (whiteboard + features), typed
@@ -196,6 +208,10 @@ The chats that went wrong before become a regression suite, so they never come b
   `threads.ts` saves the question and answer in the asking agent's thread with no runId (so they never decide which
   session resumes). Feature 4's `answer_question` should call `runtime.answer` too, so it gets these lines for free.
   If Pixel's answer should read "Pixel answered for you", add a `by` to the listener rather than a second path.
+- **Feature 8's "tell Uncle Bob option 2" check (from feature 5)** can reuse the setup in
+  `director-questions.test.ts`: a fake run that asks, then a director turn calling `answer_question`.
+- **Installing in a fresh checkout:** `npm install --prefix server` touches the root `package-lock.json`; revert it
+  before committing.
 - The server's `npm run lint` already fails on older files (formatting, comma operators); new files follow the
   existing style. Worth a cleanup pass, separate from this update.
 
