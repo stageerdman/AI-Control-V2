@@ -1,0 +1,193 @@
+<!doctype html>
+<!-- Invite another: every state from design.md, on stand-in bots (flat shapes, not the real renderer). Open in a browser. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Invite another — states</title>
+<style>
+  :root { --sun:#ffc24b; --ink:#241a44; --ink-soft:#5b5280; --cream:#fff6e9; --cream-72:rgba(255,246,233,.72);
+          --glass:rgba(48,36,88,.82); --glass-line:rgba(255,246,233,.16); --stage:#2c2160; --line:rgba(36,26,68,.12); }
+  body { margin:0; padding:32px; background:#efe7dc; font:15px/1.4 system-ui, sans-serif; color:var(--ink); }
+  h1 { font-size:20px; margin:0 0 4px; }
+  p.sub { margin:0 0 24px; color:var(--ink-soft); max-width:760px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(440px, 1fr)); gap:28px; }
+  figure { margin:0; }
+  figcaption { font-weight:800; margin:0 0 8px; }
+  figcaption small { display:block; font-weight:500; color:var(--ink-soft); }
+  svg { display:block; }
+  .panel { background:#1f1746; color:var(--cream); border-radius:18px; padding:18px; }
+  .top { display:flex; align-items:center; gap:8px; }
+  .kicker { font-size:11px; font-weight:900; letter-spacing:.16em; color:var(--sun); flex:1; }
+  .chip { font-size:12px; font-weight:800; color:var(--sun); background:rgba(255,194,75,.1); border:1px solid rgba(255,194,75,.3);
+          border-radius:999px; padding:5px 11px; white-space:nowrap; }
+  .chip.focus { outline:3px solid var(--sun); outline-offset:2px; }
+  .saved { font-size:12px; color:var(--cream-72); }
+  .name { font-size:26px; font-weight:900; margin:10px 0 0; }
+  .role { color:var(--cream-72); font-weight:700; }
+  .kin { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12px; font-weight:800; color:var(--cream-72); }
+  .kin span { width:34px; height:40px; border-radius:10px; background:rgba(255,246,233,.06); display:grid; place-items:end center; }
+  .kin svg { width:28px; height:36px; }
+  /* invite card */
+  .card { position:relative; background:var(--glass); border:1px solid var(--glass-line); border-radius:18px; color:var(--cream);
+          padding:14px 18px 18px; box-shadow:0 10px 30px rgba(0,0,0,.3);
+          background-image:radial-gradient(ellipse 60% 55% at 50% 22%, #46357f, rgba(44,33,96,.9) 70%); }
+  .strip { position:relative; height:190px; }
+  .strip .floor { position:absolute; left:20%; right:20%; bottom:4px; height:20px; border-radius:50%; background:rgba(0,0,0,.25); }
+  .newbot { position:absolute; left:50%; bottom:8px; transform:translateX(-50%); }
+  .newbot svg { width:130px; height:170px; }
+  .orig { position:absolute; left:4px; bottom:4px; text-align:center; opacity:.6; font-size:11px; font-weight:800; }
+  .orig svg { width:56px; height:72px; }
+  .dice { position:absolute; right:4px; top:6px; width:32px; height:32px; border-radius:50%; border:1px solid var(--glass-line);
+          background:rgba(48,36,88,.55); display:grid; place-items:center; font-size:15px; }
+  .undo { position:absolute; right:0; top:46px; }
+  .warn { position:absolute; left:50%; transform:translateX(-50%); bottom:-4px; display:flex; gap:8px; align-items:center;
+          font-size:12px; font-weight:700; white-space:nowrap; background:rgba(31,23,70,.9); border-radius:999px; padding:4px 6px 4px 12px; }
+  label.f { display:block; font-size:12px; font-weight:800; color:var(--cream-72); margin:12px 0 4px; }
+  .field { display:flex; gap:8px; align-items:center; }
+  .input { flex:1; background:rgba(255,246,233,.08); border:1px solid var(--glass-line); border-radius:10px; padding:8px 10px; font-weight:700; }
+  .input.sel span { background:rgba(255,194,75,.35); }
+  .input.focus { outline:3px solid var(--sun); outline-offset:1px; }
+  .input.bad { border-color:#ff6f73; }
+  .err { color:#ffb3b5; font-size:12.5px; margin-top:4px; }
+  .sdice { width:30px; height:30px; border-radius:50%; border:1px solid var(--glass-line); display:grid; place-items:center; font-size:13px; }
+  .line { font-size:13px; color:var(--cream-72); margin:8px 0 14px; }
+  .btn { display:inline-block; background:var(--sun); color:#4a2600; font-weight:900; border-radius:999px; padding:9px 20px; font-size:14px; }
+  .foot { text-align:center; }
+  /* bell sheet (light) */
+  .sheet { background:#fbf7f1; border-radius:18px; padding:18px; box-shadow:0 0 0 1px var(--line); }
+  .sheet h2 { font-size:17px; margin:0 0 10px; }
+  .lbl { font-size:12px; font-weight:800; color:var(--ink-soft); margin-bottom:6px; }
+  .pick { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }
+  .pc { position:relative; background:#fff; border-radius:14px; box-shadow:0 0 0 1px var(--line); padding:8px 6px; text-align:center; font-size:12.5px; }
+  .pc svg { width:40px; height:52px; margin:0 auto; }
+  .pc b { display:block; }
+  .pc .hint { color:var(--ink-soft); font-size:11px; }
+  .pc .here { display:inline-block; font-size:11px; color:var(--ink-soft); }
+  .pc .plus { display:inline-block; margin-top:4px; font-size:11.5px; font-weight:800; color:#7a4a00; background:rgba(255,194,75,.25);
+              border-radius:999px; padding:3px 8px; }
+  /* office */
+  .office { position:relative; height:250px; border-radius:18px; overflow:hidden; background:#f4e3c8; box-shadow:0 0 0 1px var(--line); }
+  .wall { position:absolute; inset:0 0 58% 0; background:#e9cfa6; }
+  .desk { position:absolute; bottom:40px; width:110px; }
+  .desk .bot { position:absolute; left:50%; bottom:28px; transform:translateX(-50%); }
+  .desk .bot svg { width:58px; height:76px; }
+  .desk .top2 { position:absolute; left:0; right:0; bottom:16px; height:16px; border-radius:6px; background:#a8743f; border:2px solid var(--ink); }
+  .desk .plate { position:absolute; left:34px; width:42px; bottom:0; height:12px; border-radius:4px; border:2px solid var(--ink); }
+  .hover { position:absolute; background:#fff; border-radius:12px; padding:8px 12px; font-size:12.5px; box-shadow:0 6px 20px rgba(36,26,68,.2); }
+  .hover b { display:block; font-size:14px; }
+  .hover span { color:var(--ink-soft); }
+  /* lineup */
+  .lineup { display:flex; gap:18px; align-items:flex-end; background:var(--stage); border-radius:18px; padding:22px 18px 16px; color:var(--cream); }
+  .slot { text-align:center; font-size:12px; font-weight:800; position:relative; z-index:1; }
+  .slot svg { width:62px; height:82px; }
+  .group { position:relative; display:flex; gap:10px; }
+  .group::before { content:""; position:absolute; left:-6px; right:-6px; bottom:16px; height:16px; border-radius:50%; background:rgba(0,0,0,.28); }
+  .solo { position:relative; }
+  .solo::before { content:""; position:absolute; left:6px; right:6px; bottom:16px; height:14px; border-radius:50%; background:rgba(0,0,0,.28); }
+  .tk { position:relative; }
+</style>
+</head>
+<body>
+<h1>Invite another — states</h1>
+<p class="sub">Spec: <code>design.md</code>. The bots are flat stand-ins (the app draws the real ones with <code>hero()</code>).
+Family look = same hat + tool (the kit), new colour + antenna (the identity). Blair is grape with a beret and a palette.</p>
+
+<div class="grid" id="grid"></div>
+
+<script>
+  const HUE = { sun:'#ffc24b', coral:'#ff6f73', teal:'#2fd3c3', sky:'#4ea8ff', grape:'#9b6cff', mint:'#8be88b', rose:'#ff9ecf' };
+  const INK = '#241a44';
+  const HATS = {
+    none: '',
+    beret: `<ellipse cx="50" cy="26" rx="26" ry="9" fill="#ff6f73" stroke="${INK}" stroke-width="3"/><circle cx="50" cy="16" r="3" fill="${INK}"/>`,
+    hardhat: `<path d="M26 32 Q26 10 50 10 Q74 10 74 32Z" fill="#ffc24b" stroke="${INK}" stroke-width="3"/>`,
+    goggles: `<rect x="28" y="24" width="44" height="10" rx="5" fill="#8a7fb8" stroke="${INK}" stroke-width="3"/>`,
+    headphones: `<path d="M24 46 Q24 14 50 14 Q76 14 76 46" fill="none" stroke="${INK}" stroke-width="5"/><rect x="17" y="40" width="12" height="18" rx="5" fill="#4ea8ff" stroke="${INK}" stroke-width="3"/><rect x="71" y="40" width="12" height="18" rx="5" fill="#4ea8ff" stroke="${INK}" stroke-width="3"/>`,
+  };
+  /* antennas: the identity silhouette */
+  const ANT = {
+    bulb: `<path d="M50 30 L50 14" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="12" r="5" fill="#fff6e9" stroke="${INK}" stroke-width="3"/>`,
+    spring: `<path d="M50 30 q-6 -3 0 -6 q6 -3 0 -6 q-6 -3 0 -6" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="9" r="4" fill="#fff6e9" stroke="${INK}" stroke-width="3"/>`,
+    twin: `<path d="M42 30 L36 12 M58 30 L64 12" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><circle cx="36" cy="11" r="4" fill="#fff6e9" stroke="${INK}" stroke-width="3"/><circle cx="64" cy="11" r="4" fill="#fff6e9" stroke="${INK}" stroke-width="3"/>`,
+    ears: `<ellipse cx="22" cy="44" rx="7" ry="11" fill="#fff6e9" stroke="${INK}" stroke-width="3"/><ellipse cx="78" cy="44" rx="7" ry="11" fill="#fff6e9" stroke="${INK}" stroke-width="3"/>`,
+  };
+  const PALETTE_TOOL = `<g transform="translate(76 92) rotate(-15)"><ellipse rx="13" ry="9" fill="#fff6e9" stroke="${INK}" stroke-width="3"/><circle cx="-5" cy="-2" r="2.5" fill="#ff6f73"/><circle cx="1" cy="-4" r="2.5" fill="#4ea8ff"/><circle cx="6" cy="0" r="2.5" fill="#8be88b"/></g>`;
+  const WRENCH = `<g transform="translate(78 92) rotate(30)"><rect x="-3" y="-14" width="6" height="24" rx="3" fill="#c9c3dd" stroke="${INK}" stroke-width="3"/></g>`;
+  /* a flat stand-in bot, viewBox 100×130 */
+  function bot({ hue = 'grape', hat = 'beret', ant = 'bulb', tall = false, tool = PALETTE_TOOL } = {}) {
+    const c = HUE[hue]; const bh = tall ? 52 : 40;
+    return `<svg viewBox="0 0 100 130" aria-hidden="true">
+      ${ANT[ant]}
+      <rect x="26" y="${126 - bh}" width="48" height="${bh}" rx="14" fill="${c}" stroke="${INK}" stroke-width="3"/>
+      <rect x="24" y="28" width="52" height="46" rx="20" fill="${c}" stroke="${INK}" stroke-width="3"/>
+      <rect x="32" y="38" width="36" height="24" rx="11" fill="#2a2150"/>
+      <circle cx="42" cy="50" r="4" fill="#fff6e9"/><circle cx="58" cy="50" r="4" fill="#fff6e9"/>
+      ${HATS[hat] ? `<g transform="translate(0 6)">${HATS[hat]}</g>` : ''}
+      ${tool || ''}
+    </svg>`;
+  }
+  const BLAIR = { hue: 'grape', hat: 'beret', ant: 'bulb' };
+  const BEA = { hue: 'teal', hat: 'beret', ant: 'spring', tall: true };
+  const PIP = { hue: 'sun', hat: 'beret', ant: 'twin' };
+
+  function card({ look = BEA, name = 'Bea', sel = true, undo = false, warn = false, err = '', line = 'Same role and instructions as Blair.', btn = `Add ${name} to the Cast` } = {}) {
+    return `<div class="card">
+      <div class="strip"><div class="floor"></div>
+        <div class="orig">${bot(BLAIR)}Blair</div>
+        <div class="newbot">${bot(look)}</div>
+        <span class="dice">🎲</span>${undo ? '<span class="chip undo">↺ Family look</span>' : ''}
+        ${warn ? '<span class="warn">Looks just like Blair. Hard to tell apart in the office. <span class="chip">Change colour</span></span>' : ''}
+      </div>
+      <label class="f">Name</label>
+      <div class="field"><span class="input ${sel ? 'sel focus' : ''} ${err ? 'bad focus' : ''}"><span>${name}</span></span><span class="sdice">🎲</span></div>
+      ${err ? `<div class="err">${err}</div>` : ''}
+      <p class="line">${line}</p>
+      <div class="foot"><span class="btn">${btn}</span></div>
+    </div>`;
+  }
+
+  const figs = [
+    ['1 · Cast door: ＋ Invite another', 'Blair’s zoom panel, top row. Regular agents only (no crew), the same chip style as Improve.',
+      `<div class="panel"><div class="top"><span class="kicker">AGENT</span><span class="chip focus">＋ Invite another</span><span class="chip">✦ Improve with Tinker</span><span class="saved">Saved ✓</span></div>
+       <p class="name">Blair</p><span class="role">Studio Design</span></div>`],
+    ['2 · Invite card: just opened', 'Bea arrives in the family look: same beret and palette, new colour (teal) and antenna (spring). Faded Blair waves. Name selected, so typing replaces it.',
+      card()],
+    ['3 · After the look dice', 'Fully random look. ↺ Family look brings back the family look. The name doesn’t change.',
+      card({ look: { hue: 'coral', hat: 'hardhat', ant: 'ears', tool: WRENCH }, undo: true, sel: false })],
+    ['4 · Same-look warning', 'Rolled or dressed into Blair’s exact look. One line plus a quick fix, never a block.',
+      card({ look: BLAIR, undo: true, sel: false, warn: true })],
+    ['5 · Name taken', 'The name dice is the quick fix. Focus stays in the field.',
+      card({ name: 'Ada', sel: false, err: 'There’s already an Ada in the Cast.' })],
+    ['6 · Office door: the bell', 'Agents already here stay in the grid, tagged “Here”, with ＋ Another. Tapping it folds the grid into the invite card; the brief stays below.',
+      `<div class="sheet"><h2>Bring someone in</h2><div class="lbl">Who</div><div class="pick">
+        <div class="pc">${bot({ hue: 'sky', hat: 'headphones', ant: 'ears', tool: '' })}<b>Ada</b><span class="hint">UX</span></div>
+        <div class="pc">${bot(BLAIR)}<b>Blair</b><span class="here">Here</span><br><span class="plus">＋ Another</span></div>
+        <div class="pc">${bot({ hue: 'mint', hat: 'goggles', ant: 'twin', tool: '' })}<b>Moss</b><span class="hint">Research</span></div>
+        <div class="pc">${bot({ hue: 'coral', hat: 'hardhat', ant: 'spring', tool: WRENCH })}<b>Rex</b><span class="here">Here</span><br><span class="plus">＋ Another</span></div>
+      </div></div>`],
+    ['7 · Office door: card + brief', 'The same card, then the usual brief and switch. The button waits for the brief.',
+      card({ sel: false, line: 'Same role and instructions as Blair.', btn: 'Bring Bea in' }) +
+      `<div class="sheet" style="margin-top:-8px;border-radius:0 0 18px 18px"><div class="lbl">Their brief</div><div style="background:#fff;border-radius:10px;box-shadow:0 0 0 1px var(--line);padding:10px;min-height:40px;color:var(--ink-soft)">Design the empty states for the Reports tray</div></div>`],
+    ['8 · In the office: three kin', 'Same kit, so they read as the same kind. Different colour + antenna, so you can tell them apart. Desk plates carry the colour. Hover shows the name and “like Blair”.',
+      `<div class="office"><div class="wall"></div>
+        ${[[BLAIR, 30], [BEA, 165], [PIP, 300]].map(([l, x]) => `<div class="desk" style="left:${x}px"><div class="bot">${bot(l)}</div><div class="top2"></div><div class="plate" style="background:${HUE[l.hue]}"></div></div>`).join('')}
+        <div class="hover" style="left:150px;top:14px"><b>Bea</b><span>Studio Design · like Blair</span></div></div>`],
+    ['9 · Cast lineup: kin stand together', 'One shared floor shadow under the group, first-made on the left. No box, no label.',
+      `<div class="lineup">
+        <div class="solo slot">${bot({ hue: 'sky', hat: 'headphones', ant: 'ears', tool: '' })}<div>Ada</div></div>
+        <div class="group">${[[BLAIR, 'Blair'], [BEA, 'Bea'], [PIP, 'Pip']].map(([l, n]) => `<div class="slot">${bot(l)}<div>${n}</div></div>`).join('')}</div>
+        <div class="solo slot">${bot({ hue: 'mint', hat: 'goggles', ant: 'twin', tool: '' })}<div>Moss</div></div></div>`],
+    ['10 · Zoom panel of a copy: Kin row', 'The other kin as small buttons. It hides when there are none.',
+      `<div class="panel"><div class="top"><span class="kicker">AGENT</span><span class="chip">＋ Invite another</span><span class="chip">✦ Improve with Tinker</span></div>
+       <p class="name">Bea</p><span class="role">Studio Design</span>
+       <div class="kin">Kin <span>${bot(BLAIR)}</span><span>${bot(PIP)}</span></div></div>`],
+    ['11 · Improve with Tinker on kin', 'Shared instructions: Save writes for all of them. A look change stays personal.',
+      `<div class="panel" style="text-align:center"><span class="btn">Save for all 3</span>
+       <p class="line" style="margin:8px 0 2px">Blair, Bea and Pip share these instructions.</p>
+       <p class="line" style="margin:0">The new look is just for Bea.</p></div>`],
+  ];
+  document.getElementById('grid').innerHTML = figs
+    .map(([t, s, html]) => `<figure><figcaption>${t}<small>${s}</small></figcaption>${html}</figure>`).join('');
+</script>
+</body>
+</html>
