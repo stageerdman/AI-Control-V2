@@ -29,7 +29,9 @@ Sources re-checked: audit 1 (`audit-2026-11-16.md`), audit 2 (`audit-2-full-text
 
 ## Turn cap
 - Research carry-on and "progress = commit/report/desk note": fixed in code + tests (limits/carry-on tests).
-  Live rerun with kind research: see below.
+  Live rerun (`live-check.mts stall 14 research`): session 1 hit the cap at 14 ("Stopped: reached the turn cap",
+  cost=undefined), then session 2 started on its own (new session id) — research runs now carry on. FIXED.
+  (Session 2 was killed by my own context reset, so its end wasn't seen; the stuck-vs-progress rule is covered by tests.)
 - **Cost of sessions cut at the cap (or stopped) is lost: NOT FIXED** (shipped.md "Not done" admits it; no estimate
   code; live: stopped run costUsd null).
 - Step count mixes model messages and CLI turns: NOT FIXED (minor, was a note).
@@ -38,4 +40,5 @@ Sources re-checked: audit 1 (`audit-2026-11-16.md`), audit 2 (`audit-2-full-text
 Captains stop/tell own team (captain-tools.test), leaders' rule + contact (rule.test), roadmap rule
 (capabilities.test), any agent files reports (reports.test), rebuild keeps just-delivered step (rebuild.test),
 one call at a time + desk note in calls (room-calls.test), Communication drawer (reports components.test),
-propose_agent (director-reach.test), stop four times (conversation-checks.test). Not tried live.
+propose_agent (director-reach.test), stop four times and "said it stopped but didn't" (conversation-checks.test
+lines 141, 160). Not tried live.
