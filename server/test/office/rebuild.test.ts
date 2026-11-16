@@ -6,7 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fakeBrain } from '../../src/crew/fake-brain.ts';
-import { contractOf } from '../../src/crew/structured.ts';
+import { getChatMessages } from '../../src/db/chats.ts';
 import { workRepo } from '../../src/db/work.ts';
 import { planRebuild } from '../../src/office/rebuild.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
@@ -199,10 +199,12 @@ describe('rebuild apply and undo', () => {
 });
 
 describe('the director rebuilds from chat', () => {
-  const setup = (director: object) => {
+  /** The director's chat turn calls rebuild_teams with `args`, then replies `reply`. */
+  const setup = (args: object, reply = 'Done.') => {
     boot({
       runner: fakeRunner((spec): FakeStep[] => {
-        if (!contractOf(spec.task) && spec.tools?.length === 0) return [{ result: JSON.stringify(director) }];
+        if (spec.task.startsWith('Studio summary right now: '))
+          return [{ tool: 'rebuild_teams', args: args as Record<string, unknown> }, { result: reply }];
         return fakeBrain(spec);
       }),
     });
@@ -219,12 +221,17 @@ describe('the director rebuilds from chat', () => {
       rebuild?: { planId: string; needsConfirm: boolean; undoToken?: string };
     }[];
 
-  it('a rebuild with something to decide comes back as a card; nothing changes yet', async () => {
-    const orch = setup({ reply: 'Here is the plan — confirm below.', work: null, rebuild: { remove: ['Pixel Pete'] } });
+  const turnSaid = (runId: string) =>
+    getChatMessages(h.db, runId).find((m) => m.role === 'assistant')?.text ?? '';
+
+  it('a rebuild with something to decide comes back as a card under the reply; nothing changes yet', async () => {
+    const orch = setup({ remove: ['Pixel Pete'] }, 'Here is the plan — confirm below.');
     items([{ id: 'i1', agentId: 'a-pete', teamId: 'ship-it' }]);
-    await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Take Pete off the project' });
-    await wait(async () => (await thread(orch)).some((m) => m.from !== 'user'));
+    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Take Pete off the project' });
+    await h.runtime.settled(r.body.runId);
+    expect(turnSaid(r.body.runId)).toMatch(/nothing has changed yet.*confirm below/);
     const reply = (await thread(orch)).find((m) => m.from !== 'user');
+    expect(reply?.text).toBe('Here is the plan — confirm below.');
     expect(reply?.rebuild?.needsConfirm).toBe(true);
     expect(h.store.teams.require('ship-it').members.map((m) => m.agentId)).toContain('a-pete');
     const ev = h.events.after('project', 'aurora').find((e) => e.type === 'thread.message' && (e.payload as { rebuild?: unknown }).rebuild);
@@ -232,22 +239,29 @@ describe('the director rebuilds from chat', () => {
   });
 
   it('a rebuild with nothing to decide is applied at once and carries its Undo', async () => {
-    const orch = setup({
-      reply: 'Done — Baron joins the Ship-It Squad.',
-      work: null,
-      rebuild: { move: [{ agent: 'a-baron', to: 'The Ship-It Squad' }] },
-    });
-    await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Put Baron on Ship-It' });
-    await wait(async () => (await thread(orch)).some((m) => m.from !== 'user'));
+    const orch = setup(
+      { move: [{ agent: 'a-baron', to: 'The Ship-It Squad' }] },
+      'Done — Baron joins the Ship-It Squad.',
+    );
+    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Put Baron on Ship-It' });
+    await h.runtime.settled(r.body.runId);
+    expect(turnSaid(r.body.runId)).toMatch(/^Done: .*Undo/);
     const reply = (await thread(orch)).find((m) => m.from !== 'user');
     expect(reply?.rebuild?.undoToken).toBeTruthy();
     expect(h.store.teams.require('ship-it').members.map((m) => m.agentId)).toContain('a-baron');
   });
 
-  it('a rebuild the planner refuses becomes an error line', async () => {
-    const orch = setup({ reply: 'On it.', work: null, rebuild: { remove: ['Nobody At All'] } });
-    await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Remove nobody' });
-    await wait(async () => (await thread(orch)).some((m) => m.kind === 'error'));
-    expect((await thread(orch)).find((m) => m.kind === 'error')?.text).toContain('couldn’t change the teams');
+  it('a rebuild the planner refuses comes back to the director in the turn; no card, nothing changes', async () => {
+    const orch = setup({ remove: ['Nobody At All'] }, 'I couldn’t find them.');
+    const lineup = () => {
+      const p = h.store.projects.require('aurora');
+      return JSON.stringify([p.teamIds, p.agentIds, h.store.teams.require('ship-it').members]);
+    };
+    const before = lineup();
+    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Remove nobody' });
+    await h.runtime.settled(r.body.runId);
+    expect(turnSaid(r.body.runId)).toMatch(/^rebuild_teams refused: /);
+    expect((await thread(orch)).find((m) => m.from !== 'user')?.rebuild).toBeUndefined();
+    expect(lineup()).toBe(before);
   });
 });

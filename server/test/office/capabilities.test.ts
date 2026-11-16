@@ -1,17 +1,13 @@
-/* The director's "what you can do from here" list is built from what is really attached: every tool and every
-   answer field has one plain line, the prompt shows exactly those, and nothing missing is promised. */
+/* The director's "what you can do from here" list is built from what is really attached: every tool has one
+   plain line, the prompt shows exactly those, and nothing missing is promised. */
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { type Capabilities, capabilityLines } from '../../src/office/capabilities.ts';
-import {
-  ANSWER_FIELDS,
-  type AnswerField,
-  DirectorReplySchema,
-  directorAnswer,
-} from '../../src/office/director-reply.ts';
 import { actionTools } from '../../src/office/action-tools.ts';
+import { capabilityLines } from '../../src/office/capabilities.ts';
+import { directorAnswer } from '../../src/office/director-reply.ts';
 import { featureTools } from '../../src/office/feature-tools.ts';
+import { teamTools } from '../../src/office/team-tools.ts';
 import { orchestratorChatPrompt } from '../../src/office/threads.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { whiteboardTools } from '../../src/whiteboard/tools.ts';
@@ -24,43 +20,39 @@ const allTools = () => [
   ...whiteboardTools({} as never, 'p', 'a-pixel'),
   ...featureTools({} as never, {} as never, 'p'),
   ...actionTools({} as never, 'p', 'a-pixel'),
+  ...teamTools({} as never, 'p', 'a-pixel', { card: () => {} }),
 ];
-const allFields = Object.keys(DirectorReplySchema.shape).filter((k) => k !== 'reply') as AnswerField[];
+const named = (...names: string[]) => allTools().filter((t) => names.includes(t.name));
 /** The capability lines a prompt shows. */
-const shown = (prompt: string) =>
-  prompt.split('\n').filter((l) => /^- (`[a-z_]+`|"[a-z]+" in your answer): /.test(l));
+const shown = (prompt: string) => prompt.split('\n').filter((l) => /^- `[a-z_]+`: /.test(l));
 
 describe('honest capability list', () => {
-  it('every answer field and every director tool has one plain capability line', () => {
-    for (const f of allFields) expect(ANSWER_FIELDS[f]?.can, f).toMatch(/\w{3}/);
+  it('every director tool has one plain capability line', () => {
     for (const t of allTools()) expect(t.can, t.name).toMatch(/\w{3}/);
   });
 
-  it('the prompt shows exactly the attached tools and fields', () => {
-    const can: Capabilities = { tools: allTools(), fields: allFields };
-    expect(shown(orchestratorChatPrompt(pixel, 'Aurora', can))).toEqual(capabilityLines(can));
-    expect(shown(orchestratorChatPrompt(pixel, 'Aurora', can))).toHaveLength(
-      can.tools.length + allFields.length,
-    );
+  it('the prompt shows exactly the attached tools', () => {
+    const tools = allTools();
+    expect(shown(orchestratorChatPrompt(pixel, 'Aurora', { tools }))).toEqual(capabilityLines({ tools }));
+    expect(shown(orchestratorChatPrompt(pixel, 'Aurora', { tools }))).toHaveLength(tools.length);
   });
 
   it('promises nothing that is not attached: no stop without `stop_work`, no offers it cannot make', () => {
-    const ask = allTools().filter((t) => t.name === 'ask_person');
-    const prompt = orchestratorChatPrompt(pixel, 'Aurora', { tools: ask, fields: ['staff'] });
-    expect(shown(prompt)).toEqual(capabilityLines({ tools: ask, fields: ['staff'] }));
+    const tools = named('ask_person', 'staff_project');
+    const prompt = orchestratorChatPrompt(pixel, 'Aurora', { tools });
+    expect(shown(prompt)).toEqual(capabilityLines({ tools }));
     expect(prompt).not.toContain('stop_work');
     expect(prompt).not.toMatch(/features list as Planned|whiteboard as a goal|ONE goal/);
-    expect(directorAnswer(['staff'])).not.toMatch(/- (WORK|REBUILD):/);
+    expect(directorAnswer({ tools })).not.toContain('want it on the whiteboard');
     // nothing at all → it can only talk
     expect(orchestratorChatPrompt(pixel, 'Aurora')).toContain('you have no tools and no actions');
   });
 
   it('for a request outside the list it offers the real next steps it has', () => {
-    const tools = allTools().filter((t) => t.name === 'add_feature');
-    expect(orchestratorChatPrompt(pixel, 'Aurora', { tools, fields: [] })).toMatch(
+    expect(orchestratorChatPrompt(pixel, 'Aurora', { tools: named('add_feature') })).toMatch(
       /can’t do it from here, and offer to add it to the features list as Planned\./,
     );
-    expect(orchestratorChatPrompt(pixel, 'Aurora', { tools, fields: ['work'] })).toMatch(
+    expect(orchestratorChatPrompt(pixel, 'Aurora', { tools: named('add_feature', 'add_goal') })).toMatch(
       /offer to add it to the features list as Planned, or to put the work on the whiteboard as a goal\./,
     );
   });
@@ -69,11 +61,11 @@ describe('honest capability list', () => {
     let h: ReturnType<typeof testApp>;
     afterEach(() => h.close());
 
-    it('the director’s chat prompt lists every tool it is given and every field the studio carries out', async () => {
+    it('the director’s chat prompt lists every tool it is given, and asks for plain words', async () => {
       const seen: RunSpec[] = [];
       const crew = scriptedCrew({}, (s) => {
         seen.push(s);
-        return [{ result: '{"reply":"Hi."}' }];
+        return [{ result: 'Hi.' }];
       });
       h = testApp({ seed: true, runner: crew.runner });
       mkdirSync(join(h.config.sandbox, 'aurora'));
@@ -81,10 +73,8 @@ describe('honest capability list', () => {
       const r = await h.call('POST', '/projects/aurora/threads/a-pixel/messages', { text: 'Hi' });
       await h.runtime.settled(r.body.runId);
       const spec = seen.find((s) => s.task.startsWith('Studio summary right now: ')) as RunSpec;
-      // the studio attaches the whiteboard and features tools and carries out every answer field
-      expect(shown(spec.systemPrompt ?? '')).toEqual(
-        capabilityLines({ tools: allTools(), fields: allFields }),
-      );
+      expect(shown(spec.systemPrompt ?? '')).toEqual(capabilityLines({ tools: allTools() }));
+      expect(spec.task).toMatch(/Never start work on a question[\s\S]*plain words only — no JSON/);
     });
   });
 });

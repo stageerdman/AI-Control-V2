@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fakeBrain } from '../../src/crew/fake-brain.ts';
 import { contractOf } from '../../src/crew/structured.ts';
+import { getChatMessages } from '../../src/db/chats.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
@@ -17,14 +18,16 @@ describe('the director staffs from chat', () => {
   let h: ReturnType<typeof testApp>;
   afterEach(() => h.close());
 
-  const setup = (director: object) => {
+  /** The director's chat turn plays `turn` (tool calls), then a plain reply. */
+  const setup = (turn: FakeStep[]) => {
     const calls: RunSpec[] = [];
     h = testApp({
       seed: true,
       runner: fakeRunner((spec): FakeStep[] => {
         calls.push(spec);
-        if (!contractOf(spec.task) && spec.tools?.length === 0) return [{ result: JSON.stringify(director) }]; // the director's chat turn
-        return fakeBrain(spec);
+        if (spec.task.startsWith('Studio summary right now: ')) return [...turn, { result: 'Done.' }];
+        if (contractOf(spec.task)) return fakeBrain(spec);
+        return [{ result: 'Built.' }];
       }),
     });
     mkdirSync(join(h.config.sandbox, 'lumi'), { recursive: true });
@@ -39,29 +42,41 @@ describe('the director staffs from chat', () => {
       )
     ).body.messages;
 
-  it('a new team from Cast agents + a specialist join before the goal, which then gets planned', async () => {
-    const calls = setup({
-      reply: 'Done — the Founders are here, Pete captains; Twinkle joins as a specialist.',
-      work: { goal: 'Design five new agent looks' },
-      staff: {
-        team: {
-          name: 'The Founders',
-          captain: 'Pixel Pete',
-          members: [
-            { agent: 'Pixel Pete', job: 'Lead' },
-            { agent: 'Scarlett Scenario', job: 'Test' },
-          ],
+  const turnSaid = (runId: string) =>
+    getChatMessages(h.db, runId)
+      .filter((m) => m.role === 'assistant')
+      .map((m) => m.text);
+
+  it('a new team from Cast agents + a specialist join in the turn, then the goal goes to them', async () => {
+    const calls = setup([
+      {
+        tool: 'staff_project',
+        args: {
+          team: {
+            name: 'The Founders',
+            captain: 'Pixel Pete',
+            members: [
+              { agent: 'Pixel Pete', job: 'Lead' },
+              { agent: 'Scarlett Scenario', job: 'Test' },
+            ],
+          },
+          specialists: ['Twinkle'],
         },
-        specialists: ['Twinkle'],
       },
-    });
+      {
+        tool: 'add_goal',
+        args: { text: 'Design five new agent looks', tasks: [{ text: 'Five looks', owner: 'Pixel Pete' }] },
+      },
+    ]);
     const orch = h.store.projects.require('lumi').orchestratorId;
-    await h.call('POST', `/projects/lumi/threads/${orch}/messages`, {
+    const r = await h.call('POST', `/projects/lumi/threads/${orch}/messages`, {
       text: 'Set up our first team and design five new looks',
     });
-    await wait(async () =>
-      (await thread()).some((m: { goalId: string | null; from: string }) => m.goalId && m.from !== 'user'),
-    );
+    await h.runtime.settled(r.body.runId);
+    const [joined, added] = turnSaid(r.body.runId);
+    expect(joined).toMatch(/^Joined the project: .*Pixel Pete.*Twinkle.*Teams on the project now include: The Founders\.$/);
+    expect(added).not.toMatch(/refused/);
+    expect((await thread()).every((m: { goalId: string | null }) => !!m.goalId)).toBe(true);
     // the director saw who it may add
     expect(calls[0]?.task).toContain('"castAvailable"');
     const p = h.store.projects.require('lumi');
@@ -82,16 +97,15 @@ describe('the director staffs from chat', () => {
     expect((await thread()).map((m: { kind: string }) => m.kind)).not.toContain('error');
   });
 
-  it('an unknown name stops it cleanly: nobody added, no work', async () => {
-    setup({ reply: 'On it.', work: { goal: 'Build it' }, staff: { specialists: ['Steve Jobs'] } });
+  it('an unknown name is refused in the turn: nobody added, and the director reads why', async () => {
+    setup([{ tool: 'staff_project', args: { specialists: ['Steve Jobs'] } }]);
     const orch = h.store.projects.require('lumi').orchestratorId;
-    await h.call('POST', `/projects/lumi/threads/${orch}/messages`, {
+    const r = await h.call('POST', `/projects/lumi/threads/${orch}/messages`, {
       text: 'Bring in Steve Jobs and build it',
     });
-    await wait(async () => (await thread()).some((m: { kind: string }) => m.kind === 'error'));
-    const err = (await thread()).find((m: { kind: string }) => m.kind === 'error');
-    expect(err.text).toBe(
-      'I couldn’t set up the people: There\'s nobody called "Steve Jobs" in the Cast — new agents are designed with Tinker first',
+    await h.runtime.settled(r.body.runId);
+    expect(turnSaid(r.body.runId)[0]).toBe(
+      'staff_project refused: There\'s nobody called "Steve Jobs" in the Cast — new agents are designed with Tinker first',
     );
     expect(h.store.projects.require('lumi').agentIds).toEqual([]);
     expect((await h.call('GET', '/projects/lumi/work')).body).toEqual([]);
