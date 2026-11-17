@@ -35,7 +35,7 @@ export type EditorMode = { kind: 'add' } | { kind: 'edit'; access: Access };
 /** Human message for a failed save — never echoes anything typed into a secret field. */
 export function formError(e: unknown): string {
   if (!isApiError(e)) return 'Something went wrong — try again.';
-  if (e.code === 'network') return "Can't reach the studio server — nothing was saved.";
+  if (e.code === 'network') return "Can't reach the studio server — is it running? Nothing was saved.";
   return e.issues[0] ?? e.message;
 }
 

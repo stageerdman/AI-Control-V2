@@ -5,7 +5,8 @@
 import type { FastifyInstance } from 'fastify';
 
 export const APP_ORIGINS = ['http://localhost:1420', 'tauri://localhost'] as const;
-const METHODS = 'GET, POST, PATCH, DELETE, OPTIONS';
+/* every method a route uses must be here, or the browser blocks it before it leaves (test guards it) */
+const METHODS = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
 const HEADERS = 'content-type, last-event-id';
 
 export function allowedOrigin(origin: string, host: string | undefined): boolean {

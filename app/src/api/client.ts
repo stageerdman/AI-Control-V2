@@ -3,7 +3,7 @@
    so screens have a single thing to show. Base URL: VITE_API_URL, else 127.0.0.1:4319
    (the port the Tauri side starts the server on). */
 
-/** Server codes (server/src/errors.ts) + two client-side ones. */
+/** Server codes (server/src/errors.ts) + client-side ones (network = server down, blocked = up but refused). */
 export type ApiErrorCode =
   | 'bad_request'
   | 'not_found'
@@ -11,6 +11,7 @@ export type ApiErrorCode =
   | 'invalid'
   | 'agent_error'
   | 'network'
+  | 'blocked'
   | 'bad_response'
   | (string & {});
 
@@ -71,7 +72,7 @@ export async function request<T>(
     });
   } catch (e) {
     if ((e as Error)?.name === 'AbortError') throw e;
-    throw new ApiError(0, 'network', "Can't reach the studio server.", { cause: String(e) });
+    throw await networkError(method, path, e, doFetch);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -92,6 +93,20 @@ export async function request<T>(
     );
   }
   return data as T;
+}
+
+/* A browser reports a CORS refusal exactly like a dead server. Ask /health in no-cors mode (a simple
+   request: never blocked, the answer just unreadable) — if anything answers, the server is up and
+   refused THIS request, so say that instead of "can't reach". */
+async function networkError(method: Method, path: string, e: unknown, doFetch: typeof fetch) {
+  const cause = String(e);
+  const up = await doFetch(`${base}/health`, { mode: 'no-cors' }).then(
+    () => true,
+    () => false,
+  );
+  const refused = `The studio server is running but refused ${method} ${path} (${cause}).`;
+  const down = `Can't reach the studio server at ${base} — is it running?`;
+  return up ? new ApiError(0, 'blocked', refused, { cause }) : new ApiError(0, 'network', down, { cause });
 }
 
 export const http = {

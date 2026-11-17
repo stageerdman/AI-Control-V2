@@ -36,6 +36,21 @@ describe('CORS', () => {
     expect(r.headers['access-control-allow-headers']).toContain('last-event-id');
   });
 
+  it('preflight allows every method the server has a route for (a missing PUT blocked access grants)', async () => {
+    await h.app.ready();
+    const lists = h.app.printRoutes({ commonPrefix: false }).matchAll(/\(([A-Z, ]+)\)/g);
+    const used = new Set([...lists].flatMap((m) => (m[1] ?? '').split(', ')));
+    used.delete('HEAD'); // a simple request — never preflighted
+    expect(used.has('PUT')).toBe(true);
+    const r = await req(
+      { origin: 'tauri://localhost', 'access-control-request-method': 'PUT' },
+      'OPTIONS',
+      '/projects/aurora/access/x',
+    );
+    const allowed = String(r.headers['access-control-allow-methods']).split(', ');
+    for (const m of used) expect(allowed, m).toContain(m);
+  });
+
   it('refuses every other origin with 403 — lookalikes, other ports, null — and runs nothing', async () => {
     for (const origin of [
       'http://evil.example',

@@ -149,6 +149,35 @@ describe('accesses (multi-field)', () => {
     expect((await h.call('GET', '/accesses/a-stripe')).status).toBe(404);
   });
 
+  it('grants from the app (preflight + PUT from its origin) and the grant is saved', async () => {
+    await h.call('POST', '/accesses', {
+      name: 'Cloudflare',
+      fields: [{ label: 'API token', value: 'cf_x' }],
+    });
+    const origin = 'tauri://localhost';
+    const url = '/projects/kite/access/a-cloudflare';
+    const pre = await h.app.inject({
+      method: 'OPTIONS',
+      url,
+      headers: { origin, 'access-control-request-method': 'PUT' },
+    });
+    expect(pre.statusCode).toBe(204);
+    expect(pre.headers['access-control-allow-methods']).toContain('PUT');
+    const put = await h.app.inject({
+      method: 'PUT',
+      url,
+      headers: { origin, 'content-type': 'application/json' },
+      payload: '{}',
+    });
+    expect(put.statusCode).toBe(200);
+    expect(put.headers['access-control-allow-origin']).toBe(origin);
+    const saved = (await h.call('GET', '/projects/kite/access')).body;
+    expect(saved.accesses.find((a: { id: string }) => a.id === 'a-cloudflare')).toMatchObject({
+      granted: true,
+    });
+    expect((await h.call('GET', '/accesses/a-cloudflare')).body.projectIds).toEqual(['kite']);
+  });
+
   it('grants per access per project; sync writes every field; agents learn names, never values', async () => {
     await h.call('POST', '/accesses', STRIPE);
     await h.call('POST', '/accesses', { name: 'Postgres', fields: [{ label: 'URL', secret: false }] });

@@ -47,14 +47,24 @@ describe('api client', () => {
     expect(e).toMatchObject({ status, code, message: 'm' });
   });
 
-  it('network failure → code network', async () => {
+  it('network failure with the server down too → code network, said plainly', async () => {
     const f = (async () => {
       throw new TypeError('Failed to fetch');
     }) as typeof fetch;
-    await expect(request('GET', '/x', undefined, { fetch: f })).rejects.toMatchObject({
-      status: 0,
-      code: 'network',
-    });
+    const e = (await request('GET', '/x', undefined, { fetch: f }).catch((x) => x)) as ApiError;
+    expect(e).toMatchObject({ status: 0, code: 'network' });
+    expect(e.message).toMatch(/Can't reach the studio server .* is it running\?/);
+  });
+
+  it('a request the browser blocks while /health answers → code blocked with the real reason', async () => {
+    const f = (async (u: string) => {
+      if (u.endsWith('/health')) return new Response(null, { status: 200 });
+      throw new TypeError('Load failed');
+    }) as unknown as typeof fetch;
+    const e = (await request('PUT', '/projects/p/access/a', {}, { fetch: f }).catch((x) => x)) as ApiError;
+    expect(e).toMatchObject({ status: 0, code: 'blocked' });
+    expect(e.message).toContain('running but refused PUT /projects/p/access/a');
+    expect(e.message).toContain('Load failed');
   });
 
   it('non-JSON body → code bad_response; non-JSON error page too', async () => {
