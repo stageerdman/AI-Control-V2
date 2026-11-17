@@ -174,6 +174,15 @@ export const EVENT_SCHEMAS = {
     count,
     names: z.array(text(60)).max(6),
   }),
+  /** A goal switched workflow mid-way (WORKFLOWS phase 4): its untouched tasks were re-gated. */
+  'workflow.changed': workflowTag.extend({ goalId: id, regated: count }),
+  /** A goal under a temporary workflow settled: the lead's command over the crew is over. */
+  'workflow.ended': z.strictObject({
+    goalId: id,
+    lead: id,
+    crew: z.array(id).max(4),
+    status: z.enum(['done', 'failed', 'cancelled']),
+  }),
   /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
       (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). F1c, inside a team:
       captain → member (delegate: a sub-task; rework: the captain's notes), member → captain (deliver: merged into
