@@ -318,8 +318,14 @@ export function createRuntime(deps: RuntimeDeps) {
     for (const fn of finishedListeners) {
       try {
         fn(ended);
-      } catch {
-        /* a listener never breaks the runtime */
+      } catch (e) {
+        /* a listener never breaks the runtime, but its failure is never silent */
+        console.error('[runtime] onFinished listener failed', {
+          projectId: ended.projectId,
+          runId: ended.id,
+          agentId: ended.agentId,
+          error: e instanceof Error ? (e.stack ?? e.message) : String(e),
+        });
       }
     }
   }
@@ -816,8 +822,13 @@ export function createRuntime(deps: RuntimeDeps) {
       for (const fn of answeredListeners) {
         try {
           fn(done);
-        } catch {
-          /* a listener never breaks the answer */
+        } catch (e) {
+          /* a listener never breaks the answer, but its failure is never silent */
+          console.error('[runtime] onAnswered listener failed', {
+            projectId,
+            askId,
+            error: e instanceof Error ? (e.stack ?? e.message) : String(e),
+          });
         }
       }
       return done;

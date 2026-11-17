@@ -658,7 +658,7 @@ export function createDispatch(deps: {
       work.setItem(it.id, { status: 'running', runId: null });
       busy.add(who);
       free--;
-      void launch(it.id);
+      startItem(it.id);
     }
   }
 
@@ -722,7 +722,7 @@ export function createDispatch(deps: {
       if (it.resumeRunId) {
         /* its session can't be resumed: start the item over (its checkout keeps what was done) */
         work.setItem(it.id, { status: 'running', resumeRunId: null });
-        void launch(it.id);
+        startItem(it.id);
         return;
       }
       await stop(it, { status: 'failed', note: clip(msg, 2000) });
@@ -736,10 +736,38 @@ export function createDispatch(deps: {
   const repoOf = (projectId: string) =>
     resolveInSandbox(deps.sandbox ?? '', store.projects.require(projectId).folder ?? '');
 
-  /** Merges back one at a time per project (one main working tree). */
+  /** A step after a run (merge, checkout put away, launch) threw: its item ends failed with the reason, so
+      finished work never stays 'running' on the board. Items already settled are only logged. */
+  const failOnError = (itemId: string, doing: string) => (e: unknown) => {
+    const msg = e instanceof Error ? e.message : String(e);
+    const it = work.item(itemId);
+    console.error(`[dispatch] couldn't ${doing}`, {
+      projectId: it?.projectId,
+      itemId,
+      runId: it?.runId,
+      error: e instanceof Error ? (e.stack ?? msg) : msg,
+    });
+    if (it?.status !== 'running') return;
+    try {
+      settle(it, { status: 'failed', note: clip(`Couldn't ${doing}: ${msg}`, 2000) });
+      pump(it.projectId);
+    } catch (again) {
+      console.error('[dispatch] failing the item failed too', {
+        projectId: it.projectId,
+        itemId,
+        error: again,
+      });
+    }
+  };
+  /** stop() in the background, failing its item if putting the checkout away throws. */
+  const stopLater = (it: ChecklistItem, patch: Parameters<typeof stop>[1]) =>
+    void stop(it, patch).catch(failOnError(it.id, 'put its checkout away'));
+  const startItem = (itemId: string) => void launch(itemId).catch(failOnError(itemId, 'start it'));
+
+  /** Merges back one at a time per project (one main working tree). `fn` never rejects (it fails its item). */
   const merging = new Map<string, Promise<void>>();
   const serial = (projectId: string, fn: () => Promise<void>) => {
-    const next = (merging.get(projectId) ?? Promise.resolve()).then(fn, fn).catch(() => {});
+    const next = (merging.get(projectId) ?? Promise.resolve()).then(fn);
     merging.set(projectId, next);
     return next;
   };
@@ -814,47 +842,51 @@ export function createDispatch(deps: {
     }
     const wt = deps.worktrees;
     work.setItem(it.id, { ...patch, status: 'running' }); // stays on the board while it merges
-    void serial(it.projectId, async () => {
-      /* a member's part merges into its team item's checkout; everything else into the project folder (main) */
-      const parent = it.parentId ? work.item(it.parentId) : null;
-      const repo = parent?.workspace?.cwd ?? repoOf(it.projectId);
-      const r = await wt.merge(repo, ws, clip(`AI Studio: ${it.text} (${name(it.agentId)})`, 200));
-      const cur = work.item(it.id) as ChecklistItem;
-      if (r.ok && parent) {
-        await wt.close(repo, ws, { deleteBranch: true });
-        handoff(cur, cur.agentId, parent.agentId, 'deliver', clip(cur.note ?? '', 600) || undefined);
-        settle(cur, { status: 'done' });
-      } else if (r.ok) {
-        await wt.close(repo, ws, { deleteBranch: true });
-        settle(cur, { status: 'done' });
-        emit(it.projectId, {
-          type: 'item.merged',
-          payload: {
-            itemId: it.id,
-            goalId: it.goalId,
-            branch: ws.branch,
-            ...(r.commit ? { commit: r.commit } : {}),
-          },
-        });
-      } else if (r.conflict && cur.mergeTries < MAX_MERGE_TRIES) {
-        settle(cur, { status: 'todo', stage: 'merge', mergeTries: cur.mergeTries + 1, notes: r.reason });
-        handoff(cur, cur.agentId, cur.agentId, 'merge-fix', r.reason);
-      } else {
-        /* put the checkout away first, so the goal settles with the branch named */
-        const { kept } = await wt.close(repo, ws, { deleteBranch: true });
-        settle(cur, {
-          status: 'failed',
-          note: clip(`${r.reason}${kept ? ` — work kept on branch ${ws.branch}` : ''}`, 2000),
-        });
-      }
-      pump(it.projectId);
-    });
+    const failed = failOnError(it.id, `merge it back (its work is on branch ${ws.branch})`);
+    void serial(it.projectId, () => mergeBack(it, ws, wt).catch(failed));
+  }
+
+  /** Merge an accepted item's branch: done, back to its builder on a conflict, or failed with the work kept. */
+  async function mergeBack(it: ChecklistItem, ws: NonNullable<ChecklistItem['workspace']>, wt: Worktrees) {
+    /* a member's part merges into its team item's checkout; everything else into the project folder (main) */
+    const parent = it.parentId ? work.item(it.parentId) : null;
+    const repo = parent?.workspace?.cwd ?? repoOf(it.projectId);
+    const r = await wt.merge(repo, ws, clip(`AI Studio: ${it.text} (${name(it.agentId)})`, 200));
+    const cur = work.item(it.id) as ChecklistItem;
+    if (r.ok && parent) {
+      await wt.close(repo, ws, { deleteBranch: true });
+      handoff(cur, cur.agentId, parent.agentId, 'deliver', clip(cur.note ?? '', 600) || undefined);
+      settle(cur, { status: 'done' });
+    } else if (r.ok) {
+      await wt.close(repo, ws, { deleteBranch: true });
+      settle(cur, { status: 'done' });
+      emit(it.projectId, {
+        type: 'item.merged',
+        payload: {
+          itemId: it.id,
+          goalId: it.goalId,
+          branch: ws.branch,
+          ...(r.commit ? { commit: r.commit } : {}),
+        },
+      });
+    } else if (r.conflict && cur.mergeTries < MAX_MERGE_TRIES) {
+      settle(cur, { status: 'todo', stage: 'merge', mergeTries: cur.mergeTries + 1, notes: r.reason });
+      handoff(cur, cur.agentId, cur.agentId, 'merge-fix', r.reason);
+    } else {
+      /* put the checkout away first, so the goal settles with the branch named */
+      const { kept } = await wt.close(repo, ws, { deleteBranch: true });
+      settle(cur, {
+        status: 'failed',
+        note: clip(`${r.reason}${kept ? ` — work kept on branch ${ws.branch}` : ''}`, 2000),
+      });
+    }
+    pump(it.projectId);
   }
 
   /** A build (or rework) run ended. */
   function afterBuild(it: ChecklistItem, run: Run) {
     if (run.status !== 'succeeded') {
-      void stop(it, {
+      stopLater(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: clip(run.error ?? run.result ?? '', 2000) || null,
       });
@@ -865,7 +897,7 @@ export function createDispatch(deps: {
       const filed = !!deps.filedBy?.(run.id);
       if (filed) accept(it, { note, buildRunId: run.id });
       else {
-        void stop(it, { status: 'failed', note: 'Finished without filing the report' });
+        stopLater(it, { status: 'failed', note: 'Finished without filing the report' });
       }
       return;
     }
@@ -882,7 +914,7 @@ export function createDispatch(deps: {
   function afterReview(it: ChecklistItem, run: Run) {
     const gate = it.gates[it.gateIndex] as ItemGate;
     if (run.status !== 'succeeded') {
-      void stop(it, {
+      stopLater(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: `${name(gate.reviewer)}'s review didn't finish: ${clip(run.error ?? run.status, 1500)}`,
       });
@@ -936,7 +968,7 @@ export function createDispatch(deps: {
       },
     });
     if (final) {
-      void stop(it, {
+      stopLater(it, {
         status: 'failed',
         sendBacks,
         reviews,
@@ -1084,7 +1116,7 @@ export function createDispatch(deps: {
     if (p?.status !== 'running' || p.teamPhase !== 'members') return;
     if (p.subtasks.some((s) => s.status === 'todo' || s.status === 'running')) return;
     if (stopping.delete(p.id)) {
-      void stop(p, { status: 'cancelled', teamPhase: null });
+      stopLater(p, { status: 'cancelled', teamPhase: null });
       return;
     }
     work.setItem(p.id, { status: 'todo', teamPhase: 'integrate', runId: null });
@@ -1095,7 +1127,7 @@ export function createDispatch(deps: {
   /** The captain's integration run ended: one bounded rework round, or on through the gates like any build. */
   function afterIntegrate(it: ChecklistItem, run: Run) {
     if (run.status !== 'succeeded') {
-      void stop(it, {
+      stopLater(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
         note: clip(run.error ?? run.result ?? '', 2000) || null,
       });
@@ -1166,9 +1198,13 @@ export function createDispatch(deps: {
   runtime.onFinished((run) => {
     const it = work.itemByRun(run.id);
     if (it?.status === 'running') {
-      if (it.stage === 'review') afterReview(it, run);
-      else if (it.teamPhase === 'integrate') afterIntegrate(it, run);
-      else afterBuild(it, run);
+      try {
+        if (it.stage === 'review') afterReview(it, run);
+        else if (it.teamPhase === 'integrate') afterIntegrate(it, run);
+        else afterBuild(it, run);
+      } catch (e) {
+        failOnError(it.id, 'wrap up its run')(e);
+      }
     }
     /* any run ending frees its agent: an item waiting for it may start now */
     pump(run.projectId);
@@ -1186,7 +1222,7 @@ export function createDispatch(deps: {
         /* queued, or its checkout is still being made (launch notices and puts it away) */
         work.setItem(it.id, { status: 'cancelled' });
         announce(work.item(it.id) as ChecklistItem);
-        if (it.status === 'todo') void shelve(it);
+        if (it.status === 'todo') void shelve(it).catch(failOnError(it.id, 'put its checkout away'));
       } else if (it.status === 'running' && it.runId) {
         try {
           runtime.cancel(projectId, it.runId);

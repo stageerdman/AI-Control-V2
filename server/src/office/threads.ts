@@ -490,7 +490,11 @@ export function createThreads(deps: {
     )[0];
     if (!line || line.replied) return null;
     const p = store.projects.get(line.project_id);
-    return { projectId: line.project_id, agentId: line.agent_id, orchestrator: p?.orchestratorId === line.agent_id };
+    return {
+      projectId: line.project_id,
+      agentId: line.agent_id,
+      orchestrator: p?.orchestratorId === line.agent_id,
+    };
   };
 
   runtime.onFinished((run: Run) => {
