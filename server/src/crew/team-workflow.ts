@@ -28,7 +28,12 @@ export function createTeamWorkflows({ store, events }: { store: Store; events: E
     const w = tidyLayout(parse(TeamWorkflowSchema, withoutReadFields(raw), 'workflow'));
     const name = (id: string) => store.agents.get(id)?.name ?? (id === team.id ? team.name : id);
     const members = team.members.map((m) => m.agentId);
-    const issues = workflowIssues(w, teamStaffing({ ...team, members }, name), { temporary: false }, 'workflow');
+    const issues = workflowIssues(
+      w,
+      teamStaffing({ ...team, members }, name),
+      { temporary: false },
+      'workflow',
+    );
     if (issues.length) throw ruleConflict(issues);
     return w;
   }

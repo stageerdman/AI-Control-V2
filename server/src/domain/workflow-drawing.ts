@@ -78,7 +78,8 @@ function stepIssues(steps: readonly Step[], who: Who, at: string): string[] {
 
 function firstIssues(first: string, nodes: Set<string>, who: Who, at: string): string[] {
   if (first === '*') return [`${at}.first: name who starts — '*' is any work, not someone`];
-  if (!who.isAgent(first) && !who.isTeam(first)) return [`${at}.first: '${first}' is not an agent or team ${who.where}`];
+  if (!who.isAgent(first) && !who.isTeam(first))
+    return [`${at}.first: '${first}' is not an agent or team ${who.where}`];
   return nodes.has(first) ? [] : [`${at}.first: ${who.name(first)} has no arrow in this workflow`];
 }
 

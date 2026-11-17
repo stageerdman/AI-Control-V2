@@ -83,7 +83,8 @@ export function resolveWorkflow(store: Store, projectId: string, ask?: WorkflowA
   return { workflow, issues, toSeat };
 }
 
-export const officeScoped = (list: readonly Workflow[]): ScopedWorkflow[] => list.map((w) => scoped(w, 'office'));
+export const officeScoped = (list: readonly Workflow[]): ScopedWorkflow[] =>
+  list.map((w) => scoped(w, 'office'));
 
 export function createWorkflows(deps: { store: Store; events: EventLog }) {
   const { store, events } = deps;
