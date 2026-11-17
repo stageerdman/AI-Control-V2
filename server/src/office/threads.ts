@@ -21,6 +21,7 @@ import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
+import { wayInWords } from '../domain/workflows.ts';
 import { conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
@@ -318,7 +319,10 @@ export function createThreads(deps: {
         specialists: p.agentIds.map(person),
         /* who the director may staff the project with (by name; never invent anyone) */
         castAvailable: castAvailable(store, p.id),
-        howWeWork: p.workflows?.[0]?.summary ?? 'You brief the team captains; no review gates.',
+        /* derived, not `summary`: a summary goes stale once the way is redrawn in the editor */
+        howWeWork: p.workflows?.[0]
+          ? wayInWords(p.workflows[0], name)
+          : 'You brief the team captains; no review gates.',
       },
       /* active goals only, with their items (G1: finished ones made the orchestrator count old goals as current) */
       whiteboard: active.map((g) => ({

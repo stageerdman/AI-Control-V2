@@ -2,7 +2,7 @@
    - Nodes are the agents and teams a workflow names: gate ends (not "*"), step ends, the lead and the crew.
    - `steps`: hand-offs that aren't reviews (A hands work to B, and why). Review arrows ARE the gates, so
      sign-offs keep one source of truth.
-   - `first`: who starts (agent or team). `final`: who signs last (an agent; one of the reviewers if any).
+   - `first`: who starts (agent or team). `final`: who signs last (an agent; orders the sign-offs only).
    - `layout`: where each node sits on the editor's canvas — no meaning anywhere else. */
 import { z } from 'zod';
 import { BranchLabel, DEFAULT_WHY, type Gate, OptionalWhy } from './gates.ts';
@@ -97,13 +97,11 @@ function firstIssues(first: string, nodes: Set<string>, who: Who, at: string): s
   return nodes.has(first) ? [] : [`${at}.first: ${who.name(first)} has no arrow in this workflow`];
 }
 
-function finalIssues(w: Drawn & { final: string }, nodes: Set<string>, who: Who, at: string): string[] {
-  const { final } = w;
+/* `final` only orders sign-offs (gatesFor), so a final who signs nothing off is a harmless no-op, not an issue:
+   the default team ways set final = captain with no gates, and adding one sign-off must still save. */
+function finalIssues(final: string, nodes: Set<string>, who: Who, at: string): string[] {
   if (!who.isAgent(final)) return [`${at}.final: '${final}' is not an agent ${who.where}`];
-  if (!nodes.has(final)) return [`${at}.final: ${who.name(final)} has no arrow in this workflow`];
-  return w.gates.length && !w.gates.some((g) => g.reviewer === final)
-    ? [`${at}.final: ${who.name(final)} signs nothing off here — who signs last must be one of the reviewers`]
-    : [];
+  return nodes.has(final) ? [] : [`${at}.final: ${who.name(final)} has no arrow in this workflow`];
 }
 
 /** Pure: every problem with the drawn fields, each starting with its path (`workflows.0.steps.2.to: …`). */
@@ -112,28 +110,32 @@ export function drawingIssues(w: Drawn, who: Who, at: string): string[] {
   return [
     ...stepIssues(w.steps ?? [], who, at),
     ...(w.first !== undefined ? firstIssues(w.first, nodes, who, at) : []),
-    ...(w.final !== undefined ? finalIssues({ ...w, final: w.final }, nodes, who, at) : []),
+    ...(w.final !== undefined ? finalIssues(w.final, nodes, who, at) : []),
   ];
 }
 
-const onlyWhen = (when?: string) => (when ? ` (only ${when})` : '');
+/** Branch labels are conditions ("it touches payments"); one already worded "if …" / "when …" is kept as is. */
+const onlyWhen = (when?: string) => {
+  if (!when) return '';
+  return /^(if|when|unless|only)\b/i.test(when.trim()) ? ` (only ${when})` : ` (only when ${when})`;
+};
 /** A reason closes its sentence, so the next one doesn't run on. */
 const sentence = (s: string) => (/[.!?…]$/.test(s) ? s : `${s}.`);
 
+type Name = (id: string) => string;
+const signOffWords = (g: Gate, name: Name) =>
+  `${name(g.reviewer)} checks ${g.after === '*' ? 'all work' : name(g.after)}${onlyWhen(g.when)}.`;
+
 /** Pure: the drawing as the planner and builders read it — soft guidance, not an engine (the gates still run
-    the sign-offs). null = nothing drawn beyond the gates. */
-export function drawingInWords(w: Drawn, name: (id: string) => string): string | null {
+    the sign-offs). Every sign-off is said, unless `signOffs: false` (for notes that list the gates themselves).
+    null = nothing to say. */
+export function drawingInWords(w: Drawn, name: Name, opts: { signOffs?: boolean } = {}): string | null {
   const said = [
     ...(w.first ? [`${name(w.first)} starts.`] : []),
     ...(w.steps ?? []).map(
       (s) => `${name(s.from)} hands to ${name(s.to)}${onlyWhen(s.when)}: ${sentence(s.why)}`,
     ),
-    ...w.gates
-      .filter((g) => g.when)
-      .map(
-        (g) =>
-          `${name(g.reviewer)} checks ${g.after === '*' ? 'all work' : name(g.after)}${onlyWhen(g.when)}.`,
-      ),
+    ...(opts.signOffs === false ? [] : w.gates.map((g) => signOffWords(g, name))),
     ...(w.final ? [`${name(w.final)} signs last.`] : []),
   ];
   return said.length ? said.join(' ') : null;

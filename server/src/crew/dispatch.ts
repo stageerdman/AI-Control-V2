@@ -183,7 +183,7 @@ export function planReply(goal: Goal, name: (id: string) => string): string {
 /** The stable workflows as the orchestrator reads them when it plans (names next to ids). */
 export function describeWorkflows(list: readonly Workflow[], name: (id: string) => string) {
   return list.map((w) => {
-    const flow = drawingInWords(w, (id) => `${name(id)} (${id})`);
+    const flow = drawingInWords(w, (id) => `${name(id)} (${id})`, { signOffs: false }); // gates listed below
     const branches = branchLabels(w);
     return {
       id: w.id,
@@ -404,9 +404,10 @@ export function createDispatch(deps: {
     return '';
   }
 
-  /** The goal's drawn workflow in words, so each builder knows whom they hand to (soft; the gates still rule). */
+  /** The goal's drawn workflow in words, so each builder knows whom they hand to (soft; the gates still rule).
+      Without sign-offs: each task already names its own reviewers. */
   function flowNote(goal: Goal): string {
-    const flow = drawingInWords(workflowOf(goal), name);
+    const flow = drawingInWords(workflowOf(goal), name, { signOffs: false });
     return flow ? `How work flows on this goal: ${flow}` : '';
   }
 

@@ -4,6 +4,7 @@
    Every change lands in the board's history (who changed how the work runs). */
 import type { WorkflowsService } from '../crew/workflows.ts';
 import type { Store } from '../db/store.ts';
+import { drawingInWords } from '../domain/workflow-drawing.ts';
 import { GATE_KINDS, keepDrawing, stableCopy, type Workflow } from '../domain/workflows.ts';
 import { AppError, invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
@@ -45,7 +46,9 @@ export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string
           )
           .join('; ')
       : 'no checks';
-    return `${i === 0 ? '(usual) ' : ''}${w.name} [id: ${w.id}] — when: ${w.when}. ${gates}. ${w.summary}`;
+    /* the drawing over `summary`, which goes stale once the way is redrawn in the editor */
+    const said = drawingInWords(w, name, { signOffs: false }) ?? w.summary;
+    return `${i === 0 ? '(usual) ' : ''}${w.name} [id: ${w.id}] — when: ${w.when}. ${gates}. ${said}`;
   };
   const listText = (list: readonly Workflow[]) => list.map(describe).join('\n');
 

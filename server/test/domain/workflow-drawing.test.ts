@@ -31,13 +31,17 @@ describe('drawing rules', () => {
     expect(issues({ first: 'team-x', steps: [step('team-x', 'a-ann')] })).toEqual([]);
   });
 
-  it('final: an agent, a node, and one of the reviewers when there are gates', () => {
+  it('final: an agent and a node', () => {
     expect(issues({ final: 'team-x', steps: [step('team-x', 'a-ann')] })).toEqual([
       "workflows.0.final: 'team-x' is not an agent on this project",
     ]);
     expect(issues({ final: 'a-cy' })).toEqual(['workflows.0.final: cy has no arrow in this workflow']);
-    expect(issues({ final: 'a-ann' })[0]).toMatch(/^workflows\.0\.final: ann signs nothing off here/);
     expect(issues({ gates: [], final: 'a-ann', steps: [step('a-cy', 'a-ann')] })).toEqual([]);
+  });
+
+  /* live check 2026-11-17: the default team way sets final = captain; adding one sign-off made the save a 409 */
+  it('final who signs nothing off is fine (it only orders sign-offs)', () => {
+    expect(issues({ final: 'a-ann' })).toEqual([]);
   });
 
   it('steps: ends on the project, no hand-off to oneself, no pair twice', () => {
@@ -84,17 +88,32 @@ describe('drawing shape', () => {
 });
 
 describe('drawingInWords', () => {
-  it('says who starts, hands to whom (and when), conditional checks, who signs last; null when nothing drawn', () => {
-    const w = {
-      gates: [review, { ...review, after: '*', when: 'if it touches payments' }],
-      first: 'a-ann',
-      final: 'a-bo',
-      steps: [{ ...step('a-ann', 'a-cy'), when: 'if it needs data' }],
-    };
+  const w = {
+    gates: [review, { ...review, after: '*', when: 'if it touches payments' }],
+    first: 'a-ann',
+    final: 'a-bo',
+    steps: [{ ...step('a-ann', 'a-cy'), when: 'if it needs data' }],
+  };
+
+  it('says who starts, hands to whom (and when), every sign-off, who signs last; null when nothing at all', () => {
     expect(drawingInWords(w, who.name)).toBe(
-      'ann starts. ann hands to cy (only if it needs data): Hand it over. bo checks all work (only if it touches payments). bo signs last.',
+      'ann starts. ann hands to cy (only if it needs data): Hand it over. bo checks ann. bo checks all work (only if it touches payments). bo signs last.',
     );
-    expect(drawingInWords(base, who.name)).toBeNull();
+    expect(drawingInWords(base, who.name)).toBe('bo checks ann.');
+    expect(drawingInWords({ gates: [] }, who.name)).toBeNull();
+  });
+
+  it('signOffs: false leaves the sign-offs to notes that list them', () => {
+    expect(drawingInWords(w, who.name, { signOffs: false })).toBe(
+      'ann starts. ann hands to cy (only if it needs data): Hand it over. bo signs last.',
+    );
+    expect(drawingInWords(base, who.name, { signOffs: false })).toBeNull();
+  });
+
+  /* live check 2026-11-17: "Scarlett checks Captain (only it touches payments)" */
+  it('a bare branch label reads "only when …"', () => {
+    const gates = [{ ...review, when: 'it touches payments' }];
+    expect(drawingInWords({ gates }, who.name)).toBe('bo checks ann (only when it touches payments).');
   });
 });
 

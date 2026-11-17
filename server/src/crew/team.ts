@@ -114,7 +114,7 @@ export function orderedSubtasks<T extends { assignee: string; parallel?: boolean
 export function teamWayNote(way: Workflow | null, name: (id: string) => string): string {
   if (!way) return '';
   const who = (id: string) => `${name(id)} (${id})`;
-  const drawn = drawingInWords(way, who);
+  const drawn = drawingInWords(way, who, { signOffs: false }); // the checks line says them
   const checks = way.gates.map(
     (g) =>
       `${who(g.reviewer)} checks ${g.after === '*' ? "every member's part" : who(g.after)} (${g.kind})${g.when ? ` — branch "${g.when}"` : ''}`,
