@@ -8,7 +8,6 @@ import { z } from 'zod';
 import { BranchLabel, type Gate } from './gates.ts';
 
 export const MAX_STEPS = 12;
-export const MAX_LAYOUT = 24;
 const ref = z.string().trim().min(1).max(80);
 
 export const StepSchema = z.strictObject({
@@ -19,11 +18,24 @@ export const StepSchema = z.strictObject({
 });
 export type Step = z.output<typeof StepSchema>;
 
-const Point = z.strictObject({ x: z.number().min(0).max(1000), y: z.number().min(0).max(600) });
-export const LayoutSchema = z
-  .record(ref, Point)
-  .refine((l) => Object.keys(l).length <= MAX_LAYOUT, `at most ${MAX_LAYOUT} positions`);
-export type Layout = z.output<typeof LayoutSchema>;
+export const CANVAS = { width: 1000, height: 600 };
+export type Point = { x: number; y: number };
+export type Layout = Record<string, Point>;
+
+const clamp = (n: number, max: number) => Math.min(max, Math.max(0, Math.round(n)));
+const isNumber = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+
+/** Pure: positions are cosmetic, so a layout never fails a save — odd points are rounded onto the canvas and
+    unreadable ones dropped (tidyLayout later drops positions of anything that isn't a node). */
+export function cleanLayout(raw: Record<string, unknown>): Layout {
+  const points = Object.entries(raw).flatMap(([id, p]): [string, Point][] => {
+    const { x, y } = (p ?? {}) as Record<string, unknown>;
+    if (!id.trim() || !isNumber(x) || !isNumber(y)) return [];
+    return [[id, { x: clamp(x, CANVAS.width), y: clamp(y, CANVAS.height) }]];
+  });
+  return Object.fromEntries(points);
+}
+export const LayoutSchema = z.record(z.string(), z.unknown()).transform(cleanLayout);
 
 /** The editor's fields, spread into the workflow schema. */
 export const drawingShape = {

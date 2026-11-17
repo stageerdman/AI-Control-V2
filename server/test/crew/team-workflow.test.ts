@@ -46,9 +46,35 @@ describe('project workflows: the drawn fields', () => {
 
   it('a shape problem is a 422 whose path starts at the body', async () => {
     h = testApp({ seed: true });
-    const r = await put({ ...WAY, layout: { 'a-pete': { x: 2000, y: 0 } } });
+    const r = await put({ ...WAY, steps: [{ from: 'a-semic', to: 'a-pete', why: '' }] });
     expect(r.status).toBe(422);
-    expect(r.body.error.details[0].path).toBe('workflows.0.layout.a-pete.x');
+    expect(r.body.error.details[0].path).toBe('workflows.0.steps.0.why');
+  });
+
+  it('where a node sits never blocks a save: an odd position is clamped', async () => {
+    h = testApp({ seed: true });
+    const r = await put({ ...WAY, layout: { 'a-pete': { x: 2000, y: 10.6 } } });
+    expect(r.status).toBe(200);
+    expect(r.body.workflows[0].layout).toEqual({ 'a-pete': { x: 1000, y: 11 } });
+  });
+
+  it('the director on a drawing is a 409 pinned to that arrow end', async () => {
+    h = testApp({ seed: true });
+    const r = await put({ ...WAY, steps: [{ from: 'a-pixel', to: 'a-pete', why: 'Brief.' }] });
+    expect(r.status).toBe(409);
+    expect(r.body.error.details.map((d: { path: string }) => d.path)).toEqual(['workflows.0.steps.0.from']);
+  });
+
+  it('keeps steps and gates in the order sent (the editor pins problems by index)', async () => {
+    h = testApp({ seed: true });
+    const gates = [
+      { after: 'a-semic', reviewer: 'a-scar', kind: 'review', why: 'Look.' },
+      { after: 'a-pete', reviewer: 'a-lint', kind: 'quality', why: 'Lint.' },
+    ];
+    const order = [steps[0], { from: 'a-pete', to: 'a-scar', why: 'Then test.' }].reverse();
+    const r = await put({ ...WAY, gates, steps: order, final: 'a-scar' });
+    expect(r.status).toBe(200);
+    expect(r.body.workflows[0]).toMatchObject({ gates, steps: order });
   });
 });
 
