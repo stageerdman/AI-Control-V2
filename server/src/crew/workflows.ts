@@ -56,7 +56,11 @@ export function resolveWorkflow(store: Store, projectId: string, ask?: WorkflowA
       crew: ask.crew.map(refs.agentId),
       ...(ask.gates
         ? {
-            gates: ask.gates.map((g) => ({ ...g, after: refs.afterId(g.after), reviewer: refs.agentId(g.reviewer) })),
+            gates: ask.gates.map((g) => ({
+              ...g,
+              after: refs.afterId(g.after),
+              reviewer: refs.agentId(g.reviewer),
+            })),
           }
         : {}),
     },

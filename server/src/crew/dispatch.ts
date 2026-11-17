@@ -39,14 +39,13 @@ import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
+import { seatForWork } from '../office/people.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
-import { seatForWork } from '../office/people.ts';
 import { holder } from '../whiteboard/people.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
 import { type Crew, validateWith } from './structured.ts';
-import { resolveWorkflow } from './workflows.ts';
 import {
   integrateTask,
   MAX_TEAM_ROUNDS,
@@ -58,6 +57,7 @@ import {
   TEAM_SPLIT,
   TeamSplitSchema,
 } from './team.ts';
+import { resolveWorkflow } from './workflows.ts';
 
 export const DISPATCH = 'dispatch';
 export const DEFAULT_MAX_CONCURRENT = 2;

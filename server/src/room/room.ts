@@ -35,14 +35,14 @@ export const HelpSchema = z.strictObject({
 const READ_ONLY = ['Read', 'Glob', 'Grep'];
 
 export type RoomScope = 'draft' | 'project';
-/** Who is acting, where, and through whom they were reached (cycle + depth guard). `goalId`: the goal the
-    acting run works on (a checklist item's run; calls inherit it) — a temporary lead there leads them. */
+/** Who is acting, where, and through whom they were reached (cycle + depth guard). `runId`: the acting run
+    (calls inherit it); its goal, looked up when a tool is used, says who leads them there (a temporary lead). */
 export type RoomCtx = {
   scope: RoomScope;
   ownerId: string;
   agentId: string;
   chain: readonly string[];
-  goalId?: string;
+  runId?: string;
 };
 export type CallArgs = { agent: string; request: string; why?: string; work?: boolean };
 
@@ -66,8 +66,17 @@ export function createRoom(deps: {
   addWork?: (projectId: string, byId: string, calleeId: string, request: string, goalId?: string) => string;
   /** WORKFLOWS: who leads this agent on this goal right now (a running goal's temporary lead), or null. */
   leadOf?: (goalId: string, agentId: string) => string | null;
+  /** The goal a run works on (a checklist item's run), or null. Asked at call time: dispatch links a run to its
+      item only after the run (and its tools) started. */
+  goalOfRun?: (runId: string) => string | null;
 }) {
   const { db, store, events, crew } = deps;
+  const goalOf = (ctx: RoomCtx) => (ctx.runId ? (deps.goalOfRun?.(ctx.runId) ?? undefined) : undefined);
+  /** Who leads this agent on the acting run's goal right now, or null. */
+  const leadHere = (ctx: RoomCtx, agentId: string) => {
+    const goalId = goalOf(ctx);
+    return goalId ? (deps.leadOf?.(goalId, agentId) ?? null) : null;
+  };
   /** One call at a time per callee: the next caller waits its turn (calleeId → the call in progress). */
   const talking = new Map<string, Promise<unknown>>();
   async function inTurn<T>(calleeId: string, fn: () => Promise<T>): Promise<T> {
@@ -192,7 +201,7 @@ export function createRoom(deps: {
   /** The one who leads `id` here: the acting agent's temporary lead on their goal first, else their team's captain. */
   function leaderOf(ctx: RoomCtx, teams: ReturnType<typeof teamsOf>) {
     return (id: string): string | null =>
-      (id === ctx.agentId && ctx.goalId ? deps.leadOf?.(ctx.goalId, id) : null) ??
+      (id === ctx.agentId ? leadHere(ctx, id) : null) ??
       teams.find((t) => t.members.some((m) => m.agentId === id))?.captainId ??
       null;
   }
@@ -245,7 +254,7 @@ export function createRoom(deps: {
       inRoom: (id) => here.includes(id),
       captainOf: leaderOf(ctx, teams),
     });
-    const leads = !!approverId && !!ctx.goalId && deps.leadOf?.(ctx.goalId, caller.id) === approverId;
+    const leads = !!approverId && leadHere(ctx, caller.id) === approverId;
     const why = clip((args.why?.trim() || request).replace(/[.?!\s]+$/, ''), 80);
     const callId = randomUUID();
     const log = (kind: 'call' | 'answer' | 'allow', from: string, to: string, text: string) =>
@@ -335,7 +344,7 @@ export function createRoom(deps: {
     /* the work goes on the board at once, so it is never lost in the call */
     const onBoard =
       args.work && project && deps.addWork
-        ? deps.addWork(project.id, caller.id, callee.id, request, ctx.goalId)
+        ? deps.addWork(project.id, caller.id, callee.id, request, goalOf(ctx))
         : null;
     return inTurn(callee.id, () => help(ctx, { caller, callee, request, project, onBoard, step, log }));
   }

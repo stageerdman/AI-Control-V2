@@ -20,6 +20,7 @@ import { runsRepo } from './db/runs.ts';
 import { metaFlag, metaValue } from './db/settings.ts';
 import { createStore, type Store } from './db/store.ts';
 import { workRepo } from './db/work.ts';
+import { leadOf } from './domain/workflows.ts';
 import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
 import { type EventLog, eventLog } from './events/log.ts';
@@ -39,7 +40,6 @@ import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
 import { createKinCopies } from './office/kin-copies.ts';
-import { leadOf } from './domain/workflows.ts';
 import { leadTools } from './office/leader-tools.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createMail } from './office/mail.ts';
@@ -309,6 +309,7 @@ export function buildApp({
       const g = actions.work.goal(goalId);
       return g ? leadOf(agentId, g) : null;
     },
+    goalOfRun: (runId) => actions.work.itemByRun(runId)?.goalId ?? null,
   });
   const creator = createCreator({ store, events, crew, room });
   /* the orchestrator's thread records goals and designs (threads are built below) */
@@ -515,20 +516,10 @@ export function buildApp({
     creator,
     scratchDir: join(config.home, 'scratch'),
   });
-  const goalOfRun = (runId: string | undefined) => {
-    const goalId = runId ? actions.work.itemByRun(runId)?.goalId : undefined;
-    return goalId ? { goalId } : {};
-  };
   /* every agent run's studio tools: the room (call_agent, comms_log), its feature, mail when it may (+ propose_agent at HQ) */
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
-    /* a checklist item's run works on its goal: a temporary lead there leads the crew (chats have none) */
-    ...room.tools({
-      scope: 'project',
-      ownerId: projectId,
-      agentId,
-      chain: [],
-      ...goalOfRun(runId),
-    }),
+    /* the room finds the run's goal when a tool is used: a temporary lead there leads the crew */
+    ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [], runId }),
     ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
     ...historyTools(db, { projectId, agentId, runId }),
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
