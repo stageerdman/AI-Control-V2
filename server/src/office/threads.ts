@@ -74,6 +74,9 @@ const json = (v: unknown) => JSON.stringify(v);
 const shortName = (a: Pick<Agent, 'name' | 'nick'> | null | undefined) =>
   a?.nick ?? a?.name.split(' ')[0] ?? 'Someone';
 
+/** The task of a chat turn carried on after a restart (the runtime puts the user's answer before it). */
+export const CONTINUE_TURN = 'Carry on with your answer to the user’s last message in this chat.';
+
 /** A thread's reply when the run ended without an answer: stopped, cut off by a restart, or failed. */
 export function whyNoAnswer(run: Pick<Run, 'status' | 'error'>): string {
   if (run.status === 'cancelled') return 'Stopped by you before I could answer. Ask me to carry on any time.';
@@ -554,14 +557,87 @@ export function createThreads(deps: {
     return s.agent;
   };
 
+  /** A chat turn's memory, and the director's tools for it (a tool may hand the turn a rebuild card). */
+  function turnFor(p: Project, s: Seat): { turn: Turn; tools: CapableTool[] } {
+    const turn: Turn = {
+      projectId: p.id,
+      agentId: s.agent.id,
+      orchestrator: s.orchestrator,
+      ...(s.orchestrator ? { goalsBefore: new Set(work.goals(p.id).map((g) => g.id)) } : {}),
+    };
+    const tools = s.orchestrator
+      ? (deps.directorTools?.(p.id, s.agent.id, { card: (o) => (turn.card = o) }) ?? [])
+      : [];
+    return { turn, tools };
+  }
+
+  /** Start a chat turn's run (the runtime may say no: nothing is kept then); its reply lands when it ends. */
+  function startTurn(
+    p: Project,
+    s: Seat,
+    { turn, tools }: { turn: Turn; tools: CapableTool[] },
+    task: string,
+    resumeRunId: string | null,
+  ): Run {
+    const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
+    const run = runtime.start(p.id, {
+      agentId: s.agent.id,
+      ...(s.teamId ? { teamId: s.teamId } : {}),
+      task,
+      /* the work clock: the director thinks; an agent's chat turn builds (a reporter's researches) */
+      kind: s.orchestrator ? 'thinking' : reporter ? 'research' : 'building',
+      asked: 'chat',
+      ...(resumeRunId ? { resumeRunId } : {}),
+      ...(s.orchestrator
+        ? {
+            caps: deps.orchestratorCaps ?? CREW_CAPS,
+            bigPicture: {
+              systemPrompt: orchestratorChatPrompt(s.agent, p.name, { tools }),
+              ...(tools.length ? { tools } : {}),
+            },
+          }
+        : {}),
+    });
+    busy.add(key(p.id, s.agent.id));
+    turns.set(run.id, turn);
+    return run;
+  }
+
+  /** A turn the restart cut off while its question was open: the same session carries on (it waits for the
+      answer, runtime/parked.ts) and the user's line now points at it, so its reply lands there. */
+  function continueTurn(run: Run): boolean {
+    const p = store.projects.get(run.projectId);
+    if (!p) return false;
+    try {
+      const s = seat(p, run.agentId);
+      const next = startTurn(p, s, turnFor(p, s), CONTINUE_TURN, run.id);
+      db.prepare("UPDATE thread_messages SET run_id = ? WHERE run_id = ? AND sender = 'user'").run(
+        next.id,
+        run.id,
+      );
+      return true;
+    } catch (e) {
+      console.error('[threads] could not continue a turn after the restart', {
+        projectId: run.projectId,
+        agentId: run.agentId,
+        runId: run.id,
+        error: (e as Error).message,
+      });
+      return false;
+    }
+  }
+
   return {
-    /** After a restart: every chat turn the restart cut off (`runIds`, just marked interrupted) gets its reply. */
+    /** After a restart: every chat turn the restart cut off (`runIds`, just marked interrupted) gets its reply —
+        or, when it was waiting on the user's answer, carries on with its question still open. */
     recover(runIds: readonly string[]) {
       const runs = runsRepo(db);
       for (const id of runIds) {
         const run = runs.get(id);
         const t = run && turnOf(run);
-        if (run && t) replied(t, run);
+        if (!run || !t) continue;
+        const asking = runtime.asks(run.projectId, 'open').some((a) => a.runId === run.id);
+        if (!(asking && continueTurn(run))) replied(t, run);
       }
     },
 
@@ -629,17 +705,9 @@ export function createThreads(deps: {
           fresh = true;
         }
       }
-      const turn: Turn = {
-        projectId,
-        agentId: s.agent.id,
-        orchestrator: s.orchestrator,
-        ...(s.orchestrator ? { goalsBefore: new Set(work.goals(projectId).map((g) => g.id)) } : {}),
-      };
-      const tools = s.orchestrator
-        ? (deps.directorTools?.(projectId, s.agent.id, { card: (o) => (turn.card = o) }) ?? [])
-        : [];
+      const t = turnFor(p, s);
       // an unknown report is a 404 before anything starts
-      const task = taskFor(p, s, text, { tools }, opts.reportId, recap);
+      const task = taskFor(p, s, text, { tools: t.tools }, opts.reportId, recap);
       const k = key(projectId, s.agent.id);
       /* an agent already at work (its chat turn or dispatched work): the message is a note it reads after its next step */
       const told = s.orchestrator ? null : runtime.tell(projectId, s.agent.id, 'the user', text);
@@ -651,27 +719,7 @@ export function createThreads(deps: {
       /* a newer message to the director: any open rebuild card goes stale (spec §3) */
       if (s.orchestrator) deps.rebuilds?.staleAll(projectId);
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
-      const reporter = !!s.agent.roleId && !!store.roles.get(s.agent.roleId)?.reporter;
-      const run = runtime.start(projectId, {
-        agentId: s.agent.id,
-        ...(s.teamId ? { teamId: s.teamId } : {}),
-        task,
-        /* the work clock: the director thinks; an agent's chat turn builds (a reporter's researches) */
-        kind: s.orchestrator ? 'thinking' : reporter ? 'research' : 'building',
-        asked: 'chat',
-        ...(resumeRunId ? { resumeRunId } : {}),
-        ...(s.orchestrator
-          ? {
-              caps: deps.orchestratorCaps ?? CREW_CAPS,
-              bigPicture: {
-                systemPrompt: orchestratorChatPrompt(s.agent, p.name, { tools }),
-                ...(tools.length ? { tools } : {}),
-              },
-            }
-          : {}),
-      });
-      busy.add(k);
-      turns.set(run.id, turn);
+      const run = startTurn(p, s, t, task, resumeRunId);
       if (fresh) setSession(projectId, s.agent.id, { startedAt: now(), rotate: false });
       const message = insert(projectId, s.agent.id, {
         sender: 'user',
@@ -680,7 +728,7 @@ export function createThreads(deps: {
         runId: run.id,
         ...(opts.reportId ? { reportId: opts.reportId } : {}),
       });
-      turn.messageId = message.id;
+      t.turn.messageId = message.id;
       return { message, runId: run.id };
     },
 

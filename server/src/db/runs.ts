@@ -183,11 +183,11 @@ export function runsRepo(db: Db) {
         id,
       );
     },
-    /** After a crash/restart nothing is really running any more. */
-    /** Boot after a crash or a close: every run still 'running' failed as interrupted → their ids. */
+    /** Boot after a crash or a close: every run still 'running' failed as interrupted → their ids.
+        An open question of a run with a session stays open (parked): resuming that session picks it up. */
     failInterrupted(): string[] {
       db.prepare(
-        "UPDATE asks SET status = 'cancelled' WHERE status = 'open' AND run_id IN (SELECT id FROM runs WHERE status = 'running')",
+        "UPDATE asks SET status = 'cancelled' WHERE status = 'open' AND run_id IN (SELECT id FROM runs WHERE status = 'running' AND session_id IS NULL)",
       ).run();
       return rows<{ id: string }>(
         db
@@ -264,6 +264,19 @@ export function runsRepo(db: Db) {
           "UPDATE asks SET status = 'answered', answer = ?, answered_at = ?, answered_by = ? WHERE id = ? AND status = 'open'",
         )
         .run(answer, now(), by, id).changes,
+    /** A resumed session takes over its earlier run's parked questions: still open, or answered at/after
+        `since` (the earlier run's end) while nothing ran. Oldest first. */
+    adoptAsks: (fromRunId: string, toRunId: string, since: string | null): Ask[] =>
+      (
+        db
+          .prepare(
+            `UPDATE asks SET run_id = ? WHERE run_id = ?
+               AND (status = 'open' OR (status = 'answered' AND ? IS NOT NULL AND answered_at >= ?)) RETURNING *`,
+          )
+          .all(toRunId, fromRunId, since, since) as RunRow[]
+      )
+        .map(toAsk)
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0)),
     cancelAsks: (runId: string) =>
       (
         db

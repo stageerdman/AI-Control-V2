@@ -128,6 +128,21 @@ describe('autoAnswer: options', () => {
     expect(autoAnswer('Delete it or not?', ['Yes', 'No'])).toBe('Yes. (Auto-approved by the studio.)');
   });
 
+  it.each([
+    'Reload the app — did the fix work?',
+    'Please reload the app and say if the fix worked.',
+    'Did that fix the login bug?',
+    'Does the page look right now?',
+    'Is the chart showing up?',
+    'Is everything working on your side?',
+    'Can you see the new button?',
+    'Does it work for you?',
+    'Try it again — still broken?',
+  ])('%j with Yes/No is the user’s observation → asked (a bug once auto-answered it)', (q) => {
+    expect(autoAnswer(q, ['Yes', 'No'])).toBeNull();
+    expect(autoAnswer(q)).toBeNull();
+  });
+
   it('a yes/no pair about a credential or a fact about the user is still asked', () => {
     expect(autoAnswer('Do you have a Stripe account?', ['Yes', 'No'])).toBeNull();
     expect(autoAnswer('Is the API key in .env the live one?', ['Yes', 'No'])).toBeNull();

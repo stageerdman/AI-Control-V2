@@ -53,6 +53,19 @@
   (old data kept meanwhile), another project's keys untouched. The one-line call in `OfficePage`'s entry
   effect has no page-level test (there is no OfficePage harness yet).
 
+### Phase 4 — open questions survive a reload and a restart (server) ✅
+Report: "an agent asked me to reload the app and say if the fix worked; after reloading the question was gone."
+- **Root cause 1 — the studio answered it.** Auto-approve (on by default) took "Reload the app — did the fix
+  work? [Yes/No]" for a permission check and answered "Yes" itself. `runtime/confirm.ts` now never auto-answers
+  a question about what the user sees or tries (did it work / does it look right / reload / let me know).
+- **Root cause 2 — a restart cancelled it.** Shutdown and boot cancelled every open question. Now a run with a
+  session keeps its question open (parked). The session's resume (dispatch already resumes items on boot)
+  takes the question over under the same id, starts no process until it is answered, then carries on with
+  the answer in its brief (`runtime/parked.ts`). An answer given before the resume is carried in too. A chat
+  turn cut off mid-question carries on the same way instead of replying "the studio restarted".
+- **Tests:** `server/test/runtime/parked-asks.test.ts` (reload, restart, answer-before-resume, chat turn,
+  stop withdraws), `confirm.test.ts` (observation questions are asked).
+
 ## Status
 All three phases done. Server 134 files / 868 tests green, app 65 files / 670 tests green, both typecheck.
 See `wiki.md` for the lessons.

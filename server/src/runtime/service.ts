@@ -41,6 +41,7 @@ import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
 import { gitHead } from './git-head.ts';
 import { afterLimit, afterNote, carriesOn, isLimit, type LimitState, limitBrief } from './limits.ts';
+import { answeredBrief, parkedHandle } from './parked.ts';
 import { runPermissions } from './permissions.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL } from './stream.ts';
@@ -178,6 +179,7 @@ export function createRuntime(deps: RuntimeDeps) {
   const repo = runsRepo(db);
   const live = new Map<string, Live>();
   const waiters = new Map<string, Set<Waiter>>();
+  const timers = new Set<ReturnType<typeof setTimeout>>();
   const finishedListeners = new Set<(run: Run) => void>();
   const answeredListeners = new Set<(ask: Ask) => void>();
   let baseUrl: string | null = null;
@@ -272,10 +274,12 @@ export function createRuntime(deps: RuntimeDeps) {
       const set = waiters.get(askId) ?? new Set<Waiter>();
       const done: Waiter = (x) => {
         clearTimeout(timer);
+        timers.delete(timer);
         set.delete(done);
         resolve(x);
       };
       const timer = setTimeout(() => done(repo.ask(askId) as Ask), timeoutMs);
+      timers.add(timer);
       set.add(done);
       waiters.set(askId, set);
     });
@@ -342,10 +346,10 @@ export function createRuntime(deps: RuntimeDeps) {
     record(l.run, l.secrets, 'system', text, { kind: 'end', status: o.status });
   }
   /** The studio closed mid-run: the chat says so and the row stays 'running' — the restart's recover marks
-      it interrupted, and its checklist item carries on in the same session (dispatch.recover). */
+      it interrupted, and its checklist item carries on in the same session (dispatch.recover). An open
+      question stays open: the resumed session takes it over (runtime/parked.ts). */
   function closedOut(l: Live) {
     record(l.run, l.secrets, 'system', STUDIO_CLOSED, { kind: 'end', status: 'interrupted' });
-    for (const id of repo.cancelAsks(l.run.id)) settle(repo.ask(id) as Ask);
   }
 
   /** What a run says goes into its chat: its words, and each tool call as one short line (never the payload). */
@@ -415,13 +419,13 @@ export function createRuntime(deps: RuntimeDeps) {
     } else if (!req.bigPicture && project.teamIds.length) principles = principlesBrief({ all: true });
     if (repo.live(projectId, agent.id))
       throw conflict(`${agent.name} is already running on this project`, { agentId: agent.id });
-    let resumeSessionId: string | undefined;
+    let prev: Run | null = null;
     if (req.resumeRunId) {
-      const prev = repo.get(req.resumeRunId);
+      prev = repo.get(req.resumeRunId);
       if (!prev || prev.projectId !== projectId || prev.agentId !== agent.id || !prev.sessionId)
         throw invalid('resumeRunId must be an earlier run of this agent on this project with a session');
-      resumeSessionId = prev.sessionId;
     }
+    const resumeSessionId = prev?.sessionId ?? undefined;
 
     const caps: Caps = { ...(deps.defaultCaps ?? DEFAULT_CAPS), ...req.caps };
     const big = req.bigPicture;
@@ -677,8 +681,59 @@ export function createRuntime(deps: RuntimeDeps) {
       cancel: () => stopLive(l),
     }).end;
     l.mark = markNow(); // before the session starts: its own commits are its progress
-    watch(startHandle(spec, io));
+    /* a resumed session takes over the question its earlier run left open (or answered while nothing ran) */
+    const adopted = prev ? repo.adoptAsks(prev.id, runId, prev.endedAt) : [];
+    const waiting = adopted.find((a) => a.status === 'open');
+    const answered = adopted.filter((a) => a.status === 'answered');
+    const briefed = (more: Ask[] = []) => ({
+      ...spec,
+      task: answeredBrief(req.task, [...answered, ...more]),
+    });
+    watch(
+      waiting
+        ? parkedHandle(waitFor(l, waiting), (a) => runner.start(briefed([a]), io))
+        : startHandle(briefed(), io),
+    );
     return run;
+  }
+  /** A resumed run whose question is still open: it shows the question again and waits (no timer, so a closing
+      studio leaves nothing behind); the answer resolves it, a withdrawn question resolves it as such. */
+  function waitFor(l: Live, ask: Ask): Promise<Ask> {
+    const { run, secrets } = l;
+    record(run, secrets, 'assistant', ask.question, {
+      kind: 'ask',
+      askId: ask.id,
+      ...(ask.options ? { options: ask.options } : {}),
+    });
+    emit(
+      run.projectId,
+      {
+        type: 'ask.opened',
+        payload: {
+          askId: ask.id,
+          agentId: ask.agentId,
+          runId: run.id,
+          kind: 'question',
+          question: ask.question,
+          ...(ask.options ? { options: ask.options } : {}),
+        },
+      },
+      secrets,
+    );
+    emit(run.projectId, {
+      type: 'agent.status',
+      payload: {
+        agentId: run.agentId,
+        runId: run.id,
+        status: 'waiting',
+        activity: { kind: 'asking', label: 'Waiting for your answer' },
+      },
+    });
+    return new Promise((resolve) => {
+      const set = waiters.get(ask.id) ?? new Set<Waiter>();
+      set.add(resolve);
+      waiters.set(ask.id, set);
+    });
   }
   /** A runner that throws on start still ends as a failed run (recorded, untracked) — never a ghost "running". */
   function startHandle(spec: RunSpec, io: RunIO): RunHandle {
@@ -879,6 +934,10 @@ export function createRuntime(deps: RuntimeDeps) {
         stopLive(l);
       }
       await Promise.allSettled(all.map((l) => l.handle.done));
+      /* open questions stay open for the next boot: nobody waits on them in this process any more */
+      for (const t of timers) clearTimeout(t);
+      timers.clear();
+      waiters.clear();
       await new Promise((r) => setImmediate(r));
     },
     liveCount: () => live.size,

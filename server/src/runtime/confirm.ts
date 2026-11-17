@@ -9,6 +9,12 @@ export const AUTO_YES = 'Yes, go ahead. (Auto-approved by the studio.)';
 const NEEDS_USER =
   /\b((api[ -]?)?keys?|(database|db|webhook|callback|connection|redis|mongo|postgres) (url|uri|string)|tokens?|passwords?|passphrase|secrets?|credentials?|log ?in|sign ?in|accounts?|e-?mail address|do you (have|know|own|use|remember|prefer)|have you|did you|are you (using|on|signed)|your (name|address|phone|domain|budget|preference)|(can|could|may) (i|we) (get|have|borrow)|(send|give|tell|show) me|share|provide|paste)\b/i;
 
+/* What only the user can see: a request to try something ("reload the app"), or how it turned out
+   ("did the fix work?"). A Yes/No here is the user's observation, never a permission — the studio must not
+   answer it (it once told an agent "Yes" to "Reload the app — did the fix work?" and the question vanished). */
+const USER_SEES =
+  /\b((did|does|do|is|are)\s+(it|that|this|everything|the\s+\w+)(\s+\w+)?\s+(work|works|worked|working|fix|fixed|help|helped|look|looks|show|shows|showing|load|loads|loaded|appear|appears|render|renders)|(can|do|did) you (see|reproduce)|works? for you|let me know|reload|refresh|re-?open|try (it|again|the)|test (it|the))\b/i;
+
 /* A real choice between alternatives ("Postgres or SQLite?"); "…or not?" is still yes/no. */
 const CHOICE = /\bor\b(?!\s+not\b)/i;
 /* A question sentence that opens with a wh-word asks for information ("Which port should I use?"). */
@@ -61,7 +67,7 @@ function side(option: string): Side {
 /** The studio's answer when this ask is a yes/no permission check, else null (ask the user). */
 export function autoAnswer(question: string, options?: readonly string[] | null): string | null {
   const q = question.trim();
-  if (!q || NEEDS_USER.test(q)) return null;
+  if (!q || NEEDS_USER.test(q) || USER_SEES.test(q)) return null;
 
   if (options && options.length > 0) {
     const sides = options.map(side);
