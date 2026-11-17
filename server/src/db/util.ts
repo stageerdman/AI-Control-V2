@@ -17,6 +17,20 @@ export function exists(
   return db.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).get(id) !== undefined;
 }
 
+/** Stored JSON that no longer parses reads as none: an old shape must never break a read. */
+export function readJson<T>(
+  raw: string | null | undefined,
+  schema: { safeParse(v: unknown): { success: boolean; data?: T } },
+): T | null {
+  if (!raw) return null;
+  try {
+    const r = schema.safeParse(JSON.parse(raw));
+    return r.success ? (r.data as T) : null;
+  } catch {
+    return null;
+  }
+}
+
 export type Row = Record<string, unknown>;
 export const rows = <T>(r: unknown) => r as T[];
 export const row = <T>(r: unknown) => r as T | undefined;

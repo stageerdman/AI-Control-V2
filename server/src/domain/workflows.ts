@@ -18,23 +18,15 @@
    During setup the plan may point at agents/teams the Agent Creator hasn't minted yet: `new-agent:N` /
    `new-team:N` (N = index in plan.newAgents / plan.newTeams); accepting the plan rewrites them to real ids. */
 import { z } from 'zod';
+import { type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
+import { GraphSchema, gatesFromGraph, type GraphRules, graphIssues, type Issue, under } from './graph.ts';
 
-export const GATE_KINDS = ['quality', 'user-test', 'crash-test', 'security', 'review'] as const;
-export type GateKind = (typeof GATE_KINDS)[number];
-export const MAX_GATES = 8;
+export { GATE_KINDS, type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
 export const DEFAULT_MAX_SEND_BACKS = 2;
 export const MAX_WORKFLOWS = 6;
 export const MAX_CREW = 4;
 
 const ref = z.string().trim().min(1).max(80);
-
-export const GateSchema = z.strictObject({
-  after: ref,
-  reviewer: ref,
-  kind: z.enum(GATE_KINDS),
-  why: z.string().trim().min(1).max(300),
-});
-export type Gate = z.output<typeof GateSchema>;
 
 const collaborationShape = {
   orchestratorTalksTo: z.enum(['captains', 'everyone']).default('captains'),
@@ -59,8 +51,35 @@ export const WorkflowSchema = z.strictObject({
     .max(MAX_CREW)
     .refine((c) => new Set(c).size === c.length, 'crew has duplicates')
     .optional(),
+  /** Drawn in the editor (src/domain/graph.ts). When there, its sign-off arrows are the gates. */
+  graph: GraphSchema.optional(),
 });
 export type Workflow = z.output<typeof WorkflowSchema>;
+
+/** A team's own way of working, drawn in the Cast: only its members stand on it; it follows the team. */
+export const TeamWorkflowSchema = z.strictObject({
+  name: z.string().trim().min(1).max(60),
+  summary: z.string().trim().max(500).default(''),
+  graph: GraphSchema,
+});
+export type TeamWorkflow = z.output<typeof TeamWorkflowSchema>;
+
+/** Who may stand on a team's graph: its members (captain included). */
+export const teamGraphRules = (members: readonly string[]): GraphRules => ({
+  allowed: (id) => members.includes(id),
+  who: 'on this team',
+});
+
+/** Pure: a drawn workflow's gates come from its sign-off arrows — one source, so drawing and running agree. */
+export const withGraphGates = <W extends { gates: Gate[]; graph?: Workflow['graph'] }>(w: W): W =>
+  w.graph ? { ...w, gates: gatesFromGraph(w.graph) } : w;
+
+/** Pure: a drawn workflow's graph problems, by path under `at` (none drawn: none). */
+export const workflowGraphIssues = (
+  w: Pick<Workflow, 'graph'>,
+  rules: GraphRules,
+  at = 'graph',
+): Issue[] => (w.graph ? under(at, graphIssues(w.graph, rules)) : []);
 
 export const WorkflowsSchema = z
   .array(WorkflowSchema)
@@ -99,6 +118,12 @@ function onProject(s: Staffing) {
   };
   return { isAgent, isTeam };
 }
+
+/** Who may stand on an office workflow's graph: anyone on the project. */
+export const projectGraphRules = (s: Staffing): GraphRules => ({
+  allowed: onProject(s).isAgent,
+  who: 'on this project',
+});
 
 /** Pure: every gate points at people on the project; no self-review, no duplicates. `at` prefixes each issue. */
 export function collaborationIssues(c: Collaboration, s: Staffing, at = 'collaboration'): string[] {
@@ -225,9 +250,10 @@ export function effectiveGates(
 }
 
 /** Pure: a goal's workflow kept as a stable one — no lead or crew; a temporary lead's sign-offs written out as
-    plain gates, so the same people keep checking the same work. */
+    plain gates, so the same people keep checking the same work. The drawing stays with the goal: its arrows
+    would re-derive the gates without the lead's sign-offs. */
 export function stableCopy(w: Workflow, keep: { id: string; name: string; when: string }): Workflow {
-  const { lead: _lead, crew: _crew, ...rest } = w;
+  const { lead: _lead, crew: _crew, graph: _graph, ...rest } = w;
   return { ...rest, ...keep, gates: effectiveGates(w) };
 }
 
@@ -266,6 +292,12 @@ export function temporaryWorkflow(
     crew: ask.crew,
   };
 }
+
+/** Who may stand on a temporary workflow's graph: its lead and crew. */
+export const crewGraphRules = (w: Pick<Workflow, 'lead' | 'crew'>): GraphRules => ({
+  allowed: (id) => id === w.lead || !!w.crew?.includes(id),
+  who: 'the lead or in the crew',
+});
 
 type Led = { status: string; workflow: Pick<Workflow, 'lead' | 'crew'> | null };
 

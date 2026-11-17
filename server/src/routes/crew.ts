@@ -7,6 +7,7 @@ import type { Dispatch } from '../crew/dispatch.ts';
 import type { SetupChat } from '../crew/setup-chat.ts';
 import type { Goal } from '../db/work.ts';
 import { parse } from '../errors.ts';
+import type { Board } from '../whiteboard/board.ts';
 import { type FindAgent, presentGoal } from '../whiteboard/present.ts';
 import { Id, IdParams } from './schemas.ts';
 
@@ -28,11 +29,13 @@ export const crewRoutes =
     chat,
     creator,
     dispatch,
+    board,
     findAgent,
   }: {
     chat: SetupChat;
     creator: Creator;
     dispatch: Dispatch;
+    board: Pick<Board, 'drawGoal'>;
     findAgent: FindAgent;
   }): FastifyPluginAsync =>
   async (app) => {
@@ -67,5 +70,11 @@ export const crewRoutes =
     app.post('/projects/:id/work/:goalId/resume', async (req, reply) => {
       const { id, goalId } = parse(GoalParams, req.params);
       return reply.status(202).send(view(dispatch.resume(id, goalId)));
+    });
+    /* the editor saves a running temporary goal's drawing whole (422: every problem by path) → the goal */
+    app.put('/projects/:id/work/:goalId/workflow/graph', async (req) => {
+      const { id, goalId } = parse(GoalParams, req.params);
+      board.drawGoal(id, 'user', goalId, req.body);
+      return view(dispatch.get(id, goalId));
     });
   };

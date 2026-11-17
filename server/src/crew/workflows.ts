@@ -7,12 +7,15 @@ import type { Store } from '../db/store.ts';
 import {
   DEFAULT_WORKFLOW,
   pickWorkflow,
+  projectGraphRules,
   type Staffing,
   temporaryWorkflow,
   unknownWorkflowIssue,
   type Workflow,
   type WorkflowAsk,
   WorkflowsSchema,
+  withGraphGates,
+  workflowGraphIssues,
   workflowIssues,
   workflowsIssues,
 } from '../domain/workflows.ts';
@@ -85,8 +88,12 @@ export function createWorkflows(deps: { store: Store; events: EventLog }) {
 
   /** 422 = malformed, 409 = a gate names someone not on the project. Saves and announces the list. */
   function save(projectId: string, raw: unknown): Workflow[] {
-    const list = parse(WorkflowsSchema, raw);
-    const broken = workflowsIssues(list, staffing(projectId));
+    const s = staffing(projectId);
+    const parsed = parse(WorkflowsSchema, raw);
+    const drawn = parsed.flatMap((w, i) => workflowGraphIssues(w, projectGraphRules(s), `workflows.${i}.graph`));
+    if (drawn.length) throw invalid(`The drawing has ${drawn.length} problem(s): ${drawn[0]?.message}`, drawn);
+    const list = parsed.map(withGraphGates);
+    const broken = workflowsIssues(list, s);
     if (broken.length)
       throw conflict(
         broken[0] as string,

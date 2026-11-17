@@ -13,7 +13,7 @@ import { SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
 import type { AgentsRepo } from './agents.ts';
 import type { Db } from './connection.ts';
 import type { TeamsRepo } from './teams.ts';
-import { exists, nextPosition, now, row, rows } from './util.ts';
+import { exists, nextPosition, now, readJson, row, rows } from './util.ts';
 
 export const PROJECT_STATUSES = ['live', 'needs', 'idle', 'draft', 'archived'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -88,16 +88,6 @@ type ProjectFields = {
 export type ProjectCreate = ProjectFields;
 export type ProjectPatch = Partial<ProjectFields>;
 
-/** Stored JSON that no longer parses reads as none (captains, no gates). */
-function readJson<T>(raw: string | null, schema: { safeParse(v: unknown): { success: boolean; data?: T } }) {
-  if (!raw) return null;
-  try {
-    const r = schema.safeParse(JSON.parse(raw));
-    return r.success ? (r.data as T) : null;
-  } catch {
-    return null;
-  }
-}
 /** The workflows, or the B8 design carried over as the first one (the first write saves `workflows`). */
 const readWorkflows = (r: ProjectRecord): Workflow[] | null => {
   const list = readJson<Workflow[]>(r.workflows, WorkflowsSchema);

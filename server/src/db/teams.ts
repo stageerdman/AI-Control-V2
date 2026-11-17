@@ -9,10 +9,11 @@ import {
   removeMember,
   setCaptain,
 } from '../domain/teams.ts';
+import { type TeamWorkflow, TeamWorkflowSchema } from '../domain/workflows.ts';
 import { notFound } from '../errors.ts';
 import type { AgentsRepo } from './agents.ts';
 import type { Db } from './connection.ts';
-import { exists, nextPosition, now, row, rows } from './util.ts';
+import { exists, nextPosition, now, readJson, row, rows } from './util.ts';
 
 export type TeamRecord = {
   id: string;
@@ -27,6 +28,8 @@ export type TeamRecord = {
   created_at: string;
   updated_at: string;
   reporter?: number;
+  /** TeamWorkflow JSON (migration 41); NULL = none. */
+  workflow?: string | null;
 };
 
 export type Team = {
@@ -190,10 +193,22 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
       return repo.require(id);
     },
 
+    /** The team's own drawn workflow (null: none, or stored in a shape that no longer reads). */
+    workflow: (id: string): TeamWorkflow | null => readJson(requireRecord(id).workflow, TeamWorkflowSchema),
+    /** Save it whole, or clear it (null). The caller validated it against the members. */
+    setWorkflow(id: string, w: TeamWorkflow | null): void {
+      requireRecord(id);
+      db.prepare('UPDATE teams SET workflow = ?, updated_at = ? WHERE id = ?').run(
+        w ? JSON.stringify(w) : null,
+        now(),
+        id,
+      );
+    },
+
     insertRecord(r: TeamRecord): void {
       db.prepare(
-        `INSERT INTO teams (id, name, color, emblem, blurb, instr, code, captain_id, position, created_at, updated_at, reporter)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO teams (id, name, color, emblem, blurb, instr, code, captain_id, position, created_at, updated_at, reporter, workflow)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.name,
@@ -207,6 +222,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         r.created_at,
         r.updated_at,
         r.reporter ?? 0,
+        r.workflow ?? null,
       );
     },
     deleteRecord: (id: string) => db.prepare('DELETE FROM teams WHERE id = ?').run(id),

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { createTeamWorkflows } from '../crew/team-workflow.ts';
 import type { Store } from '../db/store.ts';
 import { parse } from '../errors.ts';
 import { Id, IdParams, Name, Short, Text } from './schemas.ts';
@@ -57,4 +58,10 @@ export const teamRoutes =
       const { id, agentId } = parse(MemberParams, req.params);
       return store.tx(() => store.teams.removeMember(id, agentId));
     });
+
+    /* the team's own drawn workflow: saved and reloaded whole */
+    const workflows = createTeamWorkflows(store);
+    app.get('/teams/:id/workflow', async (req) => workflows.get(parse(IdParams, req.params).id));
+    app.put('/teams/:id/workflow', async (req) => workflows.save(parse(IdParams, req.params).id, req.body));
+    app.delete('/teams/:id/workflow', async (req) => workflows.clear(parse(IdParams, req.params).id));
   };
