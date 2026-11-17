@@ -112,6 +112,7 @@ describe('sign-off sheet, pure', () => {
           name: 'Baron leads',
           temporary: true,
           lead: 'a-baron',
+          crew: ['a-pete'],
         },
       }),
     ).not.toThrow();
@@ -263,6 +264,7 @@ describe('a temporary crew ends, and its way of working is kept', () => {
     );
 
     const [view] = (await h.call('GET', '/projects/aurora/work')).body;
+    expect(view.workflow).toMatchObject({ temporary: true, lead: 'a-baron', crew: ['a-pete'] });
     expect(
       view.items.map((i: { signoffs: { reviewer: { name: string }; state: string }[] }) =>
         i.signoffs.map((s) => `${s.reviewer.name}:${s.state}`),

@@ -193,12 +193,14 @@ export function unknownWorkflowIssue(list: readonly Workflow[], id: string | und
 }
 
 /** A workflow as screens and board lines name it. */
-export type WorkflowTag = { id: string; name: string; temporary: boolean; lead?: string };
+/** `lead` + `crew` only on a temporary workflow: the office draws the crew's ring from them. */
+export type WorkflowTag = { id: string; name: string; temporary: boolean; lead?: string; crew?: string[] };
 export const workflowTag = (w: Workflow): WorkflowTag => ({
   id: w.id,
   name: w.name,
   temporary: isTemporary(w),
   ...(w.lead ? { lead: w.lead } : {}),
+  ...(w.crew ? { crew: [...w.crew] } : {}),
 });
 
 /** A goal's workflow worth naming next to it: anything but the project's default (old goals: null = default). */

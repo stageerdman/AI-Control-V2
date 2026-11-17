@@ -13,6 +13,7 @@ import {
   WorkflowsSchema,
   workflowIssues,
   workflowsIssues,
+  workflowTag,
 } from '../../src/domain/workflows.ts';
 
 const staffing: Staffing = {
@@ -44,6 +45,17 @@ describe('workflows (pure)', () => {
     expect(WorkflowsSchema.safeParse([wf(), wf()]).success).toBe(false);
     expect(WorkflowsSchema.safeParse([]).success).toBe(false);
     expect(WorkflowsSchema.safeParse([wf(), wf({ id: 'quick-fix' })]).success).toBe(true);
+  });
+
+  it('workflowTag: lead + crew only on a temporary workflow (the office ring needs both)', () => {
+    expect(workflowTag(wf())).toEqual({ id: 'feature-build', name: 'Feature build', temporary: false });
+    expect(workflowTag(temp())).toEqual({
+      id: 'temp',
+      name: 'Feature build',
+      temporary: true,
+      lead: 'a-prof',
+      crew: ['a-semic'],
+    });
   });
 
   it('workflowIssues: stable has no command; temporary needs lead + crew on the project, lead not in crew', () => {
