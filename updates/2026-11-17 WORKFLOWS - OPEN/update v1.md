@@ -418,3 +418,15 @@ With real agents on this project:
   `app/src/features/collab/flow/model.ts`, `office/api.ts` `saveWorkflows`, `cast/api.ts`; decisions become a
   `when` on a step/gate; error paths `workflows.N.steps.i` / `.gates.i` (422 and 409). `live-check-5b.mjs` checks the
   old shape. Not signed off until that lands.
+- 2026-11-17: **Phase 5b editor on master's shape (Jony) — the merge note above is done.** Nodes are the agent /
+  team ids; arrows are hand-offs (`steps`) then sign-offs (`gates`); a branch is "Only when" on any arrow (no
+  decision nodes); Starts here / Signs last toggles (`first` / `final`, only agents sign last); positions in
+  `layout`; "every change" gates are listed, not drawn. Teams can stand on an office drawing. A local check before
+  saving (a card with no arrow; Signs last on someone who signs nothing) so nothing drops out on the server.
+  Saves: office `PUT /projects/:id/workflows {workflows}`, team `PUT /teams/:id/workflow {workflow}`; 422 and 409
+  paths (`steps.i`, `gates.i`, `layout.<id>`, `first`, `final`) pin to their arrow / node. Fixed in the live run:
+  a reload now compares equal to the drawing key for key (no false "unsaved"). `live-check-5b.mjs` rewritten and
+  re-run against a real server (fake runner): office save + reload exact, a refused save pinned and changing
+  nothing, team save + reload exact, an outsider refused and pinned, a goal's workflow draws — **all ok**. The fake
+  runner never sets a temporary way, so read-only temporary drawing is covered by `model.test.ts` /
+  `WorkflowEditor.test.tsx` (app: 621 tests green, typecheck clean). Ready for Elon's re-check.

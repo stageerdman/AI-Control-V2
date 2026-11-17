@@ -19,6 +19,7 @@ import {
   nodeIds,
   pinIssues,
   removeNode,
+  sameGraph,
   setEdge,
   setRole,
   toDrawing,
@@ -62,6 +63,15 @@ describe('workflow ⇄ graph', () => {
     expect(toGraph(back)).toEqual(g);
     /* the "every change" gate keeps its place in the gate order */
     expect(back.gates.map((x) => x.after)).toEqual([ANY, 'semic']);
+  });
+
+  it('a drawing made by hand reloads as the same graph — key order too (the editor’s “unsaved” check)', () => {
+    let g = addNode(newGraph('pete'), 'semic');
+    g = addEdge(g, { from: 'pete', to: 'semic', why: 'build', when: 'if it ships' });
+    g = addEdge(g, { from: 'pete', to: 'semic', why: 'check', signoff: 'review' });
+    g = setRole(g, 'semic', 'final', isTeam);
+    const back = toGraph(withDrawing(office, g));
+    expect(sameGraph(back, g)).toBe(true);
   });
 
   it('nodes without a position get the next free spot inside the canvas', () => {

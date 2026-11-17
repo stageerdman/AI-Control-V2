@@ -68,7 +68,8 @@ export function toGraph(w: Pick<Workflow, 'gates' | 'steps' | 'lead' | 'crew' | 
   }
   let edges: FlowEdge[] = [];
   const add = (e: Omit<FlowEdge, 'id'>) => {
-    edges = [...edges, { ...e, id: `e${edges.length + 1}` }];
+    /* the same key order as an edit makes (`clean`), so a reload compares equal to the drawing */
+    edges = [...edges, clean({ ...e, id: `e${edges.length + 1}` })];
   };
   const steps = w.steps ?? [];
   for (const s of steps) add({ from: s.from, to: s.to, why: s.why, ...(s.when ? { when: s.when } : {}) });
