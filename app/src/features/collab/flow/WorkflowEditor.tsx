@@ -4,7 +4,16 @@
    words on its arrow. "Starts here" / "Signs last" are badges set from the selected node's toolbar.
    The same arrows are listed as text under the canvas: the keyboard and screen-reader path, and
    where problems show. One primary action: Save. Temporary drawings are read-only. */
-import { type KeyboardEvent, type PointerEvent, useId, useMemo, useRef, useState } from 'react';
+import {
+  type KeyboardEvent,
+  type MutableRefObject,
+  type PointerEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { isApiError, type Look } from '../../../api';
 import { Hero } from '../../../characters';
 import { Button } from '../../../ui';
@@ -56,7 +65,21 @@ export type EditorProps = {
   onDirty?: (dirty: boolean) => void;
   /** A quiet line under the canvas. */
   note?: string;
+  /** 'view' = the picture only (How we work): zoomed to fit, no toolbar, no dragging, no selection,
+      nodes aren't tab stops (the arrow list is the keyboard path). Default: edit (or read-only). */
+  mode?: 'view' | 'edit';
+  /** The arrow list: undefined = always shown; false = folded (visually hidden, still read out). */
+  listOpen?: boolean;
+  /** The opener hosts Save (How we work's title row): no footer; `controls.current.save()` saves. */
+  controls?: MutableRefObject<EditorControls | null>;
+  /** id of the words line that describes the canvas. */
+  describedBy?: string;
+  /** Selected when it opens (team panel's "Connect"). */
+  select?: string;
+  /** Cards with no arrow aren't a problem: they're left out of the save (team Adjust's faint cards). */
+  dropLoose?: boolean;
 };
+export type EditorControls = { save: () => Promise<boolean>; dirty: boolean; saving: boolean };
 
 const NODE = { w: 128, h: 64 };
 type Draft = Omit<FlowEdge, 'id'> & { id?: string };
@@ -72,10 +95,11 @@ function edgeOf(dx: number, dy: number) {
 
 export function WorkflowEditor(p: EditorProps) {
   const uid = useId();
-  const ro = p.readOnly !== undefined;
+  const view = p.mode === 'view';
+  const ro = view || p.readOnly !== undefined;
   const [base, setBase] = useState<Graph | null>(p.graph);
   const [g, setG] = useState<Graph | null>(p.graph);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(p.select ?? null);
   const [connecting, setConnecting] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [issues, setIssues] = useState<Pinned>(NO_ISSUES);
@@ -193,34 +217,65 @@ export function WorkflowEditor(p: EditorProps) {
   };
 
   /* ---------- save */
-  const save = async () => {
-    if (!g || !p.onSave || saving) return;
-    const local = localIssues(g, nameOf);
+  const save = async (): Promise<boolean> => {
+    if (!g || !p.onSave || saving) return false;
+    const touched = new Set(g.edges.flatMap((e) => [e.from, e.to]));
+    const out: Graph = p.dropLoose ? { ...g, nodes: g.nodes.filter((n) => touched.has(n.id)) } : g;
+    const local = localIssues(out, nameOf);
     if (issueCount(local)) {
       setIssues(local);
       say(`Not saved: ${issueCount(local)} problem${issueCount(local) === 1 ? '' : 's'} to fix, marked below.`);
-      return;
+      focusFirstProblem(local);
+      return false;
     }
     setSaving(true);
     setIssues(NO_ISSUES);
     try {
-      await p.onSave(g);
+      await p.onSave(out);
       setBase(g);
       setSaved(true);
       say('Saved.');
+      return true;
     } catch (err) {
       const pinned = isApiError(err)
-        ? pinIssues(g, err.details, p.issuePrefix ?? '')
+        ? pinIssues(out, err.details, p.issuePrefix ?? '')
         : { ...NO_ISSUES, general: ['That didn’t save — try again.'] };
       if (isApiError(err) && !issueCount(pinned)) pinned.general.push(err.message);
       setIssues(pinned);
       say(
         `Not saved: ${issueCount(pinned)} problem${issueCount(pinned) === 1 ? '' : 's'} to fix, marked below.`,
       );
+      focusFirstProblem(pinned);
+      return false;
     } finally {
       setSaving(false);
     }
   };
+  /** Focus goes to the first problem: its card, else its row in the arrow list. */
+  const root = useRef<HTMLElement>(null);
+  const focusFirstProblem = (pin: Pinned) => {
+    setTimeout(() => {
+      const node = Object.keys(pin.nodes)[0];
+      if (node) return nodeEls.current.get(node)?.focus();
+      root.current?.querySelector<HTMLElement>('.fe-list li.bad button, .fe-errs')?.focus();
+    }, 0);
+  };
+  if (p.controls) p.controls.current = { save, dirty, saving };
+  /* view mode: zoom the whole board to the width it has */
+  const canvasEl = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1);
+  useEffect(() => {
+    if (!view || !canvasEl.current || typeof ResizeObserver === 'undefined') return;
+    const el = canvasEl.current;
+    const ro2 = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const f2 = frame(g?.nodes ?? []);
+      if (w && h) setFit(Math.min(1, w / f2.width, h / f2.height));
+    });
+    ro2.observe(el);
+    return () => ro2.disconnect();
+  }, [view, g]);
 
   /* ---------- render */
   const free = p.people.filter((x) => !g?.nodes.some((n) => n.id === x.id));
@@ -234,7 +289,8 @@ export function WorkflowEditor(p: EditorProps) {
 
   return (
     <section
-      className="fe"
+      ref={root}
+      className={`fe${view ? ' fe-view' : ''}`}
       aria-label="Workflow drawing"
       onKeyDown={(e) => {
         if (e.key === 'Escape' && (connecting || draft)) {
@@ -245,7 +301,7 @@ export function WorkflowEditor(p: EditorProps) {
         }
       }}
     >
-      {ro && <p className="fe-ro">{p.readOnly}</p>}
+      {p.readOnly !== undefined && <p className="fe-ro">{p.readOnly}</p>}
       {!g ? (
         <div className="fe-empty">
           <p>{ro ? 'Nothing drawn yet.' : 'Start with who picks the work up first.'}</p>
@@ -256,7 +312,11 @@ export function WorkflowEditor(p: EditorProps) {
           {/* biome-ignore lint/a11y/noStaticElementInteractions: a click on empty canvas clears the selection */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: Escape / the node buttons are the keyboard path */}
           <div
+            ref={canvasEl}
             className={`fe-canvas${connecting ? ' connecting' : ''}`}
+            role={view ? 'img' : undefined}
+            aria-label={view ? 'The way, drawn' : undefined}
+            aria-describedby={p.describedBy}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setSel(null);
@@ -264,7 +324,15 @@ export function WorkflowEditor(p: EditorProps) {
               }
             }}
           >
-            <div className="fe-board" style={{ width: f.width, height: f.height }}>
+            <div
+              className="fe-board"
+              style={{
+                width: f.width,
+                height: f.height,
+                /* `zoom` shrinks the layout box too, so nothing scrolls */
+                ...(view && fit < 1 ? { zoom: fit } : {}),
+              }}
+            >
               <svg className="fe-arrows" width={f.width} height={f.height} aria-hidden="true">
                 <defs>
                   {['tip', 'tipbad'].map((t) => (
@@ -348,8 +416,12 @@ export function WorkflowEditor(p: EditorProps) {
                       else nodeEls.current.delete(n.id);
                     }}
                     type="button"
-                    className={`fe-node${team ? ' team' : ''}${sel === n.id ? ' sel' : ''}${bad ? ' bad' : ''}`}
+                    className={`fe-node${team ? ' team' : ''}${sel === n.id ? ' sel' : ''}${bad ? ' bad' : ''}${
+                      p.dropLoose && !g.edges.some((e) => e.from === n.id || e.to === n.id) ? ' loose' : ''
+                    }`}
                     style={{ left: at.x, top: at.y }}
+                    tabIndex={view ? -1 : undefined}
+                    aria-hidden={view || undefined}
                     aria-label={label}
                     aria-pressed={ro ? undefined : sel === n.id}
                     onPointerDown={(e) => onPointerDown(e, n)}
@@ -458,6 +530,7 @@ export function WorkflowEditor(p: EditorProps) {
             />
           )}
 
+          <div className={p.listOpen === false ? 'sr-only' : undefined} data-testid="fe-arrows-list">
           <h4 className="fe-h" id={`${uid}-list`}>
             Arrows
           </h4>
@@ -503,11 +576,12 @@ export function WorkflowEditor(p: EditorProps) {
               })}
             </ol>
           )}
+          </div>
         </>
       )}
 
       {(issues.general.length > 0 || Object.keys(issues.nodes).length > 0) && (
-        <ul className="fe-errs" role="alert">
+        <ul className="fe-errs" role="alert" tabIndex={-1}>
           {issues.general.map((m) => (
             <li key={m}>{m}</li>
           ))}
@@ -519,7 +593,7 @@ export function WorkflowEditor(p: EditorProps) {
         </ul>
       )}
       {p.note && <p className="fe-note">{p.note}</p>}
-      {!ro && (
+      {!ro && !p.controls && (
         <footer className="fe-foot">
           <span className="fe-saved">{dirty ? 'Unsaved' : saved ? 'Saved ✓' : ''}</span>
           <Button small variant="hero" disabled={!g || !dirty || saving} onClick={() => void save()}>

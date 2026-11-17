@@ -86,6 +86,32 @@
   stroke-width: 4px;
 }
 
+/* view mode (How we work): the picture only, zoomed to fit */
+.fe-view .fe-canvas {
+  height: 360px;
+  max-height: none;
+  overflow: hidden;
+  display: grid;
+  align-content: center;
+}
+.fe-view .fe-node {
+  pointer-events: none;
+  cursor: default;
+}
+@media (max-width: 560px) {
+  .fe-view .fe-canvas {
+    height: 260px;
+  }
+}
+/* team Adjust: a member with no arrow yet (left out of the save until connected) */
+.fe-node.loose {
+  border-style: dashed;
+  opacity: 0.6;
+}
+.fe-node.loose.sel {
+  opacity: 1;
+}
+
 /* nodes: centred on their x/y */
 .fe-node {
   position: absolute;

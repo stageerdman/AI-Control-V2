@@ -1,0 +1,118 @@
+/* WayThumb (design/workflows/way-thumb.md): faces + two arrow styles, in the editor's arrow colour. */
+.wt {
+  --wt-arrow: #5b5280;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 10px;
+  background: #fbf9ff;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  overflow: hidden;
+}
+.wt.temp {
+  box-shadow: none;
+  outline: 1.5px dashed var(--wt-arrow);
+  outline-offset: -1.5px;
+}
+.wt-sm {
+  width: 64px;
+  height: 36px;
+  border-radius: 8px;
+}
+.wt-md {
+  width: 120px;
+  height: 68px;
+}
+.wt-lg {
+  width: 100%;
+  height: 132px;
+  border-radius: 16px;
+}
+.wt-stage {
+  position: relative;
+  display: block;
+  animation: wt-in 150ms ease-out;
+}
+@keyframes wt-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wt-stage {
+    animation: none;
+  }
+}
+.wt-arrows,
+.wt-stage > svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.wt-edge path {
+  fill: none;
+  stroke: var(--wt-arrow);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wt-edge.signoff path:first-child {
+  stroke-dasharray: 3 2.5;
+}
+.wt-check-bg {
+  fill: #fff;
+  stroke: var(--wt-arrow);
+  stroke-width: 1.2;
+}
+.wt-check {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wt-face,
+.wt-ghost {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f3f0fa;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+.wt-face.team {
+  background: var(--ink);
+  color: #fff;
+}
+.wt-face.team b {
+  line-height: 1;
+}
+.wt-ghost {
+  background: transparent;
+  box-shadow: none;
+  border: 1.5px dashed rgba(91, 82, 128, 0.45);
+}
+.wt-dot {
+  fill: rgba(91, 82, 128, 0.28);
+}
+.wt-faint {
+  stroke: rgba(91, 82, 128, 0.28);
+  stroke-width: 1.5;
+}
+.wt-skel {
+  background: linear-gradient(90deg, #f1edf9 0%, #faf8fe 50%, #f1edf9 100%) 0 0 / 200% 100%;
+  box-shadow: none;
+  animation: wt-skel 1.2s linear infinite;
+}
+@keyframes wt-skel {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wt-skel {
+    animation: none;
+  }
+}
