@@ -82,7 +82,9 @@ export function WorkflowEditor(p: EditorProps) {
   const [saved, setSaved] = useState(false);
   const [said, setSaid] = useState('');
   const [addWho, setAddWho] = useState('');
-  const drag = useRef<{ id: string; px: number; py: number; x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{ id: string; px: number; py: number; x: number; y: number; moved: boolean } | null>(
+    null,
+  );
   const frozen = useRef<ReturnType<typeof frame> | null>(null);
   const nodeEls = useRef(new Map<string, HTMLButtonElement>());
 
@@ -189,7 +191,10 @@ export function WorkflowEditor(p: EditorProps) {
     const made = next.edges.find((x) => x.id === (id ?? next.edges[next.edges.length - 1].id));
     if (made) say(`${id ? 'Changed' : 'Added'}: ${edgeWords(next, made, nameOf)}.`);
     if (made) {
-      setIssues((s) => ({ ...s, edges: Object.fromEntries(Object.entries(s.edges).filter(([k]) => k !== made.id)) }));
+      setIssues((s) => ({
+        ...s,
+        edges: Object.fromEntries(Object.entries(s.edges).filter(([k]) => k !== made.id)),
+      }));
     }
   };
 
@@ -209,7 +214,9 @@ export function WorkflowEditor(p: EditorProps) {
         : { ...NO_ISSUES, general: ['That didn’t save — try again.'] };
       if (isApiError(err) && !issueCount(pinned)) pinned.general.push(err.message);
       setIssues(pinned);
-      say(`Not saved: ${issueCount(pinned)} problem${issueCount(pinned) === 1 ? '' : 's'} to fix, marked below.`);
+      say(
+        `Not saved: ${issueCount(pinned)} problem${issueCount(pinned) === 1 ? '' : 's'} to fix, marked below.`,
+      );
     } finally {
       setSaving(false);
     }
@@ -226,7 +233,6 @@ export function WorkflowEditor(p: EditorProps) {
   }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: Escape leaves "Connect to…" before it closes the sheet
     <section
       className="fe"
       aria-label="Workflow drawing"
@@ -243,7 +249,15 @@ export function WorkflowEditor(p: EditorProps) {
       {!g ? (
         <div className="fe-empty">
           <p>{ro ? 'Nothing drawn yet.' : 'Start with who picks the work up first.'}</p>
-          {!ro && <AgentPicker id={`${uid}-first`} people={p.people} value={addWho} onPick={add} label="First agent" />}
+          {!ro && (
+            <AgentPicker
+              id={`${uid}-first`}
+              people={p.people}
+              value={addWho}
+              onPick={add}
+              label="First agent"
+            />
+          )}
         </div>
       ) : (
         <>
@@ -261,10 +275,26 @@ export function WorkflowEditor(p: EditorProps) {
             <div className="fe-board" style={{ width: f.width, height: f.height }}>
               <svg className="fe-arrows" width={f.width} height={f.height} aria-hidden="true">
                 <defs>
-                  <marker id={`${uid}-tip`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <marker
+                    id={`${uid}-tip`}
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto"
+                  >
                     <path d="M0 0L10 5L0 10z" className="fe-tip" />
                   </marker>
-                  <marker id={`${uid}-tipbad`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                  <marker
+                    id={`${uid}-tipbad`}
+                    viewBox="0 0 10 10"
+                    refX="9"
+                    refY="5"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto"
+                  >
                     <path d="M0 0L10 5L0 10z" className="fe-tip bad" />
                   </marker>
                 </defs>
@@ -279,8 +309,8 @@ export function WorkflowEditor(p: EditorProps) {
                   const len = Math.hypot(pb.x - pa.x, pb.y - pa.y) || 1;
                   /* parallel arrows between one pair sit side by side, never on top of each other */
                   const sign = e.from < e.to ? 1 : -1;
-                  const ox = ((-(pb.y - pa.y) / len) * k * 16) * sign;
-                  const oy = (((pb.x - pa.x) / len) * k * 16) * sign;
+                  const ox = (-(pb.y - pa.y) / len) * k * 16 * sign;
+                  const oy = ((pb.x - pa.x) / len) * k * 16 * sign;
                   const s = edgeOf(pb.x - pa.x, pb.y - pa.y);
                   const x1 = pa.x + s.x + ox;
                   const y1 = pa.y + s.y + oy;
@@ -291,7 +321,13 @@ export function WorkflowEditor(p: EditorProps) {
                   const my = (y1 + y2) / 2;
                   return (
                     <g key={e.id} className={`fe-edge${e.signoff ? ' signoff' : ''}${bad ? ' bad' : ''}`}>
-                      <line x1={x1} y1={y1} x2={x2} y2={y2} markerEnd={`url(#${uid}-${bad ? 'tipbad' : 'tip'})`} />
+                      <line
+                        x1={x1}
+                        y1={y1}
+                        x2={x2}
+                        y2={y2}
+                        markerEnd={`url(#${uid}-${bad ? 'tipbad' : 'tip'})`}
+                      />
                       {e.signoff && (
                         <g transform={`translate(${mx} ${my})`}>
                           <circle r="9" className="fe-check-bg" />
@@ -343,7 +379,11 @@ export function WorkflowEditor(p: EditorProps) {
                     {n.type === 'agent' ? (
                       <>
                         <span className="fe-face" aria-hidden="true">
-                          {who?.look ? <Hero agent={{ name: who.name, look: who.look }} size={34} /> : <Hero ghost size={34} />}
+                          {who?.look ? (
+                            <Hero agent={{ name: who.name, look: who.look }} size={34} />
+                          ) : (
+                            <Hero ghost size={34} />
+                          )}
                         </span>
                         <span className="fe-name">{who?.name ?? 'Someone'}</span>
                       </>
@@ -364,7 +404,11 @@ export function WorkflowEditor(p: EditorProps) {
           </div>
 
           {!ro && (
-            <div className="fe-tools" role="toolbar" aria-label={selected ? `${nodeLabel(selected, nameOf)}` : 'Add'}>
+            <div
+              className="fe-tools"
+              role="toolbar"
+              aria-label={selected ? `${nodeLabel(selected, nameOf)}` : 'Add'}
+            >
               {connecting && selected ? (
                 <>
                   <span className="fe-hint">Pick where {nodeLabel(selected, nameOf)}’s work goes.</span>
@@ -411,7 +455,9 @@ export function WorkflowEditor(p: EditorProps) {
                     onClick={() => {
                       setConnecting(true);
                       setDraft(null);
-                      say(`Pick where ${nodeLabel(selected, nameOf)}’s work goes: Tab to a node, press Enter.`);
+                      say(
+                        `Pick where ${nodeLabel(selected, nameOf)}’s work goes: Tab to a node, press Enter.`,
+                      );
                     }}
                   >
                     Connect to…
@@ -507,7 +553,11 @@ export function WorkflowEditor(p: EditorProps) {
           ))}
           {Object.entries(issues.nodes).map(([id, ms]) => (
             <li key={id}>
-              {nodeLabel(g?.nodes.find((n) => n.id === id), nameOf)}: {ms.join(' · ')}
+              {nodeLabel(
+                g?.nodes.find((n) => n.id === id),
+                nameOf,
+              )}
+              : {ms.join(' · ')}
             </li>
           ))}
         </ul>
@@ -660,7 +710,9 @@ function ArrowForm({
           autoFocus={!decision}
           className="fe-in"
           maxLength={200}
-          placeholder={draft.signoff ? 'e.g. payments must not break' : 'e.g. the UI is ready, wire the endpoint'}
+          placeholder={
+            draft.signoff ? 'e.g. payments must not break' : 'e.g. the UI is ready, wire the endpoint'
+          }
           value={draft.why ?? ''}
           onChange={(e) => set({ why: e.target.value })}
         />

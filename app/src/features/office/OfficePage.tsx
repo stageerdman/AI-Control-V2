@@ -27,7 +27,7 @@ import type { PageProps } from '../../shell/pages';
 import { go, type OfficeSub } from '../../shell/router';
 import { ErrorState, Loading, toast } from '../../ui';
 import { refreshProjectAccess, useNewAccessCount } from '../access';
-import type { Resolve } from '../collab';
+import type { Person, Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
 import { RunningPill, RunningSheet, runningKey, useRunning } from '../running';
 import { AccessSheet } from './AccessSheet';
@@ -368,6 +368,18 @@ function Office({
     }),
     [agentsById, office],
   );
+  /** Who can stand on a workflow drawing: everyone on the project (the director, teams, solo, guests). */
+  const onProject = useMemo<Person[]>(() => {
+    const ids = [
+      office.director,
+      ...office.teams.flatMap((t) => t.members),
+      ...office.solo,
+      ...(office.guests ?? []).map((g) => g.agentId),
+    ];
+    return [...new Set(ids)]
+      .filter((a) => agentsById[a])
+      .map((a) => ({ id: a, name: shortOf(agentsById[a]), look: agentsById[a].look }));
+  }, [agentsById, office]);
 
   /* ---------- chat panel */
   const [thread, setThread] = useState(director);
@@ -976,6 +988,7 @@ function Office({
               escapeRef={escapeRef}
               nameOf={nameOf}
               resolve={resolve}
+              people={onProject}
               onFollowUp={(r, agentId) => {
                 setContext({ title: r.title, reportId: r.id });
                 goSub('room');

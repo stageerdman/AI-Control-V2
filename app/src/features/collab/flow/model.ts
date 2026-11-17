@@ -119,7 +119,11 @@ export const moveNode = (g: Graph, id: string, x: number, y: number): Graph => (
 export const setNode = (g: Graph, id: string, patch: { agent?: string; question?: string }): Graph => ({
   ...g,
   nodes: g.nodes.map((n) =>
-    n.id !== id ? n : n.type === 'agent' ? { ...n, agent: patch.agent ?? n.agent } : { ...n, question: patch.question ?? n.question },
+    n.id !== id
+      ? n
+      : n.type === 'agent'
+        ? { ...n, agent: patch.agent ?? n.agent }
+        : { ...n, question: patch.question ?? n.question },
   ),
 });
 
@@ -142,7 +146,10 @@ export const setEdge = (g: Graph, id: string, patch: Partial<Omit<FlowEdge, 'id'
   edges: g.edges.map((e) => (e.id === id ? clean({ ...e, ...patch }, g) : e)),
 });
 
-export const removeEdge = (g: Graph, id: string): Graph => ({ ...g, edges: g.edges.filter((e) => e.id !== id) });
+export const removeEdge = (g: Graph, id: string): Graph => ({
+  ...g,
+  edges: g.edges.filter((e) => e.id !== id),
+});
 
 /** What the arrow may carry, given its ends: a branch only out of a decision, a sign-off only agent → agent. */
 function clean(e: FlowEdge, g: Graph): FlowEdge {
@@ -223,7 +230,11 @@ export function nodeLabel(n: FlowNode | undefined, nameOf: (agent: string) => st
 
 /** "Pete hands work to Semic: UI ready" · "Lint signs off Pete (quality): keep it clean" · "If yes → Scar". */
 export function edgeWords(g: Graph, e: FlowEdge, nameOf: (agent: string) => string): string {
-  const at = (id: string) => nodeLabel(g.nodes.find((n) => n.id === id), nameOf);
+  const at = (id: string) =>
+    nodeLabel(
+      g.nodes.find((n) => n.id === id),
+      nameOf,
+    );
   const why = e.why ? `: ${e.why}` : '';
   if (e.branch !== undefined) return `${at(e.from)} — if ${e.branch || '…'} → ${at(e.to)}${why}`;
   if (e.signoff) return `${at(e.to)} signs off ${at(e.from)} (${kindLabel(e.signoff)})${why}`;

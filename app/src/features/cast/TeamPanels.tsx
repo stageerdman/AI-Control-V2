@@ -10,6 +10,7 @@ import { announce, reducedMotion } from './fx';
 import { orderedMembers, roleText, shortName, TEAM_MAX } from './model';
 import { HueSwatches, Radios } from './Radios';
 import { STAR } from './RollCall';
+import { TeamWay } from './TeamWay';
 
 /** Auto-growing textarea that keeps its own text while focused (saves go up through onText). */
 function Grow({
@@ -336,6 +337,7 @@ export const TeamPanel = forwardRef<
             + Add to crew
           </button>
         </section>
+        {t.id && n > 0 && <TeamWay team={t} byId={p.byId} />}
         <p className="zp-foot">The director briefs this team through its captain.</p>
         {t.id && (
           <div className="sq-danger">

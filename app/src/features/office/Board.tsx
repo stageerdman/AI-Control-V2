@@ -19,11 +19,12 @@ import {
   studio,
   useMutation,
   useQuery,
+  type Workflow,
   type WorkflowsView,
 } from '../../api';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
-import { type Resolve, WorkDesign } from '../collab';
+import { FlowSheet, type Graph, type Person, type Resolve, seedFromGates, WorkDesign } from '../collab';
 import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
@@ -68,6 +69,8 @@ export type BoardProps = {
   nameOf: (id: string) => string;
   /** Names / faces / emblems for the collaboration chips. */
   resolve: Resolve;
+  /** Everyone on the project: who can stand on a workflow drawing. */
+  people: Person[];
 };
 
 /** The card: a non-modal dialog that keeps Tab inside and fades in once the camera has landed. */
@@ -350,9 +353,32 @@ function TargetEdit({ pid, target }: { pid: string; target: string | null }) {
 }
 
 /* ------------------------------------------------------------ how we work */
-function HowWeWork({ pid, dir, resolve }: BoardProps) {
+function HowWeWork({ pid, dir, resolve, people }: BoardProps) {
   const q = useQuery(keys.collaboration(pid), () => officeApi.collaboration(pid));
   const wfs = useWorkflows(pid).data?.workflows ?? [];
+  const temps = (useWork(pid).data ?? []).filter((g) => g.status === 'running' && g.workflow?.temporary);
+  /** The drawing open in the sheet: a stable workflow (by id) or a running goal's temporary one. */
+  const [open, setOpen] = useState<{ wf: string } | { goal: string } | null>(null);
+  const isAgent = (a: string) => !!resolve.agent(a);
+  const openWf = open && 'wf' in open ? wfs.find((w) => w.id === open.wf) : undefined;
+  const openGoal = open && 'goal' in open ? temps.find((g) => g.id === open.goal) : undefined;
+  const seed = openWf && !openWf.graph ? seedFromGates(openWf.gates, isAgent) : null;
+  const saveDrawing = async (id: string, graph: Graph) => {
+    const list: Workflow[] = wfs.map((w) => (w.id === id ? { ...w, graph } : w));
+    const r = await officeApi.saveWorkflows(pid, list);
+    setQueryData(keys.workflows(pid), r);
+    void invalidate(keys.collaboration(pid));
+  };
+  const drawLink = (w: Workflow) => (
+    <button
+      type="button"
+      className="ob-target wf-draw"
+      aria-label={`${w.graph ? 'Open the drawing' : 'Draw it'}: ${w.name}`}
+      onClick={() => setOpen({ wf: w.id })}
+    >
+      {w.graph ? 'Open drawing' : 'Draw it'}
+    </button>
+  );
   const [ask, setAsk] = useState('');
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<{ text: string; err?: boolean } | null>(null);
@@ -389,12 +415,77 @@ function HowWeWork({ pid, dir, resolve }: BoardProps) {
           title={wfs.length > 1 ? 'Usually' : 'Right now'}
         />
       )}
+      {wfs[0] && drawLink(wfs[0])}
       {wfs.length > 1 && (
         <div className="wf-list">
           {wfs.slice(1).map((w) => (
-            <WorkDesign key={w.id} collab={w} orch={dir} resolve={resolve} title={w.name} when={w.when} />
+            <div key={w.id}>
+              <WorkDesign collab={w} orch={dir} resolve={resolve} title={w.name} when={w.when} />
+              {drawLink(w)}
+            </div>
           ))}
         </div>
+      )}
+      {temps.length > 0 && (
+        <div className="wf-temps">
+          <h3 className="wf-temps-h">Just for one goal</h3>
+          <ul>
+            {temps.map((g) => (
+              <li key={g.id}>
+                <span>{g.workflow?.name ?? g.text}</span>
+                <button
+                  type="button"
+                  className="ob-target wf-draw"
+                  aria-label={`View the drawing: ${g.workflow?.name ?? g.text}`}
+                  onClick={() => setOpen({ goal: g.id })}
+                >
+                  View drawing
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {openWf && (
+        <FlowSheet
+          open
+          onClose={() => setOpen(null)}
+          title={openWf.name}
+          sub={openWf.when || undefined}
+          graph={openWf.graph ?? seed?.graph ?? null}
+          people={people}
+          issuePrefix={`workflows.${wfs.indexOf(openWf)}.graph`}
+          note={
+            openWf.graph
+              ? undefined
+              : `Saving makes the sign-off arrows its checks${
+                  seed?.left
+                    ? ` — ${seed.left} check${seed.left === 1 ? '' : 's'} for a whole team or every change can’t be drawn and will go`
+                    : ''
+                }.`
+          }
+          onSave={(g) => saveDrawing(openWf.id, g)}
+        />
+      )}
+      {openGoal?.workflow && (
+        <FlowSheet
+          open
+          onClose={() => setOpen(null)}
+          title={openGoal.workflow.name}
+          sub={openGoal.text}
+          graph={
+            openGoal.workflow.graph ??
+            seedFromGates([], isAgent, { lead: openGoal.workflow.lead, crew: openGoal.workflow.crew }).graph
+          }
+          people={[
+            ...people,
+            ...[openGoal.workflow.lead ?? '', ...(openGoal.workflow.crew ?? [])].flatMap((a) => {
+              const w = a && !people.some((x) => x.id === a) ? resolve.agent(a) : null;
+              return w ? [{ id: a, name: w.name, look: w.look }] : [];
+            }),
+          ]}
+          readOnly={`Temporary: ask ${dir} to change it.`}
+        />
       )}
       <form className="ob-how-ask" onSubmit={send}>
         <input

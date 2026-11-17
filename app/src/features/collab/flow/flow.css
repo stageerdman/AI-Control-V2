@@ -256,7 +256,7 @@
   font-weight: 700;
   cursor: pointer;
 }
-.fe-tog[aria-pressed='true'] {
+.fe-tog[aria-pressed="true"] {
   border-color: var(--ink);
   background: var(--ink);
   color: #fff;

@@ -545,6 +545,8 @@ export function SquadZoom(p: SquadZoomProps) {
     const onKey = (e: KeyboardEvent) => {
       const z = zRef.current;
       if (!z || p.closing) return;
+      /* a sheet on top (the team's drawing) owns Esc and Tab */
+      if (document.querySelector('.scrim')) return;
       if (e.key === 'Tab') {
         trapTab(e, z);
         return;

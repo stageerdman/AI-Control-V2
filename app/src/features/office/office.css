@@ -446,6 +446,13 @@
 .ob-stage{font-size:12.5px;font-weight:800;color:var(--ink-soft);white-space:nowrap}
 .ob-stage.t-sun{color:#b07a00}
 .ob-how{grid-column:1/-1;justify-self:end}
+/* Workflows 5b: "Draw it" / "Open drawing" under each way, the temporary ones read-only */
+.wf-draw{opacity:.8;margin:6px 0 0 -6px}
+.wf-temps{margin-top:18px}
+.wf-temps-h{margin:0 0 6px;font-size:14px;font-weight:800;color:var(--ink)}
+.wf-temps ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.wf-temps li{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13.5px}
+.wf-temps li .wf-draw{margin:0}
 .ob-card.ob-k-how{width:min(600px,calc(100% - 32px))}
 .ob-h{margin:14px 0 2px;font-size:22px;font-weight:900;letter-spacing:-.01em}
 .ob-how-ask{display:flex;gap:8px;margin-top:14px}

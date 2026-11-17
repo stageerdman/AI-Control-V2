@@ -525,6 +525,12 @@ button.lk-tag:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 .zp-reports>div{flex:1;min-width:0}
 .zp-reports .zp-label{margin-bottom:6px}
 .zp-reports .zp-hint-line{margin:0}
+/* Workflows 5b: the team's way — one row, opens the drawing */
+.sq-way{display:flex;align-items:center;gap:16px}
+.sq-way>div{flex:1;min-width:0}
+.sq-way .zp-label{margin-bottom:6px}
+.sq-way .zp-hint-line{margin:0}
+.sq-way-btn{flex:none;min-height:40px;padding:0 16px}
 .rl-row.has-rep{grid-template-columns:minmax(0,1fr) auto 50px 50px 30px}
 .rl-head{display:grid;grid-template-columns:minmax(0,1fr) auto 50px 50px 30px;gap:8px;align-items:end;padding:0 0 2px;font-size:9.5px;font-weight:900;letter-spacing:.08em;line-height:1.15;text-align:center;text-transform:uppercase;color:var(--cream-45);list-style:none}
 .rl-row .switch{transform:scale(.85)}

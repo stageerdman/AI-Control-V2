@@ -181,7 +181,14 @@ export type WorkflowsView = { workflows: Workflow[]; designed: boolean };
 export type GraphNode =
   | { id: string; type: 'agent'; agent: string; x: number; y: number }
   | { id: string; type: 'decision'; question: string; x: number; y: number };
-export type GraphEdge = { id: string; from: string; to: string; why?: string; branch?: string; signoff?: GateKind };
+export type GraphEdge = {
+  id: string;
+  from: string;
+  to: string;
+  why?: string;
+  branch?: string;
+  signoff?: GateKind;
+};
 export type WorkflowGraph = { nodes: GraphNode[]; start: string; end: string; edges: GraphEdge[] };
 /** A team's own way, drawn in the Cast (GET/PUT /teams/:id/workflow). */
 export type TeamWorkflow = { name: string; summary: string; graph: WorkflowGraph; gates?: Gate[] };
