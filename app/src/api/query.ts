@@ -48,13 +48,20 @@ function load<T>(key: string, fetcher?: () => Promise<T>): Promise<void> {
   return promise;
 }
 
+/* A fetch already in flight may have read the server before the change behind this refresh
+   (e.g. a report filed mid-fetch), so fetch again once it ends instead of reusing its answer. */
+const reload = (key: string): Promise<void> => {
+  const inFlight = cache.get(key)?.promise;
+  return inFlight ? inFlight.then(() => load(key)) : load(key);
+};
+
 /** Mark every key starting with `prefix` stale; ones on screen refetch now. */
 export function invalidate(prefix: string): Promise<void> {
   const jobs: Promise<void>[] = [];
   for (const key of cache.keys()) {
     if (!key.startsWith(prefix)) continue;
     put(key, { stale: true });
-    if (subs.get(key)?.size) jobs.push(load(key));
+    if (subs.get(key)?.size) jobs.push(reload(key));
   }
   return Promise.all(jobs).then(() => undefined);
 }
