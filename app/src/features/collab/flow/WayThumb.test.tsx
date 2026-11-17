@@ -87,6 +87,27 @@ describe('WayThumb', () => {
     expect(f.width).toBeGreaterThan(0);
   });
 
+  it('pass it along: the way back (last → first) curves around the middle face', () => {
+    const chain = {
+      gates: [],
+      steps: [
+        { from: 'ada', to: 'elon', why: 'a' },
+        { from: 'elon', to: 'jony', why: 'b' },
+        { from: 'jony', to: 'ada', why: 'back' },
+      ],
+      layout: { ada: { x: 100, y: 60 }, elon: { x: 300, y: 60 }, jony: { x: 500, y: 60 } },
+    };
+    const g = toGraph(chain);
+    if (!g) throw new Error('drawn');
+    const L = thumbLayout(g, 'lg');
+    const [ab, bc, back] = L.edges;
+    expect(ab.d.includes('Q')).toBe(false);
+    expect(bc.d.includes('Q')).toBe(false);
+    expect(back.d.includes('Q')).toBe(true);
+    const mid = L.nodes.find((n) => n.id === 'elon') as { y: number };
+    expect(Math.abs(back.mid.y - mid.y)).toBeGreaterThan(THUMB.lg.face / 2);
+  });
+
   it('opposite arrows between one pair bend apart', () => {
     const g = toGraph(way);
     if (!g) throw new Error('drawn');

@@ -7,6 +7,8 @@ import {
   ANY,
   addEdge,
   addNode,
+  arrowPath,
+  blocked,
   edgeReady,
   edgeRoom,
   edgeWords,
@@ -17,6 +19,7 @@ import {
   moveNode,
   newGraph,
   nodeIds,
+  onlyWhen,
   pinIssues,
   removeNode,
   sameGraph,
@@ -59,7 +62,10 @@ describe('workflow ⇄ graph', () => {
     expect(g.final).toBe('scar');
     expect(g.nodes.find((n) => n.id === 'pete')).toEqual({ id: 'pete', x: 10, y: 20 });
     const back = withDrawing(office, g);
-    expect(back).toEqual({ ...office, layout: Object.fromEntries(g.nodes.map((n) => [n.id, { x: n.x, y: n.y }])) });
+    expect(back).toEqual({
+      ...office,
+      layout: Object.fromEntries(g.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+    });
     expect(toGraph(back)).toEqual(g);
     /* the "every change" gate keeps its place in the gate order */
     expect(back.gates.map((x) => x.after)).toEqual([ANY, 'semic']);
@@ -145,7 +151,10 @@ describe('edits', () => {
 
   it('room: one hand-off per pair, sign-offs only by an agent, a why always', () => {
     const g = addEdge(addNode(newGraph('pete'), 'semic'), { from: 'pete', to: 'semic', why: 'x' });
-    expect(edgeRoom(g, { from: 'pete', to: 'semic', why: '' }, isTeam)).toEqual({ handoff: false, signoff: true });
+    expect(edgeRoom(g, { from: 'pete', to: 'semic', why: '' }, isTeam)).toEqual({
+      handoff: false,
+      signoff: true,
+    });
     expect(edgeRoom(g, { from: 'pete', to: 't-ship', why: '' }, isTeam).signoff).toBe(false);
     expect(edgeReady(g, { from: 'semic', to: 'pete', why: ' ' }, isTeam)).toBe(false);
     expect(edgeReady(g, { from: 'semic', to: 'pete', why: 'ok' }, isTeam)).toBe(true);
@@ -156,12 +165,12 @@ describe('edits', () => {
 });
 
 describe('checks and problems', () => {
-  it('locally: a card with no arrow, and a final who signs nothing off', () => {
+  it('locally: a card with no arrow; a final who signs nothing off is fine (it only orders sign-offs)', () => {
     const g = setRole(addNode(toGraph(office) as Graph, 'pete'), 'pete', 'final', isTeam);
     const lone = addNode(g, 'alone');
     const p = localIssues(lone, name);
     expect(Object.keys(p.nodes)).toEqual(['alone']);
-    expect(p.general).toEqual(['Signs last: Pete signs nothing off here — pick one of the reviewers']);
+    expect(p.general).toEqual([]);
     expect(localIssues(toGraph(office), name)).toEqual({ edges: {}, nodes: {}, general: [] });
   });
 
@@ -195,6 +204,22 @@ describe('checks and problems', () => {
       'Lint signs off every change (quality): keep it clean',
       'Scar signs off Semic (review), only if it ships: API sound',
     ]);
+    expect(onlyWhen('it touches payments')).toBe('only when it touches payments');
+    expect(onlyWhen('Only when it ships')).toBe('only when it ships');
+    expect(onlyWhen('unless it is a typo')).toBe('unless it is a typo');
+  });
+
+  it('arrows: a line through someone else bows out; a clear line stays straight', () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 400, y: 0 };
+    expect(blocked(a, b, [{ x: 200, y: 4 }], 40)).toBe(true);
+    expect(blocked(a, b, [{ x: 200, y: 80 }], 40)).toBe(false);
+    const cut = () => ({ x: 0, y: 0 });
+    expect(arrowPath(a, b, 0, cut).d).toBe('M0 0L400 0');
+    const back = arrowPath(b, a, 50, cut);
+    expect(back.d.includes('Q')).toBe(true);
+    /* bows to the left of travel: going left, that's down on screen; its middle sits `bow` off the line */
+    expect(back.mid.y).toBeCloseTo(50);
   });
 
   it('toDrawing leaves out what is not drawn', () => {

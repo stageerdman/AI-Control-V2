@@ -11,6 +11,7 @@ vi.mock('../../../characters', () => ({ Hero: () => null }));
 import { ApiError } from '../../../api';
 
 type ApiErrorCode = ConstructorParameters<typeof ApiError>[1];
+
 import { type Graph, toDrawing } from './model';
 import { WorkflowEditor } from './WorkflowEditor';
 
@@ -45,6 +46,68 @@ describe('WorkflowEditor', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it('first-time path: after who starts, + Add someone is right there (the card stays selected)', () => {
+    render(<WorkflowEditor graph={null} people={people} onSave={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText('Who starts'), { target: { value: 'pete' } });
+    expect(screen.getByRole('button', { name: /^Pete/ }).getAttribute('aria-pressed')).toBe('true');
+    /* nothing to connect to yet: no Connect to…, the way forward is adding someone */
+    expect(screen.queryByRole('button', { name: 'Connect to…' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Add someone'), { target: { value: 'semic' } });
+    expect(screen.getByRole('button', { name: /^Semic/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Connect to…' })).toBeTruthy();
+    expect(screen.getByLabelText('Add someone')).toBeTruthy();
+  });
+
+  it('Escape and a click on the empty board clear the selection', () => {
+    const { container } = render(<WorkflowEditor graph={two} people={people} onSave={vi.fn()} />);
+    const pete = screen.getByRole('button', { name: /^Pete/ });
+    fireEvent.click(pete);
+    expect(pete.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.keyDown(pete, { key: 'Escape' });
+    expect(pete.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(pete);
+    fireEvent.click(container.querySelector('.fe-board') as HTMLElement);
+    expect(pete.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('the arrow form says why Add arrow is off', () => {
+    render(<WorkflowEditor graph={two} people={people} onSave={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Semic/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect to…' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Pete.*Connect here/ }));
+    const form = screen.getByRole('form', { name: 'Arrow' });
+    const add = within(form).getByRole('button', { name: 'Add arrow' }) as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    expect(within(form).getByText('Say why first')).toBeTruthy();
+    fireEvent.change(within(form).getByLabelText('Why'), { target: { value: 'back' } });
+    expect(within(form).queryByText('Say why first')).toBeNull();
+    expect(add.disabled).toBe(false);
+  });
+
+  it('someone who signs off every change wears "Checks all work"', () => {
+    const g: Graph = {
+      ...two,
+      final: 'scar',
+      nodes: [...two.nodes, { id: 'scar', x: 500, y: 60 }],
+      edges: [...two.edges, { id: 'e2', from: '*', to: 'scar', why: 'no crashes', signoff: 'crash-test' }],
+    };
+    render(<WorkflowEditor graph={g} people={people} onSave={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Scar, Checks all work, Signs last' })).toBeTruthy();
+  });
+
+  it('a final who signs nothing off saves (a team default way + one sign-off)', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const g: Graph = {
+      ...two,
+      final: 'pete',
+      edges: [...two.edges, { id: 'e2', from: 'pete', to: 'semic', why: 'check', signoff: 'review' }],
+    };
+    render(<WorkflowEditor graph={g} people={people} onSave={onSave} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: /^Pete/ }), { key: 'ArrowRight' });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  });
+
   it('read-only: one line says who changes it; no tools, no Save', () => {
     render(<WorkflowEditor graph={two} people={people} readOnly="Temporary: ask Pixel to change it." />);
     expect(screen.getByText('Temporary: ask Pixel to change it.')).toBeTruthy();
@@ -76,7 +139,9 @@ describe('WorkflowEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(toDrawing(onSave.mock.calls[0][0])).toEqual({
-      gates: [{ after: 'pete', reviewer: 'semic', kind: 'review', why: 'the UI is ready', when: 'if it ships' }],
+      gates: [
+        { after: 'pete', reviewer: 'semic', kind: 'review', why: 'the UI is ready', when: 'if it ships' },
+      ],
       steps: [{ from: 'pete', to: 'semic', why: 'UI ready' }],
       first: 'pete',
       final: 'semic',

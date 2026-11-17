@@ -4,7 +4,7 @@
    md (Other ways row), lg (team panel). */
 import type { Workflow } from '../../../api';
 import { Hero } from '../../../characters';
-import { ANY, type FlowNode, frame, type Graph, toGraph } from './model';
+import { ANY, arrowPath, blocked, type FlowNode, frame, type Graph, toGraph } from './model';
 import type { Person } from './WorkflowEditor';
 import './way-thumb.css';
 
@@ -19,7 +19,19 @@ export const THUMB: Record<ThumbSize, { w: number; h: number; face: number }> = 
 };
 
 export type ThumbNode = { id: string; x: number; y: number };
-export type ThumbEdge = { id: string; x1: number; y1: number; x2: number; y2: number; signoff: boolean };
+export type ThumbEdge = {
+  id: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** The arrow's path (a straight line, or a curve when it would cross someone's face). */
+  d: string;
+  mid: { x: number; y: number };
+  /** Direction at the tip (radians). */
+  angle: number;
+  signoff: boolean;
+};
 
 /** Pure: the graph fitted into a box — node centres and arrow ends in box pixels. Same frame as the editor. */
 export function thumbLayout(g: Graph, size: ThumbSize, extra: readonly FlowNode[] = []) {
@@ -60,13 +72,24 @@ export function thumbLayout(g: Graph, size: ThumbSize, extra: readonly FlowNode[
     const off = Math.max(2, box.face / 5);
     const ox2 = (-dy / len) * k * off * sign;
     const oy2 = (dx / len) * k * off * sign;
-    const cut = r / len;
+    const pa = { x: a.x + ox2, y: a.y + oy2 };
+    const pb = { x: b.x + ox2, y: b.y + oy2 };
+    /* a line through someone else's face (a chain's way back) bows out, so the loop reads as a loop */
+    const others = nodes.filter((n) => n.id !== e.from && n.id !== e.to);
+    const bow = blocked(pa, pb, others, r + 2) ? r * 1.6 : 0;
+    const p = arrowPath(pa, pb, bow, (x, y) => {
+      const l = Math.hypot(x, y) || 1;
+      return { x: (x / l) * r, y: (y / l) * r };
+    });
     edges.push({
       id: e.id,
-      x1: a.x + dx * cut + ox2,
-      y1: a.y + dy * cut + oy2,
-      x2: b.x - dx * cut + ox2,
-      y2: b.y - dy * cut + oy2,
+      x1: pa.x + dx * (r / len),
+      y1: pa.y + dy * (r / len),
+      x2: p.end.x,
+      y2: p.end.y,
+      d: p.d,
+      mid: p.mid,
+      angle: p.angle,
       signoff: !!e.signoff,
     });
   }
@@ -102,17 +125,17 @@ export function WayThumb({
       <span className="wt-stage" style={{ width: L.box.w, height: L.box.h }}>
         <svg width={L.box.w} height={L.box.h} className="wt-arrows" aria-hidden="true">
           {L.edges.map((e) => {
-            const ang = Math.atan2(e.y2 - e.y1, e.x2 - e.x1);
+            const ang = e.angle;
             const hx = e.x2 - Math.cos(ang - 0.5) * tip;
             const hy = e.y2 - Math.sin(ang - 0.5) * tip;
             const kx = e.x2 - Math.cos(ang + 0.5) * tip;
             const ky = e.y2 - Math.sin(ang + 0.5) * tip;
             return (
               <g key={e.id} className={`wt-edge${e.signoff ? ' signoff' : ''}`} data-edge={e.id}>
-                <path d={`M${e.x1} ${e.y1}L${e.x2} ${e.y2}`} />
+                <path d={e.d} />
                 <path className="wt-tip" d={`M${hx} ${hy}L${e.x2} ${e.y2}L${kx} ${ky}`} />
                 {e.signoff && size === 'lg' && (
-                  <g transform={`translate(${(e.x1 + e.x2) / 2} ${(e.y1 + e.y2) / 2})`}>
+                  <g transform={`translate(${e.mid.x} ${e.mid.y})`}>
                     <circle r="6" className="wt-check-bg" />
                     <path d="M-2.6 0.3l1.7 1.7L2.8-2" className="wt-check" />
                   </g>

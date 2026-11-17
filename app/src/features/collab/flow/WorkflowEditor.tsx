@@ -21,6 +21,8 @@ import {
   ANY,
   addEdge,
   addNode,
+  arrowPath,
+  blocked,
   draftEdge,
   edgeReady,
   edgeRoom,
@@ -288,6 +290,28 @@ export function WorkflowEditor(p: EditorProps) {
     const k = [e.from, e.to].sort().join('|');
     pairs.set(k, [...(pairs.get(k) ?? []), e.id]);
   }
+  const paths = drawn.flatMap((e) => {
+    const a = g?.nodes.find((n) => n.id === e.from);
+    const b = g?.nodes.find((n) => n.id === e.to);
+    if (!g || !a || !b) return [];
+    const pa = pos(a);
+    const pb = pos(b);
+    const same = pairs.get([e.from, e.to].sort().join('|')) ?? [e.id];
+    const k = same.indexOf(e.id) - (same.length - 1) / 2;
+    const len = Math.hypot(pb.x - pa.x, pb.y - pa.y) || 1;
+    /* parallel arrows between one pair sit side by side, never on top of each other */
+    const sign = e.from < e.to ? 1 : -1;
+    const ox = (-(pb.y - pa.y) / len) * k * 16 * sign;
+    const oy = ((pb.x - pa.x) / len) * k * 16 * sign;
+    const a2 = { x: pa.x + ox, y: pa.y + oy };
+    const b2 = { x: pb.x + ox, y: pb.y + oy };
+    /* a line through someone else's card (a chain's way back) bows out around it */
+    const others = g.nodes.filter((n) => n.id !== e.from && n.id !== e.to).map(pos);
+    const bow = blocked(a2, b2, others, NODE.h / 2 + 8) ? NODE.h / 2 + 18 : 0;
+    return [{ e, p: arrowPath(a2, b2, bow, edgeOf), bad: !!issues.edges[e.id] }];
+  });
+  /** Someone who signs off every change: a mark on their card (that arrow has no start to draw from). */
+  const checksAll = new Set((g?.edges ?? []).filter((e) => e.from === ANY && e.signoff).map((e) => e.to));
 
   return (
     <section
@@ -295,11 +319,14 @@ export function WorkflowEditor(p: EditorProps) {
       className={`fe${view ? ' fe-view' : ''}`}
       aria-label="Workflow drawing"
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && (connecting || draft)) {
+        /* Escape steps back one level: the arrow form / connecting first, then the selection */
+        if (e.key === 'Escape' && (connecting || draft || sel)) {
           e.stopPropagation();
           e.nativeEvent.stopImmediatePropagation();
-          setConnecting(false);
-          setDraft(null);
+          if (connecting || draft) {
+            setConnecting(false);
+            setDraft(null);
+          } else setSel(null);
         }
       }}
     >
@@ -321,7 +348,9 @@ export function WorkflowEditor(p: EditorProps) {
             aria-label={view ? 'The way, drawn' : undefined}
             aria-describedby={p.describedBy}
             onClick={(e) => {
-              if (e.target === e.currentTarget) {
+              /* the board fills the canvas, so a click on either is a click on empty space */
+              const t = e.target as HTMLElement;
+              if (t === e.currentTarget || t.classList.contains('fe-board')) {
                 setSel(null);
                 setConnecting(false);
               }
@@ -353,59 +382,28 @@ export function WorkflowEditor(p: EditorProps) {
                     </marker>
                   ))}
                 </defs>
-                {drawn.map((e) => {
-                  const a = g.nodes.find((n) => n.id === e.from);
-                  const b = g.nodes.find((n) => n.id === e.to);
-                  if (!a || !b) return null;
-                  const pa = pos(a);
-                  const pb = pos(b);
-                  const same = pairs.get([e.from, e.to].sort().join('|')) ?? [e.id];
-                  const k = same.indexOf(e.id) - (same.length - 1) / 2;
-                  const len = Math.hypot(pb.x - pa.x, pb.y - pa.y) || 1;
-                  /* parallel arrows between one pair sit side by side, never on top of each other */
-                  const sign = e.from < e.to ? 1 : -1;
-                  const ox = (-(pb.y - pa.y) / len) * k * 16 * sign;
-                  const oy = ((pb.x - pa.x) / len) * k * 16 * sign;
-                  const s = edgeOf(pb.x - pa.x, pb.y - pa.y);
-                  const x1 = pa.x + s.x + ox;
-                  const y1 = pa.y + s.y + oy;
-                  const x2 = pb.x - s.x + ox;
-                  const y2 = pb.y - s.y + oy;
-                  const bad = !!issues.edges[e.id];
-                  const mx = (x1 + x2) / 2;
-                  const my = (y1 + y2) / 2;
-                  return (
-                    <g key={e.id} className={`fe-edge${e.signoff ? ' signoff' : ''}${bad ? ' bad' : ''}`}>
-                      <line
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        markerEnd={`url(#${uid}-${bad ? 'tipbad' : 'tip'})`}
-                      />
-                      {e.signoff && (
-                        <g transform={`translate(${mx} ${my})`}>
-                          <circle r="9" className="fe-check-bg" />
-                          <path d="M-4 0.5l2.6 2.6L4.2-3" className="fe-check" />
-                        </g>
-                      )}
-                      {e.when && (
-                        <text x={mx} y={my - 14} className="fe-branch" textAnchor="middle">
-                          {e.when.length > 34 ? `${e.when.slice(0, 33)}…` : e.when}
-                        </text>
-                      )}
-                    </g>
-                  );
-                })}
+                {paths.map(({ e, p: at, bad }) => (
+                  <g key={e.id} className={`fe-edge${e.signoff ? ' signoff' : ''}${bad ? ' bad' : ''}`}>
+                    <path d={at.d} markerEnd={`url(#${uid}-${bad ? 'tipbad' : 'tip'})`} />
+                    {e.signoff && (
+                      <g transform={`translate(${at.mid.x} ${at.mid.y})`}>
+                        <circle r="9" className="fe-check-bg" />
+                        <path d="M-4 0.5l2.6 2.6L4.2-3" className="fe-check" />
+                      </g>
+                    )}
+                  </g>
+                ))}
               </svg>
               {g.nodes.map((n) => {
                 const at = pos(n);
                 const who = byId.get(n.id);
                 const team = !!who?.team;
                 const bad = !!issues.nodes[n.id];
-                const badges = [g.first === n.id && 'Starts here', g.final === n.id && 'Signs last'].filter(
-                  Boolean,
-                ) as string[];
+                const badges = [
+                  g.first === n.id && 'Starts here',
+                  checksAll.has(n.id) && 'Checks all work',
+                  g.final === n.id && 'Signs last',
+                ].filter(Boolean) as string[];
                 const label = `${nameOf(n.id)}${team ? ', a team' : ''}${
                   badges.length ? `, ${badges.join(', ')}` : ''
                 }${bad ? `, problem: ${issues.nodes[n.id].join('; ')}` : ''}${
@@ -460,11 +458,34 @@ export function WorkflowEditor(p: EditorProps) {
                   </button>
                 );
               })}
+              {/* "only when" words sit above the cards, so a short arrow's label is never hidden */}
+              <svg className="fe-arrows fe-labels" width={f.width} height={f.height} aria-hidden="true">
+                {paths
+                  .filter(({ e }) => e.when)
+                  .map(({ e, p: at }) => {
+                    const w = e.when as string;
+                    return (
+                      <text
+                        key={e.id}
+                        x={at.mid.x}
+                        y={at.mid.y - 14}
+                        className="fe-branch"
+                        textAnchor="middle"
+                      >
+                        {w.length > 34 ? `${w.slice(0, 33)}…` : w}
+                      </text>
+                    );
+                  })}
+              </svg>
             </div>
           </div>
 
           {!ro && (
             <div className="fe-tools" role="toolbar" aria-label={selected ? nameOf(selected.id) : 'Add'}>
+              {/* adding someone never depends on the selection: it stays first, in the same spot */}
+              {!connecting && g.nodes.length < MAX_NODES && (
+                <PersonPicker id={`${uid}-add`} people={free} onPick={add} label="+ Add someone" />
+              )}
               {connecting && selected ? (
                 <>
                   <span className="fe-hint">Pick where {nameOf(selected.id)}’s work goes.</span>
@@ -474,6 +495,7 @@ export function WorkflowEditor(p: EditorProps) {
                 </>
               ) : selected ? (
                 <>
+                  <span className="fe-sep" aria-hidden="true" />
                   <b className="fe-who">{nameOf(selected.id)}</b>
                   <button
                     type="button"
@@ -493,29 +515,27 @@ export function WorkflowEditor(p: EditorProps) {
                       Signs last
                     </button>
                   )}
-                  <Button
-                    small
-                    variant="ghost"
-                    disabled={g.nodes.length < 2}
-                    onClick={() => {
-                      setConnecting(true);
-                      setDraft(null);
-                      say(`Pick where ${nameOf(selected.id)}’s work goes: Tab to a node, press Enter.`);
-                    }}
-                  >
-                    Connect to…
-                  </Button>
+                  {g.nodes.length > 1 && (
+                    <Button
+                      small
+                      variant="ghost"
+                      onClick={() => {
+                        setConnecting(true);
+                        setDraft(null);
+                        say(`Pick where ${nameOf(selected.id)}’s work goes: Tab to a node, press Enter.`);
+                      }}
+                    >
+                      Connect to…
+                    </Button>
+                  )}
                   <button type="button" className="fe-link danger" onClick={() => remove(selected)}>
                     Remove
                   </button>
                 </>
               ) : (
-                <>
-                  {g.nodes.length < MAX_NODES && (
-                    <PersonPicker id={`${uid}-add`} people={free} onPick={add} label="+ Add someone" />
-                  )}
-                  <span className="fe-hint">Select a card to connect it.</span>
-                </>
+                <span className="fe-hint">
+                  {g.nodes.length < 2 ? 'Add who they pass work to.' : 'Select a card to connect it.'}
+                </span>
               )}
             </div>
           )}
@@ -757,10 +777,21 @@ function ArrowForm({
         />
       </label>
       <div className="fe-form-acts">
+        {!draft.why.trim() && (
+          <span className="fe-hint" id={`${uid}-why-first`}>
+            Say why first
+          </span>
+        )}
         <Button small variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button small variant="dark" type="submit" disabled={!edgeReady(g, draft, isTeam)}>
+        <Button
+          small
+          variant="dark"
+          type="submit"
+          disabled={!edgeReady(g, draft, isTeam)}
+          aria-describedby={!draft.why.trim() ? `${uid}-why-first` : undefined}
+        >
           {draft.id ? 'Change arrow' : 'Add arrow'}
         </Button>
       </div>

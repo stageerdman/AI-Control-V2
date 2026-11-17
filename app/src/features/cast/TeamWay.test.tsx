@@ -58,7 +58,10 @@ const { TeamWay } = await import('./TeamWay');
 const look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue: 'teal' } as never;
 const agent = (id: string, name: string) => ({ id, name, look, role: 'x' }) as unknown as Agent;
 const byId = new Map(
-  [agent('ada', 'Ada'), agent('elon', 'Elon'), agent('jony', 'Jony'), agent('ana', 'Ana')].map((a) => [a.id, a]),
+  [agent('ada', 'Ada'), agent('elon', 'Elon'), agent('jony', 'Jony'), agent('ana', 'Ana')].map((a) => [
+    a.id,
+    a,
+  ]),
 );
 const team = (members: string[], over: Partial<Team> = {}): Team =>
   ({
@@ -126,10 +129,24 @@ describe('How this team works: states', () => {
     show(team(['ada', 'elon', 'jony']));
     await screen.findByText(DEF.inWords as string);
     expect(screen.getByRole('button', { name: 'Adjust' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Captain checks all' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Captain checks all' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
     expect(thumb().getAttribute('aria-label')).toBe(`Adjust how Builders works: ${DEF.inWords}`);
     expect(document.querySelectorAll('.wt-face')).toHaveLength(3);
     expect(screen.queryByText('Back to the default')).toBeNull();
+  });
+  it('the crew reaches two: the way scrolls into view once; opening a ready team never scrolls', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const s = show(team(['ada']));
+    s.update(team(['ada', 'elon']));
+    await screen.findByText(DEF.inWords as string);
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+    cleanup();
+    show(team(['ada', 'elon']));
+    await screen.findByText(DEF.inWords as string);
+    expect(scroll).toHaveBeenCalledTimes(1);
   });
   it('own way: "Your own way.", Back to the default, no shape control', async () => {
     view = { workflow: OWN, own: true, shape: 'captain' };
