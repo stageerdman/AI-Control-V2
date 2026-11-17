@@ -172,8 +172,19 @@ export type Workflow = Collaboration & {
   when: string;
   lead?: string;
   crew?: string[];
+  /** Drawn in the editor; when there, its sign-off arrows are the gates (server/src/domain/graph.ts). */
+  graph?: WorkflowGraph;
 };
 export type WorkflowsView = { workflows: Workflow[]; designed: boolean };
+/** A workflow drawn as a graph: agents and decisions, an explicit start and end (agents), arrows with
+    a why. Out of a decision an arrow carries a `branch`; an arrow with `signoff` is a review gate. */
+export type GraphNode =
+  | { id: string; type: 'agent'; agent: string; x: number; y: number }
+  | { id: string; type: 'decision'; question: string; x: number; y: number };
+export type GraphEdge = { id: string; from: string; to: string; why?: string; branch?: string; signoff?: GateKind };
+export type WorkflowGraph = { nodes: GraphNode[]; start: string; end: string; edges: GraphEdge[] };
+/** A team's own way, drawn in the Cast (GET/PUT /teams/:id/workflow). */
+export type TeamWorkflow = { name: string; summary: string; graph: WorkflowGraph; gates?: Gate[] };
 export type ItemReview = {
   reviewer: string;
   gate: number;
@@ -518,7 +529,15 @@ export type TaskPerson = { id: string; name: string; look: Look };
 export type SignoffState = 'pending' | 'signed' | 'sent-back';
 export type Signoff = { reviewer: TaskPerson; kind: GateKind; state: SignoffState };
 /** What a goal runs under, by name. `lead` / `crew`: temporary only. */
-export type WorkflowTag = { id: string; name: string; temporary: boolean; lead?: string; crew?: string[] };
+export type WorkflowTag = {
+  id: string;
+  name: string;
+  temporary: boolean;
+  lead?: string;
+  crew?: string[];
+  /** The goal's drawing (goal reads only; events carry the tag alone). */
+  graph?: WorkflowGraph;
+};
 export type Goal = {
   id: string;
   projectId: string;

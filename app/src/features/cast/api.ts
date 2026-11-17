@@ -2,7 +2,7 @@
    re-adding a member at its old place for Undo), Tinker's design chats, Recently deleted.
    Query keys: 'agents' · 'roles' · 'teams' · 'creator-sessions' · 'trash-agents'. */
 import { http, studio } from '../../api';
-import type { Agent, Restored, Role, Team } from '../../api/types';
+import type { Agent, Restored, Role, Team, TeamWorkflow, WorkflowGraph } from '../../api/types';
 
 const e = encodeURIComponent;
 
@@ -39,6 +39,10 @@ export const castApi = {
     /** Undo after a remove: put the member back where it stood (0-based). */
     readd: (id: string, agentId: string, instr: string, at: number) =>
       http.post<Team>(`/teams/${e(id)}/members`, { agentId, instr, at }),
+    /** The team's own drawn way (null = none); PUT 422 details pin to `graph.…`. */
+    workflow: (id: string) => http.get<{ workflow: TeamWorkflow | null }>(`/teams/${e(id)}/workflow`),
+    saveWorkflow: (id: string, w: { name: string; summary?: string; graph: WorkflowGraph }) =>
+      http.put<{ workflow: TeamWorkflow | null }>(`/teams/${e(id)}/workflow`, w),
   },
   restore: studio.restore,
   /** Design a new agent with Tinker (saved chats with a live draft). */

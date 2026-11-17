@@ -1,0 +1,385 @@
+/* The workflow editor (collab/flow): a calm canvas, two arrow styles, the arrows as text below.
+   Light surface (it opens in a Sheet from the office and from the Cast). Errors: #a3242c on #fff1f1. */
+.fe {
+  --fe-bad: #a3242c;
+  --fe-bad-bg: #fff1f1;
+  --fe-arrow: #5b5280;
+  color: var(--ink);
+  font-size: 14px;
+}
+.fe-ro {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(155, 108, 255, 0.1);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.fe-empty {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 28px 20px;
+  border: 2px dashed var(--line);
+  border-radius: 18px;
+}
+.fe-empty p {
+  margin: 0;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* canvas */
+.fe-canvas {
+  max-height: 46vh;
+  overflow: auto;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle, rgba(36, 26, 68, 0.09) 1px, transparent 1.5px) 0 0 / 20px 20px,
+    #fbf9ff;
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+.fe-board {
+  position: relative;
+  margin: 0 auto;
+}
+.fe-arrows {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.fe-edge line {
+  stroke: var(--fe-arrow);
+  stroke-width: 2;
+}
+.fe-edge.signoff line {
+  stroke-dasharray: 6 5;
+}
+.fe-tip {
+  fill: var(--fe-arrow);
+}
+.fe-tip.bad,
+.fe-edge.bad line {
+  fill: var(--fe-bad);
+  stroke: var(--fe-bad);
+}
+.fe-check-bg {
+  fill: #fff;
+  stroke: var(--fe-arrow);
+  stroke-width: 1.5;
+}
+.fe-check {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.fe-branch {
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 600;
+  fill: var(--ink-soft);
+  paint-order: stroke;
+  stroke: #fbf9ff;
+  stroke-width: 4px;
+}
+
+/* nodes: centred on their x/y */
+.fe-node {
+  position: absolute;
+  width: 128px;
+  min-height: 64px;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  box-shadow: 0 6px 14px -10px rgba(20, 10, 45, 0.5);
+}
+.fe-node:active {
+  cursor: grabbing;
+}
+.fe-node.decision {
+  border-style: dashed;
+  border-radius: 999px;
+  background: #fffaf0;
+}
+.fe-node.sel {
+  border-color: var(--grape);
+  box-shadow: 0 0 0 3px rgba(155, 108, 255, 0.25);
+}
+.fe-node.bad {
+  border-color: var(--fe-bad);
+  background: var(--fe-bad-bg);
+}
+.fe-node:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 2px;
+}
+.connecting .fe-node:not(.sel) {
+  border-color: var(--sky);
+  cursor: crosshair;
+}
+.fe-face {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  place-items: center;
+}
+.fe-name,
+.fe-q {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+  font-size: 13px;
+}
+.fe-q {
+  white-space: normal;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.fe-badges {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+.fe-badges i {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+
+/* toolbar, form */
+.fe-tools,
+.fe-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.fe-form {
+  padding: 12px;
+  border-radius: 14px;
+  background: #f6f3fd;
+}
+.fe-form-h {
+  flex-basis: 100%;
+  margin: 0;
+  font-weight: 800;
+}
+.fe-form-acts {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.fe-who {
+  margin-right: 2px;
+}
+.fe-hint {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+.fe-in {
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+.fe-qin {
+  flex: 1 1 200px;
+}
+.fe-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 220px;
+  font-weight: 700;
+}
+.fe-field .fe-in {
+  flex: 1;
+}
+.fe-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-weight: 700;
+}
+.fe-kind label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+}
+.fe-kind .off {
+  opacity: 0.5;
+}
+.fe-tog {
+  min-height: 34px;
+  padding: 4px 12px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.fe-tog[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+.fe-link {
+  min-height: 34px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.fe-link.danger {
+  color: var(--fe-bad);
+}
+
+/* arrows as text */
+.fe-h {
+  margin: 18px 0 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.fe-none {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.fe-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fe-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+.fe-list li.bad {
+  background: var(--fe-bad-bg);
+}
+.fe-glyph {
+  width: 18px;
+  text-align: center;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.fe-words {
+  flex: 1 1 240px;
+}
+.fe-acts {
+  display: flex;
+  gap: 4px;
+}
+.fe-err {
+  flex-basis: 100%;
+  margin: 0 0 2px 26px;
+  color: var(--fe-bad);
+  font-size: 13px;
+  font-weight: 700;
+}
+.fe-errs {
+  margin: 12px 0 0;
+  padding: 10px 12px 10px 28px;
+  border-radius: 12px;
+  background: var(--fe-bad-bg);
+  color: var(--fe-bad);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.fe-note {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.fe-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.fe-saved {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+.fe-sheet-head {
+  margin: 0 40px 12px 0;
+}
+.fe-sheet-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.fe-sheet-head p {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.fe-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #fff7e6;
+  font-weight: 700;
+}
+.fe-ask span {
+  margin-right: auto;
+}
+.fe-open {
+  margin-top: 6px;
+}
