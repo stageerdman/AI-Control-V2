@@ -330,10 +330,14 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
           : same
             ? { id: same.id }
             : { name: goal.slice(0, 120), description: `What the user asked for: ${goal}`.slice(0, 2000) };
+      /* a goal that names one of the other ways ("… as a hotfix") runs under it — lets a fake run show a way chip */
+      const ways = field<{ id: string; name: string }[]>(t, 'How they work together (workflows, the first is the usual one):');
+      const way = ways?.slice(1).find((w) => goal.toLowerCase().includes(w.name.toLowerCase()));
       return answer({
         summary: `Everyone takes a slice of: ${goal}`.slice(0, 1000),
         items: out,
         ...(feature ? { feature } : {}),
+        ...(way ? { workflow: way.id } : {}),
       });
     }
     case 'team-split': {

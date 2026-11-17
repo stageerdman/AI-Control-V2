@@ -1,0 +1,6 @@
+[
+  { "click": "text=Aurora Storefront", "after": 2000 },
+  { "shot": "office" },
+  { "buttons": true },
+  { "text": true, "max": 2500 }
+]

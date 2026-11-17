@@ -1,0 +1,9 @@
+[
+  { "go": "#office/aurora/board" },
+  { "wait": 1500 },
+  { "eval": "[...document.querySelectorAll('.wf-chip')].map(e => e.tagName + ' ' + e.className + ' :: ' + (e.getAttribute('aria-label')||e.getAttribute('title')||e.innerText||'').slice(0,80))" },
+  { "shot": "board" },
+  { "click": ".wf-chip", "after": 1500 },
+  { "shot": "how" },
+  { "text": "main", "max": 1200 }
+]

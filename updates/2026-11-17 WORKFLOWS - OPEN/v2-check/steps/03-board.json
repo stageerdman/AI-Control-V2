@@ -1,0 +1,7 @@
+[
+  { "click": "text=Aurora Storefront", "after": 2000 },
+  { "click": "role=button[name=/Whiteboard/]", "after": 1500 },
+  { "shot": "board" },
+  { "buttons": "main button, main a, [role=dialog] button" },
+  { "text": true, "max": 2500 }
+]

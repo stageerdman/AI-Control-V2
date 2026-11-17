@@ -1,0 +1,15 @@
+[
+  { "go": "#cast/teams/new" },
+  { "fill": ["input[aria-label='Team name'], input[placeholder='Team name']", "Check Crew"] },
+  { "fill": ["input[placeholder^='What is this crew for']", "Small crew for the Workflows live check"] },
+  { "click": "main >> text=+ Add to crew >> nth=-1", "after": 800 },
+  { "click": "role=button[name='Add Sola Simplex, Product Vision']", "after": 800 },
+  { "shot": "one" },
+  { "eval": "document.querySelector('main').innerText.split('CREW')[1]?.slice(0,800)" },
+  { "click": "role=button[name='Add Brisk Ignis, Moonshot Engineer']", "after": 800 },
+  { "click": "role=button[name='Add Bramble Fizzwick, Test Lab']", "after": 800 },
+  { "click": "role=button[name='Done']", "after": 1500 },
+  { "shot": "three" },
+  { "eval": "location.hash" },
+  { "eval": "document.querySelector('main').innerText.split('CREW')[1]?.slice(0,1500)" }
+]

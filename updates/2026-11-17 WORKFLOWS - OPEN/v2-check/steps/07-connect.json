@@ -1,0 +1,8 @@
+[
+  { "go": "#office/aurora/how" },
+  { "click": "role=button[name='Draw how we work']", "after": 1000 },
+  { "select": ["select[aria-label='Who starts']", "a-pete"] },
+  { "click": "role=button[name=/^Connect to/]", "after": 800 },
+  { "shot": "connect" },
+  { "eval": "[...document.querySelectorAll('button, select, input, [role=menuitem], [role=option]')].filter(e=>e.offsetParent && !e.closest('[aria-label=\"Project office\"]')).map(e=>e.tagName+':'+(e.getAttribute('aria-label')||e.innerText||e.value).slice(0,60))" }
+]

@@ -1,0 +1,7 @@
+[
+  { "click": "text=Aurora Storefront", "after": 2000 },
+  { "click": "role=button[name=/Whiteboard/]", "after": 1500 },
+  { "shot": "board" },
+  { "buttons": "main button, main a" },
+  { "eval": "[...document.querySelectorAll('[class*=way], [aria-label*=way i], [title*=way i]')].map(e => e.tagName + ' ' + (e.className||'') + ' :: ' + (e.getAttribute('aria-label')||e.getAttribute('title')||e.innerText||'').slice(0,80)).slice(0,30)" }
+]

@@ -1,0 +1,8 @@
+[
+  { "go": "#office/aurora/board", "wait": 1500 },
+  { "shot": "board" },
+  { "buttons": "role=button[name=/How we work/]" },
+  { "click": "role=button[name=/How we work/]", "after": 1500 },
+  { "shot": "how" },
+  { "eval": "document.querySelector('[aria-label=\"Workflow drawing\"]')?.parentElement?.innerText" }
+]

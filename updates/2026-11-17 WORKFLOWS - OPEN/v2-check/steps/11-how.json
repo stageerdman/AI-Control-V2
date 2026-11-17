@@ -1,0 +1,7 @@
+[
+  { "go": "#office/aurora/how" },
+  { "wait": 1000 },
+  { "shot": "how" },
+  { "buttons": "main button, main a, .how button" },
+  { "text": true, "max": 1500 }
+]

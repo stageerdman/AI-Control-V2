@@ -1,0 +1,9 @@
+[
+  { "go": "#office/aurora/how" },
+  { "click": "role=button[name='Draw how we work']", "after": 1000 },
+  { "eval": "[...document.querySelector('select[aria-label=\"Who starts\"]').options].map(o=>o.value+'='+o.text)" },
+  { "select": ["select[aria-label='Who starts']", "a-pete"] },
+  { "wait": 800 },
+  { "shot": "start" },
+  { "eval": "[...document.querySelectorAll('[aria-label], select, button')].filter(e=>e.closest('[aria-label=\"Workflow drawing\"]')||e.tagName==='SELECT').map(e=>e.tagName+':'+(e.getAttribute('aria-label')||e.innerText).slice(0,80))" }
+]
