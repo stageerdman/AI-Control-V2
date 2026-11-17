@@ -418,3 +418,11 @@ With real agents on this project:
   `app/src/features/collab/flow/model.ts`, `office/api.ts` `saveWorkflows`, `cast/api.ts`; decisions become a
   `when` on a step/gate; error paths `workflows.N.steps.i` / `.gates.i` (422 and 409). `live-check-5b.mjs` checks the
   old shape. Not signed off until that lands.
+- 2026-11-17: **Server gaps for the editor (Uncle Bob).** Asked Jony: nothing on the server blocks him; the
+  remaining gap is his adapter to the new shape. His five asks, against the server: (1) steps/gates keep the sent
+  order — confirmed, test added; (2) paths per field (`first`, `final`, `steps.i.from|to`, `gates.i.…`; team
+  `workflow.…`) — already so; (3) **layout never blocks a save — fixed**: x/y rounded and clamped, unreadable points
+  and non-node keys dropped, no count limit (was a 422); (4) `PUT {workflow:null}` clears, GET → `{workflow:null}` —
+  confirmed (existing test), no DELETE route; (5) the director on a drawing → 409 on that arrow end — test added.
+  Elon's Phase 7 server gaps (2–4) were closed earlier (drawing in words, `set_workflow` keeps it, final signs
+  last). Server 828/828 green, typecheck clean.

@@ -64,13 +64,16 @@ describe('drawing shape', () => {
     expect(fails({ steps: [{ ...step('a-ann', 'a-bo'), when: 'x'.repeat(121) }] })).toBe(true);
   });
 
-  it('layout: at most 24 positions, x 0..1000, y 0..600', () => {
-    const many = (n: number) =>
-      Object.fromEntries(Array.from({ length: n }, (_, i) => [`a-${i}`, { x: 1, y: 1 }]));
-    expect(fails({ layout: many(24) })).toBe(false);
-    expect(fails({ layout: many(25) })).toBe(true);
-    expect(fails({ layout: { 'a-ann': { x: 1001, y: 0 } } })).toBe(true);
-    expect(fails({ layout: { 'a-ann': { x: 0, y: 601 } } })).toBe(true);
+  it('layout never fails a save: odd positions are clamped and rounded, unreadable ones dropped', () => {
+    const layoutOf = (layout: unknown) => WorkflowSchema.parse({ ...w, layout }).layout;
+    const many = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`a-${i}`, { x: 1, y: 1 }]));
+    expect(Object.keys(layoutOf(many) ?? {})).toHaveLength(40);
+    expect(layoutOf({ 'a-ann': { x: 1001.6, y: -5 }, 'a-bo': { x: 12.4, y: 900 } })).toEqual({
+      'a-ann': { x: 1000, y: 0 },
+      'a-bo': { x: 12, y: 600 },
+    });
+    expect(layoutOf({ 'a-ann': { x: 'left', y: 0 }, '': { x: 0, y: 0 }, 'a-bo': null })).toEqual({});
+    expect(fails({ layout: 'everywhere' })).toBe(true);
   });
 
   it('Gate.when is 1–120 characters', () => {

@@ -82,7 +82,8 @@ A workflow gains four optional fields; **gates stay the review arrows** (one sou
   "steps": [                                 // ≤ 12 hand-offs that aren't reviews
     { "from": "a-semic", "to": "a-pete", "why": "API first.", "when": "if it needs an endpoint" }
   ],                                         // from ≠ to, no pair twice, both ends on the project / team
-  "layout": { "a-pete": { "x": 10, "y": 20 } }, // ≤ 24; x 0..1000, y 0..600; non-node keys dropped on save
+  "layout": { "a-pete": { "x": 10, "y": 20 } }, // never fails a save: x/y rounded + clamped to 0..1000 / 0..600,
+                                             // unreadable points and non-node keys dropped quietly
   "gates": [{ "after": "a-pete", "reviewer": "a-scar", "kind": "quality", "why": "…", "when": "if it ships" }]
 }
 ```
@@ -91,6 +92,9 @@ A workflow gains four optional fields; **gates stay the review arrows** (one sou
 - **Read-only on every read:** `scope` (`office` | `team` | `temporary`) and `teamId` (team only). A PUT ignores them.
 - **Errors:** shape → 422, rules → 409; both carry `error.details = [{path, message}]`, paths from the body
   (`workflows.0.steps.0.to`, `workflow.gates.0.reviewer`). A 409's `error.message` is the first issue.
+- Steps and gates come back in the order sent (never sorted or de-duped: a pair twice is a 409 on the later row),
+  so the editor can pin problems by index. Team paths start `workflow.` (e.g. `workflow.steps.1.to`).
+- The director is not on a project's drawing: naming them is a 409 on that end (`workflows.0.steps.0.from`).
 - The director's `set_workflow` keeps a workflow's drawing when it changes one (it only knows gates).
 
 | Kind | Read | Save (whole) | Who may stand on a node |
