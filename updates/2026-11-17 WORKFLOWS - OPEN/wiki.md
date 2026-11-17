@@ -64,3 +64,46 @@
   or make <Lead> and <Crew> a team.` + ` Signed by A, B.` when anyone signed.
 - any other done goal with sign-offs: `'<goal>' is done. Signed by A, B.`
 - anything else: no line.
+
+**The goal's `workflow` tag** also carries `crew: [ids]` when `temporary` is true (the office ring needs lead + crew).
+
+## Graphs (as built) — the visual editor saves and reloads these
+
+Three kinds of workflow can be drawn: **office** (one of the project's workflows), **team** (a team's own, in the
+Cast; checks that team's work on every project it joins) and **temporary** (a running goal someone leads). Same
+shape for all three (`server/src/domain/graph.ts`):
+
+```jsonc
+{
+  "nodes": [                                   // 1–16; one agent may sit on several nodes
+    { "id": "build", "type": "agent", "agent": "a-pete", "x": 0, "y": -40 },      // x/y: integer px, negatives OK
+    { "id": "ok", "type": "decision", "question": "Ready to ship?", "x": 200, "y": 0 }
+  ],
+  "start": "build", "end": "ship",             // explicit; both must be agent nodes
+  "edges": [                                   // 0–32
+    { "id": "e1", "from": "build", "to": "ok", "why": "hand it over", "signoff": "quality" /* optional gate kind */ },
+    { "id": "e2", "from": "ok", "to": "ship", "branch": "yes" }          // leaving a decision: branch required, why may be empty
+  ]
+}
+```
+
+- No waypoints, labels or colours (strict: unknown keys are a 422). Ids are slugs (`a-z0-9-`, ≤ 40).
+- **An arrow with `signoff` is a review gate**: `to` signs off `from`'s work. The workflow's `gates` are derived from
+  these arrows on save (one per agent pair + kind) — never send gates alongside a graph and expect them kept.
+- **Errors**: 422 with `error.details = [{path, message}]` — every problem at once, so the editor can mark them all.
+  Paths are relative to the request body (e.g. `workflows.0.graph.edges.1.to`, `graph.nodes.2.agent`, `nodes.0`).
+  Checked: duplicate ids, start/end exist and are agents, arrow ends exist, no self-arrows, `why` on non-decision
+  arrows, branches only (and always) out of decisions, ≥ 2 distinct branches per decision, every node reachable from
+  start, sign-offs only agent→agent and never by the same agent, ≤ 8 distinct sign-offs, and who may stand on a node.
+
+**Endpoints**
+
+| Kind | Read | Save (whole) | Who may stand on a node |
+|---|---|---|---|
+| office | `GET /projects/:id/workflows` (each may have `graph`) | `PUT /projects/:id/workflows` `{workflows: [{…, graph}]}` | on the project |
+| team | `GET /teams/:id/workflow` → `{workflow: {name, summary, graph, gates} \| null}` | `PUT` `{name, summary?, graph}`; `DELETE` clears | the team's members |
+| temporary | the goal's `workflow.graph` in `GET /projects/:id/work` | `PUT /projects/:id/work/:goalId/workflow/graph` (the graph itself) → the goal | the lead or the crew |
+
+- Temporary: 409 unless the goal is running under a lead. Saving regates the tasks not started yet (a
+  `workflow.changed` event follows); the lead's own sign-offs on crew work always stay.
+- No event on a team workflow save (nobody needed it yet) — the Cast refetches after its own PUT.
