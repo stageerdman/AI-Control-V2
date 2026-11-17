@@ -35,6 +35,8 @@ export type GoalEdit = {
   text?: string;
   summary?: string;
   status?: 'running' | 'done' | 'cancelled';
+  /** Switch the workflow it runs under (a stable id, or a temporary lead + crew). */
+  workflow?: WorkflowAsk;
   force?: boolean;
 };
 export type CleanWhich = 'finished' | 'stopped' | 'all';
@@ -200,6 +202,27 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       .map(([k]) => k)
       .join(', ');
 
+  /** Not started yet: still in build, never built, not a team member's sub-task. */
+  const untouched = (i: ChecklistItem) =>
+    i.status === 'todo' && i.stage === 'build' && !i.buildRunId && !i.parentId;
+
+  /** Switch a goal's workflow mid-way: its untouched tasks take the new checks; running or reviewed work keeps
+      the ones it started with. → the line that says so. */
+  function switchWorkflow(projectId: string, g: Goal, ask: WorkflowAsk): string {
+    const w = chooseWorkflow(projectId, ask, g.text);
+    const regated = g.items.filter(untouched);
+    store.tx(() => {
+      work.setGoalWorkflow(g.id, w);
+      for (const it of regated)
+        work.editItem(it.id, {
+          gates: port.gatesOf(projectId, { agentId: it.agentId, teamId: it.teamId }, w),
+        });
+    });
+    port.workflowChanged(projectId, g.id, regated.length);
+    const kept = g.items.length - regated.length;
+    return `Now runs under '${w.name}': ${regated.length} task(s) not started yet take its checks${kept ? `; ${kept} started or finished keep theirs` : ''}.`;
+  }
+
   /** A new goal on the board, announced (so dispatch starts it) → the goal and the line that says so. */
   function putGoal(projectId: string, by: string, a: NewGoal, direct = false): { goal: Goal; text: string } {
     const p = store.projects.require(projectId);
@@ -243,6 +266,9 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     /** A change to how the board's work runs (its workflows), in the board's history. */
     note: (projectId: string, by: string, summary: string) =>
       history.record(projectId, by, 'workflow', summary),
+
+    /** The workflow this goal runs under (refused: not a goal of this project). */
+    workflowOfGoal: (projectId: string, id: string): Workflow => port.workflowOf(goalOf(projectId, id)),
 
     addGoal: (projectId: string, by: string, a: NewGoal): string => putGoal(projectId, by, a).text,
     /** The user's own goal for one person they picked (from that person's chat): any seat on the project. */
@@ -291,11 +317,13 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
 
     async editGoal(projectId: string, by: string, id: string, e: GoalEdit): Promise<string> {
       const g = goalOf(projectId, id);
+      /* first: a workflow that can't be had refuses the whole edit */
+      const switched = e.workflow !== undefined ? switchWorkflow(projectId, g, e.workflow) : '';
       work.editGoal(id, {
         ...(e.text?.trim() ? { text: e.text.trim() } : {}),
         ...(e.summary?.trim() ? { summary: e.summary.trim() } : {}),
       });
-      let lead = 'Goal updated.';
+      let lead = switched ? '' : 'Goal updated.';
       if (e.status === 'running') {
         for (const it of g.items)
           if (it.status === 'failed' || it.status === 'cancelled') port.reopen(it.id, false);
@@ -311,7 +339,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         lead = `${stopped}Goal marked ${e.status}.`;
       }
       history.record(projectId, by, 'edit', `Edited goal '${g.text}' (${changed(e)})`);
-      return reply(projectId, [id], lead);
+      return reply(projectId, [id], [switched, lead].filter(Boolean).join(' '));
     },
 
     async editTask(projectId: string, by: string, id: string, e: TaskEdit): Promise<string> {

@@ -14,6 +14,7 @@ const item = (over: Partial<ChecklistItem> = {}): ChecklistItem =>
     stage: 'build',
     gates: [],
     gateIndex: 0,
+    reviews: [],
     teamPhase: null,
     subtasks: [],
     note: null,
@@ -35,6 +36,9 @@ describe('presentTask: each task carries its people', () => {
       gates: [{ reviewer: 'rev', kind: 'review', why: '' }] as ChecklistItem['gates'],
     });
     expect(presentTask(it, find).workingNow.map((p) => p.id)).toEqual(['rev']);
+    expect(presentTask(it, find).signoffs).toEqual([
+      { reviewer: { id: 'rev', name: 'Name of rev', look: LOOK }, kind: 'review', state: 'pending' },
+    ]);
   });
 
   it('a split team item: the members on running parts (once each), and the parts carry their own people', () => {

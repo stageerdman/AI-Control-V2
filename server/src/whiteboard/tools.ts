@@ -160,9 +160,9 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
     },
     {
       name: 'edit_goal',
-      can: 'change a goal’s wording or plan, continue it (running) or stop it (cancelled)',
+      can: 'change a goal’s wording, plan or workflow, continue it (running) or stop it (cancelled)',
       description:
-        'Change a goal: its text or plan, or its status (running = continue its unfinished tasks; done or cancelled = stop what is left).',
+        'Change a goal: its text or plan, its workflow (tasks not started yet take the new checks; started ones keep theirs), or its status (running = continue its unfinished tasks; done or cancelled = stop what is left).',
       inputSchema: {
         type: 'object',
         properties: {
@@ -170,16 +170,19 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
           text: { type: 'string' },
           summary: { type: 'string' },
           status: { type: 'string', enum: ['running', 'done', 'cancelled'] },
+          workflow: WORKFLOW_PROP,
           force: FORCE,
         },
         required: ['goal'],
       },
       run: async (a) => {
         const status = oneOf(a, 'status', ['running', 'done', 'cancelled'] as const);
+        const workflow = workflowAsk(a);
         return board.editGoal(projectId, by, need(a, 'goal'), {
           ...(str(a, 'text') ? { text: str(a, 'text') } : {}),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),
           ...(status ? { status } : {}),
+          ...(workflow ? { workflow } : {}),
           force: bool(a, 'force') === true,
         });
       },

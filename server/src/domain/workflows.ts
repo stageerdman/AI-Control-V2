@@ -222,6 +222,13 @@ export function effectiveGates(
   return [...w.gates, ...signoffs];
 }
 
+/** Pure: a goal's workflow kept as a stable one — no lead or crew; a temporary lead's sign-offs written out as
+    plain gates, so the same people keep checking the same work. */
+export function stableCopy(w: Workflow, keep: { id: string; name: string; when: string }): Workflow {
+  const { lead: _lead, crew: _crew, ...rest } = w;
+  return { ...rest, ...keep, gates: effectiveGates(w) };
+}
+
 /** A temporary workflow as it is asked for (Phase 3): someone leads a small crew on this goal only. */
 export const TempAskSchema = z.strictObject({
   lead: ref,
@@ -292,6 +299,40 @@ export function resolvePlaceholders<T extends Collaboration & Partial<Pick<Workf
     ...(c.crew !== undefined ? { crew: c.crew.map(fix) } : {}),
   };
 }
+
+/** One reviewer's sign-off on one task, as the sign-off strip shows it. */
+export type Signoff = { reviewer: string; kind: GateKind; state: 'pending' | 'signed' | 'sent-back' };
+type Reviewed = {
+  gates: readonly ItemGate[];
+  gateIndex: number;
+  reviews: readonly { reviewer: string; gate: GateKind; verdict: 'approve' | 'changes' }[];
+};
+
+/** Pure: each gate of a task — passed gates (before `gateIndex`) are signed; the current one was sent back if
+    its reviewer's last verdict there asked for changes; the rest wait. No extra runs: it reads recorded reviews. */
+export function signoffs(item: Reviewed): Signoff[] {
+  return item.gates.map((g, i) => {
+    const last = item.reviews.findLast((r) => r.reviewer === g.reviewer && r.gate === g.kind);
+    const state =
+      i < item.gateIndex
+        ? 'signed'
+        : i === item.gateIndex && last?.verdict === 'changes'
+          ? 'sent-back'
+          : 'pending';
+    return { reviewer: g.reviewer, kind: g.kind, state };
+  });
+}
+
+/** Pure: everyone who signed off some task of the goal, once each, in task order. */
+export const signedBy = (goal: { items: readonly Reviewed[] }): string[] => [
+  ...new Set(
+    goal.items.flatMap((it) =>
+      signoffs(it)
+        .filter((s) => s.state === 'signed')
+        .map((s) => s.reviewer),
+    ),
+  ),
+];
 
 /** The review steps one build item goes through, in order. Self-review is skipped. */
 export type ItemGate = { reviewer: string; kind: GateKind; why: string };

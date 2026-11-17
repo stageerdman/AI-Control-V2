@@ -12,6 +12,7 @@ import { createCreator } from './crew/creator.ts';
 import { createCreatorChat, hireTool, proposeTool } from './crew/creator-chat.ts';
 import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
+import { settledLine } from './crew/settled.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import { createWorkflows } from './crew/workflows.ts';
@@ -359,6 +360,11 @@ export function buildApp({
           : { sender: 'agent', kind: 'error', text: `I couldn’t plan that: ${error ?? 'no plan'}` },
       );
     },
+    onSettled: (goal) => {
+      const orch = store.projects.get(goal.projectId)?.orchestratorId;
+      const text = settledLine(goal, agentName);
+      if (orch && text) threadsRef?.record(goal.projectId, orch, { sender: 'agent', text, goalId: goal.id });
+    },
   });
   dispatch.recover();
   /* RUNNING: stop one agent completely, or everything in a project (its queue first, so nothing new starts) */
@@ -462,7 +468,11 @@ export function buildApp({
           ...featureTools(features, store, projectId),
           ...actionTools(actions, projectId, directorId),
           ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
-          ...workflowTools({ workflows, store, note: board.note }, projectId, directorId),
+          ...workflowTools(
+            { workflows, store, note: board.note, goalWorkflow: board.workflowOfGoal },
+            projectId,
+            directorId,
+          ),
           ...questionTools({ store, runtime }, projectId),
           ...mail.directorTools(projectId, directorId),
           ...pagerTools(pager, projectId, directorId),

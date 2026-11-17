@@ -4,7 +4,7 @@
    Every change lands in the board's history (who changed how the work runs). */
 import type { WorkflowsService } from '../crew/workflows.ts';
 import type { Store } from '../db/store.ts';
-import { GATE_KINDS, type Workflow } from '../domain/workflows.ts';
+import { GATE_KINDS, stableCopy, type Workflow } from '../domain/workflows.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { workflowRefs } from './workflow-refs.ts';
@@ -14,6 +14,8 @@ export type WorkflowToolDeps = {
   store: Store;
   /** Records a change in the board's history. */
   note: (projectId: string, by: string, summary: string) => void;
+  /** The workflow a goal of this project runs under (refused: no such goal). */
+  goalWorkflow: (projectId: string, goalId: string) => Workflow;
 };
 
 type Args = Record<string, unknown>;
@@ -64,6 +66,25 @@ export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string
     const list = d.workflows.put(projectId, w, { first: a.first === true });
     d.note(projectId, by, `${replaced ? 'Changed' : 'Added'} workflow '${w.name}'`);
     return `${replaced ? 'Changed' : 'Added'} '${w.name}'. Workflows now:\n${listText(list)}`;
+  }
+
+  /** Keep a goal's way of working (a temporary crew that went well) as one of the project's workflows. */
+  function saveWorkflow(a: Args): string {
+    const goal = str(a, 'goal');
+    const given = str(a, 'name');
+    if (!goal || !given) throw invalid('"goal" and "name" are required.');
+    const id = slug(given);
+    if (!id) throw invalid('"name": use some letters or digits.');
+    if (d.workflows.list(projectId).workflows.some((w) => w.id === id))
+      throw invalid(`A workflow '${id}' exists already — pick another name, or change it with set_workflow.`);
+    const w = stableCopy(d.goalWorkflow(projectId, goal), {
+      id,
+      name: given,
+      when: str(a, 'when') || 'everything',
+    });
+    const list = d.workflows.put(projectId, w, { first: false });
+    d.note(projectId, by, `Saved workflow '${w.name}' from a goal`);
+    return `Saved '${w.name}'. Workflows now:\n${listText(list)}`;
   }
 
   function removeWorkflow(a: Args): string {
@@ -133,6 +154,22 @@ export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string
         required: ['name', 'when', 'gates', 'summary'],
       },
       run: async (a) => setWorkflow(a),
+    },
+    {
+      name: 'save_workflow',
+      can: "keep a goal's way of working as one of the project's workflows",
+      description:
+        'Save the workflow a goal ran under as a stable workflow of the project: its checks stay, a temporary lead’s sign-offs of the crew become plain checks, the lead and crew themselves do not. To make the lead and crew a real team instead, use rebuild_teams.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          goal: { type: 'string', description: 'The goal id (see whiteboard).' },
+          name: { type: 'string', description: 'Short name, e.g. "Lead and builder".' },
+          when: { type: 'string', description: 'The kind of goal it is for.' },
+        },
+        required: ['goal', 'name', 'when'],
+      },
+      run: async (a) => saveWorkflow(a),
     },
     {
       name: 'remove_workflow',

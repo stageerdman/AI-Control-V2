@@ -195,6 +195,8 @@ export function createDispatch(deps: {
   sandbox?: string;
   /** The orchestrator planned a goal (or failed to): the office thread records it (src/office/threads.ts). */
   onPlanned?: (e: { projectId: string; goalText: string; goal: Goal | null; error?: string }) => void;
+  /** A goal settled (done, failed or cancelled): the office thread may say so (src/crew/settled.ts). */
+  onSettled?: (goal: Goal) => void;
   /** The features folder (F1c): goals link to a feature, which ships when the goal lands. Absent → no linking. */
   features?: Features;
   /** A filed report (F3): later items of the goal get what an earlier report item found. Absent → title only. */
@@ -296,6 +298,10 @@ export function createDispatch(deps: {
     work.setGoalStatus(g.id, status);
     emit(g.projectId, { type: 'goal.changed', payload: { goalId: g.id, status } });
     featureFollows(g, status);
+    const { lead, crew = [] } = g.workflow ?? {};
+    /* no cleanup: a lead's powers come from running goals, so they end here by themselves */
+    if (lead) emit(g.projectId, { type: 'workflow.ended', payload: { goalId: g.id, lead, crew, status } });
+    deps.onSettled?.({ ...g, status });
   }
 
   /** The goal's feature follows it (F1c): its % while the goal runs; shipped once the goal landed whole and no
@@ -1164,6 +1170,15 @@ export function createDispatch(deps: {
     gatesOf,
     workflowOf,
     linkFeature,
+    /** A goal switched workflow; `regated` of its tasks took the new checks. */
+    workflowChanged(projectId: string, goalId: string, regated: number) {
+      const g = work.goal(goalId);
+      if (g)
+        emit(projectId, {
+          type: 'workflow.changed',
+          payload: { goalId, regated, ...workflowTag(workflowOf(g)) },
+        });
+    },
     /** Stops these items and resolves once none of them is running any more. */
     async stopItems(projectId: string, ids: string[]): Promise<void> {
       const list = ids.map((id) => work.item(id)).filter((i): i is ChecklistItem => !!i);
