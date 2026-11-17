@@ -7,7 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../characters', () => ({ Hero: () => null }));
 
-import { ApiError, type ApiErrorCode } from '../../../api';
+import { ApiError } from '../../../api';
+
+type ApiErrorCode = ConstructorParameters<typeof ApiError>[1];
 import type { Graph } from './model';
 import { WorkflowEditor } from './WorkflowEditor';
 

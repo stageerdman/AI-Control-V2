@@ -368,16 +368,16 @@ function Office({
     }),
     [agentsById, office],
   );
-  /** Who can stand on a workflow drawing: everyone on the project (the director, teams, solo, guests). */
+  /** Who can stand on a workflow drawing: the people on the project (teams, solo, guests) — not the
+      director, who briefs the work but isn't a step in it (the server refuses them). */
   const onProject = useMemo<Person[]>(() => {
     const ids = [
-      office.director,
       ...office.teams.flatMap((t) => t.members),
       ...office.solo,
       ...(office.guests ?? []).map((g) => g.agentId),
     ];
     return [...new Set(ids)]
-      .filter((a) => agentsById[a])
+      .filter((a) => agentsById[a] && a !== office.director)
       .map((a) => ({ id: a, name: shortOf(agentsById[a]), look: agentsById[a].look }));
   }, [agentsById, office]);
 

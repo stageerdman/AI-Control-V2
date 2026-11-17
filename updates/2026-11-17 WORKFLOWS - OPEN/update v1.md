@@ -393,3 +393,13 @@ With real agents on this project:
   editor on screen (Jony); (2) start, final, hand-offs and decisions reach nobody at run time — the planner and tasks
   should get the drawing in words (Uncle Bob); (3) `set_workflow` on a drawn workflow silently erases the drawing
   (Uncle Bob). Re-check with `live-check.mjs` + the editor once those land.
+- 2026-11-17: **Phase 5b editor on screen (Jony)** — gap (1). `app/src/features/collab/flow/` (model, canvas,
+  arrow list, sheet). Office: How we work → "Draw it" / "Open drawing" under each way (no drawing yet = seeded from
+  its agent gates, with a line on what saving replaces); running goals with a temporary way → "View drawing",
+  read-only ("Temporary: ask <director> to change it."). Cast: a team panel → "How this team works" → Draw it /
+  Open drawing (`PUT /teams/:id/workflow`). Keyboard: Tab to a face, arrow keys move it (Shift = bigger), Enter
+  selects, "Connect to…" then Enter on the other node opens the arrow form; the arrow list under the canvas is the
+  screen-reader path and where 422 problems are pinned (by arrow; node problems ring the node). The director isn't
+  offered (the server refuses them as "not on this project" — found in the live run). Checked live:
+  `live-check-5b.mjs` (drawings built by the editor's model, sent as the screens send them: all ok).
+  Not built: team DELETE (no button; drawing stays until replaced).

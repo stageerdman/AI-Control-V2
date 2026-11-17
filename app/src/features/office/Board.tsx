@@ -359,7 +359,7 @@ function HowWeWork({ pid, dir, resolve, people }: BoardProps) {
   const temps = (useWork(pid).data ?? []).filter((g) => g.status === 'running' && g.workflow?.temporary);
   /** The drawing open in the sheet: a stable workflow (by id) or a running goal's temporary one. */
   const [open, setOpen] = useState<{ wf: string } | { goal: string } | null>(null);
-  const isAgent = (a: string) => !!resolve.agent(a);
+  const isAgent = (a: string) => people.some((x) => x.id === a);
   const openWf = open && 'wf' in open ? wfs.find((w) => w.id === open.wf) : undefined;
   const openGoal = open && 'goal' in open ? temps.find((g) => g.id === open.goal) : undefined;
   const seed = openWf && !openWf.graph ? seedFromGates(openWf.gates, isAgent) : null;
