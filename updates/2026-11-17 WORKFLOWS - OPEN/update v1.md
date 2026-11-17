@@ -334,3 +334,13 @@ With real agents on this project:
   Phase 6 optional, Phase 7 after 5.
 - 2026-11-17: Phases 1–4 built (Uncle Bob, b630d05, 803 tests green). Phase 5 next (Jony) — the API as built is in
   `wiki.md` → "Phase 5 API".
+- 2026-11-17: **Signed off by Elon (Phases 1–4, server).** Checked the build against this design at 5d8f8f0:
+  804/804 server tests green, typecheck clean, every changed file lint-clean (the 9 lint errors in `npm run lint`
+  are in older test files this work never touched). Every test the roadmap asks for in Phases 1–4 exists. End to
+  end through the app (fake runner, real HTTP + agent tools): a stable goal takes its workflow's gates and keeps
+  them when the project's list changes; a temporary goal gives the lead contact, approval, stop/tell and
+  on-goal crew tasks gated by the lead; the goal ends, the powers go, `workflow.ended` fires once, Pixel offers
+  to keep it, `save_workflow` writes the lead's sign-offs out as plain gates. Two choices in the build that I
+  accept: the room looks up a run's goal at call time (`goalOfRun`), and a lead's review run counts as on the
+  goal, so a fix asked for while signing off stays on the goal. **Still open:** Phase 5 (screens, Jony),
+  Phase 7 (live check). Phase 6 waits for Phase 7.
