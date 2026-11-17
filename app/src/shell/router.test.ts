@@ -18,6 +18,8 @@ const cases: [string, Route][] = [
   ['#office/aurora/health', { name: 'office', projectId: 'aurora', sub: 'health' }],
   ['#office/aurora/features', { name: 'office', projectId: 'aurora', sub: 'features' }],
   ['#office/aurora/how', { name: 'office', projectId: 'aurora', sub: 'how' }],
+  ['#office/aurora/how/wf-2', { name: 'office', projectId: 'aurora', sub: 'how', id: 'wf-2' }],
+  ['#office/aurora/how/goal-g1', { name: 'office', projectId: 'aurora', sub: 'how', id: 'goal-g1' }],
   ['#office/aurora/feature/f-2', { name: 'office', projectId: 'aurora', sub: 'feature', id: 'f-2' }],
   ['#office/aurora/reports', { name: 'office', projectId: 'aurora', sub: 'reports' }],
   ['#office/aurora/report/r-7', { name: 'office', projectId: 'aurora', sub: 'report', id: 'r-7' }],

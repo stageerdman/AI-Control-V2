@@ -2,7 +2,7 @@
    useRoute() re-renders on hashchange; go() navigates.
      #projects · #cast · #cast/teams · #cast/agent/:id · #cast/teams/:id · #access · #blueprint
      #cast/agent/tinker[/:sid]   (design a new agent with Tinker; :sid once the chat exists)
-     #new[/:draftId] · #office/:projectId[/board|how|health|features|feature/:id|reports|report/:id]
+     #new[/:draftId] · #office/:projectId[/board|how[/:wayId|goal-:goalId]|health|features|feature/:id|reports|report/:id]
      #gallery[/:section]   (dev: every pose / look / emblem)
    Anything unknown lands on #projects. */
 import { useMemo, useSyncExternalStore } from 'react';
@@ -69,7 +69,7 @@ export function parseRoute(hash: string): Route {
     case 'office': {
       if (!a) return { name: 'projects' };
       if (!b) return { name: 'office', projectId: a, sub: 'room' };
-      if ((b === 'feature' || b === 'report') && parts[3])
+      if ((b === 'feature' || b === 'report' || b === 'how') && parts[3])
         return { name: 'office', projectId: a, sub: b, id: parts[3] };
       if (b === 'board' || b === 'how' || b === 'health' || b === 'features' || b === 'reports')
         return { name: 'office', projectId: a, sub: b };
@@ -104,6 +104,7 @@ export function formatRoute(r: Route): string {
       if (r.sub === 'room') return base;
       if (r.sub === 'feature' || r.sub === 'report')
         return r.id ? `${base}/${r.sub}/${enc(r.id)}` : `${base}/${r.sub}s`;
+      if (r.sub === 'how' && r.id) return `${base}/how/${enc(r.id)}`;
       return `${base}/${r.sub}`;
     }
     case 'gallery':

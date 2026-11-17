@@ -1,7 +1,7 @@
 /* The things you can zoom into (prototype office-board.js, spec-office §4) — on the real backend:
      board     whiteboard: the project's % (to its target), features in progress, the task list (stage
                per row: in review / sent back / merging), "How we work →"
-     how       How we work: the orchestrator's collaboration design + ask it to change it
+     how       How we work (HowWeWork.tsx): the way, drawn; edit it in place, or ask the director
      health    health board: the latest report (A–F + good / to fix), the repo + GitHub, "Run health check"
      features  features folder: Now / Planned / Shipped (identical rows) + add
      feature   one feature: name, status, Description + Vision as plain text blocks, save / delete
@@ -19,25 +19,16 @@ import {
   studio,
   useMutation,
   useQuery,
-  type Workflow,
   type WorkflowsView,
 } from '../../api';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
-import {
-  FlowSheet,
-  type Graph,
-  isDrawn,
-  type Person,
-  type Resolve,
-  toGraph,
-  WorkDesign,
-  withDrawing,
-} from '../collab';
+import { type Person, type Resolve, WayThumb } from '../collab';
 import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
 import { GithubRow } from './GithubRow';
+import { HowWeWork } from './HowWeWork';
 import { Glyph, QuestBoard } from './QuestBoard';
 import { ASPECTS, appView, boardProgress } from './state';
 import { ago } from './time';
@@ -181,8 +172,7 @@ export function Board(p: BoardProps) {
       );
     case 'how':
       return (
-        <ZoomCard key={k} kind="how" label="How we work" fresh={fresh}>
-          <Back label="Whiteboard" aria="Back to the whiteboard" onClick={() => p.go('board')} />
+        <ZoomCard key="how" kind="how" label="How we work" fresh={fresh}>
           <HowWeWork {...p} />
         </ZoomCard>
       );
@@ -245,9 +235,11 @@ export const useHealth = (pid: string) =>
   useQuery<ProjectHealth>(keys.health(pid), () => studio.projects.health(pid));
 
 /** The Quest Board (QuestBoard.tsx): header with the project's compact ring, then Main / Side Quests. */
-function Whiteboard({ pid, dir, go, nameOf, resolve }: BoardProps) {
+function Whiteboard({ pid, dir, go, nameOf, resolve, people }: BoardProps) {
   const work = useWork(pid);
   const workflows = useWorkflows(pid);
+  const usual = workflows.data?.workflows[0];
+  const words = usual?.inWords || usual?.summary;
   const features = useFeatures(pid);
   const progress = useProgress(pid);
   const goals = work.data ?? [];
@@ -289,6 +281,15 @@ function Whiteboard({ pid, dir, go, nameOf, resolve }: BoardProps) {
             <small>%</small>
           </b>
         </div>
+        <button
+          type="button"
+          className="qb-way"
+          aria-label={words ? `How we work: ${words}` : 'How we work'}
+          onClick={() => go('how')}
+        >
+          <WayThumb way={usual} people={people} size="sm" loading={workflows.loading && !workflows.data} />
+          How we work
+        </button>
       </header>
       <QuestBoard
         pid={pid}
@@ -298,11 +299,8 @@ function Whiteboard({ pid, dir, go, nameOf, resolve }: BoardProps) {
         go={go}
         nameOf={nameOf}
         who={resolve.agent}
-        defaultWorkflowId={workflows.data?.workflows[0]?.id}
+        defaultWorkflowId={usual?.id}
       />
-      <button type="button" className="ob-back ob-how" onClick={() => go('how')}>
-        How we work →
-      </button>
     </div>
   );
 }
@@ -358,164 +356,6 @@ function TargetEdit({ pid, target }: { pid: string; target: string | null }) {
         }
       }}
     />
-  );
-}
-
-/* ------------------------------------------------------------ how we work */
-function HowWeWork({ pid, dir, resolve, people }: BoardProps) {
-  const q = useQuery(keys.collaboration(pid), () => officeApi.collaboration(pid));
-  const wfs = useWorkflows(pid).data?.workflows ?? [];
-  const temps = (useWork(pid).data ?? []).filter((g) => g.status === 'running' && g.workflow?.temporary);
-  /** The drawing open in the sheet: a stable workflow (by id) or a running goal's temporary one. */
-  const [open, setOpen] = useState<{ wf: string } | { goal: string } | null>(null);
-  const openWf = open && 'wf' in open ? wfs.find((w) => w.id === open.wf) : undefined;
-  const openGoal = open && 'goal' in open ? temps.find((g) => g.id === open.goal) : undefined;
-  const saveDrawing = async (id: string, graph: Graph) => {
-    const list: Workflow[] = wfs.map((w) => (w.id === id ? withDrawing(w, graph) : w));
-    const r = await officeApi.saveWorkflows(pid, list);
-    setQueryData(keys.workflows(pid), r);
-    void invalidate(keys.collaboration(pid));
-  };
-  /* a way's plain gates are already a drawing (its sign-off arrows); "Draw it" until it's placed by hand */
-  const drawLink = (w: Workflow) => (
-    <button
-      type="button"
-      className="ob-target wf-draw"
-      aria-label={`${isDrawn(w) ? 'Open the drawing' : 'Draw it'}: ${w.name}`}
-      onClick={() => setOpen({ wf: w.id })}
-    >
-      {isDrawn(w) ? 'Open drawing' : 'Draw it'}
-    </button>
-  );
-  const [ask, setAsk] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [reply, setReply] = useState<{ text: string; err?: boolean } | null>(null);
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const v = ask.trim();
-    if (!v || busy) return;
-    setBusy(true);
-    setReply(null);
-    try {
-      const r = await officeApi.designCollaboration(pid, v);
-      setQueryData(keys.collaboration(pid), { collaboration: r.collaboration, designed: true });
-      void invalidate(keys.workflows(pid));
-      setAsk('');
-      setReply({ text: r.reply });
-    } catch (err) {
-      setReply({ text: isApiError(err) ? err.message : 'That didn’t reach the orchestrator.', err: true });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="ob-how-card">
-      <h2 className="ob-h">How we work</h2>
-      {q.error && !q.data ? (
-        <p className="ob-empty">Couldn’t load how this project works.</p>
-      ) : !q.data ? (
-        <p className="ob-empty">…</p>
-      ) : (
-        <WorkDesign
-          collab={q.data.collaboration}
-          orch={dir}
-          resolve={resolve}
-          title={wfs.length > 1 ? 'Usually' : 'Right now'}
-        />
-      )}
-      {wfs[0] && drawLink(wfs[0])}
-      {wfs.length > 1 && (
-        <div className="wf-list">
-          {wfs.slice(1).map((w) => (
-            <div key={w.id}>
-              <WorkDesign collab={w} orch={dir} resolve={resolve} title={w.name} when={w.when} />
-              {drawLink(w)}
-            </div>
-          ))}
-        </div>
-      )}
-      {temps.length > 0 && (
-        <div className="wf-temps">
-          <h3 className="wf-temps-h">Just for one goal</h3>
-          <ul>
-            {temps.map((g) => (
-              <li key={g.id}>
-                <span>{g.workflow?.name ?? g.text}</span>
-                <button
-                  type="button"
-                  className="ob-target wf-draw"
-                  aria-label={`View the drawing: ${g.workflow?.name ?? g.text}`}
-                  onClick={() => setOpen({ goal: g.id })}
-                >
-                  View drawing
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {openWf && (
-        <FlowSheet
-          open
-          onClose={() => setOpen(null)}
-          title={openWf.name}
-          sub={openWf.when || undefined}
-          graph={toGraph(openWf)}
-          people={people}
-          issuePrefix={`workflows.${wfs.indexOf(openWf)}`}
-          note="The sign-off arrows are this way’s checks."
-          onSave={(g) => saveDrawing(openWf.id, g)}
-        />
-      )}
-      {openGoal?.workflow && (
-        <FlowSheet
-          open
-          onClose={() => setOpen(null)}
-          title={openGoal.workflow.name}
-          sub={openGoal.text}
-          graph={toGraph({ gates: [], ...openGoal.workflow })}
-          people={[
-            ...people,
-            ...[openGoal.workflow.lead ?? '', ...(openGoal.workflow.crew ?? [])].flatMap((a) => {
-              const w = a && !people.some((x) => x.id === a) ? resolve.agent(a) : null;
-              return w ? [{ id: a, name: w.name, look: w.look }] : [];
-            }),
-          ]}
-          readOnly={`Temporary: ask ${dir} to change it.`}
-        />
-      )}
-      <form className="ob-how-ask" onSubmit={send}>
-        <input
-          value={ask}
-          onChange={(e) => setAsk(e.target.value)}
-          placeholder={`Ask ${dir} to change how we work…`}
-          aria-label={`Ask ${dir} to change how we work`}
-          maxLength={500}
-          disabled={busy}
-        />
-        <Button small variant="hero" type="submit" disabled={busy || !ask.trim()}>
-          Send
-        </Button>
-      </form>
-      <div className="op-log ob-how-log" aria-live="polite">
-        {busy && (
-          <div className="bubble them">
-            <span className="sr-only">{dir} is thinking</span>
-            <span className="typing" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-          </div>
-        )}
-        {reply && (
-          <div className={`bubble them${reply.err ? ' err' : ''}`}>
-            <span className="who">{dir}</span>
-            <span className="t">{reply.text}</span>
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 

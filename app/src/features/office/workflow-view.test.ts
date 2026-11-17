@@ -18,12 +18,16 @@ describe('chipOf', () => {
       name: 'Hotfix',
       temporary: false,
       lead: null,
+      way: 'w2',
     });
   });
-  it('a temporary one: dashed, with its lead — even before the list loads', () => {
+  it('a temporary one: dashed, with its lead — even before the list loads; opens as goal-<id>', () => {
     expect(
-      chipOf({ workflow: { id: 'temp', name: 'Elon leads', temporary: true, lead: 'a-elon' } }, undefined),
-    ).toEqual({ name: 'Elon leads', temporary: true, lead: 'a-elon' });
+      chipOf(
+        { id: 'g7', workflow: { id: 'temp', name: 'Elon leads', temporary: true, lead: 'a-elon' } },
+        undefined,
+      ),
+    ).toEqual({ name: 'Elon leads', temporary: true, lead: 'a-elon', way: 'goal-g7' });
   });
 });
 

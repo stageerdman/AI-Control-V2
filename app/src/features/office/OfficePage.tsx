@@ -480,6 +480,8 @@ function Office({
         case 'collaboration.changed':
         case 'workflows.changed':
           void invalidate(keys.collaboration(pid));
+          /* the Quest Board's thumb and How we work redraw */
+          void invalidate(keys.workflows(pid));
           break;
         case 'handoff':
           void invalidate(keys.work(pid));
@@ -652,6 +654,7 @@ function Office({
   const layerBack = useCallback(() => {
     if (sub === 'feature') goSub('features');
     else if (sub === 'report') goSub('reports');
+    else if (sub === 'how') goSub('board');
     else goSub('room');
   }, [sub, goSub]);
 

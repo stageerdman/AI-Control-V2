@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChecklistItem, Goal, Signoff } from '../../api';
 import { QuestBoard } from './QuestBoard';
@@ -87,16 +87,24 @@ describe('WorkflowChip', () => {
     expect(container.innerHTML).toBe('');
   });
   it('plain for another stable workflow', () => {
-    const { container } = render(<WorkflowChip chip={{ name: 'Hotfix', temporary: false, lead: null }} />);
+    const { container } = render(
+      <WorkflowChip chip={{ name: 'Hotfix', temporary: false, lead: null, way: 'w2' }} />,
+    );
     expect(container.querySelector('.wf-chip.temp')).toBeNull();
-    expect(screen.getByText('Workflow: Hotfix')).toBeTruthy();
+    expect(screen.getByText('Way: Hotfix')).toBeTruthy();
   });
   it('dashed with the lead’s face for a temporary one', () => {
     const { container } = render(
-      <WorkflowChip chip={{ name: 'Elon leads', temporary: true, lead: 'e' }} who={who} />,
+      <WorkflowChip chip={{ name: 'Elon leads', temporary: true, lead: 'e', way: 'goal-g' }} who={who} />,
     );
     expect(container.querySelector('.wf-chip.temp .wf-lead svg')).toBeTruthy();
-    expect(screen.getByText('Temporary workflow: Elon leads')).toBeTruthy();
+    expect(screen.getByText('Temporary way: Elon leads')).toBeTruthy();
+  });
+  it('with onOpen it is a button that opens its way', () => {
+    const open = vi.fn();
+    render(<WorkflowChip chip={{ name: 'Hotfix', temporary: false, lead: null, way: 'w2' }} onOpen={open} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open the way: Hotfix' }));
+    expect(open).toHaveBeenCalledWith('w2');
   });
 });
 
@@ -150,5 +158,30 @@ describe('Quest Board', () => {
     const c = board([side], 'w1');
     expect(c.querySelector('.qb-side .qb-who .wf-chip.temp')).toBeTruthy();
     expect(c.querySelector('.qb-side .so-line')?.textContent).toBe('Signed by Ava');
+  });
+
+  it('the chip opens How we work on its way: how/<id> for a stable one, how/goal-<id> for a temporary one', () => {
+    const go = vi.fn();
+    const hot = { id: 'w2', name: 'Hotfix', temporary: false };
+    render(
+      <QuestBoard
+        pid="p"
+        dir="Pixel"
+        goals={[
+          goal({ id: 'm', workflow: hot }),
+          goal({ id: 's', quest: 'side', text: 'Side', workflow: TEMP }),
+        ]}
+        features={[]}
+        go={go}
+        nameOf={nameOf}
+        who={who}
+        defaultWorkflowId="w1"
+        now={NOW}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open the way: Hotfix' }));
+    expect(go).toHaveBeenLastCalledWith('how', 'w2');
+    fireEvent.click(screen.getByRole('button', { name: 'Open the way: Elon leads' }));
+    expect(go).toHaveBeenLastCalledWith('how', 'goal-s');
   });
 });

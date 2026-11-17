@@ -5,15 +5,20 @@
      crewRings   the office's dashed rings: one per running goal under a temporary workflow */
 import type { Goal, Signoff, SignoffState, TaskPerson } from '../../api';
 
-export type WorkflowChipView = { name: string; temporary: boolean; lead: string | null };
+/** `way`: the id How we work opens on (`how/<way>`): the stable way's id, or `goal-<goalId>` for a temporary one. */
+export type WorkflowChipView = { name: string; temporary: boolean; lead: string | null; way: string };
 
 /** `defaultId`: the project's first workflow (undefined = not known yet → only temporary ones show). */
-export function chipOf(goal: Pick<Goal, 'workflow'>, defaultId: string | undefined): WorkflowChipView | null {
+export function chipOf(
+  goal: Pick<Goal, 'workflow'> & { id?: string },
+  defaultId: string | undefined,
+): WorkflowChipView | null {
   const w = goal.workflow;
   if (!w) return null;
-  if (w.temporary) return { name: w.name, temporary: true, lead: w.lead ?? null };
+  if (w.temporary)
+    return { name: w.name, temporary: true, lead: w.lead ?? null, way: `goal-${goal.id ?? ''}` };
   if (!defaultId || w.id === defaultId) return null;
-  return { name: w.name, temporary: false, lead: null };
+  return { name: w.name, temporary: false, lead: null, way: w.id };
 }
 
 export const MAX_FACES = 3;

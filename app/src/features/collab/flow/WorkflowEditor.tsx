@@ -224,7 +224,9 @@ export function WorkflowEditor(p: EditorProps) {
     const local = localIssues(out, nameOf);
     if (issueCount(local)) {
       setIssues(local);
-      say(`Not saved: ${issueCount(local)} problem${issueCount(local) === 1 ? '' : 's'} to fix, marked below.`);
+      say(
+        `Not saved: ${issueCount(local)} problem${issueCount(local) === 1 ? '' : 's'} to fix, marked below.`,
+      );
       focusFirstProblem(local);
       return false;
     }
@@ -311,6 +313,7 @@ export function WorkflowEditor(p: EditorProps) {
         <>
           {/* biome-ignore lint/a11y/noStaticElementInteractions: a click on empty canvas clears the selection */}
           {/* biome-ignore lint/a11y/useKeyWithClickEvents: Escape / the node buttons are the keyboard path */}
+          {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: the label is only set with role="img" (view mode) */}
           <div
             ref={canvasEl}
             className={`fe-canvas${connecting ? ' connecting' : ''}`}
@@ -531,51 +534,53 @@ export function WorkflowEditor(p: EditorProps) {
           )}
 
           <div className={p.listOpen === false ? 'sr-only' : undefined} data-testid="fe-arrows-list">
-          <h4 className="fe-h" id={`${uid}-list`}>
-            Arrows
-          </h4>
-          {!g.edges.length ? (
-            <p className="fe-none">{ro ? 'No arrows.' : 'No arrows yet. Select a card, then Connect to…'}</p>
-          ) : (
-            <ol className="fe-list" aria-labelledby={`${uid}-list`}>
-              {g.edges.map((e) => {
-                const errs = issues.edges[e.id];
-                return (
-                  <li key={e.id} className={errs ? 'bad' : undefined}>
-                    <span className={`fe-glyph${e.signoff ? ' signoff' : ''}`} aria-hidden="true">
-                      {e.signoff ? '✓' : '→'}
-                    </span>
-                    <span className="fe-words">{edgeWords(e, nameOf)}</span>
-                    {!ro && (
-                      <span className="fe-acts">
-                        {e.from !== ANY && (
-                          <button type="button" className="fe-link" onClick={() => setDraft({ ...e })}>
-                            Edit
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="fe-link danger"
-                          aria-label={`Remove: ${edgeWords(e, nameOf)}`}
-                          onClick={() => {
-                            change(removeEdge(g, e.id));
-                            say('Arrow removed.');
-                          }}
-                        >
-                          Remove
-                        </button>
+            <h4 className="fe-h" id={`${uid}-list`}>
+              Arrows
+            </h4>
+            {!g.edges.length ? (
+              <p className="fe-none">
+                {ro ? 'No arrows.' : 'No arrows yet. Select a card, then Connect to…'}
+              </p>
+            ) : (
+              <ol className="fe-list" aria-labelledby={`${uid}-list`}>
+                {g.edges.map((e) => {
+                  const errs = issues.edges[e.id];
+                  return (
+                    <li key={e.id} className={errs ? 'bad' : undefined}>
+                      <span className={`fe-glyph${e.signoff ? ' signoff' : ''}`} aria-hidden="true">
+                        {e.signoff ? '✓' : '→'}
                       </span>
-                    )}
-                    {errs && (
-                      <p className="fe-err" role="alert">
-                        {errs.join(' · ')}
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
+                      <span className="fe-words">{edgeWords(e, nameOf)}</span>
+                      {!ro && (
+                        <span className="fe-acts">
+                          {e.from !== ANY && (
+                            <button type="button" className="fe-link" onClick={() => setDraft({ ...e })}>
+                              Edit
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="fe-link danger"
+                            aria-label={`Remove: ${edgeWords(e, nameOf)}`}
+                            onClick={() => {
+                              change(removeEdge(g, e.id));
+                              say('Arrow removed.');
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </span>
+                      )}
+                      {errs && (
+                        <p className="fe-err" role="alert">
+                          {errs.join(' · ')}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </div>
         </>
       )}
@@ -734,7 +739,9 @@ function ArrowForm({
           autoFocus
           className="fe-in"
           maxLength={300}
-          placeholder={draft.signoff ? 'e.g. payments must not break' : 'e.g. the UI is ready, wire the endpoint'}
+          placeholder={
+            draft.signoff ? 'e.g. payments must not break' : 'e.g. the UI is ready, wire the endpoint'
+          }
           value={draft.why}
           onChange={(e) => set({ why: e.target.value })}
         />

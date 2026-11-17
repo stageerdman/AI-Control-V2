@@ -32,11 +32,11 @@ type Props = {
 };
 
 type Who = (id: string) => { name: string; look?: Look } | null;
-type Wf = { who?: Who; wid?: string };
+type Wf = { who?: Who; wid?: string; open?: (way: string) => void };
 
 export function QuestBoard({ pid, dir, goals, features, go, nameOf, who, defaultWorkflowId, now }: Props) {
   const b = questBoard(goals, features, now);
-  const wf: Wf = { who, wid: defaultWorkflowId };
+  const wf: Wf = { who, wid: defaultWorkflowId, open: (way) => go('how', way) };
   return (
     <>
       <section aria-labelledby="qbMain" className="qb-sec">
@@ -133,7 +133,7 @@ function MainCard({
             </span>
           )}
         </h4>
-        <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} />
+        <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} onOpen={wf.open} />
         {q.featureId && (
           <button type="button" className="qb-ships" onClick={() => go('feature', q.featureId ?? undefined)}>
             {q.ships ? 'Ships when done ›' : 'Part of this quest ›'}
@@ -219,7 +219,7 @@ function SideCard({ q, i, nameOf, wf }: { q: SideQuest; i: number; nameOf: Props
         ) : (
           <People v={v} />
         )}
-        {wf && <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} />}
+        {wf && <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} onOpen={wf.open} />}
       </div>
       {wf && <SignedLine text={signedLine(q.goal)} />}
     </li>

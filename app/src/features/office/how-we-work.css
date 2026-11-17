@@ -1,0 +1,144 @@
+/* How we work v2 (design/workflows/how-we-work.md): the drawing is the page */
+.hw-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hw-title .ob-h {
+  margin-right: auto;
+}
+.hw-saved {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--teal);
+}
+.hw-acts {
+  display: inline-flex;
+  gap: 8px;
+}
+.hw-ask-leave {
+  margin: 8px 0 0;
+}
+.hw-kicker {
+  margin: 2px 0 12px;
+  min-height: 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.hw-kicker b {
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 11.5px;
+}
+.hw-meanwhile {
+  margin: -6px 0 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+/* the canvas frame: the editor draws its own; a temporary way's is dashed */
+.hw-canvas.temp .fe-canvas {
+  box-shadow: none;
+  outline: 2px dashed var(--line);
+  outline-offset: -2px;
+}
+.hw-msg {
+  height: 360px;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 2px var(--line);
+  background: #fbf9ff;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+.hw-msg p {
+  margin: 0;
+  max-width: 40ch;
+}
+.hw-skel.hw-canvas {
+  height: 360px;
+  border-radius: 18px;
+  background: rgba(91, 82, 128, 0.08);
+}
+.hw-skel.hw-kicker {
+  width: 50%;
+  border-radius: 6px;
+  background: rgba(91, 82, 128, 0.08);
+}
+.hw-words {
+  margin: 12px 0 2px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.hw-list {
+  margin: 2px 0 0 -6px;
+}
+.hw-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  margin-top: 20px;
+}
+.hw-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.hw-gl {
+  display: block;
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+.hw-ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.hw-way {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 132px;
+  padding: 5px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.hw-way:hover {
+  background: rgba(91, 82, 128, 0.07);
+}
+.hw-way[aria-current="true"] .wt {
+  box-shadow: 0 0 0 2px var(--ink);
+  border-radius: 10px;
+}
+.hw-way:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 1px;
+}
+.hw-way-n {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+@media (max-width: 560px) {
+  .hw-msg,
+  .hw-skel.hw-canvas {
+    height: 260px;
+  }
+}

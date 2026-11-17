@@ -60,9 +60,38 @@
   font-size: 9px;
 }
 
-.qb .ob-how {
-  display: block;
-  margin-left: auto;
+/* v2: the way's live picture + "How we work", one button at the header's right end */
+.qb-head {
+  flex-wrap: wrap;
+}
+.qb-way {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 10px 4px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink);
+  cursor: pointer;
+  flex: none;
+}
+.qb-way:hover {
+  background: rgba(91, 82, 128, 0.07);
+}
+.qb-way:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 1px;
+}
+@media (max-width: 560px) {
+  .qb-way {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
 }
 .qb-sec {
   margin-bottom: 26px;

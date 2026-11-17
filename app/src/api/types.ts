@@ -101,10 +101,15 @@ export type Team = {
   /** Runs for this team file reports. */
   reporter: boolean;
   projectIds: string[];
+  /** The shape of the team's ready-made way (used while it has no drawing of its own). */
+  wayShape?: WayShape;
   createdAt: string;
   updatedAt: string;
 };
+/** 'captain' = the captain checks all; 'chain' = members pass it along, the captain signs last. */
+export type WayShape = 'captain' | 'chain';
 export type TeamCreate = {
+  wayShape?: WayShape;
   name: string;
   color?: string;
   emblem?: string;
@@ -191,6 +196,8 @@ export type Workflow = Collaboration & {
   /** Read-only: where it lives (a PUT ignores it). */
   scope?: 'office' | 'team' | 'temporary';
   teamId?: string;
+  /** Read-only: the way in one plain paragraph ("Uncle Bob starts. … Elon signs last."). */
+  inWords?: string;
 };
 /** A hand-off: `from` hands work to `to`, and why; `when` = a soft branch label. */
 export type Step = { from: string; to: string; why: string; when?: string };
