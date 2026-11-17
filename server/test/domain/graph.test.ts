@@ -20,6 +20,11 @@ describe('workflow graphs (pure)', () => {
     expect(graphIssues(graph(), anyone)).toEqual([]);
   });
 
+  it('a new drawing — one agent that is both start and end, no arrows — is valid', () => {
+    const g = GraphSchema.parse({ nodes: [agent('n-1', 'a-bob')], start: 'n-1', end: 'n-1' });
+    expect(graphIssues(g, anyone)).toEqual([]);
+  });
+
   it('schema: strict, integer coords, why defaults to empty', () => {
     expect(() => graph({ nodes: [{ ...agent('build', 'a-bob'), x: 1.5 }] })).toThrow();
     expect(() => graph({ colour: 'red' })).toThrow();
