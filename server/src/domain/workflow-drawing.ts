@@ -125,7 +125,9 @@ const sentence = (s: string) => (/[.!?…]$/.test(s) ? s : `${s}.`);
 export function drawingInWords(w: Drawn, name: (id: string) => string): string | null {
   const said = [
     ...(w.first ? [`${name(w.first)} starts.`] : []),
-    ...(w.steps ?? []).map((s) => `${name(s.from)} hands to ${name(s.to)}${onlyWhen(s.when)}: ${sentence(s.why)}`),
+    ...(w.steps ?? []).map(
+      (s) => `${name(s.from)} hands to ${name(s.to)}${onlyWhen(s.when)}: ${sentence(s.why)}`,
+    ),
     ...w.gates
       .filter((g) => g.when)
       .map(

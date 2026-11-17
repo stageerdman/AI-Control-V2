@@ -74,6 +74,7 @@ describe('workflows: goals run under a chosen stable workflow', () => {
     await say('Fix the typo, and build search');
     const quick = await goal('Fix the typo');
     expect(quick.workflow).toMatchObject({ id: 'quick-fix', name: 'Quick fix', temporary: false });
+    expect(quick.workflow).toMatchObject({ scope: 'office', inWords: expect.stringMatching(/\S/) }); // v2 S1
     expect(reviewers(quick)).toEqual([[]]);
     const usual = await goal('Build search');
     expect(usual.workflow).toMatchObject({ id: 'usual' });

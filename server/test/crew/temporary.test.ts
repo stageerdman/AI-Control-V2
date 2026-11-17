@@ -283,6 +283,8 @@ describe('temporary command, live in the studio', () => {
       lead: 'a-baron',
       crew: ['a-query'],
       temporary: true,
+      scope: 'temporary', // v2 S1: read with its way in words
+      inWords: expect.any(String),
     });
     expect(
       r.body.items.map((i: { gates: { reviewer: string }[] }) => i.gates.map((g) => g.reviewer)),

@@ -158,3 +158,10 @@ folded list, unconnected cards.
 ## Status
 - 2026-11-17: **Plan and final screens locked (Jony).** Server needs S1–S5 listed above for Uncle Bob
   (Phase 1). Phases 2–3 can start now, side by side with Phase 1.
+- 2026-11-17: **Phase 1 done (Uncle Bob).** S1–S5 on the server, tested: `server/src/domain/team-way.ts`
+  (`defaultTeamWay`, `chainOrder`, `pruneWay`), `wayShape` on teams (migration 42), `GET /teams/:id/workflow`
+  → `{workflow, own, shape}`, `team.workflow.changed` on roster / captain / shape changes, chain order on the
+  split, prune on member removal, default `why` by kind, `inWords` on office / team / goal reads. Tests:
+  `test/domain/team-way.test.ts`, `test/crew/team-workflow.test.ts`, `test/crew/team-flow.test.ts`.
+  For Phase 4 (app): the GET now always returns a way for a team of 2+ (the default, `own:false`), so
+  `TeamWay.tsx` should read `own` and send `wayShape` via `PATCH /teams/:id`; `Team` gains `wayShape`.

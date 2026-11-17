@@ -58,7 +58,8 @@ function chainShape(lead: string, others: readonly string[]): Pick<Workflow, 'st
 const SHAPED = {
   captain: {
     name: 'Captain checks all',
-    summary: 'The captain splits the work; each member builds their part and brings it back to be pulled together.',
+    summary:
+      'The captain splits the work; each member builds their part and brings it back to be pulled together.',
     draw: captainShape,
   },
   chain: {
@@ -115,7 +116,8 @@ export function pruneWay(w: Workflow, gone: ReadonlySet<string>, captainId: stri
   const { first, final, layout, steps: _steps, ...rest } = w;
   const touches = (id: string) =>
     !gone.has(id) &&
-    (steps.some((s) => s.from === id || s.to === id) || gates.some((g) => g.after === id || g.reviewer === id));
+    (steps.some((s) => s.from === id || s.to === id) ||
+      gates.some((g) => g.after === id || g.reviewer === id));
   const canSignLast = (id: string | null): id is string =>
     !!id && touches(id) && (!gates.length || gates.some((g) => g.reviewer === id));
   /* a start or sign-last whose arrows all went with the leavers would no longer read: let it go too */

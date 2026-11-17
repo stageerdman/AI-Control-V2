@@ -1,6 +1,7 @@
 /* Teams repository. Membership lives here (never on the agent); every roster
    change goes through src/domain/teams.ts so the rules hold. */
 import { slugify, uniqueId } from '../domain/ids.ts';
+import { pruneWay, type WayShape } from '../domain/team-way.ts';
 import {
   addMember,
   buildRoster,
@@ -9,7 +10,6 @@ import {
   removeMember,
   setCaptain,
 } from '../domain/teams.ts';
-import { pruneWay, type WayShape } from '../domain/team-way.ts';
 import { TeamWorkflowSchema, type Workflow } from '../domain/workflows.ts';
 import { notFound } from '../errors.ts';
 import type { AgentsRepo } from './agents.ts';
@@ -124,7 +124,11 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         same transaction, so a removal never fails because of the way). */
     saveRoster(id: string, roster: Roster): void {
       const staying = new Set(roster.members.map((m) => m.agentId));
-      const gone = new Set(members(id).map((m) => m.agentId).filter((a) => !staying.has(a)));
+      const gone = new Set(
+        members(id)
+          .map((m) => m.agentId)
+          .filter((a) => !staying.has(a)),
+      );
       const own = gone.size ? repo.workflow(id) : null;
       if (own) repo.setWorkflow(id, pruneWay(own, gone, roster.captainId));
       db.prepare('DELETE FROM team_members WHERE team_id = ?').run(id);

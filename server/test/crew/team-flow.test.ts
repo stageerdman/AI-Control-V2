@@ -438,6 +438,38 @@ describe('real work follows the drawing (Workflows Phase 7 re-check)', () => {
     );
     expect(seen.filter(isReview).length).toBeGreaterThanOrEqual(3); // two parts' sign-offs, then Lint's
   });
+
+  it('under the default way a split adds no gates: no review runs', async () => {
+    const seen: RunSpec[] = [];
+    const s = studio({ dispatch: [ONE], 'team-split': [SPLIT] }, (spec) => {
+      seen.push(spec);
+      return done(spec);
+    });
+    h = s.h;
+    const g = await settled(h, (await h.call('POST', '/projects/aurora/work', { goal: 'Search' })).body.id);
+    expect(g.status).toBe('done');
+    expect(g.items[0].subtasks.map(reviewers)).toEqual([[], []]);
+    expect(seen.filter(isReview)).toEqual([]);
+  });
+
+  it('under a chain the parts run in chain order, one after another, whatever the captain answered', async () => {
+    const backwards = { ...SPLIT, subtasks: [...SPLIT.subtasks].reverse() };
+    const started: [string, number][] = [];
+    const s = studio({ dispatch: [ONE], 'team-split': [backwards] }, (spec) => {
+      if (!subtask(spec)) return done(spec);
+      started.push([subtask(spec), Date.now()]);
+      return [{ wait: 40 }, { result: 'done' }];
+    });
+    h = s.h;
+    expect((await h.call('PATCH', '/teams/ship-it', { wayShape: 'chain' })).status).toBe(200);
+    const g = await settled(h, (await h.call('POST', '/projects/aurora/work', { goal: 'Search' })).body.id);
+    expect(g.status).toBe('done');
+    expect(g.items[0].subtasks.map((x: { agentId: string }) => x.agentId)).toEqual(['a-pete', 'a-scar']);
+    expect(started.map(([part]) => part)).toEqual(['Search UI', 'Search tests']);
+    const [[, ui], [, tests]] = started as [[string, number], [string, number]];
+    expect(tests - ui).toBeGreaterThanOrEqual(40); // the second waits for the first
+    expect(g.items[0].subtasks.map((x: { parallel: boolean }) => x.parallel)).toEqual([false, false]);
+  });
 });
 
 describe('features follow goals (F1c)', () => {
