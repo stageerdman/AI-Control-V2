@@ -293,9 +293,12 @@ describe('workflows: routes', () => {
     const ghost = { ...USUAL, gates: [{ ...USUAL.gates[0], reviewer: 'a-ghost' }] };
     expect((await h.call('PUT', '/projects/aurora/workflows', { workflows: [ghost] })).status).toBe(409);
     const ok = await h.call('PUT', '/projects/aurora/workflows', { workflows: [QUICK, USUAL] });
-    /* nothing drawn: the way in words is its summary */
-    const office = (w: Workflow) => ({ ...w, scope: 'office', inWords: w.summary });
-    expect(ok.body).toEqual({ workflows: [office(QUICK), office(USUAL)], designed: true });
+    /* the way in words: its sign-offs said; nothing at all to say → its summary */
+    const office = (w: Workflow, inWords: string) => ({ ...w, scope: 'office', inWords });
+    expect(ok.body).toEqual({
+      workflows: [office(QUICK, QUICK.summary), office(USUAL, 'Lint checks The Ship-It Squad.')],
+      designed: true,
+    });
     // B8's design is the first workflow
     expect((await h.call('GET', '/projects/aurora/collaboration')).body.collaboration.gates).toEqual([]);
     await h.call('PUT', '/projects/aurora/collaboration', {

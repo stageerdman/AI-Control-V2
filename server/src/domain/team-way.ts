@@ -3,7 +3,7 @@
      (the captain splits, members build, the captain pulls it together). Hand-offs only, no gates: no extra
      review runs. Two shapes: `captain` (everyone works for the captain) and `chain` (pass it along).
    - `chainOrder`: when a way is one closed chain of hand-offs, the order work passes in (the split follows it).
-   - `pruneWay`: a team's own way after members left — every arrow touching them gone, still a valid way. */
+   - `pruneWay`: a team's own way after members left — every arrow touching them gone (a line through them joined up), still a valid way. */
 import type { Step } from './workflow-drawing.ts';
 import { DEFAULT_MAX_SEND_BACKS, type Workflow } from './workflows.ts';
 
@@ -107,19 +107,35 @@ export function chainOrder(w: Pick<Workflow, 'steps' | 'first'>): string[] | nul
   return order.length === steps.length ? order : null;
 }
 
-/** A team's own way after `gone` left: their arrows, start, sign-last and position dropped. Who signs last
-    falls to the captain when that still reads. null: no arrow left (the team is back on its default). */
+/** Pure: the hand-offs without `id`. Someone a line passed through (one arrow in, one out: a → id → b) is
+    bridged — a hands straight to b with the out arrow's why — unless a → b exists already or a is b. */
+function withoutStepsOf(steps: readonly Step[], id: string): Step[] {
+  const ins = steps.filter((s) => s.to === id);
+  const outs = steps.filter((s) => s.from === id);
+  const kept = steps.filter((s) => s.from !== id && s.to !== id);
+  const [arrive, leave] = [ins[0], outs[0]];
+  if (ins.length !== 1 || outs.length !== 1 || !arrive || !leave) return kept;
+  const bridge = { ...leave, from: arrive.from };
+  const pointless =
+    bridge.from === bridge.to || kept.some((s) => s.from === bridge.from && s.to === bridge.to);
+  if (pointless) return kept;
+  /* the bridge takes the in arrow's place, so the line still reads in order */
+  return steps.flatMap((s) => (s === arrive ? [bridge] : kept.includes(s) ? [s] : []));
+}
+
+/** A team's own way after `gone` left: their arrows, start, sign-last and position dropped; a line through a
+    leaver is joined up (withoutStepsOf). Who signs last falls to the captain when that still reads. null: no
+    arrow left (the team is back on its default). */
 export function pruneWay(w: Workflow, gone: ReadonlySet<string>, captainId: string | null): Workflow | null {
   const gates = w.gates.filter((g) => !gone.has(g.after) && !gone.has(g.reviewer));
-  const steps = (w.steps ?? []).filter((s) => !gone.has(s.from) && !gone.has(s.to));
+  const steps = [...gone].reduce(withoutStepsOf, w.steps ?? []);
   if (!gates.length && !steps.length) return null;
   const { first, final, layout, steps: _steps, ...rest } = w;
   const touches = (id: string) =>
     !gone.has(id) &&
     (steps.some((s) => s.from === id || s.to === id) ||
       gates.some((g) => g.after === id || g.reviewer === id));
-  const canSignLast = (id: string | null): id is string =>
-    !!id && touches(id) && (!gates.length || gates.some((g) => g.reviewer === id));
+  const canSignLast = (id: string | null): id is string => !!id && touches(id);
   /* a start or sign-last whose arrows all went with the leavers would no longer read: let it go too */
   const nextFinal = canSignLast(final ?? null) ? final : canSignLast(captainId) ? captainId : undefined;
   const kept = layout && Object.fromEntries(Object.entries(layout).filter(([id]) => !gone.has(id)));

@@ -81,12 +81,43 @@ describe('pruneWay', () => {
     gates: [{ after: 'm1', reviewer: 'm2', kind: 'quality', why: 'Test it.' }],
   });
 
-  it('drops every arrow, gate and position touching the leavers', () => {
+  it('drops every gate and position touching the leavers', () => {
     const w = sure(pruneWay(own(), new Set(['m2']), 'm0'));
     expect(w.gates).toEqual([]);
-    expect(arrows(w)).toEqual(['m0>m1']);
     expect(Object.keys(w.layout ?? {})).toEqual(['m0', 'm1']);
     expect(w.first).toBe('m0');
+  });
+
+  /* live check 2026-11-17: removing the middle of a chain left "Sola hands to Brisk" with no way back */
+  it('a line through a leaver is joined, with the out arrow’s why', () => {
+    const w = sure(pruneWay(own(), new Set(['m2']), 'm0'));
+    expect(w.steps).toEqual([
+      { from: 'm0', to: 'm1', why: 'Passes the work on' },
+      { from: 'm1', to: 'm0', why: 'Brings it back to be pulled together' },
+    ]);
+    expect(chainOrder(w)).toEqual(['m0', 'm1']);
+  });
+
+  it('no join when it exists already, would point at itself, or the leaver had more than one way in or out', () => {
+    const captain = way(crewOf(3), 'captain'); // m0⇄m1, m0⇄m2: joining m0 → m0 is pointless
+    expect(arrows(sure(pruneWay(captain, new Set(['m2']), 'm0')))).toEqual(['m0>m1', 'm1>m0']);
+    const chain4 = way(crewOf(4), 'chain'); // m0 > m1 > m2 > m3 > m0
+    const plus = (from: string, to: string): Workflow => ({
+      ...chain4,
+      steps: [...(chain4.steps ?? []), { from, to, why: 'Skips ahead' }],
+    });
+    /* m1 has two ways out: dropped, not joined */
+    expect(arrows(sure(pruneWay(plus('m1', 'm3'), new Set(['m1']), 'm0')))).toEqual(['m2>m3', 'm3>m0']);
+    /* m2 → m0 is drawn already: no second copy */
+    expect(arrows(sure(pruneWay(plus('m2', 'm0'), new Set(['m3']), 'm0')))).toEqual([
+      'm0>m1',
+      'm1>m2',
+      'm2>m0',
+    ]);
+  });
+
+  it('who signs last stays even when they sign nothing off', () => {
+    expect(sure(pruneWay(own(), new Set(['m2']), 'm0')).final).toBe('m0');
   });
 
   it('who signs last falls to the captain when they left', () => {
@@ -94,10 +125,10 @@ describe('pruneWay', () => {
     expect(w.final).toBe('m0');
   });
 
-  it('a start whose arrows all went is dropped', () => {
+  it('a start who left is dropped (the chain closes around them)', () => {
     const w = sure(pruneWay(own(), new Set(['m0']), null));
     expect(w.first).toBeUndefined();
-    expect(arrows(w)).toEqual(['m1>m2']);
+    expect(arrows(w)).toEqual(['m1>m2', 'm2>m1']);
   });
 
   it('nothing left → null (back on the default)', () => {
