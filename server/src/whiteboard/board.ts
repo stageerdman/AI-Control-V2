@@ -19,7 +19,15 @@ import { createHistory } from './history.ts';
 import { type Roster, resolveOwner } from './owner.ts';
 
 export type BoardPort = ReturnType<typeof createDispatch>['board'];
-export type TaskInput = { text: string; owner: string; team?: string; brief?: string; parallel?: boolean };
+/** `branches`: the workflow's branch labels (a gate's `when`) that hold for this task; left out = all hold. */
+export type TaskInput = {
+  text: string;
+  owner: string;
+  team?: string;
+  brief?: string;
+  parallel?: boolean;
+  branches?: string[];
+};
 export type TaskEdit = {
   text?: string;
   brief?: string;
@@ -142,7 +150,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       brief: t.brief?.trim() || t.text.trim(),
       ...owner,
       parallel: t.parallel === true,
-      gates: port.gatesOf(projectId, owner, w),
+      gates: port.gatesOf(projectId, { ...owner, branches: t.branches }, w),
     };
   }
 

@@ -12,6 +12,16 @@ import { z } from 'zod';
 import type { Agent } from '../db/agents.ts';
 import type { Team } from '../db/teams.ts';
 import type { ChecklistItem, Goal } from '../db/work.ts';
+import { BranchLabel } from '../domain/gates.ts';
+import { drawingInWords } from '../domain/workflow-drawing.ts';
+import {
+  branchLabels,
+  type GateOwner,
+  gatesFor,
+  type ItemGate,
+  MAX_GATES,
+  type Workflow,
+} from '../domain/workflows.ts';
 import { HEALTH_ALLOWED, HEALTH_TOOLS } from '../health/health.ts';
 import type { Caps } from '../runtime/runner.ts';
 import { crewSystemPrompt, json } from './prompts.ts';
@@ -38,6 +48,8 @@ export const TeamSplitSchema = z.strictObject({
         brief: z.string().trim().min(1).max(4000),
         /** May build at the same time as the sub-task before it (different files). Default: true. */
         parallel: z.boolean().optional(),
+        /** The team workflow's branch labels that hold for this part; left out = every team sign-off holds. */
+        branches: z.array(BranchLabel).max(MAX_GATES).optional(),
       }),
     )
     .max(MAX_SUBTASKS)
@@ -70,6 +82,40 @@ export const CAPTAIN_ALTITUDE =
 
 export type TeamView = Pick<Team, 'id' | 'name' | 'instr' | 'code' | 'captainId' | 'members'>;
 
+/** Pure: the team's own sign-offs on one member's part — only teammates review it (no self-review), and a
+    branched one only when the part's `branches` hold it (src/domain/workflows.ts gatesFor). */
+export function memberGates(
+  way: Workflow | null,
+  team: Pick<TeamView, 'id' | 'members'>,
+  part: Omit<GateOwner, 'teamId'>,
+): ItemGate[] {
+  const seats = new Set(team.members.map((m) => m.agentId));
+  return gatesFor(way, { ...part, teamId: team.id }).filter((g) => seats.has(g.reviewer));
+}
+
+/** Pure: the team's own way as its captain reads it when splitting — the drawing plus its sign-offs. '' = none. */
+export function teamWayNote(way: Workflow | null, name: (id: string) => string): string {
+  if (!way) return '';
+  const who = (id: string) => `${name(id)} (${id})`;
+  const drawn = drawingInWords(way, who);
+  const checks = way.gates.map(
+    (g) =>
+      `${who(g.reviewer)} checks ${g.after === '*' ? "every member's part" : who(g.after)} (${g.kind})${g.when ? ` — branch "${g.when}"` : ''}`,
+  );
+  const branches = branchLabels(way);
+  return [
+    `Your team's own way of working (follow it when you split): ${drawn ?? way.summary}`,
+    checks.length
+      ? `These sign-offs run on your members' parts by themselves (don't add sub-tasks for them): ${checks.join('; ')}.`
+      : '',
+    branches.length
+      ? `On each sub-task set "branches" to the labels that hold for that part, word for word ([] when none does): ${json(branches)}. A sign-off with a branch runs only on parts that name it.`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 /** The captain's split call: system prompt + task (the contract line is added by the crew). */
 export function splitCall(o: {
   captain: Pick<Agent, 'name' | 'role' | 'prompt'>;
@@ -81,6 +127,10 @@ export function splitCall(o: {
   role: (id: string) => string;
   /** What the goal's earlier items finished (dispatch's "Done before you"), or ''. */
   earlier?: string;
+  /** The team's own workflow (the Cast's drawing), if it has one. */
+  way?: Workflow | null;
+  /** The goal's drawn flow in words (dispatch's flowNote), or ''. */
+  flow?: string;
 }) {
   const { team, item } = o;
   const members = team.members.map((m) => ({
@@ -97,6 +147,11 @@ export function splitCall(o: {
     `Brief: ${json(item.brief)}`,
     o.earlier ?? '',
     `Your team: ${json({ name: team.name, whatWeDo: clip(team.instr, 600), howWeCode: clip(team.code, 600), members })}`,
+    o.flow ?? '',
+    teamWayNote(o.way ?? null, o.name),
+    o.flow || o.way
+      ? 'When the flow or your team\'s way names one of your members (who starts, or a hand-off), split it so: that member\'s sub-task comes first (the ones that need it "parallel": false). When it says one of your members (not you) starts, give them a sub-task rather than answering "self".'
+      : '',
     [
       'You are in the item’s checkout (its own git branch). You may glance around with Read, Glob, Grep and read-only commands (ls, git log, git ls-files) — a few files at most; you cannot change anything here.',
       'Decide how your team does this item:',
@@ -132,15 +187,19 @@ export function memberTask(o: {
   siblings: ChecklistItem[];
   rework?: string | null;
   earlier?: string;
+  /** The goal's drawn flow in words (dispatch's flowNote), or ''. */
+  flow?: string;
 }): string {
   const { sub, parent } = o;
   const captain = o.name(parent.agentId);
   const others = o.siblings.filter((s) => s.id !== sub.id && s.status !== 'cancelled');
+  const reviewers = sub.gates.map((g) => `${o.name(g.reviewer)} (${g.kind})`);
   return [
     `Goal: ${o.goal.text}`,
     `${captain} (captain of ${o.team.name}) leads your team's item "${parent.text}" and gave you a part of it.`,
     `Your sub-task: ${sub.text}`,
     `Brief: ${sub.brief}`,
+    o.flow ?? '',
     o.earlier ?? '',
     o.rework ? `${captain} looked at your earlier part and sends it back. Their notes: ${o.rework}` : '',
     /* F3 live: with only the titles, "use the shapes from the captain's sub-task" pointed at nothing and the member had
@@ -150,6 +209,9 @@ export function memberTask(o: {
       : '',
     sub.workspace
       ? `You work in your own checkout on branch ${sub.workspace.branch} (from the team's branch ${sub.workspace.main}): commit your work there (plain \`git add\` / \`git commit\`) — ${captain} merges it into the team's branch. Do not push.`
+      : '',
+    reviewers.length
+      ? `When you are done, your part goes to ${reviewers.join(', then ')} for sign-off before ${captain} gets it — commit it.`
       : '',
     'When you are done, reply with a short plain-words summary of what you did.',
   ]

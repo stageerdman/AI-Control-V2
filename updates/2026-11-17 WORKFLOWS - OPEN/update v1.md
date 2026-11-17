@@ -438,3 +438,13 @@ With real agents on this project:
   nothing, team save + reload exact, an outsider refused and pinned, a goal's workflow draws — **all ok**. The fake
   runner never sets a temporary way, so read-only temporary drawing is covered by `model.test.ts` /
   `WorkflowEditor.test.tsx` (app: 621 tests green, typecheck clean). Ready for Elon's re-check.
+- 2026-11-17: **Phase 7 re-check, real work follows the drawing (Uncle Bob).** (1) Branches: a plan item (and a
+  director task) takes optional `branches` (the `when` labels that hold for it); the planner sees each workflow's
+  `branches` and is asked for them; `gatesFor` runs a branched gate only when the item names its label (loose
+  match on case / spaces); no `branches` = every gate, as before. An unknown label is sent back for repair. (2) A
+  team's own way: the captain's split gets the goal's flow line plus the team's way in words and its sign-offs;
+  each member sub-task gets the team's gates (`memberGates`: teammates only, same branch rule; a rework part keeps
+  its part's gates), and the member's task carries the flow line and who signs it off. (3) The planner is told a
+  drawn non-captain member still goes through the captain; the split is told to put that member first. Also: the
+  `add_goal` workflow text says the lead's sign-off is automatic. Server 832/832 green (one known flaky temp-dir
+  cleanup in `setter.test.ts` passes alone), typecheck clean. Ready for `live-check-7.mjs` / `live-check-7-real.mjs`.

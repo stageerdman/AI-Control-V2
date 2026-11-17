@@ -27,6 +27,7 @@ const task = (a: Args): TaskInput => ({
   ...(str(a, 'team') ? { team: str(a, 'team') } : {}),
   ...(str(a, 'brief') ? { brief: str(a, 'brief') } : {}),
   parallel: bool(a, 'parallel') === true,
+  ...(ids(a, 'branches') ? { branches: ids(a, 'branches') } : {}),
 });
 
 const TASK_PROPS = {
@@ -38,10 +39,16 @@ const TASK_PROPS = {
   team: { type: 'string', description: 'The team, when the owner is on more than one.' },
   brief: { type: 'string', description: 'What to do and what done looks like.' },
   parallel: { type: 'boolean', description: 'May run alongside the task before it.' },
+  branches: {
+    type: 'array',
+    items: { type: 'string' },
+    description:
+      'Only when the workflow has sign-offs on a branch ("when", see workflows): the labels that hold for this task, word for word ([] = none). Left out, every branched sign-off applies.',
+  },
 };
 const WORKFLOW_PROP = {
   description:
-    'The id of the project workflow the goal runs under (see workflows): pick the one whose "when" fits, or when the user names one ("use the quick-fix way"). Leave it out for the usual (first) one. When the user puts someone in command for this goal only ("Elon, take command and use Bob"), give an object instead: {lead, crew, why?, gates?} — the lead hands the crew work that stays on this goal, can stop or steer them, and signs off each of their tasks; it ends with the goal.',
+    'The id of the project workflow the goal runs under (see workflows): pick the one whose "when" fits, or when the user names one ("use the quick-fix way"). Leave it out for the usual (first) one. When the user puts someone in command for this goal only ("Elon, take command and use Bob"), give an object instead: {lead, crew, why?, gates?} — the lead hands the crew work that stays on this goal, can stop or steer them, and signs off each of their tasks; it ends with the goal. The lead’s sign-off is automatic: don’t add a review task for it.',
   oneOf: [
     { type: 'string' },
     {
@@ -52,7 +59,8 @@ const WORKFLOW_PROP = {
         why: { type: 'string', description: 'One line on why.' },
         gates: {
           type: 'array',
-          description: 'Extra sign-offs for this goal (the lead’s own sign-off is always there).',
+          description:
+            'Extra sign-offs for this goal. The lead’s sign-off of each crew task is automatic: don’t add a review task or gate for it.',
           items: {
             type: 'object',
             properties: {

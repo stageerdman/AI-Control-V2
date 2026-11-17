@@ -365,16 +365,31 @@ export const signedBy = (goal: { items: readonly Reviewed[] }): string[] => [
   ),
 ];
 
+/** Branch labels match loosely (case, outer spaces): a planner copies them by hand. */
+export const sameLabel = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Pure: the branch labels (`when`) a workflow's sign-offs hang on, once each — what a plan item picks from. */
+export const branchLabels = (w: Pick<Workflow, 'gates'>): string[] =>
+  w.gates
+    .flatMap((g) => (g.when ? [g.when] : []))
+    .filter((l, i, all) => all.findIndex((o) => sameLabel(o, l)) === i);
+
+/** Pure: does a gate hold for an item? A branched gate holds only when the item names its label; an item that
+    names no branches (left out) keeps every gate — the safe default. */
+const holds = (g: Pick<Gate, 'when'>, branches: readonly string[] | undefined) =>
+  !g.when || !branches || branches.some((b) => sameLabel(b, g.when as string));
+
 /** The review steps one build item goes through, in order; who signs last (`final`) comes last. Self-review is
-    skipped. */
+    skipped; a branched gate (`when`) only when the item's `branches` hold it. */
 export type ItemGate = { reviewer: string; kind: GateKind; why: string };
+export type GateOwner = { agentId: string; teamId: string | null; branches?: readonly string[] };
 export function gatesFor(
   w: (Collaboration & Partial<Pick<Workflow, 'lead' | 'crew' | 'final'>>) | null,
-  item: { agentId: string; teamId: string | null },
+  item: GateOwner,
 ): ItemGate[] {
   if (!w) return [];
   const out: ItemGate[] = [];
-  const all = effectiveGates(w);
+  const all = effectiveGates(w).filter((g) => holds(g, item.branches));
   const ordered = [
     ...all.filter((g) => g.reviewer !== w.final),
     ...all.filter((g) => g.reviewer === w.final),

@@ -9,6 +9,7 @@ import {
   type Staffing,
 } from '../../src/domain/collaboration.ts';
 import { PlanSchema, planIssues } from '../../src/domain/plan.ts';
+import { branchLabels } from '../../src/domain/workflows.ts';
 
 const staffing: Staffing = {
   teams: new Map([
@@ -91,6 +92,22 @@ describe('collaboration design (pure)', () => {
       (g) => g.reviewer,
     );
     expect(order).toEqual(['a-prof', 'a-nova', 'a-lint']);
+  });
+
+  it('gatesFor: a branched gate (`when`) holds only on items that name it; no branches named = it holds', () => {
+    const branched = (after: string, when: string) =>
+      ({ ...(gate(after, 'a-scar', 'crash-test') as object), when }) as never;
+    const pay = branched('a-semic', 'if it touches payments');
+    const c = collab([pay, gate('*', 'a-lint')]);
+    const semic = { agentId: 'a-semic', teamId: 'ship-it' };
+    const who = (branches?: string[]) => gatesFor(c, { ...semic, branches }).map((g) => g.reviewer);
+    expect(who([])).toEqual(['a-lint']); // "Set up the project stack": no payments, no crash-test
+    expect(who([' If it touches PAYMENTS '])).toEqual(['a-scar', 'a-lint']); // copied by hand: loose match
+    expect(who(['if it touches the UI'])).toEqual(['a-lint']);
+    expect(who(undefined)).toEqual(['a-scar', 'a-lint']); // the planner said nothing: today's safe default
+    expect(branchLabels(collab([pay, branched('*', 'If it touches payments')]))).toEqual([
+      'if it touches payments',
+    ]);
   });
 
   it('parseVerdict: the last JSON verdict line, a plain word, or changes when unclear', () => {

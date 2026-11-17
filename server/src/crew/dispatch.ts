@@ -25,12 +25,17 @@ import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
 import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
+import { BranchLabel } from '../domain/gates.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
 import { drawingInWords } from '../domain/workflow-drawing.ts';
 import {
+  branchLabels,
+  type GateOwner,
   gatesFor,
   type ItemGate,
+  MAX_GATES,
   pickWorkflow,
+  sameLabel,
   TempAskSchema,
   type Workflow,
   workflowTag,
@@ -50,6 +55,7 @@ import { type Crew, validateWith } from './structured.ts';
 import {
   integrateTask,
   MAX_TEAM_ROUNDS,
+  memberGates,
   memberTask,
   parseRework,
   SPLIT_CAPS,
@@ -79,6 +85,8 @@ export const DispatchSchema = z.strictObject({
         parallel: z.boolean().optional(),
         /** Asks for knowledge, not change (research, compare, review, write-up): the assignee answers with file_report. */
         report: z.boolean().optional(),
+        /** The workflow's branch labels (a gate's `when`) that hold for this item; left out = every gate holds. */
+        branches: z.array(BranchLabel).max(MAX_GATES).optional(),
       }),
     )
     .min(1)
@@ -148,6 +156,19 @@ export function dispatchIssues(plan: DispatchPlan, c: Crewing): string[] {
   return out;
 }
 
+/** Pure: an item's "branches" name only labels its workflow's gates hang on (a typo would silently drop a gate). */
+export function branchIssues(plan: DispatchPlan, w: Workflow): string[] {
+  const known = branchLabels(w);
+  return plan.items.flatMap((it, i) =>
+    (it.branches ?? [])
+      .filter((b) => !known.some((k) => sameLabel(k, b)))
+      .map(
+        (b) =>
+          `items.${i}.branches: '${b}' is not a branch of workflow '${w.id}' — known: ${known.length ? known.map((k) => `'${k}'`).join(', ') : 'none (leave "branches" out)'}`,
+      ),
+  );
+}
+
 /** The orchestrator's reply to a goal, as it reads in its thread: the plan in one sentence + who does what. */
 export function planReply(goal: Goal, name: (id: string) => string): string {
   const lines = goal.items.map((i) => {
@@ -161,6 +182,7 @@ export function planReply(goal: Goal, name: (id: string) => string): string {
 export function describeWorkflows(list: readonly Workflow[], name: (id: string) => string) {
   return list.map((w) => {
     const flow = drawingInWords(w, (id) => `${name(id)} (${id})`);
+    const branches = branchLabels(w);
     return {
       id: w.id,
       name: w.name,
@@ -170,9 +192,11 @@ export function describeWorkflows(list: readonly Workflow[], name: (id: string) 
         after: g.after === '*' ? 'any build item' : g.after,
         reviewer: `${name(g.reviewer)} (${g.reviewer})`,
         kind: g.kind,
+        ...(g.when ? { when: g.when } : {}),
       })),
       summary: w.summary,
       ...(flow ? { flow: `Order items this way: ${flow}` } : {}),
+      ...(branches.length ? { branches } : {}),
     };
   });
 }
@@ -380,9 +404,13 @@ export function createDispatch(deps: {
 
   /** The goal's drawn workflow in words, so each builder knows whom they hand to (soft; the gates still rule). */
   function flowNote(goal: Goal): string {
-    const flow = goal.workflow ? drawingInWords(goal.workflow, name) : null;
+    const flow = drawingInWords(workflowOf(goal), name);
     return flow ? `How work flows on this goal: ${flow}` : '';
   }
+
+  /** A team's own workflow (drawn in the Cast), if it has one that still reads. */
+  const teamWay = (teamId: string): Workflow | null =>
+    store.teams.get(teamId) ? store.teams.workflow(teamId) : null;
 
   const orchName = (projectId: string) =>
     store.agents.get(store.projects.require(projectId).orchestratorId)?.name ?? 'The orchestrator';
@@ -559,6 +587,7 @@ export function createDispatch(deps: {
           siblings: parent.subtasks.filter((s) => s.status === 'todo' || s.status === 'running'),
           rework: it.notes,
           earlier: earlierWork(parent, goal),
+          flow: flowNote(goal),
         }),
         caps,
       };
@@ -955,6 +984,8 @@ export function createDispatch(deps: {
       name,
       role: (id) => store.agents.get(id)?.role ?? '',
       earlier: earlierWork(it, goal),
+      way: teamWay(team.id),
+      flow: flowNote(goal),
     });
     let value: z.output<typeof TeamSplitSchema> | null = null;
     try {
@@ -1009,6 +1040,7 @@ export function createDispatch(deps: {
       if (value) splitEvent('self', summary, []);
       return 'self';
     }
+    const way = teamWay(team.id);
     const subs = store.tx(() =>
       work.insertSubtasks(
         cur,
@@ -1018,6 +1050,7 @@ export function createDispatch(deps: {
           brief: t.brief,
           agentId: t.assignee,
           parallel: t.parallel !== false,
+          gates: memberGates(way, team, { agentId: t.assignee, branches: t.branches }),
         })),
       ),
     );
@@ -1085,6 +1118,8 @@ export function createDispatch(deps: {
               brief: was?.brief ?? it.brief,
               agentId: r.assignee,
               parallel: true,
+              /* the reworked part passes the same team sign-offs as the part it redoes */
+              gates: was?.gates ?? [],
             };
           }),
         );
@@ -1162,11 +1197,7 @@ export function createDispatch(deps: {
   }
 
   /** The review gates a new item gets for its owner under workflow `w` (reviewers who left the project are skipped). */
-  function gatesOf(
-    projectId: string,
-    owner: { agentId: string; teamId: string | null },
-    w: Workflow,
-  ): ItemGate[] {
+  function gatesOf(projectId: string, owner: GateOwner, w: Workflow): ItemGate[] {
     const p = store.projects.require(projectId);
     const onProject = (id: string) =>
       p.agentIds.includes(id) ||
@@ -1349,6 +1380,12 @@ export function createDispatch(deps: {
             workflows.some((w) => w.gates.length)
               ? 'The review gates of the workflow run automatically after each build item — do not add separate review or QA items for them.'
               : '',
+            workflows.some((w) => branchLabels(w).length)
+              ? 'Some gates only hold on a branch (their "when", listed in the workflow\'s "branches"). On every item set "branches" to the labels of its workflow that hold for that item, copied word for word — [] when none does (e.g. setting up the stack does not "touch payments"). A gate with a "when" runs only on items that name it.'
+              : '',
+            !everyone && workflows.some((w) => w.first || w.steps?.length)
+              ? "When a flow names a team member who is not its captain (who starts, or a hand-off), still give that team's item to its captain: the captain splits it and puts that member first. Say so in the brief."
+              : '',
             isolated
               ? `Every item runs in its own checkout (its own git branch) and merges back when it is accepted, so independent items can run at the same time (up to ${cap} at once). Set "parallel": true on an item that does NOT need the result of the item before it; leave it false when it builds on earlier work. Keep it small: a one-page task is 1–2 items.`
               : 'Items run one after another in the same project folder. Set "parallel": true only when an item can safely run at the same time as the one before it (it touches different files). Keep it small: a one-page task is 1–2 items.',
@@ -1366,6 +1403,7 @@ export function createDispatch(deps: {
                 brief: 'What to do and what done looks like.',
                 parallel: false,
                 report: false,
+                ...(workflows.some((w) => branchLabels(w).length) ? { branches: [] } : {}),
               },
             ],
             ...(features
@@ -1386,7 +1424,9 @@ export function createDispatch(deps: {
             task,
             validate: validateWith(DispatchSchema, (d) => {
               const r = resolveWorkflow(store, projectId, d.workflow);
-              return r.issues.length ? r.issues : dispatchIssues(d, crewing(projectId, r.workflow));
+              return r.issues.length
+                ? r.issues
+                : [...dispatchIssues(d, crewing(projectId, r.workflow)), ...branchIssues(d, r.workflow)];
             }),
             onEvent: (e) => {
               if (e.kind === 'tokens')
@@ -1422,7 +1462,7 @@ export function createDispatch(deps: {
                 parallel: i.parallel === true,
                 report: i.report === true,
                 /* report items ask for knowledge, not change: no review gates */
-                gates: i.report ? [] : gatesOf(projectId, item, workflow),
+                gates: i.report ? [] : gatesOf(projectId, { ...item, branches: i.branches }, workflow),
               };
             }),
           ),

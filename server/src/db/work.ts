@@ -377,16 +377,20 @@ export function workRepo(db: Db) {
     featureGoals: (featureId: string): Goal[] =>
       (db.prepare('SELECT * FROM goals WHERE feature_id = ?').all(featureId) as Row[]).map(toGoal),
     children,
-    /** F1c: the captain's sub-tasks for a team item (appended after any earlier round). */
+    /** F1c: the captain's sub-tasks for a team item (appended after any earlier round); `gates`: the team's own
+        sign-offs on that member's part. */
     insertSubtasks(
       parent: ChecklistItem,
-      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId'> & { parallel?: boolean })[],
+      list: (Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId'> & {
+        parallel?: boolean;
+        gates?: ItemGate[];
+      })[],
     ): ChecklistItem[] {
       const t = now();
       const start = children(parent.id).length;
       const ins = db.prepare(
         `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, parent_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', 'todo', ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'todo', ?, ?, ?)`,
       );
       list.forEach((i, n) => {
         ins.run(
@@ -399,6 +403,7 @@ export function workRepo(db: Db) {
           i.agentId,
           parent.teamId,
           i.parallel ? 1 : 0,
+          JSON.stringify(i.gates ?? []),
           parent.id,
           t,
           t,

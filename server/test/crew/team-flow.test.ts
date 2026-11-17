@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { parseRework, splitIssues } from '../../src/crew/team.ts';
+import { memberGates, parseRework, splitIssues } from '../../src/crew/team.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
@@ -321,6 +321,125 @@ describe('captains delegate (F1c)', () => {
   });
 });
 
+describe('real work follows the drawing (Workflows Phase 7 re-check)', () => {
+  let h: ReturnType<typeof testApp>;
+  afterEach(() => h.close());
+  const PAYMENTS = 'if it touches payments';
+  const SELF = { mode: 'self', summary: 'Mine.', subtasks: [] };
+  const done = (spec: RunSpec): FakeStep[] =>
+    isReview(spec) ? [{ result: '{"verdict":"approve","notes":"ok"}' }] : [{ result: 'done' }];
+  const reviewers = (it: { gates: { reviewer: string; kind: string }[] }) =>
+    it.gates.map((g) => `${g.reviewer}:${g.kind}`);
+
+  it('a branched sign-off runs only on items the planner says it holds for; a made-up label is repaired', async () => {
+    const plan = (pay: string) => ({
+      summary: 'Stack, then checkout.',
+      items: [
+        {
+          text: 'Set up the project stack',
+          assignee: 'a-semic',
+          teamId: 'ship-it',
+          brief: 'b',
+          branches: [],
+        },
+        { text: 'Checkout', assignee: 'a-semic', teamId: 'ship-it', brief: 'b', branches: [pay] },
+        { text: 'Contact page', assignee: 'a-semic', teamId: 'ship-it', brief: 'b' },
+      ],
+    });
+    const s = studio(
+      { dispatch: [plan('payments'), plan(PAYMENTS)], 'team-split': [SELF, SELF, SELF] },
+      done,
+    );
+    h = s.h;
+    await h.call('PUT', '/projects/aurora/collaboration', {
+      ...GATE,
+      gates: [
+        {
+          after: 'a-semic',
+          reviewer: 'a-scar',
+          kind: 'crash-test',
+          why: 'Payments must not break.',
+          when: PAYMENTS,
+        },
+        GATE.gates[0],
+      ],
+    });
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'A shop' });
+    expect(r.body.items.map(reviewers)).toEqual([
+      ['a-lint:quality'],
+      ['a-scar:crash-test', 'a-lint:quality'],
+      ['a-scar:crash-test', 'a-lint:quality'], // no "branches": every gate holds, as before
+    ]);
+    const [ask, repair] = s.crew.crewCalls();
+    expect(ask?.task).toContain(`"branches":["${PAYMENTS}"]`);
+    expect(ask?.task).toMatch(/On every item set "branches"/);
+    expect(repair?.task).toMatch(/items\.1\.branches: 'payments' is not a branch/);
+    await settled(h, r.body.id);
+  });
+
+  it("a team's own way reaches the split and its sign-offs run on the members' parts", async () => {
+    const split = {
+      ...SPLIT,
+      subtasks: [
+        { ...SPLIT.subtasks[0], branches: [PAYMENTS] },
+        { ...SPLIT.subtasks[1], branches: [] },
+      ],
+    };
+    const seen: RunSpec[] = [];
+    const s = studio({ dispatch: [ONE], 'team-split': [split] }, (spec) => {
+      seen.push(spec);
+      return done(spec);
+    });
+    h = s.h;
+    /* the office says Pixel Pete starts — Pete is on Ship-It, not its captain */
+    await h.call('PUT', '/projects/aurora/workflows', {
+      workflows: [
+        {
+          id: 'usual',
+          name: 'Usual',
+          ...GATE,
+          steps: [{ from: 'a-pete', to: 'a-lint', why: 'hands the build over' }],
+          first: 'a-pete',
+        },
+      ],
+    });
+    const way = {
+      name: 'Ship-It way',
+      summary: 'Pete builds, Scarlett crash-tests payments, Semic signs.',
+      gates: [
+        { after: 'a-pete', reviewer: 'a-scar', kind: 'crash-test', why: 'Break it.', when: PAYMENTS },
+        { after: 'ship-it', reviewer: 'a-semic', kind: 'review', why: 'The captain signs.' },
+      ],
+    };
+    expect((await h.call('PUT', '/teams/ship-it/workflow', { workflow: way })).status).toBe(200);
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });
+    const g = await settled(h, r.body.id);
+
+    const planner = s.crew.crewCalls()[0]?.task ?? '';
+    expect(planner).toMatch(
+      /names a team member who is not its captain[^.]*give that team's item to its captain/,
+    );
+    const splitTask = s.crew
+      .crewCalls()
+      .find((c) => c.task.startsWith('AI Studio contract: team-split'))?.task;
+    expect(splitTask).toContain('How work flows on this goal: Pixel Pete starts.');
+    expect(splitTask).toContain("Your team's own way of working");
+    expect(splitTask).toMatch(/Scarlett Scenario \(a-scar\) checks Pixel Pete \(a-pete\) \(crash-test\)/);
+    expect(splitTask).toMatch(/that member's sub-task comes first/);
+
+    expect(g.status).toBe('done');
+    const [pete, scar] = g.items[0].subtasks;
+    expect(reviewers(pete)).toEqual(['a-scar:crash-test', 'a-semic:review']);
+    expect(reviewers(scar)).toEqual(['a-semic:review']); // no payments; never reviews themself
+    const peteTask = seen.find((x) => subtask(x) === 'Search UI')?.task ?? '';
+    expect(peteTask).toContain('How work flows on this goal: Pixel Pete starts.');
+    expect(peteTask).toMatch(
+      /your part goes to Scarlett Scenario \(crash-test\), then .* \(review\) for sign-off/,
+    );
+    expect(seen.filter(isReview).length).toBeGreaterThanOrEqual(3); // two parts' sign-offs, then Lint's
+  });
+});
+
 describe('features follow goals (F1c)', () => {
   let h: ReturnType<typeof testApp>;
   afterEach(() => h.close());
@@ -410,6 +529,23 @@ describe('team rules (pure)', () => {
     ).toMatch(/already has a sub-task/);
     expect(splitIssues({ mode: 'team', summary: 's', subtasks: [t('a-semic')] }, team)[0]).toMatch(/"self"/);
   });
+  it("memberGates: the team's sign-offs on one part — teammates only, never yourself, branches respected", () => {
+    const view = { id: 'ship-it', members: ['a-semic', 'a-pete'].map((agentId) => ({ agentId })) } as never;
+    const way = {
+      gates: [
+        { after: 'ship-it', reviewer: 'a-semic', kind: 'review', why: 'w' },
+        { after: '*', reviewer: 'a-lint', kind: 'quality', why: 'outsider' },
+        { after: 'a-pete', reviewer: 'a-semic', kind: 'crash-test', why: 'w', when: 'payments' },
+      ],
+    } as never;
+    const of = (agentId: string, branches?: string[]) =>
+      memberGates(way, view, { agentId, branches }).map((g) => g.kind);
+    expect(of('a-pete', [])).toEqual(['review']);
+    expect(of('a-pete')).toEqual(['review', 'crash-test']);
+    expect(of('a-semic')).toEqual([]);
+    expect(memberGates(null, view, { agentId: 'a-pete' })).toEqual([]);
+  });
+
   it('parseRework: the last {"rework": …} line, entries with notes only', () => {
     expect(parseRework('All good.')).toEqual([]);
     expect(
