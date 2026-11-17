@@ -1,0 +1,9 @@
+{
+  "name": "workflows-v2-live-check",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway browser check for Workflows v2 (Phase 6). Not part of the app.",
+  "devDependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}

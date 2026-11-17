@@ -1,0 +1,12 @@
+[
+  { "go": "#office/aurora/how" },
+  { "click": "role=button[name='Draw how we work']", "after": 1000 },
+  { "select": ["select[aria-label='Who starts']", "a-pete"] },
+  { "eval": "(()=>{const c=document.querySelector('.fe-canvas'),b=document.querySelector('.fe-board');const r=x=>{const q=x.getBoundingClientRect();return [q.x,q.y,q.width,q.height].map(Math.round)};return {canvas:r(c),board:r(b)}})()" },
+  { "click": ".fe-canvas >> nth=0", "after": 400 },
+  { "eval": "document.querySelector('[role=toolbar]').getAttribute('aria-label')" },
+  { "press": "Escape" },
+  { "eval": "document.querySelector('[role=toolbar]').getAttribute('aria-label')" },
+  { "click": "button.fe-node[aria-label^='Pete']" },
+  { "eval": "document.querySelector('[role=toolbar]').getAttribute('aria-label')" }
+]

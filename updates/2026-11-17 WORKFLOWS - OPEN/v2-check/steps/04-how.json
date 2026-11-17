@@ -1,0 +1,7 @@
+[
+  { "go": "#office/aurora/board" },
+  { "click": "role=button[name=/How we work/]", "after": 1500 },
+  { "shot": "how" },
+  { "buttons": "main button, main a, [role=dialog] button, section button" },
+  { "text": true, "max": 2500 }
+]
