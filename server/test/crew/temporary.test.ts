@@ -181,6 +181,68 @@ describe('temporary command, live in the studio', () => {
     expect(tools['Baron von Backup:later']).not.toContain('stop_work');
   });
 
+  it('the live example end to end: lead hands work, signs it, the goal ends, Pixel offers to keep it', async () => {
+    const peteRuns: string[] = [];
+    const turns: FakeStep[][] = [[addGoal({ lead: 'a-baron', crew: ['Pixel Pete'] })]];
+    studio(turns, (name, spec) => {
+      if (name === 'Pixel Pete') peteRuns.push(spec.runId);
+      if (name === 'Baron von Backup' && spec.task.includes('Plan backups'))
+        return [
+          {
+            tool: 'call_agent',
+            args: { agent: 'Pixel Pete', request: 'Add a restore drill', why: 'drill restores', work: true },
+          },
+        ];
+      if (name === 'Pixel Pete') return [{ tool: 'room', args: {} }];
+      return [];
+    });
+    await say();
+    const goal = () => board().find((g) => g.text === 'Ship backups') as Goal;
+    await until(() => goal().status === 'done', state, 8000);
+
+    // the hand-off is main work on the same goal, gated and signed by the lead
+    expect(board()).toHaveLength(1);
+    expect(goal().quest).toBe('main');
+    const [view] = (await h.call('GET', '/projects/aurora/work')).body;
+    expect(
+      view.items.map((i: { text: string; signoffs: { reviewer: { name: string }; state: string }[] }) => [
+        i.text,
+        i.signoffs.map((s) => `${s.reviewer.name}:${s.state}`),
+      ]),
+    ).toEqual([
+      ['Plan backups', []],
+      ['Build backups', ['Baron von Backup:signed']],
+      ['Add a restore drill', ['Baron von Backup:signed']],
+    ]);
+    // both of Pete's tasks ran with Baron as his contact
+    expect(peteRuns).toHaveLength(2);
+    for (const run of peteRuns) expect(said(run).join('\n')).toMatch(/"yourContact":\s*"Baron von Backup"/);
+
+    // it ended once, and Pixel offers to keep the way of working
+    const ended = h.events.after('project', 'aurora').filter((e) => e.type === 'workflow.ended');
+    expect(ended.map((e) => e.payload)).toEqual([
+      { goalId: goal().id, lead: 'a-baron', crew: ['a-pete'], status: 'done' },
+    ]);
+    const thread = JSON.stringify((await h.call('GET', chatUrl)).body);
+    expect(thread).toContain("Baron von Backup's crew finished 'Ship backups'. Keep this way of working?");
+
+    // kept as a stable workflow: Baron still signs Pete's work, nobody leads
+    turns.push([
+      { tool: 'save_workflow', args: { goal: goal().id, name: 'Lead and build', when: 'backups' } },
+    ]);
+    const turn = await h.call('POST', chatUrl, { text: 'Keep it' });
+    await h.runtime.settled(turn.body.runId);
+    expect(said(turn.body.runId).join('\n')).toContain("Saved 'Lead and build'.");
+    const kept = h.store.projects.require('aurora').workflows?.find((w) => w.id === 'lead-and-build');
+    expect(kept?.lead).toBeUndefined();
+    expect(kept?.gates.map((g) => [g.after, g.reviewer])).toEqual([['a-pete', 'a-baron']]);
+
+    // afterwards Pete's contact is the usual one again
+    const later = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'later' })).body;
+    await h.runtime.settled(later.id);
+    expect(said(later.id).join('\n')).toMatch(/"yourContact":\s*"(?!Baron von Backup)[^"]+"/);
+  });
+
   it('a crew name nobody has is refused; a Cast agent not on the project is seated as a guest', async () => {
     studio([
       [
