@@ -387,3 +387,9 @@ With real agents on this project:
   board). How we work: the usual way ("Usually") plus every other workflow with its "when". The keep offer is
   Pixel's thread line (server). App tests 600 green, typecheck clean; read against a real server. **Next:**
   Phase 5b editor once Uncle Bob's routes land; Phase 7 live check.
+- 2026-11-17: **Phase 7 live check: not signed off (Elon).** See `live-check.md`. Server half works for all three
+  types: drawings with first/final, hand-offs, a decision and sign-offs save, reload, refuse broken ones by path, and
+  real work (fake runner) takes the sign-off arrows as gates and shows "Signed by". Gaps sent back: (1) no visual
+  editor on screen (Jony); (2) start, final, hand-offs and decisions reach nobody at run time — the planner and tasks
+  should get the drawing in words (Uncle Bob); (3) `set_workflow` on a drawn workflow silently erases the drawing
+  (Uncle Bob). Re-check with `live-check.mjs` + the editor once those land.
