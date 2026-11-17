@@ -25,7 +25,6 @@ import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
 import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
-import { gatesFromGraph } from '../domain/graph.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
 import {
   gatesFor,
@@ -1150,8 +1149,7 @@ export function createDispatch(deps: {
     for (const id of split) teamCheck(id);
   }
 
-  /** The review gates a new item gets for its owner under workflow `w`, then the owner's team's own checks
-      (reviewers who left the project are skipped). */
+  /** The review gates a new item gets for its owner under workflow `w` (reviewers who left the project are skipped). */
   function gatesOf(
     projectId: string,
     owner: { agentId: string; teamId: string | null },
@@ -1162,9 +1160,7 @@ export function createDispatch(deps: {
       p.agentIds.includes(id) ||
       store.guests.ids(projectId).includes(id) ||
       p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
-    const team = owner.teamId ? store.teams.workflow(owner.teamId) : null;
-    const gates = team ? [...w.gates, ...gatesFromGraph(team.graph)] : w.gates;
-    return gatesFor({ ...w, gates }, owner).filter((g) => onProject(g.reviewer));
+    return gatesFor(w, owner).filter((g) => onProject(g.reviewer));
   }
 
   const STOP_WAIT_MS = 60_000;

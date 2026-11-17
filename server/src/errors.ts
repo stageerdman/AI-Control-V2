@@ -58,12 +58,22 @@ export const invalid = (message: string, details?: unknown) => new AppError('inv
 export const agentError = (message: string, details?: unknown) =>
   new AppError('agent_error', message, details);
 
-/** Validate untrusted input; throws a 422 listing each issue. */
-export function parse<S extends z.ZodType>(schema: S, data: unknown): z.output<S> {
+/** Validate untrusted input; throws a 422 listing each issue. `at`: where `data` sits in the request body, so
+    each issue's path is the body's (`workflows.0.steps.2.to`). */
+export function parse<S extends z.ZodType>(schema: S, data: unknown, at?: string): z.output<S> {
   const r = schema.safeParse(data);
   if (r.success) return r.data;
   throw invalid(
     'Request validation failed',
-    r.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+    r.error.issues.map((i) => ({ path: [...(at ? [at] : []), ...i.path].join('.'), message: i.message })),
   );
+}
+
+/** A 409 from rule issues written as "path: message" (src/domain): the first is the message, all are details. */
+export function ruleConflict(issues: readonly string[]): AppError {
+  const details = issues.map((m) => {
+    const cut = m.indexOf(': ');
+    return cut < 0 ? { path: '', message: m } : { path: m.slice(0, cut), message: m.slice(cut + 2) };
+  });
+  return conflict(issues[0] ?? 'Not allowed', details);
 }

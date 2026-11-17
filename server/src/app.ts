@@ -15,6 +15,7 @@ import { fakeBrain } from './crew/fake-brain.ts';
 import { settledLine } from './crew/settled.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
+import { createTeamWorkflows } from './crew/team-workflow.ts';
 import { createWorkflows } from './crew/workflows.ts';
 import type { Db } from './db/connection.ts';
 import { runsRepo } from './db/runs.ts';
@@ -96,7 +97,7 @@ import { runningRoutes } from './routes/running.ts';
 import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
 import { settingsRoutes } from './routes/settings.ts';
-import { teamRoutes } from './routes/teams.ts';
+import { teamRoutes, teamWorkflowRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
 import { todoRoutes } from './routes/todos.ts';
@@ -594,6 +595,7 @@ export function buildApp({
   app.register(healthRoutes({ config, db, build }));
   for (const routes of [roleRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
     app.register(routes(store));
+  app.register(teamWorkflowRoutes(createTeamWorkflows({ store, events })));
   app.register(
     agentRoutes({
       store,
@@ -635,9 +637,7 @@ export function buildApp({
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(
-    crewRoutes({ chat, creator, dispatch, board, findAgent: (id) => store.agents.get(id) ?? null }),
-  );
+  app.register(crewRoutes({ chat, creator, dispatch, findAgent: (id) => store.agents.get(id) ?? null }));
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
   app.register(runningRoutes({ running, stopper, store }));

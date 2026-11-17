@@ -1,9 +1,19 @@
 /* The whiteboard as the user reads it: every task carries its people (name + avatar look), its sign-offs and,
    when it stopped, a plain message. The stored goal stays as it is; this only adds fields for the screens. */
 import type { ChecklistItem, Goal } from '../db/work.ts';
-import type { WorkflowGraph } from '../domain/graph.ts';
 import { DEFAULT_LOOK, type Look } from '../domain/look.ts';
-import { type Signoff, signedBy, signoffs, type WorkflowTag, workflowTag } from '../domain/workflows.ts';
+import {
+  effectiveGates,
+  isTemporary,
+  type ScopedWorkflow,
+  type Signoff,
+  scoped,
+  signedBy,
+  signoffs,
+  type Workflow,
+  type WorkflowTag,
+  workflowTag,
+} from '../domain/workflows.ts';
 import { finishedById, workingNowIds } from './people.ts';
 import { type Problem, plainProblem } from './plain-problem.ts';
 
@@ -20,14 +30,21 @@ export type TaskView = Omit<ChecklistItem, 'subtasks'> & {
   signoffs: SignoffView[];
   subtasks: TaskView[];
 };
-/** `workflow`: what the goal runs under, by name (null: an older goal — the project's usual way).
-    `graph`: its drawing, when it has one (the editor reloads it; events carry only the tag).
+/** `workflow`: what the goal runs under (null: an older goal — the project's usual way): its tag plus the whole
+    workflow, so the editor can draw it read-only; `gates` are the ones it really runs (a temporary lead's
+    sign-offs included). Events carry only the tag.
     `signedBy`: who signed off its work — only once the goal is done. */
+export type GoalWorkflowView = ScopedWorkflow & WorkflowTag;
 export type GoalView = Omit<Goal, 'items' | 'workflow'> & {
   items: TaskView[];
-  workflow: (WorkflowTag & { graph?: WorkflowGraph }) | null;
+  workflow: GoalWorkflowView | null;
   signedBy: Person[];
 };
+
+const goalWorkflow = (w: Workflow): GoalWorkflowView => ({
+  ...scoped({ ...w, gates: effectiveGates(w) }, isTemporary(w) ? 'temporary' : 'office'),
+  ...workflowTag(w),
+});
 
 export function personOf(find: FindAgent, id: string): Person {
   const a = find(id);
@@ -49,6 +66,6 @@ export function presentTask(it: ChecklistItem, find: FindAgent): TaskView {
 export const presentGoal = (g: Goal, find: FindAgent): GoalView => ({
   ...g,
   items: g.items.map((it) => presentTask(it, find)),
-  workflow: g.workflow ? { ...workflowTag(g.workflow), ...(g.workflow.graph ? { graph: g.workflow.graph } : {}) } : null,
+  workflow: g.workflow ? goalWorkflow(g.workflow) : null,
   signedBy: g.status === 'done' ? signedBy(g).map((id) => personOf(find, id)) : [],
 });

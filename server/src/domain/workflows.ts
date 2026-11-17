@@ -19,9 +19,10 @@
    `new-team:N` (N = index in plan.newAgents / plan.newTeams); accepting the plan rewrites them to real ids. */
 import { z } from 'zod';
 import { type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
-import { GraphSchema, gatesFromGraph, type GraphRules, graphIssues, type Issue, under } from './graph.ts';
+import { drawingIssues, drawingShape, type Who } from './workflow-drawing.ts';
 
 export { GATE_KINDS, type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
+export { tidyLayout } from './workflow-drawing.ts';
 export const DEFAULT_MAX_SEND_BACKS = 2;
 export const MAX_WORKFLOWS = 6;
 export const MAX_CREW = 4;
@@ -51,35 +52,31 @@ export const WorkflowSchema = z.strictObject({
     .max(MAX_CREW)
     .refine((c) => new Set(c).size === c.length, 'crew has duplicates')
     .optional(),
-  /** Drawn in the editor (src/domain/graph.ts). When there, its sign-off arrows are the gates. */
-  graph: GraphSchema.optional(),
+  /** The editor's first / final / steps / layout (src/domain/workflow-drawing.ts). */
+  ...drawingShape,
 });
 export type Workflow = z.output<typeof WorkflowSchema>;
 
-/** A team's own way of working, drawn in the Cast: only its members stand on it; it follows the team. */
-export const TeamWorkflowSchema = z.strictObject({
-  name: z.string().trim().min(1).max(60),
-  summary: z.string().trim().max(500).default(''),
-  graph: GraphSchema,
-});
-export type TeamWorkflow = z.output<typeof TeamWorkflowSchema>;
-
-/** Who may stand on a team's graph: its members (captain included). */
-export const teamGraphRules = (members: readonly string[]): GraphRules => ({
-  allowed: (id) => members.includes(id),
-  who: 'on this team',
+/** Where a workflow lives — added on reads only (a PUT ignores it): the project's list, a team, or one goal. */
+export type WorkflowScope = 'office' | 'team' | 'temporary';
+export type ScopedWorkflow = Workflow & { scope: WorkflowScope; teamId?: string };
+export const scoped = (w: Workflow, scope: WorkflowScope, teamId?: string): ScopedWorkflow => ({
+  ...w,
+  scope,
+  ...(teamId ? { teamId } : {}),
 });
 
-/** Pure: a drawn workflow's gates come from its sign-off arrows — one source, so drawing and running agree. */
-export const withGraphGates = <W extends { gates: Gate[]; graph?: Workflow['graph'] }>(w: W): W =>
-  w.graph ? { ...w, gates: gatesFromGraph(w.graph) } : w;
+/** Pure: a workflow as a screen sends it back — the read-only fields dropped before the shape is checked. */
+export function withoutReadFields(raw: unknown): unknown {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const { scope: _scope, teamId: _teamId, ...rest } = raw as Record<string, unknown>;
+  return rest;
+}
 
-/** Pure: a drawn workflow's graph problems, by path under `at` (none drawn: none). */
-export const workflowGraphIssues = (
-  w: Pick<Workflow, 'graph'>,
-  rules: GraphRules,
-  at = 'graph',
-): Issue[] => (w.graph ? under(at, graphIssues(w.graph, rules)) : []);
+/** A team's own way of working (edited in the Cast): a workflow whose id may be left out. */
+export const TeamWorkflowSchema = WorkflowSchema.extend({
+  id: WorkflowSchema.shape.id.default('team'),
+});
 
 export const WorkflowsSchema = z
   .array(WorkflowSchema)
@@ -97,6 +94,8 @@ export type Staffing = {
   /** Specialist ids (outside the teams), Cast guests included. */
   specialists: ReadonlySet<string>;
   name: (id: string) => string;
+  /** Where the workflow lives, for messages (default "on this project"; a team's own: "on this team"). */
+  where?: string;
   /** Placeholder counts for briefs not minted yet (setup only). */
   newAgents?: number;
   newTeams?: number;
@@ -104,7 +103,7 @@ export type Staffing = {
 
 const placeholder = /^new-(agent|team):(\d+)$/;
 
-function onProject(s: Staffing) {
+function onProject(s: Staffing): Who {
   const members = new Set([...s.teams.values()].flatMap((t) => t.members));
   const isAgent = (id: string) => {
     const m = placeholder.exec(id);
@@ -116,28 +115,33 @@ function onProject(s: Staffing) {
     if (m) return m[1] === 'team' && Number(m[2]) < (s.newTeams ?? 0);
     return s.teams.has(id);
   };
-  return { isAgent, isTeam };
+  return { isAgent, isTeam, name: s.name, where: s.where ?? 'on this project' };
 }
 
-/** Who may stand on an office workflow's graph: anyone on the project. */
-export const projectGraphRules = (s: Staffing): GraphRules => ({
-  allowed: onProject(s).isAgent,
-  who: 'on this project',
+/** A team's own workflow sees only the team: its members, and the team itself as "after" / "first". */
+export const teamStaffing = (
+  team: { id: string; name: string; members: readonly string[] },
+  name: (id: string) => string,
+): Staffing => ({
+  teams: new Map([[team.id, { name: team.name, members: team.members }]]),
+  specialists: new Set(),
+  name,
+  where: 'on this team',
 });
 
 /** Pure: every gate points at people on the project; no self-review, no duplicates. `at` prefixes each issue. */
 export function collaborationIssues(c: Collaboration, s: Staffing, at = 'collaboration'): string[] {
   const out: string[] = [];
-  const { isAgent, isTeam } = onProject(s);
+  const { isAgent, isTeam, where } = onProject(s);
   const seen = new Set<string>();
   c.gates.forEach((g, i) => {
     if (g.after !== '*' && !isTeam(g.after) && !isAgent(g.after))
       out.push(
-        `${at}.gates.${i}.after: '${g.after}' is not a team or agent on this project (use a team id, an agent id or "*")`,
+        `${at}.gates.${i}.after: '${g.after}' is not a team or agent ${where} (use a team id, an agent id or "*")`,
       );
     if (!isAgent(g.reviewer))
       out.push(
-        `${at}.gates.${i}.reviewer: '${g.reviewer}' is not on this project — a reviewer must be a team member or a specialist here`,
+        `${at}.gates.${i}.reviewer: '${g.reviewer}' is not ${where} — a reviewer must be someone who works here`,
       );
     else if (g.reviewer === g.after)
       out.push(`${at}.gates.${i}: ${s.name(g.reviewer)} can't review their own work`);
@@ -155,7 +159,7 @@ export function workflowIssues(
   opts: { temporary: boolean },
   at = 'workflow',
 ): string[] {
-  const out = collaborationIssues(w, s, at);
+  const out = [...collaborationIssues(w, s, at), ...drawingIssues(w, onProject(s), at)];
   if (!opts.temporary) {
     if (w.lead !== undefined || w.crew !== undefined)
       out.push(`${at}: a stable workflow names checks, not command — drop lead and crew`);
@@ -250,10 +254,9 @@ export function effectiveGates(
 }
 
 /** Pure: a goal's workflow kept as a stable one — no lead or crew; a temporary lead's sign-offs written out as
-    plain gates, so the same people keep checking the same work. The drawing stays with the goal: its arrows
-    would re-derive the gates without the lead's sign-offs. */
+    plain gates, so the same people keep checking the same work. */
 export function stableCopy(w: Workflow, keep: { id: string; name: string; when: string }): Workflow {
-  const { lead: _lead, crew: _crew, graph: _graph, ...rest } = w;
+  const { lead: _lead, crew: _crew, ...rest } = w;
   return { ...rest, ...keep, gates: effectiveGates(w) };
 }
 
@@ -292,12 +295,6 @@ export function temporaryWorkflow(
     crew: ask.crew,
   };
 }
-
-/** Who may stand on a temporary workflow's graph: its lead and crew. */
-export const crewGraphRules = (w: Pick<Workflow, 'lead' | 'crew'>): GraphRules => ({
-  allowed: (id) => id === w.lead || !!w.crew?.includes(id),
-  who: 'the lead or in the crew',
-});
 
 type Led = { status: string; workflow: Pick<Workflow, 'lead' | 'crew'> | null };
 
