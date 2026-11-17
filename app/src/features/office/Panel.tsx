@@ -123,8 +123,9 @@ export function Panel(p: PanelProps) {
   const messages = [...(t.data?.messages ?? []), ...(local.get(lkey) ?? [])].sort((a, b) =>
     a.at < b.at ? -1 : a.at > b.at ? 1 : 0,
   );
-  const typing = !!t.data?.busy;
   const asks = p.asks.filter((a) => a.agentId === id);
+  /* a turn waiting on your answer isn't typing: the question card says what it waits for (no dots under it) */
+  const typing = !!t.data?.busy && !asks.some((a) => !answers[a.id]);
 
   const live = view === 'live';
   /** Where the live log was when you left for history (null: at the bottom). */

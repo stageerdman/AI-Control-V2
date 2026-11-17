@@ -44,8 +44,10 @@ export function cardPending(messages: readonly ThreadMessage[], settled: (planId
 function reasonOf(f: NewChatFacts): string | null {
   const sessions = sessionsOf(f);
   const others = sessions.filter((s) => s.agentId !== f.director);
-  if (f.busy || others.length < sessions.length) return `${f.nameOf(f.director)} is replying`;
   const waiting = [...new Set(f.asks.map((a) => a.agentId))];
+  /* the director's turn is open on a question to you: it waits for you, it isn't replying */
+  if (waiting.includes(f.director)) return `${f.nameOf(f.director)} needs you`;
+  if (f.busy || others.length < sessions.length) return `${f.nameOf(f.director)} is replying`;
   if (waiting.length === 1) return `${f.nameOf(waiting[0] as string)} needs you`;
   if (waiting.length > 1) return `${waiting.length} agents need you`;
   const agents = new Set(others.flatMap((s) => (s.agentId ? [s.agentId] : [])));

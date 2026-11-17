@@ -100,8 +100,9 @@ export function pacedBrain(pace: number): (spec: RunSpec) => FakeStep[] {
         },
         { wait: 5000 },
       ];
-    if (!contractOf(spec.task) && /\bask me\b/i.test(spec.task))
-      steps = [{ ask: 'Quick check before I start — go ahead?', options: ['Go ahead', 'Hold on'] }, ...steps];
+    /* "ask me" → a question only the user can answer (auto-approve leaves it alone), with options */
+    if (!contractOf(spec.task) && /\bask me\b/i.test(spec.task) && !/^The user answered:/m.test(spec.task))
+      steps = [{ ask: 'Reload the app — did the fix work?', options: ['Yes', 'No'] }, ...steps];
     return pace > 0 ? steps.flatMap((s) => [s, { wait: pace }]) : steps;
   };
 }

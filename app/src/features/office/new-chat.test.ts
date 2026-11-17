@@ -52,6 +52,10 @@ describe('newChatState', () => {
     expect(newChatState(facts({ busy: true }))).toEqual({ state: 'disabled', reason: 'Pixel is replying' });
     expect(newChatState(facts({ running: [run('pixel'), run('mira')] })).reason).toBe('Pixel is replying');
   });
+  it('Pixel asking you: “needs you”, not “replying”, though the turn still runs', () => {
+    const f = facts({ busy: true, running: [run('pixel')], asks: [{ agentId: 'pixel' }] });
+    expect(newChatState(f)).toEqual({ state: 'disabled', reason: 'Pixel needs you' });
+  });
   it('an open ask: one agent by name, more by count', () => {
     expect(newChatState(facts({ asks: [{ agentId: 'mira' }, { agentId: 'mira' }] })).reason).toBe(
       'Mira needs you',
