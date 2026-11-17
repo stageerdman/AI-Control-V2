@@ -1,7 +1,9 @@
 /* Runs + asks repository (plain SQL, no rules — the runtime service owns those). */
 import type { Db } from './connection.ts';
-import { now } from './util.ts';
+import { now, rows } from './util.ts';
 
+/** The error on a run the server stopped mid-way (marked at the next boot). */
+export const INTERRUPTED = 'Interrupted: the server stopped during the run';
 export type RunStatus = 'running' | 'succeeded' | 'failed' | 'cancelled';
 export type Run = {
   id: string;
@@ -182,15 +184,18 @@ export function runsRepo(db: Db) {
       );
     },
     /** After a crash/restart nothing is really running any more. */
-    failInterrupted(): number {
+    /** Boot after a crash or a close: every run still 'running' failed as interrupted → their ids. */
+    failInterrupted(): string[] {
       db.prepare(
         "UPDATE asks SET status = 'cancelled' WHERE status = 'open' AND run_id IN (SELECT id FROM runs WHERE status = 'running')",
       ).run();
-      return db
-        .prepare(
-          "UPDATE runs SET status = 'failed', error = 'Interrupted: the server stopped during the run', ended_at = ? WHERE status = 'running'",
-        )
-        .run(now()).changes as number;
+      return rows<{ id: string }>(
+        db
+          .prepare(
+            "UPDATE runs SET status = 'failed', error = ?, ended_at = ? WHERE status = 'running' RETURNING id",
+          )
+          .all(INTERRUPTED, now()),
+      ).map((r) => r.id);
     },
 
     insertAsk(a: Pick<Ask, 'id' | 'runId' | 'projectId' | 'agentId' | 'question' | 'options'>): Ask {

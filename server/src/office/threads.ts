@@ -17,7 +17,7 @@ import { CREW_CAPS } from '../crew/structured.ts';
 import type { Agent } from '../db/agents.ts';
 import type { Db } from '../db/connection.ts';
 import type { Project } from '../db/projects.ts';
-import type { Run } from '../db/runs.ts';
+import { INTERRUPTED, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
@@ -73,6 +73,13 @@ const json = (v: unknown) => JSON.stringify(v);
 /** What the user calls an agent: its nick, else its first name. */
 const shortName = (a: Pick<Agent, 'name' | 'nick'> | null | undefined) =>
   a?.nick ?? a?.name.split(' ')[0] ?? 'Someone';
+
+/** A thread's reply when the run ended without an answer: stopped, cut off by a restart, or failed. */
+export function whyNoAnswer(run: Pick<Run, 'status' | 'error'>): string {
+  if (run.status === 'cancelled') return 'Stopped by you before I could answer. Ask me to carry on any time.';
+  if (run.error === INTERRUPTED) return 'The studio restarted before I could answer. Ask me again any time.';
+  return `I couldn’t finish that: ${clip(run.error ?? 'no answer', 2000)}`;
+}
 
 /** The step a todo item waits on (checklist order, as dispatch's orderGate): the first unfinished item before
     its parallel group. */
@@ -469,11 +476,33 @@ export function createThreads(deps: {
     });
   });
 
+  /** The thread a run answers, from the stored user line carrying its id (memory is lost on a restart, and a
+      note told to running work never had a turn). Null: not a chat run, or it already replied. */
+  const turnOf = (run: Run): Turn | null => {
+    const line = rows<{ project_id: string; agent_id: string; replied: number }>(
+      db
+        .prepare(
+          `SELECT project_id, agent_id, EXISTS (SELECT 1 FROM thread_messages a WHERE a.run_id = m.run_id
+             AND a.sender = 'agent') AS replied
+           FROM thread_messages m WHERE m.run_id = ? AND m.sender = 'user' LIMIT 1`,
+        )
+        .all(run.id),
+    )[0];
+    if (!line || line.replied) return null;
+    const p = store.projects.get(line.project_id);
+    return { projectId: line.project_id, agentId: line.agent_id, orchestrator: p?.orchestratorId === line.agent_id };
+  };
+
   runtime.onFinished((run: Run) => {
-    const t = turns.get(run.id);
-    if (!t) return;
+    const t = turns.get(run.id) ?? turnOf(run);
     turns.delete(run.id);
+    if (!t) return;
     busy.delete(key(t.projectId, t.agentId));
+    replied(t, run);
+  });
+
+  /** The run's answer in its thread: a filed report, the director's plain words, the agent's result, or why not. */
+  function replied(t: Turn, run: Run) {
     /* a turn that filed a report answers in one line pointing at it (spec-reports §1.2) */
     const filed = deps.reports.byRun(run.id).at(-1);
     if (filed) {
@@ -493,14 +522,10 @@ export function createThreads(deps: {
     insert(t.projectId, t.agentId, {
       sender: 'agent',
       kind: ok ? 'text' : 'error',
-      text: ok
-        ? (run.result as string)
-        : run.status === 'cancelled'
-          ? 'Stopped by you before I could answer. Ask me to carry on any time.'
-          : `I couldn’t finish that: ${clip(run.error ?? 'no answer', 2000)}`,
+      text: ok ? (run.result as string) : whyNoAnswer(run),
       runId: run.id,
     });
-  });
+  }
 
   /** The newest HISTORY messages of one chat window, oldest first. */
   const messagesIn = (projectId: string, agentId: string, w: ChatWindow): ThreadMessage[] =>
@@ -526,6 +551,16 @@ export function createThreads(deps: {
   };
 
   return {
+    /** After a restart: every chat turn the restart cut off (`runIds`, just marked interrupted) gets its reply. */
+    recover(runIds: readonly string[]) {
+      const runs = runsRepo(db);
+      for (const id of runIds) {
+        const run = runs.get(id);
+        const t = run && turnOf(run);
+        if (run && t) replied(t, run);
+      }
+    },
+
     /** The current chat (everything since the last New chat). */
     get(projectId: string, agentId: string): Thread {
       const p = store.projects.require(projectId);

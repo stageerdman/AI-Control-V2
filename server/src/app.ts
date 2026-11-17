@@ -264,7 +264,8 @@ export function buildApp({
       file: (run, input, extra) => reports.file(run, parse(ReportInputSchema, input), extra),
     },
   });
-  runtime.recover();
+  /* runs the last server left running: interrupted (their chat turns get a reply once threads exist) */
+  const interrupted = runtime.recover();
   onRuntime?.(runtime);
   /* the office's work clock: runs + the crew calls that never become runs */
   const clock = createWorkClock(db);
@@ -500,6 +501,7 @@ export function buildApp({
     rebuilds,
   });
   threadsRef = threads;
+  threads.recover(interrupted);
   /* someone finished a step → they tell the director, who decides what the user hears (chat, page or keep) */
   const reportIn = createReportIn({ db, store, events, crew, threads, comms });
   const pages = createPages({ db, store });

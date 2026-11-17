@@ -115,7 +115,7 @@ describe('chat history (db)', () => {
     first.close();
 
     const again = openDb(path);
-    expect(runsRepo(again).failInterrupted()).toBe(1); // what boot does after a crash
+    expect(runsRepo(again).failInterrupted()).toEqual(['r1']); // what boot does after a crash
     expect(getChatMessages(again, 'r1').map((m) => m.text)).toEqual(['Make hello.txt', 'Halfway there']);
     expect(listAgentChats(again, 'a-pete')).toEqual([
       expect.objectContaining({ runId: 'r1', status: 'failed', messageCount: 2, lastText: 'Halfway there' }),

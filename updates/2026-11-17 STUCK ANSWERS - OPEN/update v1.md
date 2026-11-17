@@ -1,0 +1,55 @@
+# Stuck answers — update v1
+
+**Feature:** Fix: Agent Answers Getting Stuck (`f-agent-answers-getting-stuck`)
+
+## The report
+
+> When I leave the office mid-answer, the agent never answers me. Agents look stuck: Elon was working, now
+> he's done, but there's no report, no reply, and his task on the board is still open — as if they don't
+> work when I'm out of the office.
+
+## Root causes (found by reading the flow end to end)
+
+1. **The app never re-reads a chat after you leave the office (client).** The thread cache (`app/src/api/query.ts`)
+   has no GC and no refetch-on-mount for fresh entries. Sending a message writes `busy: true` into the cache.
+   Leave the office (or switch project) → that project's event stream closes. The reply lands on the server and
+   is stored, but the `thread.message` event is never seen. Come back → the office stream resumes from *now*
+   (`office.lastEventId`), the cached thread is still "fresh", so it is not fetched: the chat shows "typing…"
+   forever and the reply never appears. The same staleness hits the whiteboard, features and every other
+   office panel — the "task still open" the user saw can be a stale board.
+2. **A message to an agent already at work never gets a reply (server).** `threads.say` hands it to the
+   running work as a note (`runtime.tell`), stores the user's line with that run's id — but no turn is
+   registered, so when the run ends nothing is written back to the thread. "Elon finished… no reply."
+3. **A restart loses every in-flight chat turn (server).** Which thread a reply belongs to lived only in an
+   in-memory map (`turns`). After a restart the run is marked interrupted and no `run.finished` fires, so the
+   user's line waits forever with no answer.
+4. **Finished work can stay "running" forever (server).** After a run ends, dispatch merges its branch (or puts
+   its checkout away) in an async continuation. If that throws (git missing a ref, a checkout gone, a store
+   write), the error was swallowed (`serial(...).catch(() => {})`, `void stop(...)`, `void launch(...)`): the
+   item never settles, its goal never settles, nothing is said.
+
+## Phases
+
+### Phase 1 — every chat turn gets its reply (server) ✅
+- A reply's thread is found from the stored user line (`thread_messages.run_id`), not from memory. The memory
+  map keeps only the director's extras (goals before the turn, the rebuild card).
+- A message told to a running run gets that run's final words as its reply when it ends.
+- At start-up, user lines whose runs were just interrupted get an honest reply ("the studio restarted…").
+- One reply per run (idempotent).
+- **Tests** (`server/test/office/replies-kept.test.ts`): reply lands with nobody listening and is in GET;
+  a note to an agent at work gets the work's result as its reply; a restart answers the interrupted turn.
+
+### Phase 2 — a finished run always settles its task (server) ✅
+- Item continuations after a run (merge back, put away, launch) never swallow errors: a throw settles the
+  item `failed` with the reason (logged with project / item / run), so its goal settles and the office hears.
+- **Tests** (`server/test/crew/settles-always.test.ts`): a merge that throws fails the item with the reason
+  and the goal settles.
+
+### Phase 3 — coming back to the office shows what happened while away (app) ✅
+- Entering a project's office marks every cached panel of that project stale (`office:<pid>:`), so the chat,
+  board, features… are read fresh. Events from then on keep them live as before.
+- **Tests** (`app/src/api/query.test.tsx`): invalidating an unwatched key refetches on the next mount;
+  (`app/src/features/office/...`): the office entry invalidates the project's prefix.
+
+## Status
+All three phases done; server and app test suites green. See `wiki.md` for the lessons.
