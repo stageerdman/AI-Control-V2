@@ -13,12 +13,15 @@ export function WorkDesign({
   orch,
   resolve,
   title = 'How we’ll work',
+  when,
 }: {
   collab: Collaboration | null | undefined;
   /** The orchestrator's short name ("Pixel"). */
   orch: string;
   resolve: Resolve;
   title?: string;
+  /** A workflow's "when to use it" line, under the title. */
+  when?: string;
 }) {
   const view = useMemo(() => designView(collab, orch, resolve), [collab, orch, resolve]);
   const prev = useRef<DesignView | null>(null);
@@ -35,6 +38,7 @@ export function WorkDesign({
   return (
     <section className="wd" aria-label={title}>
       <h3 className="wd-eyebrow">{title}</h3>
+      {when && <p className="wd-when">{when}</p>}
       <p className="wd-talk">{view.talk}.</p>
       {view.chips.length > 0 && (
         <ul className="wd-gates">

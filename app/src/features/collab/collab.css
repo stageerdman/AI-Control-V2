@@ -10,6 +10,17 @@
   text-transform: uppercase;
   color: var(--ink-soft);
 }
+.wd-when {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.wf-list {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
 .wd-talk {
   margin: 0 0 8px;
   font-weight: 700;

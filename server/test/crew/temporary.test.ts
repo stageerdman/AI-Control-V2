@@ -278,7 +278,12 @@ describe('temporary command, live in the studio', () => {
     h.store.projects.update('aurora', { folder: 'aurora' });
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Ship backups' });
     expect(r.status).toBe(201);
-    expect(r.body.workflow).toMatchObject({ id: 'temp', lead: 'a-baron', temporary: true });
+    expect(r.body.workflow).toMatchObject({
+      id: 'temp',
+      lead: 'a-baron',
+      crew: ['a-query'],
+      temporary: true,
+    });
     expect(
       r.body.items.map((i: { gates: { reviewer: string }[] }) => i.gates.map((g) => g.reviewer)),
     ).toEqual([[], ['a-baron']]);

@@ -306,6 +306,39 @@ Each phase is one PR-sized commit series, ends with tests, and keeps every exist
   aria labels, hidden without reviewers; QuestBoard shows "Signed by" on done goals only; WorkDesign lists several.
   Screenshot pass with Humanitarian for contrast and glyphs.
 
+- **As built (Jony):** the tag also carries `crew` on temporary workflows (`workflowTag`, event schema), because the
+  office ring needs the crew and the goal JSON had only the lead. The design's "crew's contact line points to the
+  lead" is dropped: the office draws no contact lines anywhere, and the ring already says who leads whom.
+
+### Phase 5b — The workflow editor (scope from the user, 2026-11-17; front-end Jony, backend Uncle Bob)
+
+The user asked for more than a read-only list: **three types** (team, office, temporary) and a **visual editor**:
+agents as nodes, arrows for what goes where and why, light decision branches, hand editing (place agents, set the
+first and the final agent). Opened from the Cast (a team's way) and the office ("How we work").
+
+- **Three types, one shape.** *Office* = today's stable workflows (`projects.workflows`). *Team* = one per team
+  (`teams.workflow`, the team's usual way from Phase 6; stored and shown, dispatch uses it once Phase 6 runs).
+  *Temporary* = on a goal (lead + crew). Where it lives says which kind: the server adds `scope` (and `teamId`) on reads.
+- **Data (agreed with Uncle Bob):** `Workflow += first?` (agent or team: who starts), `final?` (agent: who signs
+  last; one of the reviewers when there are gates), `layout?` (`{nodeId: {x 0..1000, y 0..600}}`, editor only),
+  `steps?` (`[{from, to, why, when?}]`, ≤12: hand-offs that aren't reviews). `Gate += when?` (a soft branch label:
+  "only if it touches the UI"). Review arrows **are** the gates: sign-offs keep one source of truth.
+- **Routes:** `GET/PUT /projects/:id/workflows` (new fields; issue messages start with their path, so an error pins to
+  its arrow), `GET/PUT /teams/:id/workflow` (`{workflow | null}`), event `team.workflow.changed {teamId, name|null}`.
+- **Editor (one component, `app/src/features/collab/flow/`):** a calm canvas. Nodes = avatars (drag to place; arrow
+  keys move a focused node). Two arrow styles only: solid = hands work to, dashed with a ✓ = signs off. Branch label
+  on the arrow in small italic. "Starts here" / "Signs last" are badges on the node, set from the selected node's
+  small toolbar. Connect = select a node, then "Connect to…" → pick the other → one sheet: hand-off or sign-off,
+  why, "only when…" (optional). The same arrows are listed as text under the canvas (the keyboard and
+  screen-reader path, and where errors show). One primary action: **Save**.
+- **Temporary = read-only** (Pixel's call): the editor shows it with one line, "Temporary: ask <Pixel> to change
+  it." Keeping it (`save_workflow`) makes it an office workflow you can edit.
+- **Deleted on purpose:** free-form shapes, colours per arrow, conditions as logic (a `when` is words for the
+  orchestrator, not an expression), editing temporary workflows by hand, a separate editor per type.
+- **Tests:** pure graph model (nodes from gates/steps/lead/crew, add/remove arrow, first/final rules, layout
+  defaults for nodes without a position, server issue path → arrow), the editor's states (empty, read-only, error
+  pinned), keyboard move; Elon's final check draws, saves and reloads all three types.
+
 ### Phase 6 — Optional: the check before building, and a team's own way (server + small UI)
 
 Only after Phase 7 shows the core works. Both reuse existing parts:
@@ -344,3 +377,13 @@ With real agents on this project:
   accept: the room looks up a run's goal at call time (`goalOfRun`), and a lead's review run counts as on the
   goal, so a fix asked for while signing off stays on the goal. **Still open:** Phase 5 (screens, Jony),
   Phase 7 (live check). Phase 6 waits for Phase 7.
+- 2026-11-17: Scope grows (user, via Pixel): three types + a visual editor → Phase 5b. Shape agreed Jony ↔ Uncle Bob;
+  backend handed to Uncle Bob. Temporary workflows read-only in the editor (Pixel). Jony builds Phase 5 first.
+- 2026-11-17: **Phase 5 screens built (Jony).** Quest Board: a workflow chip on the main card and side cards
+  (none for the usual way, plain for another stable one, dashed + the lead's face for a temporary one), "Signed by
+  …" under a done goal (not on the folded done strip). Task cards: the sign-off strip (3 faces + "+N", a glyph per
+  state, words for screen readers) next to who has it. Office: a dashed ring with the goal on a pill around a
+  running temporary crew's desks; it fades when the goal ends (`workflow.ended` / `workflow.changed` refresh the
+  board). How we work: the usual way ("Usually") plus every other workflow with its "when". The keep offer is
+  Pixel's thread line (server). App tests 600 green, typecheck clean; read against a real server. **Next:**
+  Phase 5b editor once Uncle Bob's routes land; Phase 7 live check.

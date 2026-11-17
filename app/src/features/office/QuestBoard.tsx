@@ -3,14 +3,17 @@
      Side Quests  pinned cards, one per side-quest goal; older finished ones fold into one strip
    Every row and card keeps the task card's anatomy (TaskCard.tsx): mark · title · who · why it stopped. */
 import { useState } from 'react';
-import { type Goal, invalidate, isApiError, studio } from '../../api';
+import { type Goal, invalidate, isApiError, type Look, studio } from '../../api';
 import { Hero } from '../../characters';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
 import { type Feature, keys } from './api';
 import { type MainQuest, questBoard, type SideQuest } from './quests';
+import { SignedLine } from './SignoffStrip';
 import { taskCard } from './state';
 import { Mark, People, Problem, TaskCard } from './TaskCard';
+import { WorkflowChip } from './WorkflowChip';
+import { chipOf, signedLine } from './workflow-view';
 import './quests.css';
 
 type Props = {
@@ -20,17 +23,25 @@ type Props = {
   features: Feature[];
   go: (sub: OfficeSub, id?: string) => void;
   nameOf: (id: string) => string;
+  /** A face for a workflow's lead (null: someone who left). */
+  who?: Who;
+  /** The project's usual workflow: a goal on it shows no chip. */
+  defaultWorkflowId?: string;
   /** For tests: what "this hour" is. */
   now?: Date;
 };
 
-export function QuestBoard({ pid, dir, goals, features, go, nameOf, now }: Props) {
+type Who = (id: string) => { name: string; look?: Look } | null;
+type Wf = { who?: Who; wid?: string };
+
+export function QuestBoard({ pid, dir, goals, features, go, nameOf, who, defaultWorkflowId, now }: Props) {
   const b = questBoard(goals, features, now);
+  const wf: Wf = { who, wid: defaultWorkflowId };
   return (
     <>
       <section aria-labelledby="qbMain" className="qb-sec">
         <h3 id="qbMain">Main Quests</h3>
-        <MainCard pid={pid} dir={dir} q={b.main} go={go} nameOf={nameOf} />
+        <MainCard pid={pid} dir={dir} q={b.main} go={go} nameOf={nameOf} wf={wf} />
         {b.others.length > 0 && (
           <ul className="qb-others">
             {b.others.map((f) => (
@@ -62,7 +73,7 @@ export function QuestBoard({ pid, dir, goals, features, go, nameOf, now }: Props
             <p className="ob-empty">No side quests. All quiet.</p>
           ) : (
             <>
-              {b.side.length > 0 && <SideGrid quests={b.side} nameOf={nameOf} />}
+              {b.side.length > 0 && <SideGrid quests={b.side} nameOf={nameOf} wf={wf} />}
               <DoneStrip quests={b.doneEarlier} nameOf={nameOf} />
             </>
           )}
@@ -79,12 +90,14 @@ function MainCard({
   q,
   go,
   nameOf,
+  wf,
 }: {
   pid: string;
   dir: string;
   q: MainQuest | null;
   go: Props['go'];
   nameOf: Props['nameOf'];
+  wf: Wf;
 }) {
   if (!q)
     return (
@@ -120,6 +133,7 @@ function MainCard({
             </span>
           )}
         </h4>
+        <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} />
         {q.featureId && (
           <button type="button" className="qb-ships" onClick={() => go('feature', q.featureId ?? undefined)}>
             {q.ships ? 'Ships when done ›' : 'Part of this quest ›'}
@@ -158,6 +172,7 @@ function MainCard({
       ) : (
         <p className="ob-empty">No steps yet. {dir} writes them here as the plan takes shape.</p>
       )}
+      <SignedLine text={signedLine(q.goal)} />
     </div>
   );
 }
@@ -171,17 +186,17 @@ const PIN: Record<string, string> = {
   stopped: 'rgba(91,82,128,.4)',
 };
 
-function SideGrid({ quests, nameOf }: { quests: SideQuest[]; nameOf: Props['nameOf'] }) {
+function SideGrid({ quests, nameOf, wf }: { quests: SideQuest[]; nameOf: Props['nameOf']; wf?: Wf }) {
   return (
     <ul className="qb-grid">
       {quests.map((q, i) => (
-        <SideCard key={q.goal.id} q={q} i={i} nameOf={nameOf} />
+        <SideCard key={q.goal.id} q={q} i={i} nameOf={nameOf} wf={wf} />
       ))}
     </ul>
   );
 }
 
-function SideCard({ q, i, nameOf }: { q: SideQuest; i: number; nameOf: Props['nameOf'] }) {
+function SideCard({ q, i, nameOf, wf }: { q: SideQuest; i: number; nameOf: Props['nameOf']; wf?: Wf }) {
   const v = q.item
     ? taskCard(q.item, nameOf)
     : ({ mark: 'todo', people: [], status: null, tone: null, problem: null, sr: 'To do:' } as const);
@@ -204,7 +219,9 @@ function SideCard({ q, i, nameOf }: { q: SideQuest; i: number; nameOf: Props['na
         ) : (
           <People v={v} />
         )}
+        {wf && <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} />}
       </div>
+      {wf && <SignedLine text={signedLine(q.goal)} />}
     </li>
   );
 }

@@ -19,6 +19,7 @@ import {
   studio,
   useMutation,
   useQuery,
+  type WorkflowsView,
 } from '../../api';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
@@ -226,12 +227,15 @@ export const useFeatures = (pid: string) =>
   useQuery<Feature[]>(keys.features(pid), () => officeApi.features(pid));
 export const useProgress = (pid: string) =>
   useQuery<OfficeProgress | null>(keys.progress(pid), () => officeApi.progress(pid));
+export const useWorkflows = (pid: string) =>
+  useQuery<WorkflowsView>(keys.workflows(pid), () => officeApi.workflows(pid));
 export const useHealth = (pid: string) =>
   useQuery<ProjectHealth>(keys.health(pid), () => studio.projects.health(pid));
 
 /** The Quest Board (QuestBoard.tsx): header with the project's compact ring, then Main / Side Quests. */
-function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
+function Whiteboard({ pid, dir, go, nameOf, resolve }: BoardProps) {
   const work = useWork(pid);
+  const workflows = useWorkflows(pid);
   const features = useFeatures(pid);
   const progress = useProgress(pid);
   const goals = work.data ?? [];
@@ -274,7 +278,16 @@ function Whiteboard({ pid, dir, go, nameOf }: BoardProps) {
           </b>
         </div>
       </header>
-      <QuestBoard pid={pid} dir={dir} goals={goals} features={features.data ?? []} go={go} nameOf={nameOf} />
+      <QuestBoard
+        pid={pid}
+        dir={dir}
+        goals={goals}
+        features={features.data ?? []}
+        go={go}
+        nameOf={nameOf}
+        who={resolve.agent}
+        defaultWorkflowId={workflows.data?.workflows[0]?.id}
+      />
       <button type="button" className="ob-back ob-how" onClick={() => go('how')}>
         How we work →
       </button>
@@ -339,6 +352,7 @@ function TargetEdit({ pid, target }: { pid: string; target: string | null }) {
 /* ------------------------------------------------------------ how we work */
 function HowWeWork({ pid, dir, resolve }: BoardProps) {
   const q = useQuery(keys.collaboration(pid), () => officeApi.collaboration(pid));
+  const wfs = useWorkflows(pid).data?.workflows ?? [];
   const [ask, setAsk] = useState('');
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState<{ text: string; err?: boolean } | null>(null);
@@ -351,6 +365,7 @@ function HowWeWork({ pid, dir, resolve }: BoardProps) {
     try {
       const r = await officeApi.designCollaboration(pid, v);
       setQueryData(keys.collaboration(pid), { collaboration: r.collaboration, designed: true });
+      void invalidate(keys.workflows(pid));
       setAsk('');
       setReply({ text: r.reply });
     } catch (err) {
@@ -367,7 +382,19 @@ function HowWeWork({ pid, dir, resolve }: BoardProps) {
       ) : !q.data ? (
         <p className="ob-empty">…</p>
       ) : (
-        <WorkDesign collab={q.data.collaboration} orch={dir} resolve={resolve} title="Right now" />
+        <WorkDesign
+          collab={q.data.collaboration}
+          orch={dir}
+          resolve={resolve}
+          title={wfs.length > 1 ? 'Usually' : 'Right now'}
+        />
+      )}
+      {wfs.length > 1 && (
+        <div className="wf-list">
+          {wfs.slice(1).map((w) => (
+            <WorkDesign key={w.id} collab={w} orch={dir} resolve={resolve} title={w.name} when={w.when} />
+          ))}
+        </div>
       )}
       <form className="ob-how-ask" onSubmit={send}>
         <input

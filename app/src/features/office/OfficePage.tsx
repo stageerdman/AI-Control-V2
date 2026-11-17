@@ -58,6 +58,7 @@ import {
   threadMessageOf,
 } from './state';
 import { clockLabel, useWorkTime } from './TimeSheet';
+import { crewRings } from './workflow-view';
 import './office.css';
 
 type Boot = { office: OfficeView; asks: Ask[]; hqId: string | null };
@@ -325,6 +326,10 @@ function Office({
       void e.apply(deriveActor(live, a), live.pending.find((p) => p.agentId === a)?.question);
   }, [live]);
   useEffect(() => engine.current?.syncFacts(facts), [facts]);
+  /* a temporary workflow's crew: a dashed ring around their desks while the goal runs */
+  const rings = useMemo(() => crewRings(work.data ?? []), [work.data]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: also once the scene exists (world)
+  useEffect(() => engine.current?.setRings(rings), [rings, world]);
   /* someone was edited in the Cast (agent.changed reloads the roster): they change in place, with one hop */
   // biome-ignore lint/correctness/useExhaustiveDependencies: also once the scene exists (world)
   useEffect(() => {
@@ -436,6 +441,8 @@ function Office({
       if (ev.type === 'project.changed') void invalidate(keys.project(pid));
       switch (ev.type) {
         case 'goal.changed':
+        case 'workflow.changed':
+        case 'workflow.ended':
         case 'checklist.item':
         case 'progress':
           void invalidate(keys.work(pid));
@@ -455,6 +462,7 @@ function Office({
           break;
         }
         case 'collaboration.changed':
+        case 'workflows.changed':
           void invalidate(keys.collaboration(pid));
           break;
         case 'handoff':

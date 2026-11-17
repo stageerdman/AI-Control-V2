@@ -4,6 +4,7 @@
 import { type ReactNode, useId, useState } from 'react';
 import type { ChecklistItem } from '../../api';
 import { Hero } from '../../characters';
+import { SignoffStrip } from './SignoffStrip';
 import { type CardMark, type TaskCardView, taskCard, taskHover } from './state';
 
 type Props = {
@@ -26,7 +27,14 @@ export function TaskCard({ item, nameOf, sub, actions, className }: Props) {
         <span className="sr-only">{v.sr} </span>
         {item.text}
       </span>
-      <People v={v} />
+      {item.signoffs?.length ? (
+        <span className="ob-right">
+          <People v={v} />
+          <SignoffStrip signoffs={item.signoffs} />
+        </span>
+      ) : (
+        <People v={v} />
+      )}
       {actions && <div className="ob-acts">{actions}</div>}
       {v.problem && <Problem problem={v.problem} failed={v.mark === 'failed'} />}
       {kids.length > 0 && (

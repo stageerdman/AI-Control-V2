@@ -32,6 +32,12 @@
 .o-fx{z-index:3000;pointer-events:none}
 .o-prop{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0;pointer-events:none}
 .o-prop svg{position:absolute;overflow:visible;display:block}
+/* a temporary workflow's crew: one dashed ring around their desks, the goal on a pill (engine.setRings) */
+.o-ring{position:absolute;z-index:1;pointer-events:none;border:3px dashed rgba(36,26,68,.28);border-radius:48px;opacity:0;transition:opacity .6s ease}
+.o-ring.in{opacity:1}
+.o-ring.out{opacity:0}
+.o-ring-pill{position:absolute;left:50%;top:0;transform:translate(-50%,-50%);max-width:80%;padding:5px 14px;border-radius:999px;background:#fff;box-shadow:0 0 0 2px rgba(36,26,68,.16);font-size:17px;font-weight:800;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-reduced-motion:reduce){.o-ring{transition:none}}
 .o-bang[hidden],.o-bubble[hidden]{display:none}
 .o-chair.empty .c-in{transition:transform .3s}
 .o-chair.empty .c-in{transform:translateY(10px)}

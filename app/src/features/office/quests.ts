@@ -17,6 +17,8 @@ export type MainQuest = {
   steps: { id: string; goalId: string; item: ChecklistItem }[];
   /** The step that carries Continue / Drop for its stopped goal (one per goal). */
   stuckGoalOf: Record<string, string>;
+  /** The goal the card speaks for (its workflow chip, its "Signed by"). */
+  goal: Goal;
 };
 export type SideQuest = {
   goal: Goal;
@@ -59,6 +61,7 @@ export function mainQuest(goals: Goal[], features: Feature[]): MainQuest | null 
     total: steps.length,
     steps,
     stuckGoalOf,
+    goal,
   };
 }
 
