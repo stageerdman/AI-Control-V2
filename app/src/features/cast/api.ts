@@ -2,9 +2,12 @@
    re-adding a member at its old place for Undo), Tinker's design chats, Recently deleted.
    Query keys: 'agents' · 'roles' · 'teams' · 'creator-sessions' · 'trash-agents'. */
 import { http, studio } from '../../api';
-import type { Agent, Restored, Role, Team, TeamWorkflow } from '../../api/types';
+import type { Agent, Restored, Role, Team, TeamWorkflow, WayShape } from '../../api/types';
 
 const e = encodeURIComponent;
+
+/** GET / PUT /teams/:id/workflow. */
+export type TeamWayView = { workflow: TeamWorkflow | null; own: boolean; shape: WayShape };
 
 /** An agent in the trash: hidden, kept 30 days, restorable with its token (GET /trash/agents). */
 export type DeletedAgent = {
@@ -39,11 +42,11 @@ export const castApi = {
     /** Undo after a remove: put the member back where it stood (0-based). */
     readd: (id: string, agentId: string, instr: string, at: number) =>
       http.post<Team>(`/teams/${e(id)}/members`, { agentId, instr, at }),
-    /** The team's own way (null = none). */
-    workflow: (id: string) => http.get<{ workflow: TeamWorkflow | null }>(`/teams/${e(id)}/workflow`),
-    /** Save it whole (`null` clears it); 422 / 409 details pin to `workflow.…`. */
+    /** The way the team works: its own (`own`), else the default in its `shape` (null: under 2 members). */
+    workflow: (id: string) => http.get<TeamWayView>(`/teams/${e(id)}/workflow`),
+    /** Save an own way whole (`null` = back to the default); 422 / 409 details pin to `workflow.…`. */
     saveWorkflow: (id: string, w: TeamWorkflow | null) =>
-      http.put<{ workflow: TeamWorkflow | null }>(`/teams/${e(id)}/workflow`, {
+      http.put<TeamWayView>(`/teams/${e(id)}/workflow`, {
         workflow: w && (({ scope: _s, teamId: _t, ...rest }) => rest)(w),
       }),
   },

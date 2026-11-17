@@ -165,3 +165,14 @@ folded list, unconnected cards.
   `test/domain/team-way.test.ts`, `test/crew/team-workflow.test.ts`, `test/crew/team-flow.test.ts`.
   For Phase 4 (app): the GET now always returns a way for a team of 2+ (the default, `own:false`), so
   `TeamWay.tsx` should read `own` and send `wayShape` via `PATCH /teams/:id`; `Team` gains `wayShape`.
+- 2026-11-17: **Phases 2–3 done (Jony).** `collab/flow/WayThumb.tsx`; Quest Board header button (thumb sm +
+  "How we work"), bottom link gone; way chip is a button → `how/<id>` / `how/goal-<id>`; `workflows.changed`
+  invalidates `keys.workflows`; `office/HowWeWork.tsx` is the drawing, edit in place, Other ways row.
+  Tests: `WayThumb.test.tsx`, `office/HowWeWork.test.tsx`.
+- 2026-11-17: **Phase 4 done (Jony).** `cast/TeamWay.tsx` rebuilt to `team-way.md`, directly under Crew, shown
+  from 1 member (drafts too); shape control → `wayShape` team patch; thumb lg = Adjust → `FlowSheet` pre-drawn
+  with faint cards for unconnected members (`dropLoose`); own-way lines (Connect, removed arrows, emptied);
+  Back to the default + Undo toast; refused saves turn the words line red. The way refreshes on member /
+  captain / shape changes (once optimistic, once confirmed) and when the panel reopens; the Cast has no
+  project event stream, so `team.workflow.changed` isn't listened to there. Foot line deleted.
+  Tests: `cast/TeamWay.test.tsx` (15), server round-trip of the default as an own way.

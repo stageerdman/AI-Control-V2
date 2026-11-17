@@ -337,8 +337,7 @@ export const TeamPanel = forwardRef<
             + Add to crew
           </button>
         </section>
-        {t.id && n > 0 && <TeamWay team={t} byId={p.byId} />}
-        <p className="zp-foot">The director briefs this team through its captain.</p>
+        <TeamWay team={t} byId={p.byId} onShape={(wayShape) => p.onField({ wayShape })} />
         {t.id && (
           <div className="sq-danger">
             <button type="button" className="zp-link danger sq-del" onClick={p.onDelete}>

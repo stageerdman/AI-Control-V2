@@ -164,6 +164,15 @@ describe('a team’s shown way follows the team (v2 S2, S4)', () => {
     expect(said()).toHaveLength(2);
   });
 
+  it('the default as read saves back as an own way (the Cast’s Adjust → Save)', async () => {
+    h = testApp({ seed: true });
+    const got = (await h.call('GET', url)).body;
+    const r = await h.call('PUT', url, { workflow: got.workflow });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ own: true });
+    expect(arrows(r.body.workflow)).toEqual(arrows(got.workflow));
+  });
+
   it('an unrelated patch says nothing', async () => {
     h = testApp({ seed: true });
     await h.call('PATCH', '/teams/ship-it', { blurb: 'We ship.' });
