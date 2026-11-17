@@ -198,6 +198,25 @@ describe('workflows: the director’s tools', () => {
     expect(h.events.after('project', 'aurora').some((e) => e.type === 'workflows.changed')).toBe(true);
   });
 
+  it('set_workflow changing a drawn workflow keeps the editor’s drawing (live check: it erased it)', async () => {
+    const steps: FakeStep[] = [
+      {
+        tool: 'set_workflow',
+        args: { id: 'usual', name: 'Our usual way', when: 'features', gates: [], summary: 'No checks.' },
+      },
+      { result: 'Done.' },
+    ];
+    h = studio([() => steps]);
+    const drawing = {
+      first: 'a-semic',
+      steps: [{ from: 'a-semic', to: 'a-pete', why: 'API first.' }],
+      layout: { 'a-semic': { x: 1, y: 2 } },
+    };
+    h.store.projects.update('aurora', { workflows: [{ ...USUAL, ...drawing }, QUICK] });
+    await turn(steps);
+    expect(h.store.projects.require('aurora').workflows?.[0]).toMatchObject({ gates: [], ...drawing });
+  });
+
   it('remove_workflow takes one off, refuses an unknown id and the last one', async () => {
     const steps: FakeStep[] = [
       { tool: 'remove_workflow', args: { id: 'quick-fix' } },

@@ -4,7 +4,7 @@
    Every change lands in the board's history (who changed how the work runs). */
 import type { WorkflowsService } from '../crew/workflows.ts';
 import type { Store } from '../db/store.ts';
-import { GATE_KINDS, stableCopy, type Workflow } from '../domain/workflows.ts';
+import { GATE_KINDS, keepDrawing, stableCopy, type Workflow } from '../domain/workflows.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { workflowRefs } from './workflow-refs.ts';
@@ -62,8 +62,9 @@ export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string
       summary: str(a, 'summary') || given,
     } as Workflow;
     const before = d.workflows.list(projectId);
-    const replaced = before.designed && before.workflows.some((x) => x.id === id);
-    const list = d.workflows.put(projectId, w, { first: a.first === true });
+    const prev = before.designed ? before.workflows.find((x) => x.id === id) : undefined;
+    const list = d.workflows.put(projectId, prev ? keepDrawing(w, prev) : w, { first: a.first === true });
+    const replaced = !!prev;
     d.note(projectId, by, `${replaced ? 'Changed' : 'Added'} workflow '${w.name}'`);
     return `${replaced ? 'Changed' : 'Added'} '${w.name}'. Workflows now:\n${listText(list)}`;
   }

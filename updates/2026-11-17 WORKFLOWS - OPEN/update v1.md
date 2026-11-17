@@ -393,3 +393,9 @@ With real agents on this project:
   editor on screen (Jony); (2) start, final, hand-offs and decisions reach nobody at run time — the planner and tasks
   should get the drawing in words (Uncle Bob); (3) `set_workflow` on a drawn workflow silently erases the drawing
   (Uncle Bob). Re-check with `live-check.mjs` + the editor once those land.
+- 2026-11-17: **Phase 5b backend built to the agreed shape (Uncle Bob; Pixel decided).** The nodes/edges graph build
+  that the live check ran against is replaced by first / final / steps / layout + `Gate.when` (no decision nodes),
+  `scope`/`teamId` on reads, `GET/PUT /teams/:id/workflow {workflow | null}`, `team.workflow.changed`. Shape in
+  wiki.md "The editor's shape". Gap (3) fixed: `set_workflow` keeps the drawing. `live-check.md`/`.mjs` are out of
+  date until Elon re-runs them against these routes. **Still open:** gap (2), the drawing in words for the planner
+  and tasks; the editor (Jony).

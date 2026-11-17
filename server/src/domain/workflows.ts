@@ -22,7 +22,7 @@ import { type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
 import { drawingIssues, drawingShape, type Who } from './workflow-drawing.ts';
 
 export { GATE_KINDS, type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
-export { tidyLayout } from './workflow-drawing.ts';
+export { keepDrawing, tidyLayout } from './workflow-drawing.ts';
 export const DEFAULT_MAX_SEND_BACKS = 2;
 export const MAX_WORKFLOWS = 6;
 export const MAX_CREW = 4;

@@ -102,6 +102,17 @@ export function drawingIssues(w: Drawn, who: Who, at: string): string[] {
   ];
 }
 
+const DRAWN_KEYS = ['first', 'final', 'steps', 'layout'] as const;
+
+/** Pure: `next` keeps what `prev` drew wherever `next` draws nothing — a change that only knows the gates (the
+    director's set_workflow) must not erase the editor's drawing. */
+export function keepDrawing<W extends Drawn>(next: W, prev: Drawn): W {
+  const kept = Object.fromEntries(
+    DRAWN_KEYS.filter((k) => next[k] === undefined && prev[k] !== undefined).map((k) => [k, prev[k]]),
+  );
+  return { ...next, ...kept };
+}
+
 /** Pure: the layout keeps only positions of nodes (a removed arrow's node just drops out; no error). */
 export function tidyLayout<W extends Drawn>(w: W): W {
   if (!w.layout) return w;
