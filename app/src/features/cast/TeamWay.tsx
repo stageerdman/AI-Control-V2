@@ -99,6 +99,22 @@ export function TeamWay({
     });
   });
 
+  /* the way appears the moment the crew reaches two: bring it into view then (it sits under Crew,
+     often below the fold) — only on that change, never on opening the panel */
+  const sec = useRef<HTMLElement>(null);
+  const wasReady = useRef(ready);
+  const reveal = useRef(false);
+  if (ready && !wasReady.current) reveal.current = true;
+  wasReady.current = ready;
+  const shown = !!q.data;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run again when the crew becomes ready, even if the way was already cached
+  useEffect(() => {
+    if (!reveal.current || !shown || !sec.current) return;
+    reveal.current = false;
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    sec.current.scrollIntoView?.({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+  }, [shown, ready]);
+
   if (n === 0) return null;
   const head = <h3 className="zp-label">How this team works</h3>;
   if (n === 1 || !team.id)
@@ -162,7 +178,7 @@ export function TeamWay({
   };
 
   return (
-    <section className="zp-sec sq-way" aria-busy={!v}>
+    <section ref={sec} className="zp-sec sq-way" aria-busy={!v}>
       <div className="sq-way-head">
         {head}
         {v && (
@@ -190,16 +206,13 @@ export function TeamWay({
         aria-label={v ? `Adjust how ${name} works: ${words}` : 'Loading how this team works'}
         onClick={() => setOpen({})}
       >
-        <WayThumb
-          way={way}
-          people={people}
-          size="lg"
-          loading={!v}
-          ghosts={v?.own ? ghosts : undefined}
-        />
+        <WayThumb way={way} people={people} size="lg" loading={!v} ghosts={v?.own ? ghosts : undefined} />
       </button>
       {v && (
-        <p className={`zp-hint-line sq-way-words${refused ? ' bad' : ''}`} role={refused ? 'alert' : undefined}>
+        <p
+          className={`zp-hint-line sq-way-words${refused ? ' bad' : ''}`}
+          role={refused ? 'alert' : undefined}
+        >
           {refused ?? (
             <>
               {v.own && 'Your own way. '}

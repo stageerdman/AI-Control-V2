@@ -9,7 +9,14 @@ import type { Gate, GateKind, Step, Workflow } from '../../../api';
 
 export type FlowNode = { id: string; x: number; y: number };
 /** `signoff` set = a gate (`to` signs off `from`'s work); `from === ANY` = a gate on every change. */
-export type FlowEdge = { id: string; from: string; to: string; why: string; when?: string; signoff?: GateKind };
+export type FlowEdge = {
+  id: string;
+  from: string;
+  to: string;
+  why: string;
+  when?: string;
+  signoff?: GateKind;
+};
 export type Graph = { nodes: FlowNode[]; edges: FlowEdge[]; first: string | null; final: string | null };
 /** The fields a drawing writes back into its workflow. */
 export type Drawing = Pick<Workflow, 'gates' | 'first' | 'final' | 'steps' | 'layout'>;
@@ -58,7 +65,9 @@ export function nodeIds(w: Pick<Workflow, 'gates' | 'steps' | 'lead' | 'crew'>):
 
 /** Pure: a workflow as the editor draws it. Nodes without a saved position get the next free spot.
     A temporary workflow with nothing drawn shows its lead handing each crew member their part. */
-export function toGraph(w: Pick<Workflow, 'gates' | 'steps' | 'lead' | 'crew' | 'first' | 'final' | 'layout'>): Graph | null {
+export function toGraph(
+  w: Pick<Workflow, 'gates' | 'steps' | 'lead' | 'crew' | 'first' | 'final' | 'layout'>,
+): Graph | null {
   const ids = nodeIds(w);
   if (!ids.length) return null;
   const nodes: FlowNode[] = [];
@@ -155,7 +164,12 @@ export const moveNode = (g: Graph, id: string, x: number, y: number): Graph => (
 });
 
 /** Toggle who starts / who signs last (pressing it again clears it). Only agents sign last. */
-export function setRole(g: Graph, id: string, role: 'first' | 'final', isTeam: (id: string) => boolean): Graph {
+export function setRole(
+  g: Graph,
+  id: string,
+  role: 'first' | 'final',
+  isTeam: (id: string) => boolean,
+): Graph {
   if (!g.nodes.some((n) => n.id === id)) return g;
   if (role === 'final' && isTeam(id)) return g;
   return { ...g, [role]: g[role] === id ? null : id };
@@ -195,7 +209,11 @@ export const draftEdge = (from: string, to: string): Omit<FlowEdge, 'id'> => ({ 
 
 /** What the arrow form may offer: a hand-off unless that pair already hands off (or 12 are drawn),
     a sign-off only by an agent and unless 8 are drawn. `self` = the arrow being changed. */
-export function edgeRoom(g: Graph, e: Omit<FlowEdge, 'id'> & { id?: string }, isTeam: (id: string) => boolean) {
+export function edgeRoom(
+  g: Graph,
+  e: Omit<FlowEdge, 'id'> & { id?: string },
+  isTeam: (id: string) => boolean,
+) {
   const others = g.edges.filter((x) => x.id !== e.id);
   const hands = others.filter((x) => !x.signoff);
   const signs = others.filter((x) => x.signoff);
@@ -219,15 +237,14 @@ export function edgeReady(
 /* ---------- checks before saving (so nothing silently drops out on the server) */
 
 /** Pure: what the server would refuse or drop, pinned the same way as its answers. */
-export function localIssues(g: Graph | null, nameOf: (id: string) => string): Pinned {
+export function localIssues(g: Graph | null, _nameOf?: (id: string) => string): Pinned {
   const out: Pinned = { edges: {}, nodes: {}, general: [] };
   if (!g) return out;
   const touched = new Set(g.edges.flatMap((e) => [e.from, e.to]));
   for (const n of g.nodes)
     if (!touched.has(n.id)) out.nodes[n.id] = ['has no arrow yet — connect them or remove them'];
-  const signers = g.edges.filter((e) => e.signoff).map((e) => e.to);
-  if (g.final && signers.length && !signers.includes(g.final))
-    out.general.push(`Signs last: ${nameOf(g.final)} signs nothing off here — pick one of the reviewers`);
+  /* no "Signs last must be a reviewer" check: `final` only orders sign-offs, so a final who signs
+     nothing is a harmless no-op (a team's default way sets final = captain with no sign-offs) */
   return out;
 }
 
@@ -285,9 +302,16 @@ export const kindLabel = (k: string): string => KIND[k] ?? k;
 
 /** "Pete hands work to Semic, only if it needs an endpoint: API first" ·
     "Scar signs off Pete (quality): keep it clean" · "Lint signs off every change (quality): …". */
+/** "it touches payments" → "only when it touches payments"; "if it ships" stays "only if it ships". */
+export function onlyWhen(when: string): string {
+  const w = when.trim().replace(/^only\s+/i, '');
+  if (/^unless\b/i.test(w)) return w;
+  return /^(if|when|while|for|after|before)\b/i.test(w) ? `only ${w}` : `only when ${w}`;
+}
+
 export function edgeWords(e: FlowEdge, nameOf: (id: string) => string): string {
   const why = e.why ? `: ${e.why}` : '';
-  const when = e.when ? `, only ${e.when}` : '';
+  const when = e.when ? `, ${onlyWhen(e.when)}` : '';
   if (e.signoff) {
     const whose = e.from === ANY ? 'every change' : nameOf(e.from);
     return `${nameOf(e.to)} signs off ${whose} (${kindLabel(e.signoff)})${when}${why}`;
@@ -297,6 +321,56 @@ export function edgeWords(e: FlowEdge, nameOf: (id: string) => string): string {
 
 export const sameGraph = (a: Graph | null, b: Graph | null): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
+
+type Pt = { x: number; y: number };
+/** Pure: does the straight line a → b run through another node (within `clear` of its centre)?
+    Then the arrow bows out instead (a chain's way back over its forward arrows reads as a loop). */
+export function blocked(a: Pt, b: Pt, others: readonly Pt[], clear: number): boolean {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (!len2) return false;
+  return others.some((o) => {
+    const t = ((o.x - a.x) * dx + (o.y - a.y) * dy) / len2;
+    if (t <= 0.05 || t >= 0.95) return false;
+    return Math.hypot(a.x + t * dx - o.x, a.y + t * dy - o.y) < clear;
+  });
+}
+
+/** Pure: the arrow a → b as a path. `bow` = how far its middle bows out (0 = straight), always to the
+    left of the travel direction, so a way back and its way there bow apart. `cut` = how far each end
+    stops short of the node centre. Returns the path, where its middle is, and the angle at its tip. */
+export function arrowPath(a: Pt, b: Pt, bow: number, cut: (dx: number, dy: number) => Pt) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  if (!bow) {
+    const s = cut(dx, dy);
+    const p1 = { x: a.x + s.x, y: a.y + s.y };
+    const p2 = { x: b.x - s.x, y: b.y - s.y };
+    return {
+      d: `M${p1.x} ${p1.y}L${p2.x} ${p2.y}`,
+      mid: { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 },
+      end: p2,
+      angle: Math.atan2(dy, dx),
+    };
+  }
+  /* quadratic curve: the control point sits 2×bow off the middle, so the curve's middle sits bow off */
+  const nx = dy / len;
+  const ny = -dx / len;
+  const c = { x: (a.x + b.x) / 2 + nx * bow * 2, y: (a.y + b.y) / 2 + ny * bow * 2 };
+  const s1 = cut(c.x - a.x, c.y - a.y);
+  const s2 = cut(b.x - c.x, b.y - c.y);
+  const p1 = { x: a.x + s1.x, y: a.y + s1.y };
+  const p2 = { x: b.x - s2.x, y: b.y - s2.y };
+  const r = (v: number) => Math.round(v * 10) / 10;
+  return {
+    d: `M${r(p1.x)} ${r(p1.y)}Q${r(c.x)} ${r(c.y)} ${r(p2.x)} ${r(p2.y)}`,
+    mid: { x: (p1.x + 2 * c.x + p2.x) / 4, y: (p1.y + 2 * c.y + p2.y) / 4 },
+    end: p2,
+    angle: Math.atan2(p2.y - c.y, p2.x - c.x),
+  };
+}
 
 /** The canvas frame: every node inside (positions are 0..1000 × 0..600), room for a node card around each. */
 export function frame(nodes: readonly FlowNode[], pad = { x: 80, y: 50 }) {

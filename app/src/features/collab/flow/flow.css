@@ -49,19 +49,24 @@
   overflow: visible;
   pointer-events: none;
 }
-.fe-edge line {
+.fe-labels {
+  z-index: 1;
+}
+.fe-edge > path {
+  fill: none;
   stroke: var(--fe-arrow);
   stroke-width: 2;
 }
-.fe-edge.signoff line {
+.fe-edge.signoff > path {
   stroke-dasharray: 6 5;
 }
 .fe-tip {
   fill: var(--fe-arrow);
 }
-.fe-tip.bad,
-.fe-edge.bad line {
+.fe-tip.bad {
   fill: var(--fe-bad);
+}
+.fe-edge.bad > path {
   stroke: var(--fe-bad);
 }
 .fe-check-bg {
@@ -225,11 +230,19 @@
 }
 .fe-form-acts {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-left: auto;
 }
 .fe-who {
   margin-right: 2px;
+}
+.fe-sep {
+  width: 2px;
+  height: 22px;
+  margin: 0 4px;
+  border-radius: 1px;
+  background: var(--line);
 }
 .fe-hint {
   color: var(--ink-soft);
