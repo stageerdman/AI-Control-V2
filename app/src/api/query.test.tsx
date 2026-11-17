@@ -53,6 +53,21 @@ describe('useQuery / useMutation', () => {
     expect(screen.getByText('pushed')).toBeTruthy();
   });
 
+  /* Bug: a report filed while the tray list was loading stayed missing until reload — the
+     invalidate reused the fetch that had started before the report existed. */
+  it('an invalidate during a fetch refetches once that fetch ends (never keeps the older answer)', async () => {
+    const pending: ((v: string) => void)[] = [];
+    const f = vi.fn(() => new Promise<string>((res) => pending.push(res)));
+    render(<Show k="reports:p" f={f} />);
+    await waitFor(() => expect(f).toHaveBeenCalledTimes(1));
+    const done = invalidate('reports:p'); /* the report.filed event arrives mid-fetch */
+    await act(async () => pending[0]('before'));
+    await waitFor(() => expect(f).toHaveBeenCalledTimes(2));
+    await act(async () => pending[1]('after'));
+    await act(() => done);
+    expect(screen.getByText('after')).toBeTruthy();
+  });
+
   it('mutation runs, records errors without throwing from mutate, invalidates', async () => {
     const f = vi.fn(async () => 'list');
     render(
