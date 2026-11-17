@@ -6,6 +6,8 @@ import {
   http,
   type ProjectApp,
   type ProjectStatus,
+  type Workflow,
+  type WorkflowsView,
 } from '../../api';
 import type { RebuildOffer } from './rebuild/api';
 
@@ -251,8 +253,9 @@ export const officeApi = {
   collaboration: (pid: string) => http.get<CollaborationView>(`/projects/${e(pid)}/collaboration`),
   setCollaboration: (pid: string, c: Collaboration) =>
     http.put<CollaborationView>(`/projects/${e(pid)}/collaboration`, c),
+  workflows: (pid: string) => http.get<WorkflowsView>(`/projects/${e(pid)}/workflows`),
   designCollaboration: (pid: string, ask?: string) =>
-    http.post<{ reply: string; collaboration: Collaboration }>(
+    http.post<{ reply: string; collaboration: Collaboration; workflows?: Workflow[] }>(
       `/projects/${e(pid)}/collaboration/design`,
       ask ? { ask } : {},
     ),
@@ -286,6 +289,8 @@ export const keys = {
   threadChat: (pid: string, agentId: string, chatId: string) =>
     `office:${pid}:threadchats:${agentId}:${chatId}`,
   collaboration: (pid: string) => `office:${pid}:collaboration`,
+  /** Under `collaboration`: a (re)design reads both again. */
+  workflows: (pid: string) => `office:${pid}:collaboration:workflows`,
   progress: (pid: string) => `office:${pid}:progress`,
   app: (pid: string) => `office:${pid}:app`,
   time: (pid: string) => `office:${pid}:time`,

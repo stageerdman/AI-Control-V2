@@ -1,0 +1,115 @@
+/* Workflows on the board (WorkflowChip, SignoffStrip). Existing tokens only. */
+
+/* the chip: plain text pill; temporary = dashed outline + the lead's face */
+.wf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  max-width: 180px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(36, 26, 68, 0.06);
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.wf-chip > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wf-chip.temp {
+  background: transparent;
+  outline: 1.5px dashed rgba(36, 26, 68, 0.35);
+  outline-offset: -1.5px;
+  padding-left: 4px;
+}
+.wf-lead {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-grid;
+  place-items: center;
+  background: #f3f0fa;
+  flex: none;
+}
+
+/* the right end of a task strip: who has it, then its sign-offs */
+.ob-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: end;
+  min-width: 0;
+}
+
+/* sign-offs: 16px faces; each state = a ring + a glyph */
+.so {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.so-face {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: #f3f0fa;
+}
+.so-face > svg,
+.so-face > .hero {
+  border-radius: 50%;
+  overflow: hidden;
+}
+.so-face.s-pending {
+  box-shadow: 0 0 0 1.5px rgba(36, 26, 68, 0.3);
+}
+.so-face.s-pending > :first-child {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.so-face.s-signed {
+  box-shadow: 0 0 0 1.5px var(--teal);
+}
+.so-face.s-sent-back {
+  box-shadow: 0 0 0 1.5px var(--sun-deep);
+}
+.so-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 7.5px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  box-shadow: 0 0 0 1px #fff;
+}
+.s-signed .so-badge {
+  background: #0b7d72;
+}
+.s-sent-back .so-badge {
+  background: #a35400;
+}
+.so-more {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* "Signed by …" under a done goal */
+.so-line {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}

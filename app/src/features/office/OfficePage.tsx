@@ -436,6 +436,8 @@ function Office({
       if (ev.type === 'project.changed') void invalidate(keys.project(pid));
       switch (ev.type) {
         case 'goal.changed':
+        case 'workflow.changed':
+        case 'workflow.ended':
         case 'checklist.item':
         case 'progress':
           void invalidate(keys.work(pid));
@@ -455,6 +457,7 @@ function Office({
           break;
         }
         case 'collaboration.changed':
+        case 'workflows.changed':
           void invalidate(keys.collaboration(pid));
           break;
         case 'handoff':

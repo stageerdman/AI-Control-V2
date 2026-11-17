@@ -165,6 +165,15 @@ export type Collaboration = {
   summary: string;
 };
 export type CollaborationView = { collaboration: Collaboration; designed: boolean };
+/** A named way of working (WORKFLOWS). Stable ones live on the project (first = the usual way). */
+export type Workflow = Collaboration & {
+  id: string;
+  name: string;
+  when: string;
+  lead?: string;
+  crew?: string[];
+};
+export type WorkflowsView = { workflows: Workflow[]; designed: boolean };
 export type ItemReview = {
   reviewer: string;
   gate: number;
@@ -497,6 +506,8 @@ export type ChecklistItem = {
   workingNow?: TaskPerson[];
   /** Who finished it (done items only). */
   finishedBy?: TaskPerson | null;
+  /** WORKFLOWS: one per review gate, in gate order; [] = no reviewer (show no strip). */
+  signoffs?: Signoff[];
   /** Why it stopped, in plain words (failed / cancelled only); `details` is the raw note. */
   problem?: { message: string; details?: string } | null;
   createdAt: string;
@@ -504,6 +515,10 @@ export type ChecklistItem = {
 };
 /** A person on a whiteboard task: name + avatar (their look). */
 export type TaskPerson = { id: string; name: string; look: Look };
+export type SignoffState = 'pending' | 'signed' | 'sent-back';
+export type Signoff = { reviewer: TaskPerson; kind: GateKind; state: SignoffState };
+/** What a goal runs under, by name. `lead` / `crew`: temporary only. */
+export type WorkflowTag = { id: string; name: string; temporary: boolean; lead?: string; crew?: string[] };
 export type Goal = {
   id: string;
   projectId: string;
@@ -519,6 +534,10 @@ export type Goal = {
   ships?: boolean;
   /** The main storyline (the feature being built) or a side quest (a quick fix, a short research job). */
   quest?: 'main' | 'side';
+  /** WORKFLOWS: null = an older goal (the usual way). Absent on old servers. */
+  workflow?: WorkflowTag | null;
+  /** Who signed off its work, once each, in task order; [] unless done. */
+  signedBy?: TaskPerson[];
   createdAt: string;
   updatedAt: string;
 };
@@ -664,6 +683,18 @@ export type EventPayloads = {
     text?: string;
     summary?: string;
     quest?: Goal['quest'];
+    workflow?: WorkflowTag | null;
+  };
+  /** WORKFLOWS: the project's stable workflows changed. */
+  'workflows.changed': { count: number; names: string[] };
+  /** A goal switched workflow mid-way; `regated` not-started tasks took the new checks. */
+  'workflow.changed': WorkflowTag & { goalId: string; regated: number };
+  /** A temporary goal settled: the crew ring fades. */
+  'workflow.ended': {
+    goalId: string;
+    lead: string;
+    crew: string[];
+    status: 'done' | 'failed' | 'cancelled';
   };
   'checklist.item': {
     itemId: string;
@@ -803,6 +834,9 @@ export const EVENT_TYPES = [
   'cast.created',
   'health.checked',
   'goal.changed',
+  'workflows.changed',
+  'workflow.changed',
+  'workflow.ended',
   'checklist.item',
   'feature.changed',
   'thread.message',
