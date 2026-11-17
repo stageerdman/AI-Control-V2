@@ -238,8 +238,28 @@ describe('workflows: the director’s tools', () => {
       layout: { 'a-semic': { x: 1, y: 2 } },
     };
     h.store.projects.update('aurora', { workflows: [{ ...USUAL, ...drawing }, QUICK] });
-    await turn(steps);
+    const said = await turn(steps);
     expect(h.store.projects.require('aurora').workflows?.[0]).toMatchObject({ gates: [], ...drawing });
+    expect(said[0]).toContain('Kept its drawing');
+  });
+
+  it('set_workflow whose checks no longer fit the drawing clears it and says why (never silently)', async () => {
+    const steps: FakeStep[] = [
+      {
+        tool: 'set_workflow',
+        args: { id: 'usual', name: 'Our usual way', when: 'features', gates: [], summary: 'No checks.' },
+      },
+      { result: 'Done.' },
+    ];
+    h = studio([() => steps]);
+    /* Lint signs last, but the new checks drop Lint's sign-off: the drawing can't stand */
+    const drawn = { ...USUAL, final: 'a-lint', layout: { 'a-lint': { x: 1, y: 2 } } };
+    h.store.projects.update('aurora', { workflows: [drawn, QUICK] });
+    const said = await turn(steps);
+    const saved = h.store.projects.require('aurora').workflows?.[0];
+    expect(saved).toMatchObject({ gates: [] });
+    expect(saved?.final).toBeUndefined();
+    expect(said[0]).toMatch(/drawing no longer fit these checks \(.*final.*\), so it was cleared/);
   });
 
   it('remove_workflow takes one off, refuses an unknown id and the last one', async () => {

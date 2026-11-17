@@ -365,15 +365,21 @@ export const signedBy = (goal: { items: readonly Reviewed[] }): string[] => [
   ),
 ];
 
-/** The review steps one build item goes through, in order. Self-review is skipped. */
+/** The review steps one build item goes through, in order; who signs last (`final`) comes last. Self-review is
+    skipped. */
 export type ItemGate = { reviewer: string; kind: GateKind; why: string };
 export function gatesFor(
-  w: (Collaboration & Partial<Pick<Workflow, 'lead' | 'crew'>>) | null,
+  w: (Collaboration & Partial<Pick<Workflow, 'lead' | 'crew' | 'final'>>) | null,
   item: { agentId: string; teamId: string | null },
 ): ItemGate[] {
   if (!w) return [];
   const out: ItemGate[] = [];
-  for (const g of effectiveGates(w)) {
+  const all = effectiveGates(w);
+  const ordered = [
+    ...all.filter((g) => g.reviewer !== w.final),
+    ...all.filter((g) => g.reviewer === w.final),
+  ];
+  for (const g of ordered) {
     const hit =
       g.after === '*' || g.after === item.agentId || (item.teamId !== null && g.after === item.teamId);
     if (!hit || g.reviewer === item.agentId) continue;
