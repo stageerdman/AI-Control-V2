@@ -11,16 +11,8 @@ import { featuresRepo } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type NewItem, workRepo } from '../db/work.ts';
 import type { Quest } from '../domain/quests.ts';
-import { GraphSchema, graphIssues, type WorkflowGraph } from '../domain/graph.ts';
-import {
-  crewGraphRules,
-  isTemporary,
-  pickWorkflow,
-  type Workflow,
-  type WorkflowAsk,
-  withGraphGates,
-} from '../domain/workflows.ts';
-import { conflict, invalid, parse } from '../errors.ts';
+import { pickWorkflow, type Workflow, type WorkflowAsk } from '../domain/workflows.ts';
+import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
 import { boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
@@ -218,12 +210,6 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       the ones it started with. → the line that says so. */
   function switchWorkflow(projectId: string, g: Goal, ask: WorkflowAsk): string {
     const w = chooseWorkflow(projectId, ask, g.text);
-    const { regated, kept } = adopt(projectId, g, w);
-    return `Now runs under '${w.name}': ${regated} task(s) not started yet take its checks${kept ? `; ${kept} started or finished keep theirs` : ''}.`;
-  }
-
-  /** The goal runs under `w` from now: its untouched tasks take w's checks (announced). → how many did. */
-  function adopt(projectId: string, g: Goal, w: Workflow): { regated: number; kept: number } {
     const regated = g.items.filter(untouched);
     store.tx(() => {
       work.setGoalWorkflow(g.id, w);
@@ -233,23 +219,8 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         });
     });
     port.workflowChanged(projectId, g.id, regated.length);
-    return { regated: regated.length, kept: g.items.length - regated.length };
-  }
-
-  /** A running temporary goal's drawing, saved whole: its sign-off arrows become the checks of the tasks not
-      started yet (the lead's own sign-offs always stay). 409: not a running temporary goal; 422: every problem. */
-  function drawGoal(projectId: string, by: string, goalId: string, raw: unknown): WorkflowGraph {
-    const g = goalOf(projectId, goalId);
-    const w = port.workflowOf(g);
-    if (!isTemporary(w) || g.status !== 'running')
-      throw conflict('Only a running goal with someone in command has its own drawing — draw the project’s workflows instead.');
-    const graph = parse(GraphSchema, raw);
-    const issues = graphIssues(graph, crewGraphRules(w));
-    if (issues.length) throw invalid(`The drawing has ${issues.length} problem(s): ${issues[0]?.message}`, issues);
-    adopt(projectId, g, withGraphGates({ ...w, graph }));
-    history.record(projectId, by, 'workflow', `Redrew how '${g.text}' runs`);
-    port.changed(projectId, [g.id]);
-    return graph;
+    const kept = g.items.length - regated.length;
+    return `Now runs under '${w.name}': ${regated.length} task(s) not started yet take its checks${kept ? `; ${kept} started or finished keep theirs` : ''}.`;
   }
 
   /** A new goal on the board, announced (so dispatch starts it) → the goal and the line that says so. */
@@ -298,7 +269,6 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
 
     /** The workflow this goal runs under (refused: not a goal of this project). */
     workflowOfGoal: (projectId: string, id: string): Workflow => port.workflowOf(goalOf(projectId, id)),
-    drawGoal,
 
     addGoal: (projectId: string, by: string, a: NewGoal): string => putGoal(projectId, by, a).text,
     /** The user's own goal for one person they picked (from that person's chat): any seat on the project. */

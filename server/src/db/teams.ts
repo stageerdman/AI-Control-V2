@@ -9,7 +9,7 @@ import {
   removeMember,
   setCaptain,
 } from '../domain/teams.ts';
-import { type TeamWorkflow, TeamWorkflowSchema } from '../domain/workflows.ts';
+import { TeamWorkflowSchema, type Workflow } from '../domain/workflows.ts';
 import { notFound } from '../errors.ts';
 import type { AgentsRepo } from './agents.ts';
 import type { Db } from './connection.ts';
@@ -28,7 +28,7 @@ export type TeamRecord = {
   created_at: string;
   updated_at: string;
   reporter?: number;
-  /** TeamWorkflow JSON (migration 41); NULL = none. */
+  /** The team's own Workflow JSON (migration 41); NULL = none. */
   workflow?: string | null;
 };
 
@@ -193,10 +193,10 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
       return repo.require(id);
     },
 
-    /** The team's own drawn workflow (null: none, or stored in a shape that no longer reads). */
-    workflow: (id: string): TeamWorkflow | null => readJson(requireRecord(id).workflow, TeamWorkflowSchema),
+    /** The team's own workflow (null: none, or stored in a shape that no longer reads). */
+    workflow: (id: string): Workflow | null => readJson(requireRecord(id).workflow, TeamWorkflowSchema),
     /** Save it whole, or clear it (null). The caller validated it against the members. */
-    setWorkflow(id: string, w: TeamWorkflow | null): void {
+    setWorkflow(id: string, w: Workflow | null): void {
       requireRecord(id);
       db.prepare('UPDATE teams SET workflow = ?, updated_at = ? WHERE id = ?').run(
         w ? JSON.stringify(w) : null,

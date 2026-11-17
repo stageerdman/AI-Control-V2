@@ -67,43 +67,38 @@
 
 **The goal's `workflow` tag** also carries `crew: [ids]` when `temporary` is true (the office ring needs lead + crew).
 
-## Graphs (as built) — the visual editor saves and reloads these
+## The editor's shape (Phase 5b, as built) — the visual editor saves and reloads these
 
-Three kinds of workflow can be drawn: **office** (one of the project's workflows), **team** (a team's own, in the
-Cast; checks that team's work on every project it joins) and **temporary** (a running goal someone leads). Same
-shape for all three (`server/src/domain/graph.ts`):
+Decided by Pixel (2026-11-17): the shape agreed with Jony replaces an earlier nodes/edges "graph" build (gone:
+`graph.ts`, decision nodes, `PUT …/work/:goalId/workflow/graph`, `DELETE /teams/:id/workflow`). Branches are an
+optional `when` on a step or gate — no decision node type. Rules: `server/src/domain/workflow-drawing.ts`.
+
+A workflow gains four optional fields; **gates stay the review arrows** (one source of truth for sign-offs):
 
 ```jsonc
 {
-  "nodes": [                                   // 1–16; one agent may sit on several nodes
-    { "id": "build", "type": "agent", "agent": "a-pete", "x": 0, "y": -40 },      // x/y: integer px, negatives OK
-    { "id": "ok", "type": "decision", "question": "Ready to ship?", "x": 200, "y": 0 }
-  ],
-  "start": "build", "end": "ship",             // explicit; both must be agent nodes
-  "edges": [                                   // 0–32
-    { "id": "e1", "from": "build", "to": "ok", "why": "hand it over", "signoff": "quality" /* optional gate kind */ },
-    { "id": "e2", "from": "ok", "to": "ship", "branch": "yes" }          // leaving a decision: branch required, why may be empty
-  ]
+  "first": "ship-it",                        // agent or team id with an arrow; never "*"
+  "final": "a-scar",                         // agent id with an arrow; one of the gate reviewers if any gates
+  "steps": [                                 // ≤ 12 hand-offs that aren't reviews
+    { "from": "a-semic", "to": "a-pete", "why": "API first.", "when": "if it needs an endpoint" }
+  ],                                         // from ≠ to, no pair twice, both ends on the project / team
+  "layout": { "a-pete": { "x": 10, "y": 20 } }, // ≤ 24; x 0..1000, y 0..600; non-node keys dropped on save
+  "gates": [{ "after": "a-pete", "reviewer": "a-scar", "kind": "quality", "why": "…", "when": "if it ships" }]
 }
 ```
 
-- No waypoints, labels or colours (strict: unknown keys are a 422). Ids are slugs (`a-z0-9-`, ≤ 40).
-- **An arrow with `signoff` is a review gate**: `to` signs off `from`'s work. The workflow's `gates` are derived from
-  these arrows on save (one per agent pair + kind) — never send gates alongside a graph and expect them kept.
-- **Errors**: 422 with `error.details = [{path, message}]` — every problem at once, so the editor can mark them all.
-  Paths are relative to the request body (e.g. `workflows.0.graph.edges.1.to`, `graph.nodes.2.agent`, `nodes.0`).
-  Checked: duplicate ids, start/end exist and are agents, arrow ends exist, no self-arrows, `why` on non-decision
-  arrows, branches only (and always) out of decisions, ≥ 2 distinct branches per decision, every node reachable from
-  start, sign-offs only agent→agent and never by the same agent, ≤ 8 distinct sign-offs, and who may stand on a node.
-
-**Endpoints**
+- `when` (step or gate): 1–120 chars. Nodes = gate ends (not `*`), step ends, lead and crew.
+- **Read-only on every read:** `scope` (`office` | `team` | `temporary`) and `teamId` (team only). A PUT ignores them.
+- **Errors:** shape → 422, rules → 409; both carry `error.details = [{path, message}]`, paths from the body
+  (`workflows.0.steps.0.to`, `workflow.gates.0.reviewer`). A 409's `error.message` is the first issue.
+- The director's `set_workflow` keeps a workflow's drawing when it changes one (it only knows gates).
 
 | Kind | Read | Save (whole) | Who may stand on a node |
 |---|---|---|---|
-| office | `GET /projects/:id/workflows` (each may have `graph`) | `PUT /projects/:id/workflows` `{workflows: [{…, graph}]}` | on the project |
-| team | `GET /teams/:id/workflow` → `{workflow: {name, summary, graph, gates} \| null}` | `PUT` `{name, summary?, graph}`; `DELETE` clears | the team's members |
-| temporary | the goal's `workflow.graph` in `GET /projects/:id/work` | `PUT /projects/:id/work/:goalId/workflow/graph` (the graph itself) → the goal | the lead or the crew |
+| office | `GET /projects/:id/workflows` | `PUT /projects/:id/workflows` `{workflows: […]}` | on the project |
+| team | `GET /teams/:id/workflow` → `{workflow \| null}` | `PUT` `{workflow: {…} \| null}` (key required; null clears; id defaults `team`; no lead/crew) | the team's members |
+| temporary | the goal's `workflow` in `GET /projects/:id/work` (whole, `scope: 'temporary'`, gates incl. the lead's sign-offs) | read-only | — |
 
-- Temporary: 409 unless the goal is running under a lead. Saving regates the tasks not started yet (a
-  `workflow.changed` event follows); the lead's own sign-offs on crew work always stay.
-- No event on a team workflow save (nobody needed it yet) — the Cast refetches after its own PUT.
+- A team save sends `team.workflow.changed` `{teamId, name | null}` to every project the team works in.
+- Team workflows are stored and shown only; dispatch starts using them in Phase 6.
+

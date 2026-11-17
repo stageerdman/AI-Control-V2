@@ -646,8 +646,8 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE projects ADD COLUMN workflows TEXT;
   ALTER TABLE goals ADD COLUMN workflow TEXT;
   `,
-  /* 41 — a team's own workflow, drawn in the Cast (JSON: name, summary, graph; NULL = none). Its sign-off arrows
-     check that team's work on every project it joins (src/crew/dispatch.ts gatesOf). */
+  /* 41 — a team's own workflow, edited in the Cast (Workflow JSON; NULL = none). Stored and shown; dispatch
+     uses it from Phase 6. */
   `
   ALTER TABLE teams ADD COLUMN workflow TEXT;
   `,

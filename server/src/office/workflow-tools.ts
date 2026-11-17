@@ -4,8 +4,8 @@
    Every change lands in the board's history (who changed how the work runs). */
 import type { WorkflowsService } from '../crew/workflows.ts';
 import type { Store } from '../db/store.ts';
-import { GATE_KINDS, stableCopy, type Workflow } from '../domain/workflows.ts';
-import { invalid } from '../errors.ts';
+import { GATE_KINDS, keepDrawing, stableCopy, type Workflow } from '../domain/workflows.ts';
+import { AppError, invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { workflowRefs } from './workflow-refs.ts';
 
@@ -19,6 +19,9 @@ export type WorkflowToolDeps = {
 };
 
 type Args = Record<string, unknown>;
+const NOTHING = { say: '', note: '' };
+const KEPT = { say: ' Kept its drawing (who starts, hand-offs, who signs last).', note: '' };
+const drawn = (w?: Workflow) => !!w && (!!w.first || !!w.final || !!w.steps?.length);
 const str = (a: Args, k: string) => (typeof a[k] === 'string' ? (a[k] as string).trim() : undefined);
 
 /** "Quick fix!" → "quick-fix". */
@@ -62,10 +65,33 @@ export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string
       summary: str(a, 'summary') || given,
     } as Workflow;
     const before = d.workflows.list(projectId);
-    const replaced = before.designed && before.workflows.some((x) => x.id === id);
-    const list = d.workflows.put(projectId, w, { first: a.first === true });
-    d.note(projectId, by, `${replaced ? 'Changed' : 'Added'} workflow '${w.name}'`);
-    return `${replaced ? 'Changed' : 'Added'} '${w.name}'. Workflows now:\n${listText(list)}`;
+    const prev = before.designed ? before.workflows.find((x) => x.id === id) : undefined;
+    const { list, drawing } = putKeepingDrawing(w, prev, a.first === true);
+    const replaced = !!prev;
+    d.note(projectId, by, `${replaced ? 'Changed' : 'Added'} workflow '${w.name}'${drawing.note}`);
+    return `${replaced ? 'Changed' : 'Added'} '${w.name}'.${drawing.say} Workflows now:\n${listText(list)}`;
+  }
+
+  /** Voice knows only the gates: keep the editor's drawing while it still fits them. When it no longer does,
+      the voice change wins and the drawing is cleared, and the answer says why (never silently). */
+  function putKeepingDrawing(w: Workflow, prev: Workflow | undefined, first: boolean) {
+    if (!prev) return { list: d.workflows.put(projectId, w, { first }), drawing: NOTHING };
+    try {
+      return {
+        list: d.workflows.put(projectId, keepDrawing(w, prev), { first }),
+        drawing: drawn(prev) ? KEPT : NOTHING,
+      };
+    } catch (e) {
+      if (!(e instanceof AppError) || e.code !== 'conflict' || !drawn(prev)) throw e;
+      const list = d.workflows.put(projectId, w, { first });
+      return {
+        list,
+        drawing: {
+          say: ` Its drawing no longer fit these checks (${e.message}), so it was cleared — redraw it in the editor.`,
+          note: ' (drawing cleared)',
+        },
+      };
+    }
   }
 
   /** Keep a goal's way of working (a temporary crew that went well) as one of the project's workflows. */
@@ -112,7 +138,7 @@ export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string
       name: 'set_workflow',
       can: 'add or change a way of working ("from now on Health Analyst checks backend work", "a quick-fix way with no review")',
       description:
-        'Add a workflow, or change the one with this id (it is replaced whole: list every check it keeps). People and teams by name. Goals already running keep the workflow they started with; new goals pick from these.',
+        'Add a workflow, or change the one with this id (it is replaced whole: list every check it keeps; a drawing from the editor stays while it still fits the checks, else it is cleared and the answer says so). People and teams by name. Goals already running keep the workflow they started with; new goals pick from these.',
       inputSchema: {
         type: 'object',
         properties: {

@@ -7,19 +7,20 @@ import type { Store } from '../db/store.ts';
 import {
   DEFAULT_WORKFLOW,
   pickWorkflow,
-  projectGraphRules,
+  type ScopedWorkflow,
   type Staffing,
+  scoped,
   temporaryWorkflow,
+  tidyLayout,
   unknownWorkflowIssue,
   type Workflow,
   type WorkflowAsk,
   WorkflowsSchema,
-  withGraphGates,
-  workflowGraphIssues,
+  withoutReadFields,
   workflowIssues,
   workflowsIssues,
 } from '../domain/workflows.ts';
-import { conflict, invalid, parse } from '../errors.ts';
+import { conflict, invalid, parse, ruleConflict } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { workflowRefs } from '../office/workflow-refs.ts';
 
@@ -82,23 +83,20 @@ export function resolveWorkflow(store: Store, projectId: string, ask?: WorkflowA
   return { workflow, issues, toSeat };
 }
 
+export const officeScoped = (list: readonly Workflow[]): ScopedWorkflow[] =>
+  list.map((w) => scoped(w, 'office'));
+
 export function createWorkflows(deps: { store: Store; events: EventLog }) {
   const { store, events } = deps;
   const staffing = (projectId: string) => projectStaffing(store, projectId);
 
-  /** 422 = malformed, 409 = a gate names someone not on the project. Saves and announces the list. */
+  /** 422 = malformed, 409 = breaks a rule (someone not on the project, a bad arrow); every issue's path is the
+      body's (`workflows.0.steps.2.to`). Saves and announces the list. */
   function save(projectId: string, raw: unknown): Workflow[] {
-    const s = staffing(projectId);
-    const parsed = parse(WorkflowsSchema, raw);
-    const drawn = parsed.flatMap((w, i) => workflowGraphIssues(w, projectGraphRules(s), `workflows.${i}.graph`));
-    if (drawn.length) throw invalid(`The drawing has ${drawn.length} problem(s): ${drawn[0]?.message}`, drawn);
-    const list = parsed.map(withGraphGates);
-    const broken = workflowsIssues(list, s);
-    if (broken.length)
-      throw conflict(
-        broken[0] as string,
-        broken.map((message) => ({ path: 'workflows', message })),
-      );
+    const sent = Array.isArray(raw) ? raw.map(withoutReadFields) : raw;
+    const list = parse(WorkflowsSchema, sent, 'workflows').map(tidyLayout);
+    const broken = workflowsIssues(list, staffing(projectId));
+    if (broken.length) throw ruleConflict(broken);
     store.projects.update(projectId, { workflows: list });
     events.append('project', projectId, {
       type: 'workflows.changed',
@@ -109,12 +107,19 @@ export function createWorkflows(deps: { store: Store; events: EventLog }) {
 
   const stored = (projectId: string) => store.projects.require(projectId).workflows;
 
+  /** The list the project works by (never designed: the studio default alone). */
+  function list(projectId: string): { workflows: Workflow[]; designed: boolean } {
+    const saved = stored(projectId);
+    return { workflows: saved ?? [DEFAULT_WORKFLOW], designed: !!saved };
+  }
+
   return {
     staffing,
-    /** The list the project works by (never designed: the studio default alone). */
-    list(projectId: string): { workflows: Workflow[]; designed: boolean } {
-      const list = stored(projectId);
-      return { workflows: list ?? [DEFAULT_WORKFLOW], designed: !!list };
+    list,
+    /** The list as screens read it: each one says it is the office's. */
+    view: (projectId: string): { workflows: ScopedWorkflow[]; designed: boolean } => {
+      const { workflows, designed } = list(projectId);
+      return { workflows: officeScoped(workflows), designed };
     },
     replace: save,
 

@@ -393,7 +393,15 @@ With real agents on this project:
   editor on screen (Jony); (2) start, final, hand-offs and decisions reach nobody at run time — the planner and tasks
   should get the drawing in words (Uncle Bob); (3) `set_workflow` on a drawn workflow silently erases the drawing
   (Uncle Bob). Re-check with `live-check.mjs` + the editor once those land.
-- 2026-11-17: **Phase 5b editor on screen (Jony)** — gap (1). `app/src/features/collab/flow/` (model, canvas,
+- 2026-11-17: **Phase 5b backend built to the agreed shape (Uncle Bob; Pixel decided).** The nodes/edges graph build
+  that the live check ran against is replaced by first / final / steps / layout + `Gate.when` (no decision nodes),
+  `scope`/`teamId` on reads, `GET/PUT /teams/:id/workflow {workflow | null}`, `team.workflow.changed`. Shape in
+  wiki.md "The editor's shape". Gap (3) fixed: `set_workflow` keeps the drawing. Gap (2) fixed: the planner reads
+  each workflow's `flow` ("Order items this way: … starts. … hands to … signs last.") and every item task gets "How
+  work flows on this goal: …" (`drawingInWords`, soft — the gates still run the sign-offs). `live-check.md`/`.mjs`
+  are out of date until Elon re-runs them against these routes. **Still open:** the editor (Jony).
+- 2026-11-17: **Phase 5b editor on screen (Jony)** (built in parallel against the nodes/edges graph build, before
+  the backend above landed — see the merge note below) — gap (1). `app/src/features/collab/flow/` (model, canvas,
   arrow list, sheet). Office: How we work → "Draw it" / "Open drawing" under each way (no drawing yet = seeded from
   its agent gates, with a line on what saving replaces); running goals with a temporary way → "View drawing",
   read-only ("Temporary: ask <director> to change it."). Cast: a team panel → "How this team works" → Draw it /
@@ -403,3 +411,10 @@ With real agents on this project:
   offered (the server refuses them as "not on this project" — found in the live run). Checked live:
   `live-check-5b.mjs` (drawings built by the editor's model, sent as the screens send them: all ok).
   Not built: team DELETE (no button; drawing stays until replaced).
+- 2026-11-17: **Merge note (Jony): the editor and the backend now disagree.** The editor above sends the old
+  `graph` (nodes/edges, decision nodes); master's server takes first / final / steps / layout + `gates` with `when`
+  (wiki "The editor's shape"), and the team PUT is now `{workflow: …}`. The screens, the canvas, the keyboard path,
+  the arrow list and error pinning carry over. Still to do: the model and save adapters in
+  `app/src/features/collab/flow/model.ts`, `office/api.ts` `saveWorkflows`, `cast/api.ts`; decisions become a
+  `when` on a step/gate; error paths `workflows.N.steps.i` / `.gates.i` (422 and 409). `live-check-5b.mjs` checks the
+  old shape. Not signed off until that lands.

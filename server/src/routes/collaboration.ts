@@ -3,7 +3,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { CollaborationService } from '../crew/collaboration.ts';
-import type { WorkflowsService } from '../crew/workflows.ts';
+import { officeScoped, type WorkflowsService } from '../crew/workflows.ts';
 import { parse } from '../errors.ts';
 import { IdParams } from './schemas.ts';
 
@@ -20,11 +20,13 @@ export const collaborationRoutes =
     workflows: WorkflowsService;
   }): FastifyPluginAsync =>
   async (app) => {
-    app.get('/projects/:id/workflows', async (req) => workflows.list(parse(IdParams, req.params).id));
+    /* each workflow carries `scope: 'office'` (read only: a PUT ignores it) */
+    app.get('/projects/:id/workflows', async (req) => workflows.view(parse(IdParams, req.params).id));
     /* set by hand: the whole list, the first is the default */
     app.put('/projects/:id/workflows', async (req) => {
       const { id } = parse(IdParams, req.params);
-      return { workflows: workflows.replace(id, parse(WorkflowsBody, req.body).workflows), designed: true };
+      const saved = workflows.replace(id, parse(WorkflowsBody, req.body).workflows);
+      return { workflows: officeScoped(saved), designed: true };
     });
     app.get('/projects/:id/collaboration', async (req) => collaboration.get(parse(IdParams, req.params).id));
     /* set by hand: the first workflow's design (422 malformed, 409 a gate names someone not on the project) */

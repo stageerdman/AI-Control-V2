@@ -85,6 +85,14 @@ describe('collaboration design (pure)', () => {
     expect(gatesFor(null, { agentId: 'a-semic', teamId: 'ship-it' })).toEqual([]);
   });
 
+  it('gatesFor: who signs last (the drawing’s `final`) comes last, the rest keep their order', () => {
+    const c = collab([gate('*', 'a-lint'), gate('*', 'a-prof', 'user-test'), gate('*', 'a-nova')]);
+    const order = gatesFor({ ...c, final: 'a-lint' }, { agentId: 'a-semic', teamId: null }).map(
+      (g) => g.reviewer,
+    );
+    expect(order).toEqual(['a-prof', 'a-nova', 'a-lint']);
+  });
+
   it('parseVerdict: the last JSON verdict line, a plain word, or changes when unclear', () => {
     expect(parseVerdict('All good.\n{"verdict": "approve", "notes": "Nice."}')).toEqual({
       verdict: 'approve',

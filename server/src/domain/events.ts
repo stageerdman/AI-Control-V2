@@ -175,6 +175,8 @@ export const EVENT_SCHEMAS = {
     count,
     names: z.array(text(60)).max(6),
   }),
+  /** A team's own workflow was saved (its name) or cleared (null) — told to every office the team is in. */
+  'team.workflow.changed': z.strictObject({ teamId: id, name: text(60).nullable() }),
   /** A goal switched workflow mid-way (WORKFLOWS phase 4): its untouched tasks were re-gated. */
   'workflow.changed': workflowTag.extend({ goalId: id, regated: count }),
   /** A goal under a temporary workflow settled: the lead's command over the crew is over. */

@@ -154,6 +154,31 @@ describe('workflows: goals run under a chosen stable workflow', () => {
     expect(first?.task).toContain('"quick-fix"');
     expect(repair?.task).toContain("'nope' is not a workflow of this project");
   });
+
+  it('the drawing reaches the planner and the builder in words (live check: it reached nobody)', async () => {
+    const plan = {
+      summary: 'S.',
+      items: [{ text: 'Build it', assignee: 'a-semic', teamId: 'ship-it', brief: 'b' }],
+    };
+    const crew = scriptedCrew({ dispatch: [{ ...plan, workflow: 'usual' }] }, () => [{ result: 'Built.' }]);
+    h = testApp({ seed: true, runner: crew.runner });
+    mkdirSync(join(h.config.sandbox, 'aurora'));
+    const drawn = {
+      ...USUAL,
+      gates: [],
+      first: 'a-semic',
+      steps: [{ from: 'a-semic', to: 'a-pete', why: 'API first.' }],
+    };
+    h.store.projects.update('aurora', { folder: 'aurora', workflows: [drawn] });
+    await h.call('POST', '/projects/aurora/work', { goal: 'Build it' });
+    const flow = 'Captain Semicolon starts. Captain Semicolon hands to Pixel Pete: API first.';
+    expect(crew.crewCalls()[0]?.task).toContain(
+      'Order items this way: Captain Semicolon (a-semic) starts. Captain Semicolon (a-semic) hands to Pixel Pete',
+    );
+    const built = () => crew.calls.find((s) => s.task.includes('Your checklist item: Build it'));
+    for (let i = 0; i < 200 && !built(); i++) await new Promise((x) => setTimeout(x, 5));
+    expect(built()?.task).toContain(`How work flows on this goal: ${flow}`);
+  });
 });
 
 describe('workflows: the director’s tools', () => {
@@ -198,6 +223,45 @@ describe('workflows: the director’s tools', () => {
     expect(h.events.after('project', 'aurora').some((e) => e.type === 'workflows.changed')).toBe(true);
   });
 
+  it('set_workflow changing a drawn workflow keeps the editor’s drawing (live check: it erased it)', async () => {
+    const steps: FakeStep[] = [
+      {
+        tool: 'set_workflow',
+        args: { id: 'usual', name: 'Our usual way', when: 'features', gates: [], summary: 'No checks.' },
+      },
+      { result: 'Done.' },
+    ];
+    h = studio([() => steps]);
+    const drawing = {
+      first: 'a-semic',
+      steps: [{ from: 'a-semic', to: 'a-pete', why: 'API first.' }],
+      layout: { 'a-semic': { x: 1, y: 2 } },
+    };
+    h.store.projects.update('aurora', { workflows: [{ ...USUAL, ...drawing }, QUICK] });
+    const said = await turn(steps);
+    expect(h.store.projects.require('aurora').workflows?.[0]).toMatchObject({ gates: [], ...drawing });
+    expect(said[0]).toContain('Kept its drawing');
+  });
+
+  it('set_workflow whose checks no longer fit the drawing clears it and says why (never silently)', async () => {
+    const steps: FakeStep[] = [
+      {
+        tool: 'set_workflow',
+        args: { id: 'usual', name: 'Our usual way', when: 'features', gates: [], summary: 'No checks.' },
+      },
+      { result: 'Done.' },
+    ];
+    h = studio([() => steps]);
+    /* Lint signs last, but the new checks drop Lint's sign-off: the drawing can't stand */
+    const drawn = { ...USUAL, final: 'a-lint', layout: { 'a-lint': { x: 1, y: 2 } } };
+    h.store.projects.update('aurora', { workflows: [drawn, QUICK] });
+    const said = await turn(steps);
+    const saved = h.store.projects.require('aurora').workflows?.[0];
+    expect(saved).toMatchObject({ gates: [] });
+    expect(saved?.final).toBeUndefined();
+    expect(said[0]).toMatch(/drawing no longer fit these checks \(.*final.*\), so it was cleared/);
+  });
+
   it('remove_workflow takes one off, refuses an unknown id and the last one', async () => {
     const steps: FakeStep[] = [
       { tool: 'remove_workflow', args: { id: 'quick-fix' } },
@@ -228,7 +292,8 @@ describe('workflows: routes', () => {
     const ghost = { ...USUAL, gates: [{ ...USUAL.gates[0], reviewer: 'a-ghost' }] };
     expect((await h.call('PUT', '/projects/aurora/workflows', { workflows: [ghost] })).status).toBe(409);
     const ok = await h.call('PUT', '/projects/aurora/workflows', { workflows: [QUICK, USUAL] });
-    expect(ok.body).toEqual({ workflows: [QUICK, USUAL], designed: true });
+    const office = (w: Workflow) => ({ ...w, scope: 'office' });
+    expect(ok.body).toEqual({ workflows: [office(QUICK), office(USUAL)], designed: true });
     // B8's design is the first workflow
     expect((await h.call('GET', '/projects/aurora/collaboration')).body.collaboration.gates).toEqual([]);
     await h.call('PUT', '/projects/aurora/collaboration', {
