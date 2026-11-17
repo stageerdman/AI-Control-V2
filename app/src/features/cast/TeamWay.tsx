@@ -3,11 +3,22 @@
 import { useState } from 'react';
 import { setQueryData, useQuery } from '../../api';
 import type { Agent, Team, TeamWorkflow } from '../../api/types';
-import { FlowSheet, type Person } from '../collab';
+import { FlowSheet, type Person, toGraph, withDrawing } from '../collab';
 import { castApi } from './api';
 import { shortName } from './model';
 
 export const teamWayKey = (id: string) => `teams:${id}:workflow`;
+
+/** A team's first way, before anything is drawn (the server fills the other defaults). */
+const fresh = (team: Team): TeamWorkflow => ({
+  id: 'team',
+  name: `${team.name} way`.slice(0, 60),
+  when: 'everything',
+  summary: `How ${team.name} hands work on and signs it off.`.slice(0, 500),
+  orchestratorTalksTo: 'captains',
+  gates: [],
+  maxSendBacks: 2,
+});
 
 export function TeamWay({ team, byId }: { team: Team; byId: Map<string, Agent> }) {
   const key = teamWayKey(team.id);
@@ -40,15 +51,11 @@ export function TeamWay({ team, byId }: { team: Team; byId: Map<string, Agent> }
           onClose={() => setOpen(false)}
           title={way?.name ?? `${team.name} way`}
           sub={team.name}
-          graph={way?.graph ?? null}
+          graph={way ? toGraph(way) : null}
           people={people}
-          issuePrefix="graph"
+          issuePrefix="workflow"
           onSave={async (graph) => {
-            const r = await castApi.teams.saveWorkflow(team.id, {
-              name: way?.name ?? `${team.name} way`.slice(0, 60),
-              ...(way?.summary ? { summary: way.summary } : {}),
-              graph,
-            });
+            const r = await castApi.teams.saveWorkflow(team.id, withDrawing(way ?? fresh(team), graph));
             setQueryData(key, r);
           }}
         />

@@ -376,9 +376,13 @@ function Office({
       ...office.solo,
       ...(office.guests ?? []).map((g) => g.agentId),
     ];
-    return [...new Set(ids)]
-      .filter((a) => agentsById[a] && a !== office.director)
-      .map((a) => ({ id: a, name: shortOf(agentsById[a]), look: agentsById[a].look }));
+    return [
+      ...[...new Set(ids)]
+        .filter((a) => agentsById[a] && a !== office.director)
+        .map((a) => ({ id: a, name: shortOf(agentsById[a]), look: agentsById[a].look })),
+      /* a team can start the work or hand it on (its captain splits it) */
+      ...office.teams.map((t) => ({ id: t.id, name: t.name, team: true })),
+    ];
   }, [agentsById, office]);
 
   /* ---------- chat panel */

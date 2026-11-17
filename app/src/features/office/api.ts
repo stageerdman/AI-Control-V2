@@ -254,19 +254,11 @@ export const officeApi = {
   setCollaboration: (pid: string, c: Collaboration) =>
     http.put<CollaborationView>(`/projects/${e(pid)}/collaboration`, c),
   workflows: (pid: string) => http.get<WorkflowsView>(`/projects/${e(pid)}/workflows`),
-  /** The whole list (the first is the usual way); 422 details pin to `workflows.N.graph.…`. */
+  /** The whole list (the first is the usual way); 422 / 409 details pin to `workflows.N.…`. The read-only
+      `scope` / `teamId` stay behind. */
   saveWorkflows: (pid: string, workflows: Workflow[]) =>
     http.put<WorkflowsView>(`/projects/${e(pid)}/workflows`, {
-      workflows: workflows.map(({ id, name, when, orchestratorTalksTo, gates, maxSendBacks, summary, graph }) => ({
-        id,
-        name,
-        when,
-        orchestratorTalksTo,
-        gates,
-        maxSendBacks,
-        summary,
-        ...(graph ? { graph } : {}),
-      })),
+      workflows: workflows.map(({ scope: _s, teamId: _t, ...w }) => w),
     }),
   designCollaboration: (pid: string, ask?: string) =>
     http.post<{ reply: string; collaboration: Collaboration; workflows?: Workflow[] }>(

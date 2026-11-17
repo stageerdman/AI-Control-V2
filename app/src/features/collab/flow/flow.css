@@ -110,10 +110,23 @@
 .fe-node:active {
   cursor: grabbing;
 }
-.fe-node.decision {
-  border-style: dashed;
-  border-radius: 999px;
-  background: #fffaf0;
+/* a team: the same card, a soft double edge (a group, not one face) */
+.fe-node.team {
+  box-shadow:
+    4px 4px 0 -2px #fff,
+    4px 4px 0 0 var(--line),
+    0 6px 14px -10px rgba(20, 10, 45, 0.5);
+}
+.fe-team {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(155, 108, 255, 0.14);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 15px;
 }
 .fe-node.sel {
   border-color: var(--grape);
@@ -138,19 +151,13 @@
   overflow: hidden;
   place-items: center;
 }
-.fe-name,
-.fe-q {
+.fe-name {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 800;
   font-size: 13px;
-}
-.fe-q {
-  white-space: normal;
-  font-weight: 700;
-  line-height: 1.25;
 }
 .fe-badges {
   position: absolute;
@@ -211,9 +218,6 @@
   background: #fff;
   color: var(--ink);
   font: inherit;
-}
-.fe-qin {
-  flex: 1 1 200px;
 }
 .fe-field {
   display: flex;

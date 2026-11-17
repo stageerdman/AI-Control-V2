@@ -1,136 +1,163 @@
-/* The workflow editor's pure model (WORKFLOWS Phase 5b). The shape is the server's
-   (server/src/domain/graph.ts, wiki "Graphs (as built)"): agent and decision nodes, an explicit
-   start and end (both agents), arrows with a why; arrows out of a decision carry a branch; an
-   arrow with `signoff` is a review gate (`to` signs off `from`'s work).
-   Everything here is a plain function of a graph, so the editor is a thin view over it. */
-import type { Gate, GateKind, GraphEdge, GraphNode, WorkflowGraph } from '../../../api';
+/* The workflow editor's pure model (WORKFLOWS Phase 5b). The saved shape is the server's
+   (server/src/domain/workflow-drawing.ts, wiki "The editor's shape"): a workflow's `gates` are its
+   sign-off arrows, `steps` its hand-offs, `first` / `final` who starts and who signs last, `layout`
+   where each node sits. A branch is a `when` on any arrow — no decision nodes.
+   Inside the editor that is one small graph: nodes keyed by the agent (or team) id, arrows in the
+   order they are saved (hand-offs first, then sign-offs — gates run in that order). `toGraph` and
+   `toDrawing` turn one into the other; a saved drawing reloads exactly as drawn. */
+import type { Gate, GateKind, Step, Workflow } from '../../../api';
 
-export type FlowNode = GraphNode;
-export type FlowEdge = GraphEdge;
-export type Graph = WorkflowGraph;
+export type FlowNode = { id: string; x: number; y: number };
+/** `signoff` set = a gate (`to` signs off `from`'s work); `from === ANY` = a gate on every change. */
+export type FlowEdge = { id: string; from: string; to: string; why: string; when?: string; signoff?: GateKind };
+export type Graph = { nodes: FlowNode[]; edges: FlowEdge[]; first: string | null; final: string | null };
+/** The fields a drawing writes back into its workflow. */
+export type Drawing = Pick<Workflow, 'gates' | 'first' | 'final' | 'steps' | 'layout'>;
 
-export const MAX_NODES = 16;
-export const MAX_EDGES = 32;
+/** A gate on "every change": listed under the canvas, never drawn as an arrow. */
+export const ANY = '*';
+export const MAX_NODES = 24;
+export const MAX_STEPS = 12;
+export const MAX_GATES = 8;
+export const BOUNDS = { x: 1000, y: 600 };
 export const SIGNOFF_KINDS: GateKind[] = ['review', 'quality', 'user-test', 'crash-test', 'security'];
 /** Where a new node lands and how far the arrow keys move one. */
-export const GRID = { dx: 200, dy: 120, step: 20, big: 60 };
+export const GRID = { dx: 200, dy: 120, x0: 100, y0: 60, step: 20, big: 60 };
+
+const clamp = (v: number, max: number) => Math.min(max, Math.max(0, Math.round(v)));
 
 const nextId = (taken: Iterable<string>, prefix: string): string => {
   const used = new Set(taken);
   for (let i = 1; ; i++) if (!used.has(`${prefix}${i}`)) return `${prefix}${i}`;
 };
 
-/** The next free spot: a row of four, then the next row. */
+/** The next free spot: rows of four, inside the canvas bounds. */
 export function freeSpot(nodes: readonly FlowNode[]): { x: number; y: number } {
   const taken = new Set(nodes.map((n) => `${n.x},${n.y}`));
-  for (let i = 0; ; i++) {
-    const p = { x: (i % 4) * GRID.dx, y: Math.floor(i / 4) * GRID.dy };
+  for (let i = 0; i < 40; i++) {
+    const p = { x: GRID.x0 + (i % 4) * GRID.dx, y: GRID.y0 + (Math.floor(i / 4) % 5) * GRID.dy };
     if (!taken.has(`${p.x},${p.y}`)) return p;
   }
+  return { x: GRID.x0, y: GRID.y0 };
 }
 
-/** A drawing to start from when a workflow has none: its agent-to-agent gates as sign-off arrows
-    (team / "every change" gates can't be drawn — `left` counts them so the editor can say so). */
-export function seedFromGates(
-  gates: readonly Gate[],
-  isAgent: (id: string) => boolean,
-  opts: { lead?: string; crew?: readonly string[] } = {},
-): { graph: Graph | null; left: number } {
-  const box: { g: Graph | null } = { g: null };
-  const nodeFor = (agent: string): string => {
-    const at = box.g?.nodes.find((n) => n.type === 'agent' && n.agent === agent);
-    if (at) return at.id;
-    const g = box.g ? addAgent(box.g, agent) : newGraph(agent);
-    box.g = g;
-    return g.nodes[g.nodes.length - 1].id;
+/* ---------- workflow ⇄ graph */
+
+/** Pure: who stands on the drawing — the same rule as the server's `nodesOf` (gate ends but "*",
+    hand-off ends, the lead and crew), in a stable order. */
+export function nodeIds(w: Pick<Workflow, 'gates' | 'steps' | 'lead' | 'crew'>): string[] {
+  return [
+    ...new Set([
+      ...(w.lead ? [w.lead] : []),
+      ...(w.crew ?? []),
+      ...(w.steps ?? []).flatMap((s) => [s.from, s.to]),
+      ...w.gates.flatMap((g) => (g.after === ANY ? [g.reviewer] : [g.after, g.reviewer])),
+    ]),
+  ];
+}
+
+/** Pure: a workflow as the editor draws it. Nodes without a saved position get the next free spot.
+    A temporary workflow with nothing drawn shows its lead handing each crew member their part. */
+export function toGraph(w: Pick<Workflow, 'gates' | 'steps' | 'lead' | 'crew' | 'first' | 'final' | 'layout'>): Graph | null {
+  const ids = nodeIds(w);
+  if (!ids.length) return null;
+  const nodes: FlowNode[] = [];
+  for (const id of ids) {
+    const at = w.layout?.[id];
+    nodes.push({ id, ...(at ? { x: clamp(at.x, BOUNDS.x), y: clamp(at.y, BOUNDS.y) } : freeSpot(nodes)) });
+  }
+  let edges: FlowEdge[] = [];
+  const add = (e: Omit<FlowEdge, 'id'>) => {
+    edges = [...edges, { ...e, id: `e${edges.length + 1}` }];
   };
-  if (opts.lead) {
-    nodeFor(opts.lead);
-    for (const c of opts.crew ?? []) nodeFor(c);
-  }
-  let left = 0;
-  for (const gate of gates) {
-    if (!isAgent(gate.after) || !isAgent(gate.reviewer) || gate.after === gate.reviewer) {
-      left++;
-      continue;
-    }
-    const from = nodeFor(gate.after);
-    const to = nodeFor(gate.reviewer);
-    const g = box.g as Graph;
-    if (!g.edges.some((e) => e.from === from && e.to === to && e.signoff === gate.kind))
-      box.g = addEdge(g, { from, to, why: gate.why, signoff: gate.kind });
-  }
-  /* a temporary crew: the lead hands each one their part and signs it off */
-  if (opts.lead && box.g) {
-    let g = box.g;
-    const lead = g.nodes[0].id;
-    for (const n of g.nodes.slice(1)) {
-      if (!g.edges.some((e) => e.from === lead && e.to === n.id))
-        g = addEdge(g, { from: lead, to: n.id, why: 'their part of the goal' });
-      if (!g.edges.some((e) => e.from === n.id && e.to === lead && e.signoff))
-        g = addEdge(g, { from: n.id, to: lead, why: 'the lead signs off', signoff: 'review' });
-    }
-    box.g = { ...g, start: lead, end: lead };
-  }
-  return { graph: box.g, left };
+  const steps = w.steps ?? [];
+  for (const s of steps) add({ from: s.from, to: s.to, why: s.why, ...(s.when ? { when: s.when } : {}) });
+  if (w.lead && !steps.length)
+    for (const c of w.crew ?? [])
+      if (c !== w.lead) add({ from: w.lead, to: c, why: 'their part of the goal' });
+  for (const g of w.gates)
+    add({ from: g.after, to: g.reviewer, why: g.why, signoff: g.kind, ...(g.when ? { when: g.when } : {}) });
+  const first = w.first ?? (w.lead || null);
+  const final = w.final ?? (w.lead && w.gates.some((g) => g.reviewer === w.lead) ? w.lead : null);
+  return { nodes, edges, first, final };
 }
 
-/** A one-node drawing: the first agent both starts and signs last. */
-export const newGraph = (agent: string): Graph => ({
-  nodes: [{ id: 'n1', type: 'agent', agent, x: 0, y: 0 }],
-  start: 'n1',
-  end: 'n1',
+/** Pure: the graph as the workflow's drawn fields + gates (what a PUT sends). */
+export function toDrawing(g: Graph | null): Drawing {
+  if (!g) return { gates: [] };
+  const steps: Step[] = g.edges
+    .filter((e) => !e.signoff)
+    .map((e) => ({ from: e.from, to: e.to, why: e.why, ...(e.when ? { when: e.when } : {}) }));
+  const gates: Gate[] = g.edges
+    .filter((e) => e.signoff)
+    .map((e) => ({
+      after: e.from,
+      reviewer: e.to,
+      kind: e.signoff as GateKind,
+      why: e.why,
+      ...(e.when ? { when: e.when } : {}),
+    }));
+  return {
+    gates,
+    ...(steps.length ? { steps } : {}),
+    ...(g.first ? { first: g.first } : {}),
+    ...(g.final ? { final: g.final } : {}),
+    layout: Object.fromEntries(g.nodes.map((n) => [n.id, { x: n.x, y: n.y }])),
+  };
+}
+
+/** Pure: a workflow with the drawing written in (the old drawn fields replaced, nothing else touched). */
+export function withDrawing<W extends Workflow>(w: W, g: Graph | null): W {
+  const { first: _f, final: _l, steps: _s, layout: _p, ...rest } = w;
+  return { ...rest, ...toDrawing(g) } as W;
+}
+
+/** Has the workflow been drawn (anything beyond plain gates)? */
+export const isDrawn = (w: Pick<Workflow, 'steps' | 'layout' | 'first' | 'final'>): boolean =>
+  !!(w.steps?.length || w.first || w.final || (w.layout && Object.keys(w.layout).length));
+
+/* ---------- edits */
+
+/** Hand-offs first, then sign-offs (each in drawing order): the order the server stores them in. */
+const ordered = (edges: readonly FlowEdge[]) => [
+  ...edges.filter((e) => !e.signoff),
+  ...edges.filter((e) => e.signoff),
+];
+
+/** A one-node drawing: the first person starts. */
+export const newGraph = (id: string): Graph => ({
+  nodes: [{ id, ...freeSpot([]) }],
   edges: [],
+  first: id,
+  final: null,
 });
 
-export function addAgent(g: Graph, agent: string): Graph {
-  const id = nextId(
-    g.nodes.map((n) => n.id),
-    'n',
-  );
-  return { ...g, nodes: [...g.nodes, { id, type: 'agent', agent, ...freeSpot(g.nodes) }] };
+export function addNode(g: Graph, id: string): Graph {
+  if (g.nodes.some((n) => n.id === id)) return g;
+  return { ...g, nodes: [...g.nodes, { id, ...freeSpot(g.nodes) }] };
 }
 
-export function addDecision(g: Graph, question: string): Graph {
-  const id = nextId(
-    g.nodes.map((n) => n.id),
-    'd',
-  );
-  return { ...g, nodes: [...g.nodes, { id, type: 'decision', question, ...freeSpot(g.nodes) }] };
-}
-
-/** Drop a node and every arrow touching it; start / end fall back to the first agent left. */
+/** Drop a node and every arrow touching it (an "every change" gate it reviews too). */
 export function removeNode(g: Graph, id: string): Graph {
-  const nodes = g.nodes.filter((n) => n.id !== id);
-  const firstAgent = nodes.find((n) => n.type === 'agent')?.id ?? '';
   return {
-    nodes,
-    start: g.start === id ? firstAgent : g.start,
-    end: g.end === id ? firstAgent : g.end,
+    nodes: g.nodes.filter((n) => n.id !== id),
     edges: g.edges.filter((e) => e.from !== id && e.to !== id),
+    first: g.first === id ? null : g.first,
+    final: g.final === id ? null : g.final,
   };
 }
 
+/** Positions stay inside the saved bounds (x 0..1000, y 0..600). */
 export const moveNode = (g: Graph, id: string, x: number, y: number): Graph => ({
   ...g,
-  nodes: g.nodes.map((n) => (n.id === id ? { ...n, x: Math.round(x), y: Math.round(y) } : n)),
+  nodes: g.nodes.map((n) => (n.id === id ? { ...n, x: clamp(x, BOUNDS.x), y: clamp(y, BOUNDS.y) } : n)),
 });
 
-export const setNode = (g: Graph, id: string, patch: { agent?: string; question?: string }): Graph => ({
-  ...g,
-  nodes: g.nodes.map((n) =>
-    n.id !== id
-      ? n
-      : n.type === 'agent'
-        ? { ...n, agent: patch.agent ?? n.agent }
-        : { ...n, question: patch.question ?? n.question },
-  ),
-});
-
-/** Only agents start or sign last. */
-export function setRole(g: Graph, id: string, role: 'start' | 'end'): Graph {
-  const n = g.nodes.find((x) => x.id === id);
-  return n?.type === 'agent' ? { ...g, [role]: id } : g;
+/** Toggle who starts / who signs last (pressing it again clears it). Only agents sign last. */
+export function setRole(g: Graph, id: string, role: 'first' | 'final', isTeam: (id: string) => boolean): Graph {
+  if (!g.nodes.some((n) => n.id === id)) return g;
+  if (role === 'final' && isTeam(id)) return g;
+  return { ...g, [role]: g[role] === id ? null : id };
 }
 
 export function addEdge(g: Graph, e: Omit<FlowEdge, 'id'>): Graph {
@@ -138,12 +165,12 @@ export function addEdge(g: Graph, e: Omit<FlowEdge, 'id'>): Graph {
     g.edges.map((x) => x.id),
     'e',
   );
-  return { ...g, edges: [...g.edges, clean({ ...e, id }, g)] };
+  return { ...g, edges: ordered([...g.edges, clean({ ...e, id })]) };
 }
 
 export const setEdge = (g: Graph, id: string, patch: Partial<Omit<FlowEdge, 'id'>>): Graph => ({
   ...g,
-  edges: g.edges.map((e) => (e.id === id ? clean({ ...e, ...patch }, g) : e)),
+  edges: ordered(g.edges.map((e) => (e.id === id ? clean({ ...e, ...patch }) : e))),
 });
 
 export const removeEdge = (g: Graph, id: string): Graph => ({
@@ -151,29 +178,56 @@ export const removeEdge = (g: Graph, id: string): Graph => ({
   edges: g.edges.filter((e) => e.id !== id),
 });
 
-/** What the arrow may carry, given its ends: a branch only out of a decision, a sign-off only agent → agent. */
-function clean(e: FlowEdge, g: Graph): FlowEdge {
-  const from = g.nodes.find((n) => n.id === e.from);
-  const to = g.nodes.find((n) => n.id === e.to);
-  const out: FlowEdge = { id: e.id, from: e.from, to: e.to, why: (e.why ?? '').trim() };
-  if (from?.type === 'decision') out.branch = (e.branch ?? '').trim();
-  else if (e.signoff && to?.type === 'agent') out.signoff = e.signoff;
+function clean(e: FlowEdge): FlowEdge {
+  const when = e.when?.trim();
+  return {
+    id: e.id,
+    from: e.from,
+    to: e.to,
+    why: e.why.trim(),
+    ...(when ? { when } : {}),
+    ...(e.signoff ? { signoff: e.signoff } : {}),
+  };
+}
+
+export const draftEdge = (from: string, to: string): Omit<FlowEdge, 'id'> => ({ from, to, why: '' });
+
+/** What the arrow form may offer: a hand-off unless that pair already hands off (or 12 are drawn),
+    a sign-off only by an agent and unless 8 are drawn. `self` = the arrow being changed. */
+export function edgeRoom(g: Graph, e: Omit<FlowEdge, 'id'> & { id?: string }, isTeam: (id: string) => boolean) {
+  const others = g.edges.filter((x) => x.id !== e.id);
+  const hands = others.filter((x) => !x.signoff);
+  const signs = others.filter((x) => x.signoff);
+  return {
+    handoff: hands.length < MAX_STEPS && !hands.some((x) => x.from === e.from && x.to === e.to),
+    signoff: signs.length < MAX_GATES && !isTeam(e.to),
+  };
+}
+
+/** Ready to add: an arrow to someone else, with a why, of a kind there is room for. */
+export function edgeReady(
+  g: Graph,
+  e: Omit<FlowEdge, 'id'> & { id?: string },
+  isTeam: (id: string) => boolean,
+): boolean {
+  if (e.from === e.to || !e.why.trim()) return false;
+  const room = edgeRoom(g, e, isTeam);
+  return e.signoff ? room.signoff : room.handoff;
+}
+
+/* ---------- checks before saving (so nothing silently drops out on the server) */
+
+/** Pure: what the server would refuse or drop, pinned the same way as its answers. */
+export function localIssues(g: Graph | null, nameOf: (id: string) => string): Pinned {
+  const out: Pinned = { edges: {}, nodes: {}, general: [] };
+  if (!g) return out;
+  const touched = new Set(g.edges.flatMap((e) => [e.from, e.to]));
+  for (const n of g.nodes)
+    if (!touched.has(n.id)) out.nodes[n.id] = ['has no arrow yet — connect them or remove them'];
+  const signers = g.edges.filter((e) => e.signoff).map((e) => e.to);
+  if (g.final && signers.length && !signers.includes(g.final))
+    out.general.push(`Signs last: ${nameOf(g.final)} signs nothing off here — pick one of the reviewers`);
   return out;
-}
-
-/** What a new arrow out of `from` starts with: a decision's next branch ("yes", then "no"). */
-export function draftEdge(g: Graph, from: string, to: string): Omit<FlowEdge, 'id'> {
-  const n = g.nodes.find((x) => x.id === from);
-  if (n?.type !== 'decision') return { from, to, why: '' };
-  const used = new Set(g.edges.filter((e) => e.from === from).map((e) => e.branch?.toLowerCase()));
-  return { from, to, why: '', branch: ['yes', 'no'].find((b) => !used.has(b)) ?? '' };
-}
-
-/** Ready to add: an arrow to a different node, a why (or a branch out of a decision). */
-export function edgeReady(g: Graph, e: Omit<FlowEdge, 'id'>): boolean {
-  if (e.from === e.to) return false;
-  const from = g.nodes.find((n) => n.id === e.from);
-  return from?.type === 'decision' ? !!e.branch?.trim() : !!e.why?.trim();
 }
 
 /* ---------- server problems → the thing they're about */
@@ -183,28 +237,33 @@ export type Pinned = {
   edges: Record<string, string[]>;
   /** node id → messages (a red ring + the message under the canvas). */
   nodes: Record<string, string[]>;
-  /** Start / end / the drawing as a whole. */
+  /** Starts here / signs last / the workflow as a whole. */
   general: string[];
 };
+export const NO_ISSUES: Pinned = { edges: {}, nodes: {}, general: [] };
 
-/** Map 422 `details` (paths like `workflows.0.graph.edges.2.why`) onto the graph that was sent,
-    by id, so the marks stay put while the user edits. `prefix` = the graph's path in the body. */
+/** Map 422 / 409 `details` (paths like `workflows.0.steps.2.to`, `workflow.gates.0.reviewer`) onto the
+    graph that was sent: `steps.i` is the i-th hand-off, `gates.i` the i-th sign-off, `layout.<id>` that
+    node. Marks are kept by id so they stay put while the user edits. `prefix` = the workflow's path. */
 export function pinIssues(g: Graph, details: unknown, prefix: string): Pinned {
   const out: Pinned = { edges: {}, nodes: {}, general: [] };
   if (!Array.isArray(details)) return out;
   const push = (m: Record<string, string[]>, k: string, msg: string) => {
     m[k] = [...(m[k] ?? []), msg];
   };
+  const hands = g.edges.filter((e) => !e.signoff);
+  const signs = g.edges.filter((e) => e.signoff);
   for (const d of details as Issue[]) {
     const msg = String(d?.message ?? '');
     let path = String(d?.path ?? '');
-    if (prefix && path.startsWith(prefix)) path = path.slice(prefix.length).replace(/^\./, '');
-    const m = /^(edges|nodes)\.(\d+)/.exec(path);
-    const list = m ? (m[1] === 'edges' ? g.edges : g.nodes) : null;
-    const item = m && list ? list[Number(m[2])] : undefined;
-    if (m && item) push(m[1] === 'edges' ? out.edges : out.nodes, item.id, msg);
-    else if (path === 'start') out.general.push(`Starts here: ${msg}`);
-    else if (path === 'end') out.general.push(`Signs last: ${msg}`);
+    if (prefix && (path === prefix || path.startsWith(`${prefix}.`))) path = path.slice(prefix.length + 1);
+    const m = /^(steps|gates)\.(\d+)/.exec(path);
+    const edge = m ? (m[1] === 'steps' ? hands : signs)[Number(m[2])] : undefined;
+    const node = /^layout\.(.+?)(\.[xy])?$/.exec(path)?.[1];
+    if (edge) push(out.edges, edge.id, msg);
+    else if (node && g.nodes.some((n) => n.id === node)) push(out.nodes, node, msg);
+    else if (path === 'first') out.general.push(`Starts here: ${msg}`);
+    else if (path === 'final') out.general.push(`Signs last: ${msg}`);
     else out.general.push(msg);
   }
   return out;
@@ -223,34 +282,28 @@ const KIND: Record<string, string> = {
 };
 export const kindLabel = (k: string): string => KIND[k] ?? k;
 
-export function nodeLabel(n: FlowNode | undefined, nameOf: (agent: string) => string): string {
-  if (!n) return 'Gone';
-  return n.type === 'agent' ? nameOf(n.agent) : n.question;
-}
-
-/** "Pete hands work to Semic: UI ready" · "Lint signs off Pete (quality): keep it clean" · "If yes → Scar". */
-export function edgeWords(g: Graph, e: FlowEdge, nameOf: (agent: string) => string): string {
-  const at = (id: string) =>
-    nodeLabel(
-      g.nodes.find((n) => n.id === id),
-      nameOf,
-    );
+/** "Pete hands work to Semic, only if it needs an endpoint: API first" ·
+    "Scar signs off Pete (quality): keep it clean" · "Lint signs off every change (quality): …". */
+export function edgeWords(e: FlowEdge, nameOf: (id: string) => string): string {
   const why = e.why ? `: ${e.why}` : '';
-  if (e.branch !== undefined) return `${at(e.from)} — if ${e.branch || '…'} → ${at(e.to)}${why}`;
-  if (e.signoff) return `${at(e.to)} signs off ${at(e.from)} (${kindLabel(e.signoff)})${why}`;
-  return `${at(e.from)} hands work to ${at(e.to)}${why}`;
+  const when = e.when ? `, only ${e.when}` : '';
+  if (e.signoff) {
+    const whose = e.from === ANY ? 'every change' : nameOf(e.from);
+    return `${nameOf(e.to)} signs off ${whose} (${kindLabel(e.signoff)})${when}${why}`;
+  }
+  return `${nameOf(e.from)} hands work to ${nameOf(e.to)}${when}${why}`;
 }
 
 export const sameGraph = (a: Graph | null, b: Graph | null): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
-/** The canvas frame: every node inside, with room for a node card around each position. */
-export function frame(nodes: readonly FlowNode[], pad = { x: 80, y: 60 }) {
+/** The canvas frame: every node inside (positions are 0..1000 × 0..600), room for a node card around each. */
+export function frame(nodes: readonly FlowNode[], pad = { x: 80, y: 50 }) {
   const xs = nodes.map((n) => n.x);
   const ys = nodes.map((n) => n.y);
-  const minX = Math.min(0, ...xs) - pad.x;
-  const minY = Math.min(0, ...ys) - pad.y;
-  const maxX = Math.max(600, ...xs) + pad.x;
-  const maxY = Math.max(240, ...ys) + pad.y;
+  const minX = Math.min(GRID.x0, ...xs) - pad.x;
+  const minY = Math.min(GRID.y0, ...ys) - pad.y;
+  const maxX = Math.max(GRID.x0 + 3 * GRID.dx, ...xs) + pad.x;
+  const maxY = Math.max(GRID.y0 + GRID.dy, ...ys) + pad.y;
   return { minX, minY, width: maxX - minX, height: maxY - minY };
 }

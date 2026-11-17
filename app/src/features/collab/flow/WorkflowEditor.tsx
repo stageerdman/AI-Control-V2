@@ -1,19 +1,20 @@
 /* The workflow editor (WORKFLOWS Phase 5b): one calm canvas for all three kinds (office, team,
-   temporary). Agents are faces you drag (or move with the arrow keys); two arrow styles only —
-   solid = hands work to, dashed with a ✓ = signs off; a decision's branches are small italic words.
-   "Starts here" / "Signs last" are badges set from the selected node's toolbar. The same arrows are
-   listed as text under the canvas: the keyboard and screen-reader path, and where problems show.
-   One primary action: Save. Temporary drawings are read-only (one line says who changes them). */
+   temporary). Agents (and teams) are cards you drag or move with the arrow keys; two arrow styles
+   only — solid = hands work to, dashed with a ✓ = signs off; a branch ("only if …") is small italic
+   words on its arrow. "Starts here" / "Signs last" are badges set from the selected node's toolbar.
+   The same arrows are listed as text under the canvas: the keyboard and screen-reader path, and
+   where problems show. One primary action: Save. Temporary drawings are read-only. */
 import { type KeyboardEvent, type PointerEvent, useId, useMemo, useRef, useState } from 'react';
 import { isApiError, type Look } from '../../../api';
 import { Hero } from '../../../characters';
 import { Button } from '../../../ui';
 import {
-  addAgent,
-  addDecision,
+  ANY,
   addEdge,
+  addNode,
   draftEdge,
   edgeReady,
+  edgeRoom,
   edgeWords,
   type FlowEdge,
   type FlowNode,
@@ -22,11 +23,11 @@ import {
   type Graph,
   issueCount,
   kindLabel,
-  MAX_EDGES,
+  localIssues,
   MAX_NODES,
   moveNode,
+  NO_ISSUES,
   newGraph,
-  nodeLabel,
   type Pinned,
   pinIssues,
   removeEdge,
@@ -34,31 +35,31 @@ import {
   SIGNOFF_KINDS,
   sameGraph,
   setEdge,
-  setNode,
   setRole,
 } from './model';
 import './flow.css';
 
-export type Person = { id: string; name: string; look?: Look };
+/** Someone who may stand on a node: an agent (with a face) or a team (`team: true`). */
+export type Person = { id: string; name: string; look?: Look; team?: boolean };
 export type EditorProps = {
-  /** The saved drawing (null = none yet). */
+  /** The saved drawing (null = none yet) — `toGraph(workflow)`. */
   graph: Graph | null;
-  /** Who may stand on a node (the project, the team's members, the crew). */
+  /** Who may stand on a node (the project's people and teams, the team's members, the crew). */
   people: Person[];
   /** Set = read-only, with this one line (temporary workflows). */
   readOnly?: string;
-  /** Throws the server's error on a refusal (422 details are pinned to their arrow / node). */
+  /** Throws the server's error on a refusal (422 / 409 details are pinned to their arrow / node). */
   onSave?: (g: Graph) => Promise<void>;
-  /** Where the graph sits in the request body (`workflows.0.graph`, `graph`, '' ). */
+  /** Where the workflow sits in the request body (`workflows.0`, `workflow`). */
   issuePrefix?: string;
   /** Unsaved changes, for the opener's "leave?" prompt. */
   onDirty?: (dirty: boolean) => void;
-  /** A line under the canvas when the drawing replaces checks it couldn't draw. */
+  /** A quiet line under the canvas. */
   note?: string;
 };
 
 const NODE = { w: 128, h: 64 };
-const NO_ISSUES: Pinned = { edges: {}, nodes: {}, general: [] };
+type Draft = Omit<FlowEdge, 'id'> & { id?: string };
 
 /** Where the arrow leaves a node's box towards (dx, dy). */
 function edgeOf(dx: number, dy: number) {
@@ -76,12 +77,11 @@ export function WorkflowEditor(p: EditorProps) {
   const [g, setG] = useState<Graph | null>(p.graph);
   const [sel, setSel] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [draft, setDraft] = useState<(Omit<FlowEdge, 'id'> & { id?: string }) | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [issues, setIssues] = useState<Pinned>(NO_ISSUES);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [said, setSaid] = useState('');
-  const [addWho, setAddWho] = useState('');
   const drag = useRef<{ id: string; px: number; py: number; x: number; y: number; moved: boolean } | null>(
     null,
   );
@@ -89,7 +89,8 @@ export function WorkflowEditor(p: EditorProps) {
   const nodeEls = useRef(new Map<string, HTMLButtonElement>());
 
   const byId = useMemo(() => new Map(p.people.map((x) => [x.id, x])), [p.people]);
-  const nameOf = (a: string) => byId.get(a)?.name ?? 'Someone';
+  const nameOf = (id: string) => (id === ANY ? 'Every change' : (byId.get(id)?.name ?? 'Someone'));
+  const isTeam = (id: string) => !!byId.get(id)?.team;
   const dirty = !ro && !sameGraph(g, base);
   const lastDirty = useRef(false);
   if (lastDirty.current !== dirty) {
@@ -110,7 +111,9 @@ export function WorkflowEditor(p: EditorProps) {
     if (!g) return;
     if (connecting && sel && sel !== id) {
       setConnecting(false);
-      setDraft(draftEdge(g, sel, id));
+      const d = draftEdge(sel, id);
+      /* that pair already hands off (or 12 do): the arrow left to draw is a sign-off */
+      setDraft(edgeRoom(g, d, isTeam).handoff ? d : { ...d, signoff: 'review' });
       return;
     }
     setConnecting(false);
@@ -156,41 +159,32 @@ export function WorkflowEditor(p: EditorProps) {
   };
   const remove = (n: FlowNode) => {
     if (!g) return;
-    const next = g.nodes.length === 1 ? null : removeNode(g, n.id);
-    change(next);
+    change(g.nodes.length === 1 ? null : removeNode(g, n.id));
     setSel(null);
     setConnecting(false);
-    say(`${nodeLabel(n, nameOf)} removed, with its arrows.`);
+    say(`${nameOf(n.id)} removed, with their arrows.`);
   };
-  const add = (agent: string) => {
-    if (!agent) return;
-    const next = g ? addAgent(g, agent) : newGraph(agent);
-    const n = next.nodes[next.nodes.length - 1];
+  const add = (id: string) => {
+    if (!id) return;
+    const next = g ? addNode(g, id) : newGraph(id);
     change(next);
-    setSel(n.id);
-    setAddWho('');
-    say(`${nameOf(agent)} added${g ? '' : ': starts here and signs last'}. Arrow keys move them.`);
-    setTimeout(() => nodeEls.current.get(n.id)?.focus(), 0);
-  };
-  const addQuestion = () => {
-    if (!g) return;
-    const next = addDecision(g, 'Which way?');
-    const n = next.nodes[next.nodes.length - 1];
-    change(next);
-    setSel(n.id);
-    setTimeout(() => document.getElementById(`${uid}-q`)?.focus(), 0);
+    setSel(id);
+    say(`${nameOf(id)} added${g ? '' : ': starts here'}. Arrow keys move them.`);
+    setTimeout(() => nodeEls.current.get(id)?.focus(), 0);
   };
 
   /* ---------- arrows */
   const saveDraft = () => {
-    if (!g || !draft || !edgeReady(g, draft)) return;
+    if (!g || !draft || !edgeReady(g, draft, isTeam)) return;
     const { id, ...e } = draft;
     const next = id ? setEdge(g, id, e) : addEdge(g, e);
     change(next);
     setDraft(null);
-    const made = next.edges.find((x) => x.id === (id ?? next.edges[next.edges.length - 1].id));
-    if (made) say(`${id ? 'Changed' : 'Added'}: ${edgeWords(next, made, nameOf)}.`);
+    const made = id
+      ? next.edges.find((x) => x.id === id)
+      : next.edges.find((x) => !g.edges.some((y) => y.id === x.id));
     if (made) {
+      say(`${id ? 'Changed' : 'Added'}: ${edgeWords(made, nameOf)}.`);
       setIssues((s) => ({
         ...s,
         edges: Object.fromEntries(Object.entries(s.edges).filter(([k]) => k !== made.id)),
@@ -201,6 +195,12 @@ export function WorkflowEditor(p: EditorProps) {
   /* ---------- save */
   const save = async () => {
     if (!g || !p.onSave || saving) return;
+    const local = localIssues(g, nameOf);
+    if (issueCount(local)) {
+      setIssues(local);
+      say(`Not saved: ${issueCount(local)} problem${issueCount(local) === 1 ? '' : 's'} to fix, marked below.`);
+      return;
+    }
     setSaving(true);
     setIssues(NO_ISSUES);
     try {
@@ -223,11 +223,11 @@ export function WorkflowEditor(p: EditorProps) {
   };
 
   /* ---------- render */
-  const free = p.people.filter((x) => !g?.nodes.some((n) => n.type === 'agent' && n.agent === x.id));
-  const others = p.people.filter((x) => !free.includes(x));
+  const free = p.people.filter((x) => !g?.nodes.some((n) => n.id === x.id));
   const pos = (n: FlowNode) => ({ x: n.x - f.minX, y: n.y - f.minY });
+  const drawn = (g?.edges ?? []).filter((e) => e.from !== ANY);
   const pairs = new Map<string, string[]>();
-  for (const e of g?.edges ?? []) {
+  for (const e of drawn) {
     const k = [e.from, e.to].sort().join('|');
     pairs.set(k, [...(pairs.get(k) ?? []), e.id]);
   }
@@ -249,15 +249,7 @@ export function WorkflowEditor(p: EditorProps) {
       {!g ? (
         <div className="fe-empty">
           <p>{ro ? 'Nothing drawn yet.' : 'Start with who picks the work up first.'}</p>
-          {!ro && (
-            <AgentPicker
-              id={`${uid}-first`}
-              people={p.people}
-              value={addWho}
-              onPick={add}
-              label="First agent"
-            />
-          )}
+          {!ro && <PersonPicker id={`${uid}-first`} people={p.people} onPick={add} label="Who starts" />}
         </div>
       ) : (
         <>
@@ -275,30 +267,22 @@ export function WorkflowEditor(p: EditorProps) {
             <div className="fe-board" style={{ width: f.width, height: f.height }}>
               <svg className="fe-arrows" width={f.width} height={f.height} aria-hidden="true">
                 <defs>
-                  <marker
-                    id={`${uid}-tip`}
-                    viewBox="0 0 10 10"
-                    refX="9"
-                    refY="5"
-                    markerWidth="7"
-                    markerHeight="7"
-                    orient="auto"
-                  >
-                    <path d="M0 0L10 5L0 10z" className="fe-tip" />
-                  </marker>
-                  <marker
-                    id={`${uid}-tipbad`}
-                    viewBox="0 0 10 10"
-                    refX="9"
-                    refY="5"
-                    markerWidth="7"
-                    markerHeight="7"
-                    orient="auto"
-                  >
-                    <path d="M0 0L10 5L0 10z" className="fe-tip bad" />
-                  </marker>
+                  {['tip', 'tipbad'].map((t) => (
+                    <marker
+                      key={t}
+                      id={`${uid}-${t}`}
+                      viewBox="0 0 10 10"
+                      refX="9"
+                      refY="5"
+                      markerWidth="7"
+                      markerHeight="7"
+                      orient="auto"
+                    >
+                      <path d="M0 0L10 5L0 10z" className={`fe-tip${t === 'tipbad' ? ' bad' : ''}`} />
+                    </marker>
+                  ))}
                 </defs>
-                {g.edges.map((e) => {
+                {drawn.map((e) => {
                   const a = g.nodes.find((n) => n.id === e.from);
                   const b = g.nodes.find((n) => n.id === e.to);
                   if (!a || !b) return null;
@@ -334,9 +318,9 @@ export function WorkflowEditor(p: EditorProps) {
                           <path d="M-4 0.5l2.6 2.6L4.2-3" className="fe-check" />
                         </g>
                       )}
-                      {e.branch !== undefined && (
-                        <text x={mx} y={my - 7} className="fe-branch" textAnchor="middle">
-                          {e.branch}
+                      {e.when && (
+                        <text x={mx} y={my - 14} className="fe-branch" textAnchor="middle">
+                          {e.when.length > 34 ? `${e.when.slice(0, 33)}…` : e.when}
                         </text>
                       )}
                     </g>
@@ -345,12 +329,13 @@ export function WorkflowEditor(p: EditorProps) {
               </svg>
               {g.nodes.map((n) => {
                 const at = pos(n);
-                const who = n.type === 'agent' ? byId.get(n.agent) : undefined;
+                const who = byId.get(n.id);
+                const team = !!who?.team;
                 const bad = !!issues.nodes[n.id];
-                const badges = [g.start === n.id && 'Starts here', g.end === n.id && 'Signs last'].filter(
+                const badges = [g.first === n.id && 'Starts here', g.final === n.id && 'Signs last'].filter(
                   Boolean,
                 ) as string[];
-                const label = `${nodeLabel(n, nameOf)}${n.type === 'decision' ? ', a decision' : ''}${
+                const label = `${nameOf(n.id)}${team ? ', a team' : ''}${
                   badges.length ? `, ${badges.join(', ')}` : ''
                 }${bad ? `, problem: ${issues.nodes[n.id].join('; ')}` : ''}${
                   connecting && sel !== n.id ? '. Connect here' : ''
@@ -363,7 +348,7 @@ export function WorkflowEditor(p: EditorProps) {
                       else nodeEls.current.delete(n.id);
                     }}
                     type="button"
-                    className={`fe-node ${n.type}${sel === n.id ? ' sel' : ''}${bad ? ' bad' : ''}`}
+                    className={`fe-node${team ? ' team' : ''}${sel === n.id ? ' sel' : ''}${bad ? ' bad' : ''}`}
                     style={{ left: at.x, top: at.y }}
                     aria-label={label}
                     aria-pressed={ro ? undefined : sel === n.id}
@@ -376,20 +361,20 @@ export function WorkflowEditor(p: EditorProps) {
                     }}
                     onKeyDown={(e) => onNodeKey(e, n)}
                   >
-                    {n.type === 'agent' ? (
-                      <>
-                        <span className="fe-face" aria-hidden="true">
-                          {who?.look ? (
-                            <Hero agent={{ name: who.name, look: who.look }} size={34} />
-                          ) : (
-                            <Hero ghost size={34} />
-                          )}
-                        </span>
-                        <span className="fe-name">{who?.name ?? 'Someone'}</span>
-                      </>
+                    {team ? (
+                      <span className="fe-team" aria-hidden="true">
+                        {(who?.name ?? '?').slice(0, 1).toUpperCase()}
+                      </span>
                     ) : (
-                      <span className="fe-q">{n.question}</span>
+                      <span className="fe-face" aria-hidden="true">
+                        {who?.look ? (
+                          <Hero agent={{ name: who.name, look: who.look }} size={34} />
+                        ) : (
+                          <Hero ghost size={34} />
+                        )}
+                      </span>
                     )}
+                    <span className="fe-name">{who?.name ?? 'Someone'}</span>
                     {badges.length > 0 && (
                       <span className="fe-badges" aria-hidden="true">
                         {badges.map((b) => (
@@ -404,60 +389,43 @@ export function WorkflowEditor(p: EditorProps) {
           </div>
 
           {!ro && (
-            <div
-              className="fe-tools"
-              role="toolbar"
-              aria-label={selected ? `${nodeLabel(selected, nameOf)}` : 'Add'}
-            >
+            <div className="fe-tools" role="toolbar" aria-label={selected ? nameOf(selected.id) : 'Add'}>
               {connecting && selected ? (
                 <>
-                  <span className="fe-hint">Pick where {nodeLabel(selected, nameOf)}’s work goes.</span>
+                  <span className="fe-hint">Pick where {nameOf(selected.id)}’s work goes.</span>
                   <Button small variant="ghost" onClick={() => setConnecting(false)}>
                     Cancel
                   </Button>
                 </>
               ) : selected ? (
                 <>
-                  {selected.type === 'decision' ? (
-                    <input
-                      id={`${uid}-q`}
-                      className="fe-in fe-qin"
-                      aria-label="The decision’s question"
-                      maxLength={120}
-                      value={selected.question}
-                      onChange={(e) => change(setNode(g, selected.id, { question: e.target.value }))}
-                    />
-                  ) : (
-                    <>
-                      <b className="fe-who">{nodeLabel(selected, nameOf)}</b>
-                      <button
-                        type="button"
-                        className="fe-tog"
-                        aria-pressed={g.start === selected.id}
-                        onClick={() => change(setRole(g, selected.id, 'start'))}
-                      >
-                        Starts here
-                      </button>
-                      <button
-                        type="button"
-                        className="fe-tog"
-                        aria-pressed={g.end === selected.id}
-                        onClick={() => change(setRole(g, selected.id, 'end'))}
-                      >
-                        Signs last
-                      </button>
-                    </>
+                  <b className="fe-who">{nameOf(selected.id)}</b>
+                  <button
+                    type="button"
+                    className="fe-tog"
+                    aria-pressed={g.first === selected.id}
+                    onClick={() => change(setRole(g, selected.id, 'first', isTeam))}
+                  >
+                    Starts here
+                  </button>
+                  {!isTeam(selected.id) && (
+                    <button
+                      type="button"
+                      className="fe-tog"
+                      aria-pressed={g.final === selected.id}
+                      onClick={() => change(setRole(g, selected.id, 'final', isTeam))}
+                    >
+                      Signs last
+                    </button>
                   )}
                   <Button
                     small
                     variant="ghost"
-                    disabled={g.nodes.length < 2 || g.edges.length >= MAX_EDGES}
+                    disabled={g.nodes.length < 2}
                     onClick={() => {
                       setConnecting(true);
                       setDraft(null);
-                      say(
-                        `Pick where ${nodeLabel(selected, nameOf)}’s work goes: Tab to a node, press Enter.`,
-                      );
+                      say(`Pick where ${nameOf(selected.id)}’s work goes: Tab to a node, press Enter.`);
                     }}
                   >
                     Connect to…
@@ -469,20 +437,9 @@ export function WorkflowEditor(p: EditorProps) {
               ) : (
                 <>
                   {g.nodes.length < MAX_NODES && (
-                    <>
-                      <AgentPicker
-                        id={`${uid}-add`}
-                        people={free.length ? [...free, ...others] : p.people}
-                        value={addWho}
-                        onPick={add}
-                        label="+ Agent"
-                      />
-                      <Button small variant="ghost" onClick={addQuestion}>
-                        + Decision
-                      </Button>
-                    </>
+                    <PersonPicker id={`${uid}-add`} people={free} onPick={add} label="+ Add someone" />
                   )}
-                  <span className="fe-hint">Select a node to connect it.</span>
+                  <span className="fe-hint">Select a card to connect it.</span>
                 </>
               )}
             </div>
@@ -494,6 +451,7 @@ export function WorkflowEditor(p: EditorProps) {
               g={g}
               draft={draft}
               nameOf={nameOf}
+              isTeam={isTeam}
               onChange={setDraft}
               onDone={saveDraft}
               onCancel={() => setDraft(null)}
@@ -504,7 +462,7 @@ export function WorkflowEditor(p: EditorProps) {
             Arrows
           </h4>
           {!g.edges.length ? (
-            <p className="fe-none">{ro ? 'No arrows.' : 'No arrows yet. Select a node, then Connect to…'}</p>
+            <p className="fe-none">{ro ? 'No arrows.' : 'No arrows yet. Select a card, then Connect to…'}</p>
           ) : (
             <ol className="fe-list" aria-labelledby={`${uid}-list`}>
               {g.edges.map((e) => {
@@ -512,18 +470,20 @@ export function WorkflowEditor(p: EditorProps) {
                 return (
                   <li key={e.id} className={errs ? 'bad' : undefined}>
                     <span className={`fe-glyph${e.signoff ? ' signoff' : ''}`} aria-hidden="true">
-                      {e.signoff ? '✓' : e.branch !== undefined ? '◇' : '→'}
+                      {e.signoff ? '✓' : '→'}
                     </span>
-                    <span className="fe-words">{edgeWords(g, e, nameOf)}</span>
+                    <span className="fe-words">{edgeWords(e, nameOf)}</span>
                     {!ro && (
                       <span className="fe-acts">
-                        <button type="button" className="fe-link" onClick={() => setDraft({ ...e })}>
-                          Edit
-                        </button>
+                        {e.from !== ANY && (
+                          <button type="button" className="fe-link" onClick={() => setDraft({ ...e })}>
+                            Edit
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="fe-link danger"
-                          aria-label={`Remove: ${edgeWords(g, e, nameOf)}`}
+                          aria-label={`Remove: ${edgeWords(e, nameOf)}`}
                           onClick={() => {
                             change(removeEdge(g, e.id));
                             say('Arrow removed.');
@@ -553,16 +513,12 @@ export function WorkflowEditor(p: EditorProps) {
           ))}
           {Object.entries(issues.nodes).map(([id, ms]) => (
             <li key={id}>
-              {nodeLabel(
-                g?.nodes.find((n) => n.id === id),
-                nameOf,
-              )}
-              : {ms.join(' · ')}
+              {nameOf(id)}: {ms.join(' · ')}
             </li>
           ))}
         </ul>
       )}
-      {p.note && !ro && <p className="fe-note">{p.note}</p>}
+      {p.note && <p className="fe-note">{p.note}</p>}
       {!ro && (
         <footer className="fe-foot">
           <span className="fe-saved">{dirty ? 'Unsaved' : saved ? 'Saved ✓' : ''}</span>
@@ -578,60 +534,68 @@ export function WorkflowEditor(p: EditorProps) {
   );
 }
 
-function AgentPicker({
+function PersonPicker({
   id,
   people,
-  value,
   onPick,
   label,
 }: {
   id: string;
   people: Person[];
-  value: string;
-  onPick: (agent: string) => void;
+  onPick: (id: string) => void;
   label: string;
 }) {
+  const agents = people.filter((x) => !x.team);
+  const teams = people.filter((x) => x.team);
   return (
     <select
       id={id}
       className="fe-in fe-pick"
-      aria-label={label === '+ Agent' ? 'Add an agent' : label}
-      value={value}
+      aria-label={label.replace(/^\+ /, '')}
+      value=""
       disabled={!people.length}
       onChange={(e) => onPick(e.target.value)}
     >
-      <option value="">{people.length ? label : 'Nobody to add'}</option>
-      {people.map((x) => (
+      <option value="">{people.length ? label : 'Everyone is on it'}</option>
+      {agents.map((x) => (
         <option key={x.id} value={x.id}>
           {x.name}
         </option>
       ))}
+      {teams.length > 0 && (
+        <optgroup label="Teams">
+          {teams.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }
 
-/** One small form for a new or changed arrow: hand-off or sign-off, why; a branch out of a decision. */
+/** One small form for a new or changed arrow: hand-off or sign-off, why, "only when…" (optional). */
 function ArrowForm({
   uid,
   g,
   draft,
   nameOf,
+  isTeam,
   onChange,
   onDone,
   onCancel,
 }: {
   uid: string;
   g: Graph;
-  draft: Omit<FlowEdge, 'id'> & { id?: string };
-  nameOf: (a: string) => string;
-  onChange: (d: Omit<FlowEdge, 'id'> & { id?: string }) => void;
+  draft: Draft;
+  nameOf: (id: string) => string;
+  isTeam: (id: string) => boolean;
+  onChange: (d: Draft) => void;
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const from = g.nodes.find((n) => n.id === draft.from);
-  const to = g.nodes.find((n) => n.id === draft.to);
-  const decision = from?.type === 'decision';
-  const canSign = from?.type === 'agent' && to?.type === 'agent' && from.agent !== to.agent;
+  const room = edgeRoom(g, draft, isTeam);
   const set = (patch: Partial<FlowEdge>) => onChange({ ...draft, ...patch });
   return (
     <form
@@ -649,79 +613,73 @@ function ArrowForm({
       }}
     >
       <p className="fe-form-h">
-        {nodeLabel(from, nameOf)} <span aria-hidden="true">→</span>
-        <span className="sr-only">to</span> {nodeLabel(to, nameOf)}
+        {nameOf(draft.from)} <span aria-hidden="true">→</span>
+        <span className="sr-only">to</span> {nameOf(draft.to)}
       </p>
-      {decision ? (
-        <label className="fe-field">
-          <span>If</span>
+      <fieldset className="fe-kind">
+        <legend className="sr-only">What this arrow means</legend>
+        <label className={room.handoff ? undefined : 'off'}>
           <input
-            // biome-ignore lint/a11y/noAutofocus: the user just drew this arrow
-            autoFocus
-            className="fe-in"
-            maxLength={40}
-            placeholder="yes"
-            value={draft.branch ?? ''}
-            onChange={(e) => set({ branch: e.target.value })}
+            type="radio"
+            name={`${uid}-kind`}
+            disabled={!room.handoff}
+            checked={!draft.signoff}
+            onChange={() => set({ signoff: undefined })}
           />
+          Hands work to
         </label>
-      ) : (
-        <fieldset className="fe-kind">
-          <legend className="sr-only">What this arrow means</legend>
-          <label>
-            <input
-              type="radio"
-              name={`${uid}-kind`}
-              checked={!draft.signoff}
-              onChange={() => set({ signoff: undefined })}
-            />
-            Hands work to
-          </label>
-          <label className={canSign ? undefined : 'off'}>
-            <input
-              type="radio"
-              name={`${uid}-kind`}
-              disabled={!canSign}
-              checked={!!draft.signoff}
-              onChange={() => set({ signoff: 'review' })}
-            />
-            Signs off
-          </label>
-          {draft.signoff && (
-            <select
-              className="fe-in"
-              aria-label="Kind of sign-off"
-              value={draft.signoff}
-              onChange={(e) => set({ signoff: e.target.value as FlowEdge['signoff'] })}
-            >
-              {SIGNOFF_KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {kindLabel(k)}
-                </option>
-              ))}
-            </select>
-          )}
-        </fieldset>
-      )}
+        <label className={room.signoff ? undefined : 'off'}>
+          <input
+            type="radio"
+            name={`${uid}-kind`}
+            disabled={!room.signoff}
+            checked={!!draft.signoff}
+            onChange={() => set({ signoff: 'review' })}
+          />
+          Signs off
+        </label>
+        {draft.signoff && (
+          <select
+            className="fe-in"
+            aria-label="Kind of sign-off"
+            value={draft.signoff}
+            onChange={(e) => set({ signoff: e.target.value as FlowEdge['signoff'] })}
+          >
+            {SIGNOFF_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {kindLabel(k)}
+              </option>
+            ))}
+          </select>
+        )}
+      </fieldset>
       <label className="fe-field">
-        <span>Why{decision ? ' (optional)' : ''}</span>
+        <span>Why</span>
         <input
           // biome-ignore lint/a11y/noAutofocus: the user just drew this arrow
-          autoFocus={!decision}
+          autoFocus
           className="fe-in"
-          maxLength={200}
-          placeholder={
-            draft.signoff ? 'e.g. payments must not break' : 'e.g. the UI is ready, wire the endpoint'
-          }
-          value={draft.why ?? ''}
+          maxLength={300}
+          placeholder={draft.signoff ? 'e.g. payments must not break' : 'e.g. the UI is ready, wire the endpoint'}
+          value={draft.why}
           onChange={(e) => set({ why: e.target.value })}
+        />
+      </label>
+      <label className="fe-field">
+        <span>Only when</span>
+        <input
+          className="fe-in"
+          maxLength={120}
+          placeholder="optional — e.g. it touches the UI"
+          value={draft.when ?? ''}
+          onChange={(e) => set({ when: e.target.value })}
         />
       </label>
       <div className="fe-form-acts">
         <Button small variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button small variant="dark" type="submit" disabled={!edgeReady(g, draft)}>
+        <Button small variant="dark" type="submit" disabled={!edgeReady(g, draft, isTeam)}>
           {draft.id ? 'Change arrow' : 'Add arrow'}
         </Button>
       </div>

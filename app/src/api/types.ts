@@ -157,7 +157,14 @@ export type ProjectPatch = Partial<
 /* ---------- collaboration (F1b): who the orchestrator briefs + review gates ---------- */
 export type GateKind = 'quality' | 'user-test' | 'crash-test' | 'security' | 'review';
 /** After a build item by `after` (team id, agent id or "*") is done, `reviewer` checks it. */
-export type Gate = { after: string; reviewer: string; kind: GateKind; why: string };
+export type Gate = {
+  after: string;
+  reviewer: string;
+  kind: GateKind;
+  why: string;
+  /** A soft branch label: "only if it touches the UI" (words for the orchestrator, not logic). */
+  when?: string;
+};
 export type Collaboration = {
   orchestratorTalksTo: 'captains' | 'everyone';
   gates: Gate[];
@@ -172,26 +179,24 @@ export type Workflow = Collaboration & {
   when: string;
   lead?: string;
   crew?: string[];
-  /** Drawn in the editor; when there, its sign-off arrows are the gates (server/src/domain/graph.ts). */
-  graph?: WorkflowGraph;
+  /* Drawn in the editor (wiki "The editor's shape"); the sign-off arrows are the `gates`. */
+  /** Who starts (agent or team). */
+  first?: string;
+  /** Who signs last (an agent; one of the reviewers when there are gates). */
+  final?: string;
+  /** Hand-offs that aren't reviews (≤ 12). */
+  steps?: Step[];
+  /** Where each node sits on the canvas: x 0..1000, y 0..600. */
+  layout?: Record<string, { x: number; y: number }>;
+  /** Read-only: where it lives (a PUT ignores it). */
+  scope?: 'office' | 'team' | 'temporary';
+  teamId?: string;
 };
+/** A hand-off: `from` hands work to `to`, and why; `when` = a soft branch label. */
+export type Step = { from: string; to: string; why: string; when?: string };
 export type WorkflowsView = { workflows: Workflow[]; designed: boolean };
-/** A workflow drawn as a graph: agents and decisions, an explicit start and end (agents), arrows with
-    a why. Out of a decision an arrow carries a `branch`; an arrow with `signoff` is a review gate. */
-export type GraphNode =
-  | { id: string; type: 'agent'; agent: string; x: number; y: number }
-  | { id: string; type: 'decision'; question: string; x: number; y: number };
-export type GraphEdge = {
-  id: string;
-  from: string;
-  to: string;
-  why?: string;
-  branch?: string;
-  signoff?: GateKind;
-};
-export type WorkflowGraph = { nodes: GraphNode[]; start: string; end: string; edges: GraphEdge[] };
-/** A team's own way, drawn in the Cast (GET/PUT /teams/:id/workflow). */
-export type TeamWorkflow = { name: string; summary: string; graph: WorkflowGraph; gates?: Gate[] };
+/** A team's own way, drawn in the Cast (GET/PUT /teams/:id/workflow): a workflow without lead or crew. */
+export type TeamWorkflow = Workflow;
 export type ItemReview = {
   reviewer: string;
   gate: number;
@@ -542,9 +547,10 @@ export type WorkflowTag = {
   temporary: boolean;
   lead?: string;
   crew?: string[];
-  /** The goal's drawing (goal reads only; events carry the tag alone). */
-  graph?: WorkflowGraph;
 };
+/** A goal's workflow as the work list reads it: the tag plus the whole workflow (gates = the ones it really
+    runs, a temporary lead's sign-offs included), so the editor can draw it read-only. Events carry the tag. */
+export type GoalWorkflow = WorkflowTag & Partial<Omit<Workflow, 'id' | 'name' | 'lead' | 'crew'>>;
 export type Goal = {
   id: string;
   projectId: string;
@@ -561,7 +567,7 @@ export type Goal = {
   /** The main storyline (the feature being built) or a side quest (a quick fix, a short research job). */
   quest?: 'main' | 'side';
   /** WORKFLOWS: null = an older goal (the usual way). Absent on old servers. */
-  workflow?: WorkflowTag | null;
+  workflow?: GoalWorkflow | null;
   /** Who signed off its work, once each, in task order; [] unless done. */
   signedBy?: TaskPerson[];
   createdAt: string;
