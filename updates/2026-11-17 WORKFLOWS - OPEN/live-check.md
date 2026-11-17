@@ -1,47 +1,63 @@
-# Workflows — Phase 7 live check (Elon, 2026-11-17)
+# Workflows — Phase 7 live check (Elon)
 
-**Verdict: not signed off.** The server half works; the drawing the user asked for can't be drawn yet, and once
-drawn, only its sign-off arrows change how work runs.
+## Re-check 2 (2026-11-17, branch at 0949058): not signed off yet
 
-## How it was run
+**Verdict:** drawing, saving and reloading work for all three types, and the temporary type runs the way it's
+drawn. Real work still ignores three parts of a drawing (gaps below, sent to Uncle Bob). Jony has nothing open.
 
-- Real backend from this branch (9f41df8), fake runner (`AI_STUDIO_RUNNER=fake`, no paid runs, cost $0), on a
-  throwaway data folder, port 3569. Script: `live-check.mjs` in this folder (`node live-check.mjs` against a running
-  backend). Project *Aurora* (seed), teams Ship-It and Polish.
-- Plus the graph/temporary suites: `test/crew/graphs.test.ts`, `test/crew/temporary.test.ts`,
-  `test/domain/graph.test.ts` — 19/19 green.
+### How it was run
 
-## What works
+- Server 828/828 and app 621/621 tests green.
+- A real backend from this branch on a throwaway data folder (port 3569):
+  `PORT=3569 AI_STUDIO_SELF_INSTALL=0 AI_STUDIO_HOME=<tmp>/home AI_STUDIO_SANDBOX=<tmp>/sandbox
+  AI_CONTROL_HOME=<tmp>/control npm start --prefix server`, with `<tmp>/sandbox/aurora` created. First run with
+  `AI_STUDIO_RUNNER=fake` (free), then with real agents on `AI_STUDIO_MODEL=claude-haiku-5-5`. Each real goal was
+  cancelled once its plan was on the board. Cost: well under $1.
+  **Watch out:** if `<tmp>` is inside this repo, run `git init` in `<tmp>/sandbox/aurora` first. Otherwise a real
+  agent's `git commit` goes up to the repo around it. That happened here, and the stray commit was undone.
+- `live-check-5b.mjs` (Jony's): all ok.
+- `live-check-7.mjs`: draws with the editor's own model (`flow/model.ts`), saves the way the screens save,
+  reloads, then runs a goal and checks its sign-offs and every task's text. `CHECK_WORK=0` stops after the drawings.
+- `live-check-7-real.mjs a|b`: (a) a real planner plans a goal under the drawn office way; (b) the real director
+  hears "Pixel Pete, take command of … and use Captain Semicolon".
+- On screen: there's no headless browser here, so the screens were checked through their component tests
+  (`WorkflowEditor.test.tsx`, `model.test.ts`), which exercise the same props and keyboard path.
 
-| Check | Office | Team (Ship-It) | Temporary |
+### What works
+
+| Check | Office (How we work) | Team (Cast → Ship-It) | Temporary (on top) |
 |---|---|---|---|
-| Draw: first + final agent, hand-off arrows with why, a decision with yes/no, sign-off arrows | ✅ PUT 200 | ✅ PUT 200 | ✅ (suite) |
-| Reload returns the drawing | ✅ (only change: an empty `why` filled in on branch arrows — fine) | ✅ | ✅ (suite) |
-| Broken drawing → every problem by path | ✅ start on a decision, outsider on a node, decision with one way out — all three at once | ✅ non-member | ✅ outsider, 409 unled goal |
-| Gates come from the sign-off arrows | ✅ Pete→Lint quality, Semic→Scar crash-test | ✅ Pete→Scar user-test | ✅ + the lead's sign-offs |
-| Real work follows the sign-offs | ✅ goal ran: Semic's task gated by Scar (crash-test), signed; "Signed by Scarlett Scenario" | ✅ (suite: a member's new task gets the team gate) | ✅ (suite: regates tasks not started) |
+| Draw: first, final, hand-offs with why, a branch ("only when") | ✅ | ✅ | ✅ read-only, drawn from lead + crew |
+| Save → reload is the same drawing | ✅ same people, places, arrows, first/final | ✅ | — |
+| Broken drawing refused, each problem pinned to its arrow | ✅ (5b script) | ✅ outsider | — |
+| Sign-off arrows become the task's checks | ✅ Lint + Scar on Semic's tasks | ❌ gap 2 | ✅ Pete signs Semic's task |
+| Signs last signs last | ✅ Scar's check is last | — | ✅ |
+| Each task carries the drawing in words | ✅ "Pixel Pete starts. Pixel Pete hands to Captain Semicolon: … (only if …) … Scarlett Scenario signs last." | ❌ gap 2 | ✅ "Pixel Pete leads this goal: report to them" |
 
-## Gaps (sent back)
+### Gaps (sent to Uncle Bob as work)
 
-1. **No visual editor on screen (Jony).** `app/src/features/collab/` has no `flow/` editor, and nothing in the Cast
-   or "How we work" opens one. The user can't draw, place agents, set first/final, or connect arrows. The brief's
-   "draw one in the visual editor" can't be done.
-2. **The drawing is decoration except its sign-offs (Uncle Bob).** Nothing at run time reads `start`, `end`,
-   hand-off arrows, decisions or branches: `describeWorkflows` (`server/src/crew/dispatch.ts:161`) gives the planner
-   `{id, name, when, gates, summary}` only, and item tasks don't mention it. Live: the office drawing starts at Pete;
-   the plan started with Semic. Smallest fix (not an engine): give the planner and each item's task the drawing in
-   words — who starts, who hands to whom and why, each decision's question and branches, who signs last.
-3. **Changing a drawn workflow by voice silently erases the drawing (Uncle Bob).** `set_workflow`
-   (`server/src/office/workflow-tools.ts:55`) builds the workflow without `graph`, and `put` replaces it whole
-   (`server/src/crew/workflows.ts:122`). Either keep the drawing and refuse gates that contradict it, or drop it and
-   say so in the answer ("the drawing was replaced by these checks").
-4. **"Signs last" isn't enforced.** `end` is stored, but gate order is arrow order. Fine as a soft suggestion if
-   gap 2 tells the planner; otherwise order the end node's sign-off last in `gatesFromGraph`.
+1. **A branch on a sign-off is ignored.** Scar's crash-test, drawn "only if it touches payments", was put on
+   every Semic task, including "Set up the project stack" and a contact page. `gatesFor` never reads `when`.
+   Fix: plan items say which branch labels hold (`branches`). A gate with a `when` applies only when its label is
+   listed. If the planner leaves the field out, the gate applies as it does today.
+2. **A team's drawing doesn't reach running work.** `teams.workflow` is saved and shown, but the captain's split
+   prompt never sees it (or the goal's drawing), and members' sub-tasks get none of the team's sign-offs.
+3. **"Starts here" on a team member can't be followed.** The planner may only assign captains, so "Pixel Pete
+   starts" turned into two items for Semic. Gap 2 plus one planner line ("give it to the captain; the split puts
+   that member first") covers it.
+- Small: for a led goal, the director added its own "check and sign off" item for the lead, on top of the lead's
+  automatic sign-off.
 
-Not checked yet (needs gap 1): placing nodes by drag/keys, errors pinned to arrows on screen, the temporary
-drawing read-only line, contrast (Humanitarian).
+### Accepted on purpose (not gaps)
 
-## What surprised us
+- A reload lists hand-offs before sign-offs and renumbers the arrows. Steps and gates are stored apart, so
+  keeping the order you drew them in would need a field with no other use. Nothing the drawing means changes, and
+  the editor doesn't show "unsaved" after a save.
+- A branch is words on an arrow, not a decision box. The user asked for "light decision branches", and this is
+  the lighter version.
 
-- The server validation is good: every problem at once, by path, ready for an editor that doesn't exist yet.
-- The `when` on a gate (Phase 5b design) became `branch` out of a decision node in the build. Simpler; keep it.
+## Re-check 1 (2026-11-17, at 9f41df8): not signed off
+
+That check ran against the old nodes/edges build (since replaced). It found no editor on screen, a drawing that
+reached nobody at run time, and `set_workflow` erasing a drawing. All three are fixed (see Status in `update v1.md`).
+Its script, `live-check.mjs`, used the old shape and has been removed.
