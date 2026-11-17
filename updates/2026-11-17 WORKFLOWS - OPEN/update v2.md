@@ -176,3 +176,11 @@ folded list, unconnected cards.
   captain / shape changes (once optimistic, once confirmed) and when the panel reopens; the Cast has no
   project event stream, so `team.workflow.changed` isn't listened to there. Foot line deleted.
   Tests: `cast/TeamWay.test.tsx` (15), server round-trip of the default as an own way.
+- 2026-11-17: **Phase 6.1 live check run (Elon), not signed off yet.** Real server (fake runner) + app in a
+  headless browser, notes in `live-check-v2.md`. Passes: cold find in 3 clicks, draw / save / reload, new team
+  with its way under Crew, runs follow each way (chain order + `parallel:false`, captain shape untouched, own
+  way's sign-off on the right part, no extra sign-offs), the goal chip opens its way, member prune. v1 gap 2
+  (team way reaching the run) is closed. 10 findings: **1 blocker** (the editor hides "+ Add someone" while a card
+  is selected, so you can't add a second person) and **1 medium** (adjust a default team way + add one sign-off
+  → Save refused, "signs nothing off"). Both are on the whiteboard with Jony (1, 2, 3, 4, 5, 6, 8, 9) and
+  Uncle Bob (3, 8, 9, 10). Sign-off after the re-check. Humanitarian's pass (6.2) is still open.

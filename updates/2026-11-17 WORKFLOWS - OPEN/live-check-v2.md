@@ -1,6 +1,8 @@
 # Workflows v2 — Phase 6 live check as a first-time user (Elon)
 
-In progress. Real backend + real web app on throwaway data, clicked through in a headless browser.
+Run done, waiting on fixes, then a re-check. Real backend + real web app on throwaway data, clicked through in a
+headless browser. Every check passes; 10 findings below (1 blocker, 1 medium), handed out 2026-11-17: Jony
+(1, 2, 3, 4, 5, 6, 8, 9) and Uncle Bob (3, 8, 9, 10). Cost: about $2.5 of agent time; the fake runner costs nothing.
 
 ## How it's run
 
