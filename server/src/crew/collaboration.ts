@@ -9,9 +9,12 @@ import {
   type Collaboration,
   CollaborationSchema,
   collaborationIssues,
-  DEFAULT_MAX_SEND_BACKS,
+  DEFAULT_COLLABORATION,
+  DEFAULT_WORKFLOW,
   type Staffing,
-} from '../domain/collaboration.ts';
+  toCollaboration,
+  type Workflow,
+} from '../domain/workflows.ts';
 import { conflict, parse } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import {
@@ -28,14 +31,6 @@ const DesignSchema = z.strictObject({
   reply: z.string().trim().min(1).max(2000),
   collaboration: CollaborationSchema,
 });
-
-/** No design yet: the orchestrator briefs captains, no review gates. */
-export const DEFAULT_COLLABORATION: Collaboration = {
-  orchestratorTalksTo: 'captains',
-  gates: [],
-  maxSendBacks: DEFAULT_MAX_SEND_BACKS,
-  summary: 'The orchestrator briefs team captains; no review gates yet.',
-};
 
 export function createCollaboration(deps: {
   store: Store;
@@ -56,14 +51,19 @@ export function createCollaboration(deps: {
     }
     return {
       teams,
-      specialists: new Set(p.agentIds),
+      specialists: new Set([...p.agentIds, ...store.guests.ids(projectId)]),
       name: (id) => store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id,
     };
   }
   const issues = (projectId: string, c: Collaboration) => collaborationIssues(c, staffing(projectId));
 
+  /** B8's design is the first workflow: replace its checks, keep its name and scenario. */
   function save(projectId: string, c: Collaboration): Collaboration {
-    store.tx(() => store.projects.update(projectId, { collaboration: c }));
+    store.tx(() => {
+      const [first, ...rest] = store.projects.require(projectId).workflows ?? [];
+      const next: Workflow = { ...(first ?? DEFAULT_WORKFLOW), ...c };
+      store.projects.update(projectId, { workflows: [next, ...rest] });
+    });
     events.append('project', projectId, {
       type: 'collaboration.changed',
       payload: { orchestratorTalksTo: c.orchestratorTalksTo, gates: c.gates.length, summary: c.summary },
@@ -74,8 +74,8 @@ export function createCollaboration(deps: {
   return {
     staffing,
     get(projectId: string): { collaboration: Collaboration; designed: boolean } {
-      const p = store.projects.require(projectId);
-      return { collaboration: p.collaboration ?? DEFAULT_COLLABORATION, designed: !!p.collaboration };
+      const first = store.projects.require(projectId).workflows?.[0];
+      return { collaboration: first ? toCollaboration(first) : DEFAULT_COLLABORATION, designed: !!first };
     },
 
     /** Set by hand (the UI): 422 = malformed, 409 = a gate names someone not on the project. */
@@ -122,7 +122,7 @@ export function createCollaboration(deps: {
           task: [
             `Project: ${json({ name: p.name, about: p.note })}`,
             `Who works on it: ${json(people)}`,
-            `Current design: ${json(p.collaboration ?? null)}`,
+            `Current design: ${json(p.workflows?.[0] ? toCollaboration(p.workflows[0]) : null)}`,
             ask?.trim()
               ? `The user asks: ${json(ask.trim())}`
               : 'Design how these people work together on this project.',

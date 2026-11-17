@@ -3,6 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { CollaborationSchema, fromCollaboration } from '../../src/domain/workflows.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
@@ -30,6 +31,11 @@ function studio(answers: Record<string, Answer[]>, work: (s: RunSpec) => FakeSte
   h.store.projects.update('aurora', { folder: 'aurora' });
   return { h, crew };
 }
+/** The project works under this B8 design (as its first workflow). */
+const useDesign = (h: ReturnType<typeof testApp>, c: object) =>
+  h.store.projects.update('aurora', {
+    workflows: [fromCollaboration(CollaborationSchema.parse(c))],
+  });
 async function settled(h: ReturnType<typeof testApp>, goalId: string) {
   for (let i = 0; i < 400; i++) {
     const g = (await h.call('GET', `/projects/aurora/work/${goalId}`)).body;
@@ -59,7 +65,9 @@ describe('collaboration: design + enforcement', () => {
     expect(bad.body.error.message).toMatch(/'a-prof' is not on this project/);
     const ok = await h.call('PUT', '/projects/aurora/collaboration', DESIGN);
     expect(ok.status).toBe(200);
-    expect((await h.call('GET', '/projects/aurora')).body.collaboration).toEqual(DESIGN);
+    expect((await h.call('GET', '/projects/aurora')).body.workflows).toEqual([
+      { ...DESIGN, id: 'usual', name: 'Our usual way', when: 'everything' },
+    ]);
     expect(
       h.events
         .after('project', 'aurora')
@@ -90,7 +98,7 @@ describe('collaboration: design + enforcement', () => {
     expect(first?.tools).toEqual([]);
     expect(first?.task).toContain('The user asks: "add a quality check"');
     expect(repair?.task).toContain("'a-ghost' is not on this project");
-    expect(h.store.projects.require('aurora').collaboration?.gates).toHaveLength(1);
+    expect(h.store.projects.require('aurora').workflows?.[0]?.gates).toHaveLength(1);
   });
 
   it('build → review → done: the gate is snapshotted on the item, handoff + review.approved events', async () => {
@@ -98,7 +106,7 @@ describe('collaboration: design + enforcement', () => {
       isReview(spec) ? approve('Tidy.') : [{ result: 'Built it.' }],
     );
     h = s.h;
-    h.store.projects.update('aurora', { collaboration: DESIGN as never });
+    useDesign(h, DESIGN);
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });
     expect(r.body.items[0].gates).toEqual([{ reviewer: 'a-lint', kind: 'quality', why: 'Keep it clean.' }]);
     expect(s.crew.crewCalls()[0]?.task).toContain('do not add separate review or QA items');
@@ -147,7 +155,7 @@ describe('collaboration: design + enforcement', () => {
       return [{ result: spec.task.includes('sent it back') ? 'Fixed the empty state.' : 'Built it.' }];
     });
     h = s.h;
-    h.store.projects.update('aurora', { collaboration: DESIGN as never });
+    useDesign(h, DESIGN);
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('done');
@@ -194,7 +202,7 @@ describe('collaboration: design + enforcement', () => {
       isReview(spec) ? changes('Still broken.') : [{ result: 'Built.' }],
     );
     h = s.h;
-    h.store.projects.update('aurora', { collaboration: DESIGN as never }); // maxSendBacks 1
+    useDesign(h, DESIGN); // maxSendBacks 1
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });
     const g = await settled(h, r.body.id);
     expect(g.status).toBe('failed');
@@ -215,9 +223,7 @@ describe('collaboration: design + enforcement', () => {
     };
     const s = studio({ dispatch: [member] }, (spec) => (isReview(spec) ? approve() : [{ result: 'ok' }]));
     h = s.h;
-    h.store.projects.update('aurora', {
-      collaboration: { ...DESIGN, orchestratorTalksTo: 'everyone' } as never,
-    });
+    useDesign(h, { ...DESIGN, orchestratorTalksTo: 'everyone' });
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'UI' });
     expect(r.status).toBe(201);
     expect(s.crew.crewCalls()[0]?.task).toContain('captains or members');
@@ -245,7 +251,8 @@ describe('collaboration: design + enforcement', () => {
     const team = acc.body.minted.teams[0].id;
     expect(acc.body.plan.collaboration.gates[0]).toMatchObject({ after: team, reviewer: 'a-pete' });
     const fin = await h.call('POST', `/drafts/${d.id}/finish`);
-    expect(fin.body.project.collaboration).toMatchObject({
+    expect(fin.body.project.workflows[0]).toMatchObject({
+      id: 'usual',
       orchestratorTalksTo: 'captains',
       maxSendBacks: 2,
       gates: [{ after: team, reviewer: 'a-pete', kind: 'user-test' }],

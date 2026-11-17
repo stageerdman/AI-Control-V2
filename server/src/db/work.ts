@@ -1,7 +1,7 @@
 /* The whiteboard repository: goals and their checklist items (plain SQL, no rules —
    src/crew/dispatch.ts owns those). */
-import type { ItemGate } from '../domain/collaboration.ts';
 import type { Quest } from '../domain/quests.ts';
+import { type ItemGate, type Workflow, WorkflowSchema } from '../domain/workflows.ts';
 import type { Workspace } from '../git/worktrees.ts';
 import type { Db } from './connection.ts';
 import { now } from './util.ts';
@@ -104,6 +104,8 @@ export type Goal = {
   ships: boolean;
   /** The main storyline (the feature being built) or a side quest (a quick fix, a short research job). */
   quest: Quest;
+  /** The workflow it runs under, snapshot when it was added (null = older goals: the project's default). */
+  workflow: Workflow | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -155,6 +157,15 @@ const toItem = (r: Row): ChecklistItem => ({
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
 });
+function parseWorkflow(raw: unknown): Workflow | null {
+  if (typeof raw !== 'string') return null;
+  try {
+    const r = WorkflowSchema.safeParse(JSON.parse(raw));
+    return r.success ? r.data : null;
+  } catch {
+    return null;
+  }
+}
 function parseList<T>(raw: unknown): T[] {
   try {
     const v = JSON.parse((raw as string) ?? '[]');
@@ -198,6 +209,7 @@ export function workRepo(db: Db) {
       featureId: (r.feature_id as string | null) ?? null,
       ships: r.ships !== 0,
       quest: (r.quest as Quest | null) ?? 'main',
+      workflow: parseWorkflow(r.workflow),
       pct: its.length ? Math.round((its.filter((i) => i.status === 'done').length / its.length) * 100) : 0,
       createdAt: r.created_at as string,
       updatedAt: r.updated_at as string,
@@ -254,12 +266,16 @@ export function workRepo(db: Db) {
           .all(projectId) as Row[]
       ).map(toGoal),
     insertGoal(
-      g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & { caps?: Goal['caps']; quest?: Quest },
+      g: Pick<Goal, 'id' | 'projectId' | 'text' | 'summary'> & {
+        caps?: Goal['caps'];
+        quest?: Quest;
+        workflow?: Workflow | null;
+      },
       list: NewItem[],
     ): Goal {
       const t = now();
       db.prepare(
-        `INSERT INTO goals (id, project_id, text, summary, status, caps, quest, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)`,
+        `INSERT INTO goals (id, project_id, text, summary, status, caps, quest, workflow, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)`,
       ).run(
         g.id,
         g.projectId,
@@ -267,6 +283,7 @@ export function workRepo(db: Db) {
         g.summary,
         g.caps ? JSON.stringify(g.caps) : null,
         g.quest ?? 'main',
+        g.workflow ? JSON.stringify(g.workflow) : null,
         t,
         t,
       );
@@ -351,6 +368,11 @@ export function workRepo(db: Db) {
       db
         .prepare('UPDATE goals SET feature_id = ?, ships = ?, updated_at = ? WHERE id = ?')
         .run(featureId, ships ? 1 : 0, now(), id),
+    /** The workflow a goal runs under from now on (switching mid-goal). */
+    setGoalWorkflow: (id: string, w: Workflow | null) =>
+      db
+        .prepare('UPDATE goals SET workflow = ?, updated_at = ? WHERE id = ?')
+        .run(w ? JSON.stringify(w) : null, now(), id),
     /** Running goals of a project that work on this feature. */
     featureGoals: (featureId: string): Goal[] =>
       (db.prepare('SELECT * FROM goals WHERE feature_id = ?').all(featureId) as Row[]).map(toGoal),

@@ -2,6 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../src/db/connection.ts';
 import { MIGRATIONS, migrate } from '../../src/db/migrations.ts';
+import { workRepo } from '../../src/db/work.ts';
+import { DEFAULT_WORKFLOW } from '../../src/domain/workflows.ts';
+import { testApp } from '../helpers.ts';
 
 describe('migrations', () => {
   it('bring a fresh db to the latest version and are idempotent', () => {
@@ -74,5 +77,26 @@ describe('migrations', () => {
       ['polish', 0],
     ]);
     db.close();
+  });
+
+  it('40: a stored collaboration reads as workflows[0]; goals keep their workflow', () => {
+    const h = testApp({ seed: true });
+    const design = { orchestratorTalksTo: 'everyone', gates: [], maxSendBacks: 1, summary: 'Old design.' };
+    h.db
+      .prepare("UPDATE projects SET collaboration = ?, workflows = NULL WHERE id = 'aurora'")
+      .run(JSON.stringify(design));
+    expect(h.store.projects.require('aurora').workflows).toEqual([
+      { ...design, id: 'usual', name: 'Our usual way', when: 'everything' },
+    ]);
+    h.store.projects.update('aurora', { note: 'touched' }); // a write keeps it readable
+    expect(h.store.projects.require('aurora').workflows?.[0]?.summary).toBe('Old design.');
+
+    const work = workRepo(h.db);
+    const flow = { ...DEFAULT_WORKFLOW, id: 'temp', name: 'Prof leads', lead: 'a-prof', crew: ['a-semic'] };
+    const g = work.insertGoal({ id: 'g1', projectId: 'aurora', text: 't', summary: 's', workflow: flow }, []);
+    expect(g.workflow).toEqual(flow);
+    work.setGoalWorkflow('g1', null);
+    expect(work.goal('g1')?.workflow).toBeNull();
+    h.cleanup?.();
   });
 });

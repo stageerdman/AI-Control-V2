@@ -38,12 +38,17 @@ describe('the orchestrator thread records goals; follow-ups carry the report', (
     });
     h = s.h;
     h.store.projects.update('aurora', {
-      collaboration: {
-        orchestratorTalksTo: 'captains',
-        gates: [{ after: 'ship-it', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
-        maxSendBacks: 2,
-        summary: 's',
-      },
+      workflows: [
+        {
+          id: 'usual',
+          name: 'Our usual way',
+          when: 'everything',
+          orchestratorTalksTo: 'captains',
+          gates: [{ after: 'ship-it', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
+          maxSendBacks: 2,
+          summary: 's',
+        },
+      ],
     });
     const g = (await h.call('POST', '/projects/aurora/work', { goal: 'Ship search' })).body;
     const t = (await h.call('GET', '/projects/aurora/threads/a-pixel/messages')).body;

@@ -1,117 +1,23 @@
-/* The collaboration design (B8, the user's idea): how a project's people work together, designed by
-   its orchestrator. Pure — shape (zod) + integrity rules + gate matching.
+/* The collaboration design (B8) grew into workflows (src/domain/workflows.ts): the model lives there and is
+   re-exported here so older imports keep working. What stays here is the review side: what each kind of
+   reviewer looks for, and reading their verdict. */
+import type { GateKind } from './workflows.ts';
 
-   - `orchestratorTalksTo`: who the orchestrator briefs — `captains` (teams through their captains, plus
-     specialists; the default) or `everyone` (any member of a project team, plus specialists).
-   - `gates`: review/handoff gates. After a build item by `after` (a team id, an agent id, or "*" = any
-     build item) is done, `reviewer` checks it (`kind`: quality, user-test, crash-test, security, review)
-     and approves it or sends it back with notes. Gates run in the order listed.
-   - `maxSendBacks`: how often a reviewer may send one item back before it stops for the user (bounded loops).
-
-   During setup the plan may point at agents/teams the Agent Creator hasn't minted yet: `new-agent:N` /
-   `new-team:N` (N = index in plan.newAgents / plan.newTeams); accepting the plan rewrites them to real ids. */
-import { z } from 'zod';
-
-export const GATE_KINDS = ['quality', 'user-test', 'crash-test', 'security', 'review'] as const;
-export type GateKind = (typeof GATE_KINDS)[number];
-export const MAX_GATES = 8;
-export const DEFAULT_MAX_SEND_BACKS = 2;
-
-const ref = z.string().trim().min(1).max(80);
-
-export const GateSchema = z.strictObject({
-  after: ref,
-  reviewer: ref,
-  kind: z.enum(GATE_KINDS),
-  why: z.string().trim().min(1).max(300),
-});
-export type Gate = z.output<typeof GateSchema>;
-
-export const CollaborationSchema = z.strictObject({
-  orchestratorTalksTo: z.enum(['captains', 'everyone']).default('captains'),
-  gates: z.array(GateSchema).max(MAX_GATES).default([]),
-  maxSendBacks: z.number().int().min(0).max(3).default(DEFAULT_MAX_SEND_BACKS),
-  summary: z.string().trim().min(1).max(500),
-});
-export type Collaboration = z.output<typeof CollaborationSchema>;
-
-/** Who is on the project (or the plan) as the rules see it. */
-export type Staffing = {
-  /** team id → name + member ids (captain included). */
-  teams: Map<string, { name: string; members: readonly string[] }>;
-  /** Specialist ids (outside the teams). */
-  specialists: ReadonlySet<string>;
-  name: (id: string) => string;
-  /** Placeholder counts for briefs not minted yet (setup only). */
-  newAgents?: number;
-  newTeams?: number;
-};
-
-const placeholder = /^new-(agent|team):(\d+)$/;
-
-/** Pure: every gate points at people on the project; no self-review, no duplicates. */
-export function collaborationIssues(c: Collaboration, s: Staffing): string[] {
-  const out: string[] = [];
-  const members = new Set([...s.teams.values()].flatMap((t) => t.members));
-  const isAgent = (id: string) => {
-    const m = placeholder.exec(id);
-    if (m) return m[1] === 'agent' && Number(m[2]) < (s.newAgents ?? 0);
-    return members.has(id) || s.specialists.has(id);
-  };
-  const isTeam = (id: string) => {
-    const m = placeholder.exec(id);
-    if (m) return m[1] === 'team' && Number(m[2]) < (s.newTeams ?? 0);
-    return s.teams.has(id);
-  };
-  const seen = new Set<string>();
-  c.gates.forEach((g, i) => {
-    if (g.after !== '*' && !isTeam(g.after) && !isAgent(g.after))
-      out.push(
-        `collaboration.gates.${i}.after: '${g.after}' is not a team or agent on this project (use a team id, an agent id or "*")`,
-      );
-    if (!isAgent(g.reviewer))
-      out.push(
-        `collaboration.gates.${i}.reviewer: '${g.reviewer}' is not on this project — a reviewer must be a team member or a specialist here`,
-      );
-    else if (g.reviewer === g.after)
-      out.push(`collaboration.gates.${i}: ${s.name(g.reviewer)} can't review their own work`);
-    const k = `${g.after}\u0000${g.reviewer}\u0000${g.kind}`;
-    if (seen.has(k)) out.push(`collaboration.gates.${i}: the same gate is listed twice`);
-    seen.add(k);
-  });
-  return out;
-}
-
-/** Rewrite `new-agent:N` / `new-team:N` to the minted ids (accept). */
-export function resolvePlaceholders(
-  c: Collaboration,
-  minted: { agents: readonly string[]; teams: readonly string[] },
-): Collaboration {
-  const fix = (id: string) => {
-    const m = placeholder.exec(id);
-    if (!m) return id;
-    return (m[1] === 'agent' ? minted.agents : minted.teams)[Number(m[2])] ?? id;
-  };
-  return { ...c, gates: c.gates.map((g) => ({ ...g, after: fix(g.after), reviewer: fix(g.reviewer) })) };
-}
-
-/** The review steps one build item goes through, in order. Self-review is skipped. */
-export type ItemGate = { reviewer: string; kind: GateKind; why: string };
-export function gatesFor(
-  c: Collaboration | null,
-  item: { agentId: string; teamId: string | null },
-): ItemGate[] {
-  if (!c) return [];
-  const out: ItemGate[] = [];
-  for (const g of c.gates) {
-    const hit =
-      g.after === '*' || g.after === item.agentId || (item.teamId !== null && g.after === item.teamId);
-    if (!hit || g.reviewer === item.agentId) continue;
-    if (out.some((o) => o.reviewer === g.reviewer && o.kind === g.kind)) continue;
-    out.push({ reviewer: g.reviewer, kind: g.kind, why: g.why });
-  }
-  return out;
-}
+export {
+  type Collaboration,
+  CollaborationSchema,
+  collaborationIssues,
+  DEFAULT_MAX_SEND_BACKS,
+  GATE_KINDS,
+  type Gate,
+  type GateKind,
+  GateSchema,
+  gatesFor,
+  type ItemGate,
+  MAX_GATES,
+  resolvePlaceholders,
+  type Staffing,
+} from './workflows.ts';
 
 /** What each kind of reviewer looks for (their review task). */
 export const GATE_FOCUS: Record<GateKind, string> = {

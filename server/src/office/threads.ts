@@ -318,7 +318,7 @@ export function createThreads(deps: {
         specialists: p.agentIds.map(person),
         /* who the director may staff the project with (by name; never invent anyone) */
         castAvailable: castAvailable(store, p.id),
-        howWeWork: p.collaboration?.summary ?? 'You brief the team captains; no review gates.',
+        howWeWork: p.workflows?.[0]?.summary ?? 'You brief the team captains; no review gates.',
       },
       /* active goals only, with their items (G1: finished ones made the orchestrator count old goals as current) */
       whiteboard: active.map((g) => ({

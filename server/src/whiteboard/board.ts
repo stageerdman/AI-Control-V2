@@ -10,6 +10,7 @@ import { featuresRepo } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type NewItem, workRepo } from '../db/work.ts';
 import type { Quest } from '../domain/quests.ts';
+import { pickWorkflow } from '../domain/workflows.ts';
 import { conflict, invalid } from '../errors.ts';
 import { boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
@@ -79,7 +80,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       people,
       teams,
       specialists: c.specialists,
-      everyone: direct || p.collaboration?.orchestratorTalksTo === 'everyone',
+      everyone: direct || pickWorkflow(p.workflows ?? []).orchestratorTalksTo === 'everyone',
     };
   }
 

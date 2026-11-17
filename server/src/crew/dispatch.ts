@@ -24,15 +24,9 @@ import type { Feature } from '../db/features.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
-import {
-  type Collaboration,
-  DEFAULT_MAX_SEND_BACKS,
-  GATE_FOCUS,
-  gatesFor,
-  type ItemGate,
-  parseVerdict,
-} from '../domain/collaboration.ts';
+import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
+import { type Collaboration, gatesFor, type ItemGate, pickWorkflow } from '../domain/workflows.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
@@ -225,6 +219,8 @@ export function createDispatch(deps: {
       },
     });
   const name = (id: string) => store.agents.get(id)?.name ?? id;
+  const projectWorkflow = (projectId: string) =>
+    pickWorkflow(store.projects.require(projectId).workflows ?? []);
 
   function crewing(projectId: string): Crewing {
     const p = store.projects.require(projectId);
@@ -239,7 +235,7 @@ export function createDispatch(deps: {
     }
     return {
       captains,
-      ...(p.collaboration?.orchestratorTalksTo === 'everyone' ? { members } : {}),
+      ...(projectWorkflow(projectId).orchestratorTalksTo === 'everyone' ? { members } : {}),
       /* STUDIO LIFE: guests the user lets the director use count as specialists */
       specialists: new Set([...p.agentIds, ...store.guests.ids(projectId, true)]),
       name,
@@ -833,7 +829,7 @@ export function createDispatch(deps: {
       accept(it, { gateIndex: it.gateIndex + 1, reviews });
       return;
     }
-    const max = store.projects.get(it.projectId)?.collaboration?.maxSendBacks ?? DEFAULT_MAX_SEND_BACKS;
+    const max = projectWorkflow(it.projectId).maxSendBacks;
     const sendBacks = it.sendBacks + 1;
     const final = sendBacks > max;
     emit(it.projectId, {
@@ -1112,7 +1108,7 @@ export function createDispatch(deps: {
       p.agentIds.includes(id) ||
       store.guests.ids(projectId).includes(id) ||
       p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
-    return gatesFor(p.collaboration, owner).filter((g) => onProject(g.reviewer));
+    return gatesFor(projectWorkflow(projectId), owner).filter((g) => onProject(g.reviewer));
   }
 
   const STOP_WAIT_MS = 60_000;
@@ -1244,10 +1240,10 @@ export function createDispatch(deps: {
           .goals(projectId)
           .filter((g) => g.status === 'running')
           .flatMap((g) => g.items.filter((i) => i.status !== 'done').map((i) => i.text));
-        const collab = p.collaboration;
+        const collab = projectWorkflow(projectId);
         /* a git project: every item gets its own worktree, so independent items may run side by side */
         const isolated = !!deps.worktrees && (await deps.worktrees.usable(repoOf(projectId)));
-        const everyone = collab?.orchestratorTalksTo === 'everyone';
+        const everyone = collab.orchestratorTalksTo === 'everyone';
         const state = projectState(repoOf(projectId));
         const features = deps.features
           ? deps.features.repo
@@ -1257,7 +1253,7 @@ export function createDispatch(deps: {
         const task = [
           `Project: ${json({ name: p.name, about: p.note })}`,
           `Who works on it: ${json(staff)}`,
-          `How they work together: ${json(collab ? describeCollaboration(collab, name) : { orchestratorTalksTo: 'captains', gates: [] })}`,
+          `How they work together: ${json(describeCollaboration(collab, name))}`,
           `Already on the whiteboard, not done yet: ${json(open)}`,
           `The project right now: ${json(state)}`,
           features ? `Features: ${json(features)}` : '',
@@ -1280,7 +1276,7 @@ export function createDispatch(deps: {
               ? 'Link the goal to the feature it builds in "feature": {"id": "<an id from Features>"} or a new one {"name": "Short name", "description": "What it is, in a sentence or two"} (it goes to Now). It moves to Shipped once every item has landed; set "ships": false when this goal is only a step and the feature isn’t finished by it. A Shipped feature is done: a goal that ADDS something new to it (a new view, a new ability) gets a NEW feature; link a shipped one only for a fix to it. Research or report goals: leave "feature" out.'
               : '',
             '"text" is the whiteboard line (short); "brief" tells the assignee what done looks like.',
-            collab?.gates.length
+            collab.gates.length
               ? 'The review gates above run automatically after each build item — do not add separate review or QA items for them.'
               : '',
             isolated

@@ -639,6 +639,13 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE goals ADD COLUMN quest TEXT NOT NULL DEFAULT 'main' CHECK (quest IN ('main', 'side'));
   `,
+  /* 40 — workflows (updates/2026-11-17 WORKFLOWS): a project keeps a named list of workflows (JSON, the first is
+     the default) and each goal a snapshot of the one it runs under. A stored collaboration becomes workflows[0]
+     on read (src/db/projects.ts); the old column stays, unused. */
+  `
+  ALTER TABLE projects ADD COLUMN workflows TEXT;
+  ALTER TABLE goals ADD COLUMN workflow TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

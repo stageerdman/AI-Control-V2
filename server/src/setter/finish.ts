@@ -20,6 +20,7 @@ import type { Store } from '../db/store.ts';
 import { slugify } from '../domain/ids.ts';
 import { pendingBriefs, staffingOf } from '../domain/plan.ts';
 import { tileFor } from '../domain/tile.ts';
+import { fromCollaboration } from '../domain/workflows.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox, SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
@@ -184,7 +185,7 @@ export async function finishDraft(deps: FinishDeps, draftId: string): Promise<Fi
     tile: tileFor(name),
     ...(draft.orchestratorId ? { orchestratorId: draft.orchestratorId } : {}),
     ...(draft.plan ? staffingOf(draft.plan) : {}),
-    ...(draft.plan?.collaboration ? { collaboration: draft.plan.collaboration } : {}),
+    ...(draft.plan?.collaboration ? { workflows: [fromCollaboration(draft.plan.collaboration)] } : {}),
   };
 
   return guarded(draft.id, async () => {

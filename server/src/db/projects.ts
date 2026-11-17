@@ -1,8 +1,13 @@
 /* Projects repository. A project is run by one orchestrator, staffed teams-first
    (whole teams) plus the odd specialist, and lives in a folder inside the sandbox. */
 import { assertNotSystem, assertOrchestrator } from '../domain/cast.ts';
-import { type Collaboration, CollaborationSchema } from '../domain/collaboration.ts';
 import { slugify, uniqueId } from '../domain/ids.ts';
+import {
+  CollaborationSchema,
+  fromCollaboration,
+  type Workflow,
+  WorkflowsSchema,
+} from '../domain/workflows.ts';
 import { conflict, invalid, notFound } from '../errors.ts';
 import { SandboxError, toSandboxRelative } from '../fs/sandbox.ts';
 import type { AgentsRepo } from './agents.ts';
@@ -27,7 +32,9 @@ type ProjectRecord = {
   tile: string;
   /** OFFICE: JSON {ext, v} of the picture in <data dir>/images; null = show the tile. */
   image: string | null;
+  /** B8, before workflows: read only to carry it over (workflows[0]). */
   collaboration: string | null;
+  workflows: string | null;
   target: string | null;
   position: number;
   created_at: string;
@@ -57,8 +64,8 @@ export type Project = {
   teamIds: string[];
   /** Individual specialists (teams come first). */
   agentIds: string[];
-  /** How its people work together (B8): who the orchestrator briefs + review gates. null = captains, no gates. */
-  collaboration: Collaboration | null;
+  /** How its people work together: named workflows, the first is the default. null = never designed. */
+  workflows: Workflow[] | null;
   /** What the overall progress counts towards ("v1.0"); null = no label. */
   target: string | null;
   createdAt: string;
@@ -75,21 +82,28 @@ type ProjectFields = {
   tile?: Tile;
   teamIds?: string[];
   agentIds?: string[];
-  collaboration?: Collaboration | null;
+  workflows?: Workflow[] | null;
   target?: string | null;
 };
 export type ProjectCreate = ProjectFields;
 export type ProjectPatch = Partial<ProjectFields>;
 
-/** A stored design that no longer parses reads as none (captains, no gates). */
-const readCollaboration = (raw: string | null): Collaboration | null => {
+/** Stored JSON that no longer parses reads as none (captains, no gates). */
+function readJson<T>(raw: string | null, schema: { safeParse(v: unknown): { success: boolean; data?: T } }) {
   if (!raw) return null;
   try {
-    const r = CollaborationSchema.safeParse(JSON.parse(raw));
-    return r.success ? r.data : null;
+    const r = schema.safeParse(JSON.parse(raw));
+    return r.success ? (r.data as T) : null;
   } catch {
     return null;
   }
+}
+/** The workflows, or the B8 design carried over as the first one (the first write saves `workflows`). */
+const readWorkflows = (r: ProjectRecord): Workflow[] | null => {
+  const list = readJson<Workflow[]>(r.workflows, WorkflowsSchema);
+  if (list) return list;
+  const c = readJson(r.collaboration, CollaborationSchema);
+  return c ? [fromCollaboration(c)] : null;
 };
 
 export const DEFAULT_TILE: Tile = { g1: '#9b6cff', g2: '#4ea8ff', glyph: 'bag' };
@@ -194,7 +208,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     imageUrl: imageUrlOf(r),
     teamIds: links(r.id, 'teams'),
     agentIds: links(r.id, 'agents'),
-    collaboration: readCollaboration(r.collaboration),
+    workflows: readWorkflows(r),
     target: r.target ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -220,7 +234,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = normFolder(input.folder);
       const t = now();
       db.prepare(
-        `INSERT INTO projects (id, name, note, status, progress, folder, orchestrator_id, github_connected, github_private, tile, collaboration, target, position, created_at, updated_at)
+        `INSERT INTO projects (id, name, note, status, progress, folder, orchestrator_id, github_connected, github_private, tile, workflows, target, position, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         pid,
@@ -233,7 +247,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         0, // github_connected / github_private: B0 placeholders, unused since G1 (github_repos)
         1,
         JSON.stringify(input.tile ?? DEFAULT_TILE),
-        input.collaboration ? JSON.stringify(input.collaboration) : null,
+        input.workflows ? JSON.stringify(input.workflows) : null,
         input.target?.trim() || null,
         nextPosition(db, 'projects'),
         t,
@@ -252,7 +266,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
       const folder = patch.folder === undefined ? r.folder : normFolder(patch.folder, id);
       db.prepare(
         `UPDATE projects SET name = ?, note = ?, status = ?, progress = ?, folder = ?, orchestrator_id = ?,
-           tile = ?, collaboration = ?, target = ?, updated_at = ? WHERE id = ?`,
+           tile = ?, workflows = ?, target = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.name ?? r.name,
         patch.note ?? r.note,
@@ -261,10 +275,10 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         folder,
         patch.orchestratorId ?? r.orchestrator_id,
         patch.tile ? JSON.stringify(patch.tile) : r.tile,
-        patch.collaboration === undefined
-          ? r.collaboration
-          : patch.collaboration
-            ? JSON.stringify(patch.collaboration)
+        patch.workflows === undefined
+          ? r.workflows
+          : patch.workflows
+            ? JSON.stringify(patch.workflows)
             : null,
         patch.target === undefined ? r.target : patch.target?.trim() || null,
         now(),

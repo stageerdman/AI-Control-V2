@@ -181,12 +181,17 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
     );
     h = s.h;
     h.store.projects.update('aurora', {
-      collaboration: {
-        orchestratorTalksTo: 'captains',
-        gates: [{ after: 'ship-it', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
-        maxSendBacks: 2,
-        summary: 's',
-      },
+      workflows: [
+        {
+          id: 'usual',
+          name: 'Our usual way',
+          when: 'everything',
+          orchestratorTalksTo: 'captains',
+          gates: [{ after: 'ship-it', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
+          maxSendBacks: 2,
+          summary: 's',
+        },
+      ],
     });
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Page' });
     const g = await settled(h, r.body.id);
@@ -234,12 +239,17 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
     });
     h = s.h;
     h.store.projects.update('aurora', {
-      collaboration: {
-        orchestratorTalksTo: 'captains',
-        gates: [{ after: '*', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
-        maxSendBacks: 0,
-        summary: 's',
-      },
+      workflows: [
+        {
+          id: 'usual',
+          name: 'Our usual way',
+          when: 'everything',
+          orchestratorTalksTo: 'captains',
+          gates: [{ after: '*', reviewer: 'a-lint', kind: 'quality', why: 'w' }],
+          maxSendBacks: 0,
+          summary: 's',
+        },
+      ],
     });
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Page' });
     const g = await settled(h, r.body.id);
