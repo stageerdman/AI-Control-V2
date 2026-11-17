@@ -379,3 +379,11 @@ With real agents on this project:
   Phase 7 (live check). Phase 6 waits for Phase 7.
 - 2026-11-17: Scope grows (user, via Pixel): three types + a visual editor → Phase 5b. Shape agreed Jony ↔ Uncle Bob;
   backend handed to Uncle Bob. Temporary workflows read-only in the editor (Pixel). Jony builds Phase 5 first.
+- 2026-11-17: **Phase 5 screens built (Jony).** Quest Board: a workflow chip on the main card and side cards
+  (none for the usual way, plain for another stable one, dashed + the lead's face for a temporary one), "Signed by
+  …" under a done goal (not on the folded done strip). Task cards: the sign-off strip (3 faces + "+N", a glyph per
+  state, words for screen readers) next to who has it. Office: a dashed ring with the goal on a pill around a
+  running temporary crew's desks; it fades when the goal ends (`workflow.ended` / `workflow.changed` refresh the
+  board). How we work: the usual way ("Usually") plus every other workflow with its "when". The keep offer is
+  Pixel's thread line (server). App tests 600 green, typecheck clean; read against a real server. **Next:**
+  Phase 5b editor once Uncle Bob's routes land; Phase 7 live check.
