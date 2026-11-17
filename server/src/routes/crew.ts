@@ -29,14 +29,16 @@ export const crewRoutes =
     creator,
     dispatch,
     findAgent,
+    nameOf,
   }: {
     chat: SetupChat;
     creator: Creator;
     dispatch: Dispatch;
     findAgent: FindAgent;
+    nameOf: (id: string) => string;
   }): FastifyPluginAsync =>
   async (app) => {
-    const view = (g: Goal) => presentGoal(g, findAgent);
+    const view = (g: Goal) => presentGoal(g, findAgent, nameOf);
     app.get('/drafts/:id/chat', async (req) => chat.history(parse(IdParams, req.params).id));
     /* one orchestrator turn: {text} from the user, or no text → the orchestrator opens with a proposal */
     app.post('/drafts/:id/chat', async (req) => {

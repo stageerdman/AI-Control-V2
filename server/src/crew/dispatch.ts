@@ -57,6 +57,7 @@ import {
   MAX_TEAM_ROUNDS,
   memberGates,
   memberTask,
+  orderedSubtasks,
   parseRework,
   SPLIT_CAPS,
   splitCall,
@@ -64,6 +65,7 @@ import {
   TEAM_SPLIT,
   TeamSplitSchema,
 } from './team.ts';
+import { shownTeamWay } from './team-workflow.ts';
 import { resolveWorkflow } from './workflows.ts';
 
 export const DISPATCH = 'dispatch';
@@ -408,9 +410,8 @@ export function createDispatch(deps: {
     return flow ? `How work flows on this goal: ${flow}` : '';
   }
 
-  /** A team's own workflow (drawn in the Cast), if it has one that still reads. */
-  const teamWay = (teamId: string): Workflow | null =>
-    store.teams.get(teamId) ? store.teams.workflow(teamId) : null;
+  /** The way a team runs by: its own (drawn in the Cast), else its default — the same one its screens show. */
+  const teamWay = (teamId: string): Workflow | null => shownTeamWay(store, teamId);
 
   const orchName = (projectId: string) =>
     store.agents.get(store.projects.require(projectId).orchestratorId)?.name ?? 'The orchestrator';
@@ -1044,7 +1045,7 @@ export function createDispatch(deps: {
     const subs = store.tx(() =>
       work.insertSubtasks(
         cur,
-        value.subtasks.map((t) => ({
+        orderedSubtasks(way, value.subtasks).map((t) => ({
           id: randomUUID(),
           text: t.text,
           brief: t.brief,

@@ -41,8 +41,8 @@ export type GoalView = Omit<Goal, 'items' | 'workflow'> & {
   signedBy: Person[];
 };
 
-const goalWorkflow = (w: Workflow): GoalWorkflowView => ({
-  ...scoped({ ...w, gates: effectiveGates(w) }, isTemporary(w) ? 'temporary' : 'office'),
+const goalWorkflow = (w: Workflow, name: (id: string) => string): GoalWorkflowView => ({
+  ...scoped({ ...w, gates: effectiveGates(w) }, isTemporary(w) ? 'temporary' : 'office', name),
   ...workflowTag(w),
 });
 
@@ -63,9 +63,10 @@ export function presentTask(it: ChecklistItem, find: FindAgent): TaskView {
   };
 }
 
-export const presentGoal = (g: Goal, find: FindAgent): GoalView => ({
+/** `name`: people and teams by their short names, for the workflow in words. */
+export const presentGoal = (g: Goal, find: FindAgent, name: (id: string) => string): GoalView => ({
   ...g,
   items: g.items.map((it) => presentTask(it, find)),
-  workflow: g.workflow ? goalWorkflow(g.workflow) : null,
+  workflow: g.workflow ? goalWorkflow(g.workflow, name) : null,
   signedBy: g.status === 'done' ? signedBy(g).map((id) => personOf(find, id)) : [],
 });

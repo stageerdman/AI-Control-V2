@@ -9,6 +9,7 @@ import {
   removeMember,
   setCaptain,
 } from '../domain/teams.ts';
+import { pruneWay, type WayShape } from '../domain/team-way.ts';
 import { TeamWorkflowSchema, type Workflow } from '../domain/workflows.ts';
 import { notFound } from '../errors.ts';
 import type { AgentsRepo } from './agents.ts';
@@ -30,6 +31,8 @@ export type TeamRecord = {
   reporter?: number;
   /** The team's own Workflow JSON (migration 41); NULL = none. */
   workflow?: string | null;
+  /** The default way's shape (migration 42). */
+  way_shape?: WayShape;
 };
 
 export type Team = {
@@ -47,6 +50,8 @@ export type Team = {
   projectIds: string[];
   /** Runs for this team may file reports (file_report). */
   reporter: boolean;
+  /** How the team works when it has no own way: everyone works for the captain, or pass it along. */
+  wayShape: WayShape;
   createdAt: string;
   updatedAt: string;
 };
@@ -59,6 +64,7 @@ type TeamFields = {
   instr?: string;
   code?: string;
   reporter?: boolean;
+  wayShape?: WayShape;
 };
 export type TeamCreate = TeamFields & {
   members?: { agentId: string; instr?: string }[];
@@ -98,6 +104,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
     members: members(r.id),
     projectIds: projectIds(r.id),
     reporter: r.reporter === 1,
+    wayShape: r.way_shape ?? 'captain',
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -113,8 +120,13 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
     require: (id: string): Team => toTeam(requireRecord(id)),
     roster: (id: string): Roster => ({ captainId: requireRecord(id).captain_id, members: members(id) }),
 
-    /** Persist a roster the domain already validated. */
+    /** Persist a roster the domain already validated. Whoever left also leaves the team's own way (pruned in the
+        same transaction, so a removal never fails because of the way). */
     saveRoster(id: string, roster: Roster): void {
+      const staying = new Set(roster.members.map((m) => m.agentId));
+      const gone = new Set(members(id).map((m) => m.agentId).filter((a) => !staying.has(a)));
+      const own = gone.size ? repo.workflow(id) : null;
+      if (own) repo.setWorkflow(id, pruneWay(own, gone, roster.captainId));
       db.prepare('DELETE FROM team_members WHERE team_id = ?').run(id);
       const ins = db.prepare(
         'INSERT INTO team_members (team_id, agent_id, position, instr) VALUES (?, ?, ?, ?)',
@@ -146,6 +158,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         instr: input.instr ?? '',
         code: input.code ?? '',
         reporter: input.reporter ? 1 : 0,
+        way_shape: input.wayShape ?? 'captain',
         captain_id: null,
         position: nextPosition(db, 'teams'),
         created_at: t,
@@ -159,7 +172,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
       const r = requireRecord(id);
       if (patch.captainId !== undefined) repo.saveRoster(id, setCaptain(repo.roster(id), patch.captainId));
       db.prepare(
-        'UPDATE teams SET name = ?, color = ?, emblem = ?, blurb = ?, instr = ?, code = ?, reporter = ?, updated_at = ? WHERE id = ?',
+        'UPDATE teams SET name = ?, color = ?, emblem = ?, blurb = ?, instr = ?, code = ?, reporter = ?, way_shape = ?, updated_at = ? WHERE id = ?',
       ).run(
         patch.name ?? r.name,
         patch.color ?? r.color,
@@ -168,6 +181,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         patch.instr ?? r.instr,
         patch.code ?? r.code,
         patch.reporter === undefined ? (r.reporter ?? 0) : patch.reporter ? 1 : 0,
+        patch.wayShape ?? r.way_shape ?? 'captain',
         now(),
         id,
       );
@@ -207,8 +221,8 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
 
     insertRecord(r: TeamRecord): void {
       db.prepare(
-        `INSERT INTO teams (id, name, color, emblem, blurb, instr, code, captain_id, position, created_at, updated_at, reporter, workflow)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO teams (id, name, color, emblem, blurb, instr, code, captain_id, position, created_at, updated_at, reporter, workflow, way_shape)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.name,
@@ -223,6 +237,7 @@ export function teamsRepo(db: Db, agents: AgentsRepo) {
         r.updated_at,
         r.reporter ?? 0,
         r.workflow ?? null,
+        r.way_shape ?? 'captain',
       );
     },
     deleteRecord: (id: string) => db.prepare('DELETE FROM teams WHERE id = ?').run(id),

@@ -60,7 +60,7 @@ describe('drawing shape', () => {
   it('at most 12 steps; why and when bounded', () => {
     expect(fails({ steps: Array.from({ length: 12 }, (_, i) => step('a-ann', `a-${i}`)) })).toBe(false);
     expect(fails({ steps: Array.from({ length: 13 }, (_, i) => step('a-ann', `a-${i}`)) })).toBe(true);
-    expect(fails({ steps: [{ ...step('a-ann', 'a-bo'), why: '' }] })).toBe(true);
+    expect(fails({ steps: [{ ...step('a-ann', 'a-bo'), why: 'x'.repeat(301) }] })).toBe(true);
     expect(fails({ steps: [{ ...step('a-ann', 'a-bo'), when: 'x'.repeat(121) }] })).toBe(true);
   });
 

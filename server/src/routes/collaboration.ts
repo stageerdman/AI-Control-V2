@@ -3,7 +3,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { CollaborationService } from '../crew/collaboration.ts';
-import { officeScoped, type WorkflowsService } from '../crew/workflows.ts';
+import type { WorkflowsService } from '../crew/workflows.ts';
 import { parse } from '../errors.ts';
 import { IdParams } from './schemas.ts';
 
@@ -25,8 +25,8 @@ export const collaborationRoutes =
     /* set by hand: the whole list, the first is the default */
     app.put('/projects/:id/workflows', async (req) => {
       const { id } = parse(IdParams, req.params);
-      const saved = workflows.replace(id, parse(WorkflowsBody, req.body).workflows);
-      return { workflows: officeScoped(saved), designed: true };
+      workflows.replace(id, parse(WorkflowsBody, req.body).workflows);
+      return workflows.view(id);
     });
     app.get('/projects/:id/collaboration', async (req) => collaboration.get(parse(IdParams, req.params).id));
     /* set by hand: the first workflow's design (422 malformed, 409 a gate names someone not on the project) */

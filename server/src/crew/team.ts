@@ -13,6 +13,7 @@ import type { Agent } from '../db/agents.ts';
 import type { Team } from '../db/teams.ts';
 import type { ChecklistItem, Goal } from '../db/work.ts';
 import { BranchLabel } from '../domain/gates.ts';
+import { chainOrder } from '../domain/team-way.ts';
 import { drawingInWords } from '../domain/workflow-drawing.ts';
 import {
   branchLabels,
@@ -91,6 +92,22 @@ export function memberGates(
 ): ItemGate[] {
   const seats = new Set(team.members.map((m) => m.agentId));
   return gatesFor(way, { ...part, teamId: team.id }).filter((g) => seats.has(g.reviewer));
+}
+
+/** Pure: under a way that is one closed chain (pass it along), the parts go in chain order, one after another,
+    whatever order the captain answered; parts outside the chain (the captain's own) come last. Any other way:
+    the captain's order and "parallel" stand (the drawing is soft guidance). */
+export function orderedSubtasks<T extends { assignee: string; parallel?: boolean }>(
+  way: Pick<Workflow, 'steps' | 'first'> | null,
+  subtasks: readonly T[],
+): T[] {
+  const chain = way && chainOrder(way);
+  if (!chain) return [...subtasks];
+  const place = (t: T) => {
+    const i = chain.indexOf(t.assignee);
+    return i > 0 ? i : chain.length; // the start (index 0) pulls it together at the end
+  };
+  return [...subtasks].sort((a, b) => place(a) - place(b)).map((t) => ({ ...t, parallel: false }));
 }
 
 /** Pure: the team's own way as its captain reads it when splitting — the drawing plus its sign-offs. '' = none. */

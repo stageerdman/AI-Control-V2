@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import type { TeamWorkflows } from '../crew/team-workflow.ts';
 import type { Agent } from '../db/agents.ts';
 import type { Store } from '../db/store.ts';
 import { AGENT_KINDS } from '../domain/cast.ts';
@@ -33,10 +34,12 @@ export type AgentRouteDeps = {
   shell: readonly string[];
   /** Does this agent's role file reports? (report runs get the web) */
   reporter: (agent: Agent) => boolean;
+  /** Announces the teams whose way a deleted agent redrew. */
+  teamWays: Pick<TeamWorkflows, 'watch'>;
 };
 
 export const agentRoutes =
-  ({ store, edits, copies, shell, reporter }: AgentRouteDeps): FastifyPluginAsync =>
+  ({ store, edits, copies, shell, reporter, teamWays }: AgentRouteDeps): FastifyPluginAsync =>
   async (app) => {
     /* every Cast reply carries the plain tool list, so the panel never has to work it out */
     const withTools = (a: Agent): Agent & { toolList: ToolList } => ({
@@ -63,5 +66,7 @@ export const agentRoutes =
     /* lets the app block Delete before anyone clicks; the delete itself checks again */
     app.get('/agents/:id/busy', async (req) => store.trash.agentBusy(parse(IdParams, req.params).id));
     /* refused (409 agent_busy) while in a running session; else leaves its teams (captaincy passes on) and hands its projects to another orchestrator; restorable */
-    app.delete('/agents/:id', async (req) => store.trash.trashAgent(parse(IdParams, req.params).id));
+    app.delete('/agents/:id', async (req) =>
+      teamWays.watch(() => store.trash.trashAgent(parse(IdParams, req.params).id)),
+    );
   };

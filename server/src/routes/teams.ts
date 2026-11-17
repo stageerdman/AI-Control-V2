@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import type { TeamWorkflows } from '../crew/team-workflow.ts';
 import type { Store } from '../db/store.ts';
+import { WAY_SHAPES } from '../domain/team-way.ts';
 import { parse } from '../errors.ts';
 import { Id, IdParams, Name, Short, Text } from './schemas.ts';
 
@@ -14,6 +15,8 @@ const fields = {
   code: Text.optional(),
   /** Runs for this team may file reports. */
   reporter: z.boolean().optional(),
+  /** The default way's shape (used while the team has no own way). */
+  wayShape: z.enum(WAY_SHAPES).optional(),
 };
 const TeamCreate = z.strictObject({
   ...fields,
@@ -30,9 +33,11 @@ const MemberAdd = z.strictObject({
 });
 const MemberPatch = z.strictObject({ instr: Text });
 
+/* `ways.watch`: a roster, captain or shape change that redraws a team's shown way is announced */
 export const teamRoutes =
-  (store: Store): FastifyPluginAsync =>
+  ({ store, ways }: { store: Store; ways: TeamWorkflows }): FastifyPluginAsync =>
   async (app) => {
+    const change = <T>(fn: () => T): T => ways.watch(() => store.tx(fn));
     app.get('/teams', async () => store.teams.list());
     app.get('/teams/:id', async (req) => store.teams.require(parse(IdParams, req.params).id));
     app.post('/teams', async (req, reply) =>
@@ -40,14 +45,14 @@ export const teamRoutes =
     );
     app.patch('/teams/:id', async (req) => {
       const { id } = parse(IdParams, req.params);
-      return store.tx(() => store.teams.update(id, parse(TeamPatch, req.body)));
+      return change(() => store.teams.update(id, parse(TeamPatch, req.body)));
     });
     app.delete('/teams/:id', async (req) => store.trash.trashTeam(parse(IdParams, req.params).id));
 
     app.post('/teams/:id/members', async (req, reply) => {
       const { id } = parse(IdParams, req.params);
       const { agentId, instr, at } = parse(MemberAdd, req.body);
-      return reply.status(201).send(store.tx(() => store.teams.addMember(id, agentId, instr, at)));
+      return reply.status(201).send(change(() => store.teams.addMember(id, agentId, instr, at)));
     });
     app.patch('/teams/:id/members/:agentId', async (req) => {
       const { id, agentId } = parse(MemberParams, req.params);
@@ -56,7 +61,7 @@ export const teamRoutes =
     /* removing the captain promotes the next member in line */
     app.delete('/teams/:id/members/:agentId', async (req) => {
       const { id, agentId } = parse(MemberParams, req.params);
-      return store.tx(() => store.teams.removeMember(id, agentId));
+      return change(() => store.teams.removeMember(id, agentId));
     });
   };
 

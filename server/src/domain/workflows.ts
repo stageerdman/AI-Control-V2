@@ -19,7 +19,7 @@
    `new-team:N` (N = index in plan.newAgents / plan.newTeams); accepting the plan rewrites them to real ids. */
 import { z } from 'zod';
 import { type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
-import { drawingIssues, drawingShape, type Who } from './workflow-drawing.ts';
+import { drawingInWords, drawingIssues, drawingShape, type Who } from './workflow-drawing.ts';
 
 export { GATE_KINDS, type Gate, type GateKind, GateSchema, MAX_GATES } from './gates.ts';
 export { keepDrawing, tidyLayout } from './workflow-drawing.ts';
@@ -57,19 +57,30 @@ export const WorkflowSchema = z.strictObject({
 });
 export type Workflow = z.output<typeof WorkflowSchema>;
 
-/** Where a workflow lives — added on reads only (a PUT ignores it): the project's list, a team, or one goal. */
+/** Pure: the way said in one line for screens and screen readers — the drawing in words, else its summary. */
+export const wayInWords = (w: Workflow, name: (id: string) => string): string =>
+  drawingInWords(w, name) ?? w.summary;
+
+/** Added on reads only (a PUT ignores them): where a workflow lives — the project's list, a team, or one
+    goal — and the way in words (people by their short names). */
 export type WorkflowScope = 'office' | 'team' | 'temporary';
-export type ScopedWorkflow = Workflow & { scope: WorkflowScope; teamId?: string };
-export const scoped = (w: Workflow, scope: WorkflowScope, teamId?: string): ScopedWorkflow => ({
+export type ScopedWorkflow = Workflow & { scope: WorkflowScope; inWords: string; teamId?: string };
+export const scoped = (
+  w: Workflow,
+  scope: WorkflowScope,
+  name: (id: string) => string,
+  teamId?: string,
+): ScopedWorkflow => ({
   ...w,
   scope,
+  inWords: wayInWords(w, name),
   ...(teamId ? { teamId } : {}),
 });
 
 /** Pure: a workflow as a screen sends it back — the read-only fields dropped before the shape is checked. */
 export function withoutReadFields(raw: unknown): unknown {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return raw;
-  const { scope: _scope, teamId: _teamId, ...rest } = raw as Record<string, unknown>;
+  const { scope: _scope, teamId: _teamId, inWords: _inWords, ...rest } = raw as Record<string, unknown>;
   return rest;
 }
 

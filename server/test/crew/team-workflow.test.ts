@@ -46,7 +46,7 @@ describe('project workflows: the drawn fields', () => {
 
   it('a shape problem is a 422 whose path starts at the body', async () => {
     h = testApp({ seed: true });
-    const r = await put({ ...WAY, steps: [{ from: 'a-semic', to: 'a-pete', why: '' }] });
+    const r = await put({ ...WAY, steps: [{ from: 'a-semic', to: 'a-pete', why: 'x'.repeat(301) }] });
     expect(r.status).toBe(422);
     expect(r.body.error.details[0].path).toBe('workflows.0.steps.0.why');
   });
@@ -83,15 +83,21 @@ describe('a team’s own workflow', () => {
   afterEach(() => h.close());
   const url = '/teams/ship-it/workflow';
 
-  it('reads null until saved; saves whole with scope team; null clears it', async () => {
+  it('reads the default until saved; saves whole with scope team; null returns to the default', async () => {
     h = testApp({ seed: true });
-    expect((await h.call('GET', url)).body).toEqual({ workflow: null });
-    const r = await h.call('PUT', url, { workflow: { ...WAY, id: undefined, steps, scope: 'office' } });
+    const before = (await h.call('GET', url)).body;
+    expect(before).toMatchObject({ own: false, shape: 'captain' });
+    expect(before.workflow).toMatchObject({ name: 'Captain checks all', scope: 'team', gates: [] });
+    const r = await h.call('PUT', url, {
+      workflow: { ...WAY, id: undefined, steps, scope: 'office', inWords: 'ignored' },
+    });
     expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ own: true, shape: 'captain' });
     expect(r.body.workflow).toMatchObject({ id: 'team', steps, scope: 'team', teamId: 'ship-it' });
+    expect(r.body.workflow.inWords).toMatch(/^Captain hands to Pete: API first\./);
     expect((await h.call('GET', url)).body).toEqual(r.body);
-    expect((await h.call('PUT', url, { workflow: null })).body).toEqual({ workflow: null });
-    expect((await h.call('GET', url)).body).toEqual({ workflow: null });
+    expect((await h.call('PUT', url, { workflow: null })).body).toEqual(before);
+    expect((await h.call('GET', url)).body).toEqual(before);
   });
 
   it('is checked against the team’s members only (409, with the path)', async () => {

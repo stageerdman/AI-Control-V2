@@ -83,8 +83,13 @@ export function resolveWorkflow(store: Store, projectId: string, ask?: WorkflowA
   return { workflow, issues, toSeat };
 }
 
-export const officeScoped = (list: readonly Workflow[]): ScopedWorkflow[] =>
-  list.map((w) => scoped(w, 'office'));
+/** People and teams as the ways name them on screen: an agent's short name, a team's name. */
+export const shortName =
+  (store: Store) =>
+  (id: string): string => {
+    const a = store.agents.get(id);
+    return a ? a.nick || a.name : (store.teams.get(id)?.name ?? id);
+  };
 
 export function createWorkflows(deps: { store: Store; events: EventLog }) {
   const { store, events } = deps;
@@ -116,10 +121,11 @@ export function createWorkflows(deps: { store: Store; events: EventLog }) {
   return {
     staffing,
     list,
-    /** The list as screens read it: each one says it is the office's. */
+    /** The list as screens read it: each one says it is the office's, and says itself in words. */
     view: (projectId: string): { workflows: ScopedWorkflow[]; designed: boolean } => {
       const { workflows, designed } = list(projectId);
-      return { workflows: officeScoped(workflows), designed };
+      const name = shortName(store);
+      return { workflows: workflows.map((w) => scoped(w, 'office', name)), designed };
     },
     replace: save,
 

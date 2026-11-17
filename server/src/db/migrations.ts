@@ -651,6 +651,11 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE teams ADD COLUMN workflow TEXT;
   `,
+  /* 42 — the shape of a team's default way (WORKFLOWS v2 S2): 'captain' (everyone works for the captain) or
+     'chain' (pass it along). Used while the team has no own way. */
+  `
+  ALTER TABLE teams ADD COLUMN way_shape TEXT NOT NULL DEFAULT 'captain' CHECK (way_shape IN ('captain', 'chain'));
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

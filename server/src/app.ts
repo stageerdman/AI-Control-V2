@@ -16,7 +16,7 @@ import { settledLine } from './crew/settled.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
 import { createTeamWorkflows } from './crew/team-workflow.ts';
-import { createWorkflows } from './crew/workflows.ts';
+import { createWorkflows, shortName } from './crew/workflows.ts';
 import type { Db } from './db/connection.ts';
 import { runsRepo } from './db/runs.ts';
 import { metaFlag, metaValue } from './db/settings.ts';
@@ -593,12 +593,15 @@ export function buildApp({
   );
 
   app.register(healthRoutes({ config, db, build }));
-  for (const routes of [roleRoutes, teamRoutes, projectRoutes, draftRoutes, trashRoutes])
-    app.register(routes(store));
-  app.register(teamWorkflowRoutes(createTeamWorkflows({ store, events })));
+  for (const routes of [roleRoutes, projectRoutes, draftRoutes]) app.register(routes(store));
+  const teamWays = createTeamWorkflows({ store, events });
+  app.register(teamRoutes({ store, ways: teamWays }));
+  app.register(trashRoutes({ store, teamWays }));
+  app.register(teamWorkflowRoutes(teamWays));
   app.register(
     agentRoutes({
       store,
+      teamWays,
       edits: createAgentEdits({ store, events }),
       copies: createKinCopies({ store }),
       shell,
@@ -637,7 +640,15 @@ export function buildApp({
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));
-  app.register(crewRoutes({ chat, creator, dispatch, findAgent: (id) => store.agents.get(id) ?? null }));
+  app.register(
+    crewRoutes({
+      chat,
+      creator,
+      dispatch,
+      findAgent: (id) => store.agents.get(id) ?? null,
+      nameOf: shortName(store),
+    }),
+  );
   app.register(projectHealthRoutes({ health, apps, github }));
   app.register(appRoutes({ apps }));
   app.register(runningRoutes({ running, stopper, store }));

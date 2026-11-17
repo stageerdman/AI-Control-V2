@@ -5,17 +5,19 @@
    - `first`: who starts (agent or team). `final`: who signs last (an agent; one of the reviewers if any).
    - `layout`: where each node sits on the editor's canvas — no meaning anywhere else. */
 import { z } from 'zod';
-import { BranchLabel, type Gate } from './gates.ts';
+import { BranchLabel, DEFAULT_WHY, type Gate, OptionalWhy } from './gates.ts';
 
 export const MAX_STEPS = 12;
 const ref = z.string().trim().min(1).max(80);
 
-export const StepSchema = z.strictObject({
-  from: ref,
-  to: ref,
-  why: z.string().trim().min(1).max(300),
-  when: BranchLabel.optional(),
-});
+export const StepSchema = z
+  .strictObject({
+    from: ref,
+    to: ref,
+    why: OptionalWhy,
+    when: BranchLabel.optional(),
+  })
+  .transform(({ why, ...s }) => ({ ...s, why: why || DEFAULT_WHY['hand-off'] }));
 export type Step = z.output<typeof StepSchema>;
 
 export const CANVAS = { width: 1000, height: 600 };
@@ -115,13 +117,15 @@ export function drawingIssues(w: Drawn, who: Who, at: string): string[] {
 }
 
 const onlyWhen = (when?: string) => (when ? ` (only ${when})` : '');
+/** A reason closes its sentence, so the next one doesn't run on. */
+const sentence = (s: string) => (/[.!?…]$/.test(s) ? s : `${s}.`);
 
 /** Pure: the drawing as the planner and builders read it — soft guidance, not an engine (the gates still run
     the sign-offs). null = nothing drawn beyond the gates. */
 export function drawingInWords(w: Drawn, name: (id: string) => string): string | null {
   const said = [
     ...(w.first ? [`${name(w.first)} starts.`] : []),
-    ...(w.steps ?? []).map((s) => `${name(s.from)} hands to ${name(s.to)}${onlyWhen(s.when)}: ${s.why}`),
+    ...(w.steps ?? []).map((s) => `${name(s.from)} hands to ${name(s.to)}${onlyWhen(s.when)}: ${sentence(s.why)}`),
     ...w.gates
       .filter((g) => g.when)
       .map(
