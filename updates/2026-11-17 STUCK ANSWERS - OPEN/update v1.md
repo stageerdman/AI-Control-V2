@@ -66,6 +66,22 @@ Report: "an agent asked me to reload the app and say if the fix worked; after re
 - **Tests:** `server/test/runtime/parked-asks.test.ts` (reload, restart, answer-before-resume, chat turn,
   stop withdraws), `confirm.test.ts` (observation questions are asked).
 
+### Phase 5 — the screen after a reload and a restart, checked in a browser (Jony) ✅
+Headless Chromium against a fake-runner server (`reload-check/drive.mjs`, phases `away`, `ask`, `ask-away`,
+`after-restart`, `after-restart-pager`, `reload-in-office`).
+- A reply that lands while you're out of the office shows on return; no stuck typing dots. ✅
+- An open question shows in chat with its Yes/No after a reload; the pager keeps one that arrived while you
+  were away (one you already saw in the office is quiet by design). ✅
+- After a full restart: both questions (director + another agent) still show; answering from the chat or the
+  pager makes the agent carry on and reply. ✅ — after two fixes:
+  - **Server, director after a restart:** `threads.recover` ran before `mail`/`creatorChats` existed in
+    `app.ts`, so the director's tools threw ("Cannot access 'mail' before initialization") and the turn was
+    never continued. Moved after them; test in `parked-asks.test.ts`.
+  - **Server, dead question:** a turn that could not be continued got "the studio restarted" but its question
+    stayed open on the pager with nothing behind it. It is now withdrawn (`runtime.withdrawAsks`).
+  - **App:** no typing dots under an open question (`Panel.tsx`); the New chat line says "X needs you" while
+    the agent asks (`new-chat.ts`).
+
 ## Status
-All three phases done. Server 134 files / 868 tests green, app 65 files / 670 tests green, both typecheck.
+All phases done. Server 134 files / 868 tests green, app 65 files / 670 tests green, both typecheck.
 See `wiki.md` for the lessons.

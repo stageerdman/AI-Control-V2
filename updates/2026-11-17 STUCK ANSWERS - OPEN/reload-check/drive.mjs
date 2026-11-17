@@ -136,6 +136,27 @@ if (phase === 'after-restart') {
   }
 }
 
+if (phase === 'after-restart-pager') {
+  /* the non-director's question after a restart: open it from the pager, answer, the reply arrives */
+  await wait(5000);
+  console.log('pager after restart:', await pager());
+  await page.click('#pager .o-pg-screen');
+  await wait(3500);
+  await page.keyboard.press('!');
+  await wait(500);
+  await page.keyboard.press('Enter');
+  await wait(1500);
+  console.log('asker chat', await chat());
+  const chip = await page.$('.op-ask.live .chip');
+  if (chip) {
+    await chip.click();
+    console.log('answered');
+    await wait(25000);
+    console.log('later', await chat());
+    await shot('later');
+  }
+}
+
 if (phase === 'reload-in-office') {
   await go(`#office/${PID}`);
   await wait(2000);

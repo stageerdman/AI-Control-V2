@@ -16,5 +16,11 @@ What we learned, for whoever touches chats, dispatch or the app cache next.
   anything that happened while the user was away never arrives as an event. Entering the office invalidates
   `keys.scope(pid)` (`office:<pid>:`) so every panel re-reads the server as it mounts. New office query keys
   must start with `office:<pid>:` to be covered.
+- **Boot order matters for recovery.** Anything that starts runs on boot (`threads.recover`) must come after
+  every dependency those runs' tools close over (`mail`, `creatorChats` in `server/src/app.ts`) — a `const`
+  used too early throws a TDZ error only at run time, and only for the director.
+- **A question nobody will act on must leave the screen.** If a cut-off turn can't carry on, withdraw its ask.
+- **Browser check:** `reload-check/drive.mjs` (needs `playwright-core` installed in that folder, a fake-runner
+  server on 3569 and vite on 3570; the project folder must exist in the sandbox or messages get a 409).
 - **Replay tests:** `server/test/office/replies-kept.test.ts` (away / told note / restart),
   `server/test/crew/settles-always.test.ts` (merge throws), `app/src/api/query.test.tsx` (stale on return).
