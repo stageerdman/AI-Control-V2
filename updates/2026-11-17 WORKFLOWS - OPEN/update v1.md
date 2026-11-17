@@ -396,6 +396,7 @@ With real agents on this project:
 - 2026-11-17: **Phase 5b backend built to the agreed shape (Uncle Bob; Pixel decided).** The nodes/edges graph build
   that the live check ran against is replaced by first / final / steps / layout + `Gate.when` (no decision nodes),
   `scope`/`teamId` on reads, `GET/PUT /teams/:id/workflow {workflow | null}`, `team.workflow.changed`. Shape in
-  wiki.md "The editor's shape". Gap (3) fixed: `set_workflow` keeps the drawing. `live-check.md`/`.mjs` are out of
-  date until Elon re-runs them against these routes. **Still open:** gap (2), the drawing in words for the planner
-  and tasks; the editor (Jony).
+  wiki.md "The editor's shape". Gap (3) fixed: `set_workflow` keeps the drawing. Gap (2) fixed: the planner reads
+  each workflow's `flow` ("Order items this way: … starts. … hands to … signs last.") and every item task gets "How
+  work flows on this goal: …" (`drawingInWords`, soft — the gates still run the sign-offs). `live-check.md`/`.mjs`
+  are out of date until Elon re-runs them against these routes. **Still open:** the editor (Jony).

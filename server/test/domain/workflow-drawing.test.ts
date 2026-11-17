@@ -1,6 +1,6 @@
 /* The editor's fields on a workflow (Phase 5b): first / final / steps / layout and Gate.when — shape and rules. */
 import { describe, expect, it } from 'vitest';
-import { drawingIssues, tidyLayout } from '../../src/domain/workflow-drawing.ts';
+import { drawingInWords, drawingIssues, tidyLayout } from '../../src/domain/workflow-drawing.ts';
 import { type Gate, GateSchema, type Workflow, WorkflowSchema } from '../../src/domain/workflows.ts';
 
 const who = {
@@ -77,6 +77,21 @@ describe('drawing shape', () => {
     expect(GateSchema.safeParse({ ...review, when: 'if it touches payments' }).success).toBe(true);
     expect(GateSchema.safeParse({ ...review, when: '' }).success).toBe(false);
     expect(GateSchema.safeParse({ ...review, when: 'x'.repeat(121) }).success).toBe(false);
+  });
+});
+
+describe('drawingInWords', () => {
+  it('says who starts, hands to whom (and when), conditional checks, who signs last; null when nothing drawn', () => {
+    const w = {
+      gates: [review, { ...review, after: '*', when: 'if it touches payments' }],
+      first: 'a-ann',
+      final: 'a-bo',
+      steps: [{ ...step('a-ann', 'a-cy'), when: 'if it needs data' }],
+    };
+    expect(drawingInWords(w, who.name)).toBe(
+      'ann starts. ann hands to cy (only if it needs data): Hand it over. bo checks all work (only if it touches payments). bo signs last.',
+    );
+    expect(drawingInWords(base, who.name)).toBeNull();
   });
 });
 

@@ -26,6 +26,7 @@ import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
 import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
+import { drawingInWords } from '../domain/workflow-drawing.ts';
 import {
   gatesFor,
   type ItemGate,
@@ -158,18 +159,22 @@ export function planReply(goal: Goal, name: (id: string) => string): string {
 
 /** The stable workflows as the orchestrator reads them when it plans (names next to ids). */
 export function describeWorkflows(list: readonly Workflow[], name: (id: string) => string) {
-  return list.map((w) => ({
-    id: w.id,
-    name: w.name,
-    when: w.when,
-    orchestratorTalksTo: w.orchestratorTalksTo,
-    gates: w.gates.map((g) => ({
-      after: g.after === '*' ? 'any build item' : g.after,
-      reviewer: `${name(g.reviewer)} (${g.reviewer})`,
-      kind: g.kind,
-    })),
-    summary: w.summary,
-  }));
+  return list.map((w) => {
+    const flow = drawingInWords(w, (id) => `${name(id)} (${id})`);
+    return {
+      id: w.id,
+      name: w.name,
+      when: w.when,
+      orchestratorTalksTo: w.orchestratorTalksTo,
+      gates: w.gates.map((g) => ({
+        after: g.after === '*' ? 'any build item' : g.after,
+        reviewer: `${name(g.reviewer)} (${g.reviewer})`,
+        kind: g.kind,
+      })),
+      summary: w.summary,
+      ...(flow ? { flow: `Order items this way: ${flow}` } : {}),
+    };
+  });
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -373,6 +378,12 @@ export function createDispatch(deps: {
     return '';
   }
 
+  /** The goal's drawn workflow in words, so each builder knows whom they hand to (soft; the gates still rule). */
+  function flowNote(goal: Goal): string {
+    const flow = goal.workflow ? drawingInWords(goal.workflow, name) : null;
+    return flow ? `How work flows on this goal: ${flow}` : '';
+  }
+
   const orchName = (projectId: string) =>
     store.agents.get(store.projects.require(projectId).orchestratorId)?.name ?? 'The orchestrator';
 
@@ -386,6 +397,7 @@ export function createDispatch(deps: {
       `Brief: ${it.brief}`,
       featureNote(goal),
       commandNote(it, goal),
+      flowNote(goal),
       earlierWork(it, goal),
       team
         ? captain

@@ -154,6 +154,31 @@ describe('workflows: goals run under a chosen stable workflow', () => {
     expect(first?.task).toContain('"quick-fix"');
     expect(repair?.task).toContain("'nope' is not a workflow of this project");
   });
+
+  it('the drawing reaches the planner and the builder in words (live check: it reached nobody)', async () => {
+    const plan = {
+      summary: 'S.',
+      items: [{ text: 'Build it', assignee: 'a-semic', teamId: 'ship-it', brief: 'b' }],
+    };
+    const crew = scriptedCrew({ dispatch: [{ ...plan, workflow: 'usual' }] }, () => [{ result: 'Built.' }]);
+    h = testApp({ seed: true, runner: crew.runner });
+    mkdirSync(join(h.config.sandbox, 'aurora'));
+    const drawn = {
+      ...USUAL,
+      gates: [],
+      first: 'a-semic',
+      steps: [{ from: 'a-semic', to: 'a-pete', why: 'API first.' }],
+    };
+    h.store.projects.update('aurora', { folder: 'aurora', workflows: [drawn] });
+    await h.call('POST', '/projects/aurora/work', { goal: 'Build it' });
+    const flow = 'Captain Semicolon starts. Captain Semicolon hands to Pixel Pete: API first.';
+    expect(crew.crewCalls()[0]?.task).toContain(
+      'Order items this way: Captain Semicolon (a-semic) starts. Captain Semicolon (a-semic) hands to Pixel Pete',
+    );
+    const built = () => crew.calls.find((s) => s.task.includes('Your checklist item: Build it'));
+    for (let i = 0; i < 200 && !built(); i++) await new Promise((x) => setTimeout(x, 5));
+    expect(built()?.task).toContain(`How work flows on this goal: ${flow}`);
+  });
 });
 
 describe('workflows: the director’s tools', () => {

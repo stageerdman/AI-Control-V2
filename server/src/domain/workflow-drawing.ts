@@ -102,6 +102,25 @@ export function drawingIssues(w: Drawn, who: Who, at: string): string[] {
   ];
 }
 
+const onlyWhen = (when?: string) => (when ? ` (only ${when})` : '');
+
+/** Pure: the drawing as the planner and builders read it — soft guidance, not an engine (the gates still run
+    the sign-offs). null = nothing drawn beyond the gates. */
+export function drawingInWords(w: Drawn, name: (id: string) => string): string | null {
+  const said = [
+    ...(w.first ? [`${name(w.first)} starts.`] : []),
+    ...(w.steps ?? []).map((s) => `${name(s.from)} hands to ${name(s.to)}${onlyWhen(s.when)}: ${s.why}`),
+    ...w.gates
+      .filter((g) => g.when)
+      .map(
+        (g) =>
+          `${name(g.reviewer)} checks ${g.after === '*' ? 'all work' : name(g.after)}${onlyWhen(g.when)}.`,
+      ),
+    ...(w.final ? [`${name(w.final)} signs last.`] : []),
+  ];
+  return said.length ? said.join(' ') : null;
+}
+
 const DRAWN_KEYS = ['first', 'final', 'steps', 'layout'] as const;
 
 /** Pure: `next` keeps what `prev` drew wherever `next` draws nothing — a change that only knows the gates (the
