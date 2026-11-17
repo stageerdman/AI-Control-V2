@@ -1,6 +1,7 @@
 /* The whiteboard as the director's tools answer it (text, for the model): goals with their ids, each task
    with its place, owner and status. present.ts is the screens' JSON view. */
 import type { ChecklistItem, Goal } from '../db/work.ts';
+import { notDefault } from '../domain/workflows.ts';
 
 const STATUS: Record<ChecklistItem['status'], string> = {
   todo: 'queued',
@@ -16,9 +17,11 @@ function taskLine(it: ChecklistItem, name: (id: string) => string): string {
   return `  ${it.position + 1}. [${STATUS[it.status]}] ${clip(it.text, 200)} — ${name(it.agentId)}${flags ? ` (${flags})` : ''}  id: ${it.id}`;
 }
 
-export function goalBlock(g: Goal, name: (id: string) => string): string {
+/** `usualId`: the project's default workflow — a goal under any other one says which. */
+export function goalBlock(g: Goal, name: (id: string) => string, usualId: string): string {
+  const w = notDefault(g.workflow, usualId);
   return [
-    `${g.quest === 'side' ? 'Side quest' : 'Goal'} ${g.id} [${g.status}, ${g.pct}% done, updated ${g.updatedAt.slice(0, 10)}]: ${clip(g.text, 300)}`,
+    `${g.quest === 'side' ? 'Side quest' : 'Goal'} ${g.id} [${g.status}, ${g.pct}% done, updated ${g.updatedAt.slice(0, 10)}]: ${clip(g.text, 300)}${w ? ` (workflow: ${w.name})` : ''}`,
     ...(g.summary && g.summary !== g.text ? [`  Plan: ${clip(g.summary, 300)}`] : []),
     ...(g.featureId
       ? [`  Feature: ${g.featureId}${g.ships ? ' (ships when this goal is done)' : ' (one step of it)'}`]
@@ -27,6 +30,8 @@ export function goalBlock(g: Goal, name: (id: string) => string): string {
   ].join('\n');
 }
 
-export function boardText(goals: Goal[], name: (id: string) => string): string {
-  return goals.length ? goals.map((g) => goalBlock(g, name)).join('\n\n') : 'The whiteboard is empty.';
+export function boardText(goals: Goal[], name: (id: string) => string, usualId: string): string {
+  return goals.length
+    ? goals.map((g) => goalBlock(g, name, usualId)).join('\n\n')
+    : 'The whiteboard is empty.';
 }

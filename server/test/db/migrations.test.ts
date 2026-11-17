@@ -79,7 +79,7 @@ describe('migrations', () => {
     db.close();
   });
 
-  it('40: a stored collaboration reads as workflows[0]; goals keep their workflow', () => {
+  it('40: a stored collaboration reads as workflows[0]; goals keep their workflow', async () => {
     const h = testApp({ seed: true });
     const design = { orchestratorTalksTo: 'everyone', gates: [], maxSendBacks: 1, summary: 'Old design.' };
     h.db
@@ -97,6 +97,6 @@ describe('migrations', () => {
     expect(g.workflow).toEqual(flow);
     work.setGoalWorkflow('g1', null);
     expect(work.goal('g1')?.workflow).toBeNull();
-    h.cleanup?.();
+    await h.close();
   });
 });

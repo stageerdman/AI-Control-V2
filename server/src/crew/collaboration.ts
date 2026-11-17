@@ -1,100 +1,82 @@
-/* The project's collaboration design (B8): read it, set it by hand, or let the orchestrator (re)design it
-   for the people on the project now. Validated against the project's staffing (src/domain/collaboration.ts);
-   every change is announced as `collaboration.changed`.
+/* The project's collaboration design (B8), grown into workflows: B8's single design is the FIRST workflow
+   (GET/PUT …/collaboration read and write it), and the orchestrator's (re)design now writes the whole list
+   for the people on the project now. Storage and rules live in the workflows service (src/crew/workflows.ts);
+   a change to the first one is also announced as `collaboration.changed`.
 
-   Contract `collaboration`: {"reply": string, "collaboration": Collaboration}. */
+   Contract `collaboration`: {"reply": string, "workflows": Workflow[]}. */
 import { z } from 'zod';
 import type { Store } from '../db/store.ts';
 import {
   type Collaboration,
   CollaborationSchema,
-  collaborationIssues,
   DEFAULT_COLLABORATION,
   DEFAULT_WORKFLOW,
-  type Staffing,
   toCollaboration,
   type Workflow,
+  WorkflowsSchema,
+  workflowsIssues,
 } from '../domain/workflows.ts';
 import { conflict, parse } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import {
-  COLLABORATION_EXAMPLE,
-  COLLABORATION_RULE,
   crewSystemPrompt,
   json,
   ORCHESTRATOR_ALTITUDE,
+  WORKFLOWS_EXAMPLE,
+  WORKFLOWS_RULE,
 } from './prompts.ts';
 import { type Crew, validateWith } from './structured.ts';
+import type { WorkflowsService } from './workflows.ts';
 
 export const COLLABORATION = 'collaboration';
 const DesignSchema = z.strictObject({
   reply: z.string().trim().min(1).max(2000),
-  collaboration: CollaborationSchema,
+  workflows: WorkflowsSchema,
 });
 
 export function createCollaboration(deps: {
   store: Store;
   events: EventLog;
   crew: Crew;
+  workflows: WorkflowsService;
   /** The orchestrator's reply after a (re)design: the office thread records it. */
   onDesigned?: (e: { projectId: string; orchestratorId: string; reply: string; ask?: string }) => void;
 }) {
-  const { store, events, crew } = deps;
+  const { store, events, crew, workflows } = deps;
   const busy = new Set<string>();
 
-  function staffing(projectId: string): Staffing {
-    const p = store.projects.require(projectId);
-    const teams = new Map<string, { name: string; members: readonly string[] }>();
-    for (const tid of p.teamIds) {
-      const t = store.teams.get(tid);
-      if (t) teams.set(t.id, { name: t.name, members: t.members.map((m) => m.agentId) });
-    }
-    return {
-      teams,
-      specialists: new Set([...p.agentIds, ...store.guests.ids(projectId)]),
-      name: (id) => store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id,
-    };
-  }
-  const issues = (projectId: string, c: Collaboration) => collaborationIssues(c, staffing(projectId));
-
-  /** B8's design is the first workflow: replace its checks, keep its name and scenario. */
-  function save(projectId: string, c: Collaboration): Collaboration {
-    store.tx(() => {
-      const [first, ...rest] = store.projects.require(projectId).workflows ?? [];
-      const next: Workflow = { ...(first ?? DEFAULT_WORKFLOW), ...c };
-      store.projects.update(projectId, { workflows: [next, ...rest] });
-    });
+  /** Save the list; the first one is B8's design, so it is announced as that too. */
+  function save(projectId: string, list: Workflow[]): Workflow[] {
+    const saved = workflows.replace(projectId, list);
+    const c = toCollaboration(saved[0] as Workflow);
     events.append('project', projectId, {
       type: 'collaboration.changed',
       payload: { orchestratorTalksTo: c.orchestratorTalksTo, gates: c.gates.length, summary: c.summary },
     });
-    return c;
+    return saved;
   }
 
   return {
-    staffing,
     get(projectId: string): { collaboration: Collaboration; designed: boolean } {
       const first = store.projects.require(projectId).workflows?.[0];
       return { collaboration: first ? toCollaboration(first) : DEFAULT_COLLABORATION, designed: !!first };
     },
 
-    /** Set by hand (the UI): 422 = malformed, 409 = a gate names someone not on the project. */
+    /** Set by hand (the UI): the first workflow's checks; its name and scenario stay. 422 / 409 as the list's. */
     set(projectId: string, raw: unknown): Collaboration {
-      store.projects.require(projectId);
       const c = parse(CollaborationSchema, raw);
-      const broken = issues(projectId, c);
-      if (broken.length)
-        throw conflict(
-          broken[0] as string,
-          broken.map((message) => ({ path: 'collaboration', message })),
-        );
-      return save(projectId, c);
+      const [first, ...rest] = store.projects.require(projectId).workflows ?? [];
+      save(projectId, [{ ...(first ?? DEFAULT_WORKFLOW), ...c }, ...rest]);
+      return c;
     },
 
-    /** The orchestrator designs (or reworks, following `ask`) the collaboration for the people on the project now. */
-    async design(projectId: string, ask?: string): Promise<{ reply: string; collaboration: Collaboration }> {
+    /** The orchestrator designs (or reworks, following `ask`) the workflows for the people on the project now. */
+    async design(
+      projectId: string,
+      ask?: string,
+    ): Promise<{ reply: string; collaboration: Collaboration; workflows: Workflow[] }> {
       const p = store.projects.require(projectId);
-      const s = staffing(projectId);
+      const s = workflows.staffing(projectId);
       if (s.teams.size + s.specialists.size === 0)
         throw conflict('Nobody staffs this project yet — add a team or a specialist first');
       if (busy.has(projectId)) throw conflict('The orchestrator is already designing how this team works');
@@ -122,26 +104,26 @@ export function createCollaboration(deps: {
           task: [
             `Project: ${json({ name: p.name, about: p.note })}`,
             `Who works on it: ${json(people)}`,
-            `Current design: ${json(p.workflows?.[0] ? toCollaboration(p.workflows[0]) : null)}`,
+            `Current workflows: ${json(p.workflows)}`,
             ask?.trim()
               ? `The user asks: ${json(ask.trim())}`
               : 'Design how these people work together on this project.',
-            COLLABORATION_RULE.replace(/ For agents the Agent Creator[^.]*\./, ''),
+            WORKFLOWS_RULE,
             `Answer with one JSON object shaped like this: ${json({
               reply: 'One or two friendly sentences for the user: who checks whose work, and why.',
-              collaboration: COLLABORATION_EXAMPLE,
+              workflows: WORKFLOWS_EXAMPLE,
             })}`,
           ].join('\n\n'),
-          validate: validateWith(DesignSchema, (d) => issues(projectId, d.collaboration)),
+          validate: validateWith(DesignSchema, (d) => workflowsIssues(d.workflows, s)),
         });
-        const saved = save(projectId, value.collaboration);
+        const saved = save(projectId, value.workflows);
         deps.onDesigned?.({
           projectId,
           orchestratorId: orch.id,
           reply: value.reply,
           ...(ask?.trim() ? { ask: ask.trim() } : {}),
         });
-        return { reply: value.reply, collaboration: saved };
+        return { reply: value.reply, collaboration: toCollaboration(saved[0] as Workflow), workflows: saved };
       } finally {
         busy.delete(projectId);
       }

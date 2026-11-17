@@ -81,11 +81,12 @@ describe('collaboration: design + enforcement', () => {
   });
 
   it('the orchestrator designs it (one crew call, repaired once on a bad reviewer)', async () => {
+    const usual = { id: 'usual', name: 'Our usual way', when: 'everything', ...DESIGN };
     const s = studio(
       {
         collaboration: [
-          { reply: 'x', collaboration: { ...DESIGN, gates: [{ ...DESIGN.gates[0], reviewer: 'a-ghost' }] } },
-          { reply: 'Lint checks Ship-It’s work.', collaboration: DESIGN },
+          { reply: 'x', workflows: [{ ...usual, gates: [{ ...DESIGN.gates[0], reviewer: 'a-ghost' }] }] },
+          { reply: 'Lint checks Ship-It’s work.', workflows: [usual] },
         ],
       },
       () => approve(),
@@ -93,7 +94,11 @@ describe('collaboration: design + enforcement', () => {
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/collaboration/design', { ask: 'add a quality check' });
     expect(r.status).toBe(200);
-    expect(r.body).toEqual({ reply: 'Lint checks Ship-It’s work.', collaboration: DESIGN });
+    expect(r.body).toEqual({
+      reply: 'Lint checks Ship-It’s work.',
+      collaboration: DESIGN,
+      workflows: [usual],
+    });
     const [first, repair] = s.crew.crewCalls();
     expect(first?.tools).toEqual([]);
     expect(first?.task).toContain('The user asks: "add a quality check"');

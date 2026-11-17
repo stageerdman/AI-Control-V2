@@ -99,3 +99,18 @@ export const COLLABORATION_EXAMPLE = {
   maxSendBacks: 2,
   summary: 'How they work together, in one sentence.',
 };
+
+/** The project's redesign call: named workflows, each one a collaboration design for a scenario. */
+export const WORKFLOWS_RULE = `${COLLABORATION_RULE.replace('in "collaboration"', 'as "workflows"').replace(/ For agents the Agent Creator[^.]*\./, '')} Give 1–3 workflows: the first is the usual one ("id": "usual" fits); add another only for a scenario that really needs different checks (a quick fix, risky work). Each has an "id" (a slug: lowercase letters, digits, dashes), a short "name" and "when" (the scenario it is for).`;
+export const WORKFLOWS_EXAMPLE = [
+  { id: 'usual', name: 'Our usual way', when: 'everything', ...COLLABORATION_EXAMPLE },
+  {
+    id: 'quick-fix',
+    name: 'Quick fix',
+    when: 'small fixes and one-line changes',
+    orchestratorTalksTo: 'captains',
+    gates: [],
+    maxSendBacks: 1,
+    summary: 'The builder ships it; no review.',
+  },
+];

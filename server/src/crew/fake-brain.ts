@@ -369,14 +369,32 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
         reply: qa
           ? `${qa.name} checks every piece of work before it counts as done.`
           : 'I brief the captains; nobody here does reviews yet.',
-        collaboration: {
-          orchestratorTalksTo: 'captains',
-          gates: qa
-            ? [{ after: '*', reviewer: qa.id, kind: 'quality', why: 'A second pair of eyes on quality.' }]
-            : [],
-          maxSendBacks: 2,
-          summary: qa ? `Captains build, ${qa.name} reviews.` : 'Captains build; no review gates.',
-        },
+        workflows: [
+          {
+            id: 'usual',
+            name: 'Our usual way',
+            when: 'everything',
+            orchestratorTalksTo: 'captains',
+            gates: qa
+              ? [{ after: '*', reviewer: qa.id, kind: 'quality', why: 'A second pair of eyes on quality.' }]
+              : [],
+            maxSendBacks: 2,
+            summary: qa ? `Captains build, ${qa.name} reviews.` : 'Captains build; no review gates.',
+          },
+          ...(qa
+            ? [
+                {
+                  id: 'quick-fix',
+                  name: 'Quick fix',
+                  when: 'small fixes',
+                  orchestratorTalksTo: 'captains',
+                  gates: [],
+                  maxSendBacks: 1,
+                  summary: 'The builder ships it; no review.',
+                },
+              ]
+            : []),
+        ],
       });
     }
     case 'health': {

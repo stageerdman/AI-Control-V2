@@ -38,6 +38,11 @@ const TASK_PROPS = {
   brief: { type: 'string', description: 'What to do and what done looks like.' },
   parallel: { type: 'boolean', description: 'May run alongside the task before it.' },
 };
+const WORKFLOW_PROP = {
+  type: 'string',
+  description:
+    'The id of the project workflow the goal runs under (see workflows): pick the one whose "when" fits, or when the user names one ("use the quick-fix way"). Leave it out for the usual (first) one.',
+};
 const FORCE = {
   type: 'boolean',
   description:
@@ -79,18 +84,21 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
             description:
               'main (default) = the big feature the team is building now. side = a quick fix or a short research job, often one task for one person; it never serves a feature and runs only when it holds up no main quest.',
           },
+          workflow: WORKFLOW_PROP,
         },
         required: ['text', 'tasks'],
       },
       run: async (a) => {
         const feature = str(a, 'feature')?.trim();
         const quest = oneOf(a, 'quest', QUESTS);
+        const workflow = str(a, 'workflow')?.trim();
         return board.addGoal(projectId, by, {
           text: need(a, 'text'),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),
           tasks: Array.isArray(a.tasks) ? (a.tasks as Args[]).map(task) : [],
           ...(feature ? { feature: { id: feature, ships: bool(a, 'ships') !== false } } : {}),
           ...(quest ? { quest } : {}),
+          ...(workflow ? { workflow } : {}),
         });
       },
     },

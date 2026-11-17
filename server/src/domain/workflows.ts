@@ -185,6 +185,26 @@ export const DEFAULT_WORKFLOW: Workflow = fromCollaboration(DEFAULT_COLLABORATIO
 export const pickWorkflow = (list: readonly Workflow[], id?: string | null): Workflow =>
   (id ? list.find((w) => w.id === id) : undefined) ?? list[0] ?? DEFAULT_WORKFLOW;
 
+/** The issue for a requested stable id that isn't on the project (null = fine: none asked, or it exists). */
+export function unknownWorkflowIssue(list: readonly Workflow[], id: string | undefined): string | null {
+  if (!id || list.some((w) => w.id === id)) return null;
+  const known = list.length ? list.map((w) => `'${w.id}'`).join(', ') : `none yet (leave it out)`;
+  return `workflow: '${id}' is not a workflow of this project — known: ${known}`;
+}
+
+/** A workflow as screens and board lines name it. */
+export type WorkflowTag = { id: string; name: string; temporary: boolean; lead?: string };
+export const workflowTag = (w: Workflow): WorkflowTag => ({
+  id: w.id,
+  name: w.name,
+  temporary: isTemporary(w),
+  ...(w.lead ? { lead: w.lead } : {}),
+});
+
+/** A goal's workflow worth naming next to it: anything but the project's default (old goals: null = default). */
+export const notDefault = (w: Workflow | null, defaultId: string): Workflow | null =>
+  w && (isTemporary(w) || w.id !== defaultId) ? w : null;
+
 const gateKey = (g: Pick<Gate, 'after' | 'reviewer' | 'kind'>) =>
   `${g.after}\u0000${g.reviewer}\u0000${g.kind}`;
 export const LEAD_SIGNOFF_WHY = 'The lead signs off their crew’s work';

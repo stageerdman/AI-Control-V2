@@ -10,6 +10,13 @@ import { QUESTS } from './quests.ts';
 const id = z.string().trim().min(1).max(80);
 const text = (max = 2000) => z.string().max(max);
 const count = z.number().int().min(0);
+/** A workflow as screens see it on a goal (src/domain/workflows.ts `workflowTag`). */
+const workflowTag = z.strictObject({
+  id,
+  name: text(60),
+  temporary: z.boolean(),
+  lead: id.optional(),
+});
 
 export const EVENT_SCHEMAS = {
   /** The Project Setter's progress (B2 steps). */
@@ -124,6 +131,8 @@ export const EVENT_SCHEMAS = {
     text: text(2000).optional(),
     summary: text(1000).optional(),
     quest: z.enum(QUESTS).optional(),
+    /** The workflow it runs under (WORKFLOWS): absent on status-only changes. */
+    workflow: workflowTag.optional(),
   }),
   'checklist.item': z.strictObject({
     itemId: id,
@@ -159,6 +168,11 @@ export const EVENT_SCHEMAS = {
     orchestratorTalksTo: z.enum(['captains', 'everyone']),
     gates: count,
     summary: text(500),
+  }),
+  /** The project's stable workflows changed (WORKFLOWS): how many, by name, the first is the default. */
+  'workflows.changed': z.strictObject({
+    count,
+    names: z.array(text(60)).max(6),
   }),
   /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
       (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). F1c, inside a team:

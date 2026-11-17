@@ -13,6 +13,7 @@ import { pagerTools } from '../../src/office/pager.ts';
 import { questionTools } from '../../src/office/question-tools.ts';
 import { teamTools } from '../../src/office/team-tools.ts';
 import { orchestratorChatPrompt } from '../../src/office/threads.ts';
+import { workflowTools } from '../../src/office/workflow-tools.ts';
 import { ROADMAP_RULE, WORKING_WITH_OTHERS } from '../../src/room/context.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { todoTools } from '../../src/todos/tools.ts';
@@ -27,6 +28,7 @@ const allTools = () => [
   ...featureTools({} as never, {} as never, 'p'),
   ...actionTools({} as never, 'p', 'a-pixel'),
   ...teamTools({} as never, 'p', 'a-pixel', { card: () => {} }),
+  ...workflowTools({} as never, 'p', 'a-pixel'),
   ...questionTools({} as never, 'p'),
   ...createMail({} as never).directorTools('p', 'a-pixel'),
   ...pagerTools({} as never, 'p', 'a-pixel'),

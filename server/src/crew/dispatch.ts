@@ -26,7 +26,14 @@ import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
 import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
-import { type Collaboration, gatesFor, type ItemGate, pickWorkflow } from '../domain/workflows.ts';
+import {
+  gatesFor,
+  type ItemGate,
+  pickWorkflow,
+  unknownWorkflowIssue,
+  type Workflow,
+  workflowTag,
+} from '../domain/workflows.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
@@ -83,6 +90,8 @@ export const DispatchSchema = z.strictObject({
       ships: z.boolean().optional(),
     })
     .optional(),
+  /** WORKFLOWS: the stable workflow (id) the goal runs under; left out = the project's first. */
+  workflow: z.string().trim().min(1).max(40).optional(),
 });
 export type DispatchPlan = z.output<typeof DispatchSchema>;
 
@@ -144,17 +153,20 @@ export function planReply(goal: Goal, name: (id: string) => string): string {
   return [goal.summary, `On the whiteboard:\n${lines.join('\n')}`].join('\n\n');
 }
 
-/** The design as the orchestrator reads it when it plans (names next to ids). */
-function describeCollaboration(c: Collaboration, name: (id: string) => string) {
-  return {
-    orchestratorTalksTo: c.orchestratorTalksTo,
-    gates: c.gates.map((g) => ({
+/** The stable workflows as the orchestrator reads them when it plans (names next to ids). */
+export function describeWorkflows(list: readonly Workflow[], name: (id: string) => string) {
+  return list.map((w) => ({
+    id: w.id,
+    name: w.name,
+    when: w.when,
+    orchestratorTalksTo: w.orchestratorTalksTo,
+    gates: w.gates.map((g) => ({
       after: g.after === '*' ? 'any build item' : g.after,
       reviewer: `${name(g.reviewer)} (${g.reviewer})`,
       kind: g.kind,
     })),
-    summary: c.summary,
-  };
+    summary: w.summary,
+  }));
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -219,10 +231,24 @@ export function createDispatch(deps: {
       },
     });
   const name = (id: string) => store.agents.get(id)?.name ?? id;
-  const projectWorkflow = (projectId: string) =>
-    pickWorkflow(store.projects.require(projectId).workflows ?? []);
+  const projectWorkflows = (projectId: string) => store.projects.require(projectId).workflows ?? [];
+  /** The workflow a goal runs under: its snapshot; goals from before workflows run under the project's default. */
+  const workflowOf = (g: Pick<Goal, 'projectId' | 'workflow'>): Workflow =>
+    g.workflow ?? pickWorkflow(projectWorkflows(g.projectId));
+  const goalWorkflow = (goalId: string, projectId: string): Workflow =>
+    workflowOf(work.goal(goalId) ?? { projectId, workflow: null });
+  /** The goal.changed payload's full form: what the screen needs to (re)draw the goal. */
+  const goalPayload = (g: Goal) => ({
+    goalId: g.id,
+    status: g.status,
+    text: clip(g.text, 2000),
+    summary: clip(g.summary, 1000),
+    quest: g.quest,
+    workflow: workflowTag(workflowOf(g)),
+  });
 
-  function crewing(projectId: string): Crewing {
+  /** `w`: the workflow the work runs under (who the orchestrator may brief); default: the project's first. */
+  function crewing(projectId: string, w: Workflow = pickWorkflow(projectWorkflows(projectId))): Crewing {
     const p = store.projects.require(projectId);
     const captains = new Map<string, { teamId: string; teamName: string }[]>();
     const members = new Map<string, string[]>();
@@ -235,7 +261,7 @@ export function createDispatch(deps: {
     }
     return {
       captains,
-      ...(projectWorkflow(projectId).orchestratorTalksTo === 'everyone' ? { members } : {}),
+      ...(w.orchestratorTalksTo === 'everyone' ? { members } : {}),
       /* STUDIO LIFE: guests the user lets the director use count as specialists */
       specialists: new Set([...p.agentIds, ...store.guests.ids(projectId, true)]),
       name,
@@ -829,7 +855,7 @@ export function createDispatch(deps: {
       accept(it, { gateIndex: it.gateIndex + 1, reviews });
       return;
     }
-    const max = projectWorkflow(it.projectId).maxSendBacks;
+    const max = goalWorkflow(it.goalId, it.projectId).maxSendBacks;
     const sendBacks = it.sendBacks + 1;
     const final = sendBacks > max;
     emit(it.projectId, {
@@ -1101,14 +1127,18 @@ export function createDispatch(deps: {
     for (const id of split) teamCheck(id);
   }
 
-  /** The review gates a new item gets for its owner (reviewers who left the project are skipped). */
-  function gatesOf(projectId: string, owner: { agentId: string; teamId: string | null }): ItemGate[] {
+  /** The review gates a new item gets for its owner under workflow `w` (reviewers who left the project are skipped). */
+  function gatesOf(
+    projectId: string,
+    owner: { agentId: string; teamId: string | null },
+    w: Workflow,
+  ): ItemGate[] {
     const p = store.projects.require(projectId);
     const onProject = (id: string) =>
       p.agentIds.includes(id) ||
       store.guests.ids(projectId).includes(id) ||
       p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
-    return gatesFor(projectWorkflow(projectId), owner).filter((g) => onProject(g.reviewer));
+    return gatesFor(w, owner).filter((g) => onProject(g.reviewer));
   }
 
   const STOP_WAIT_MS = 60_000;
@@ -1116,6 +1146,7 @@ export function createDispatch(deps: {
   const board = {
     crewing,
     gatesOf,
+    workflowOf,
     linkFeature,
     /** Stops these items and resolves once none of them is running any more. */
     async stopItems(projectId: string, ids: string[]): Promise<void> {
@@ -1158,16 +1189,7 @@ export function createDispatch(deps: {
           emit(projectId, { type: 'goal.changed', payload: { goalId, status: 'cancelled' } });
           continue;
         }
-        emit(projectId, {
-          type: 'goal.changed',
-          payload: {
-            goalId,
-            status: g.status,
-            text: clip(g.text, 2000),
-            summary: clip(g.summary, 1000),
-            quest: g.quest,
-          },
-        });
+        emit(projectId, { type: 'goal.changed', payload: goalPayload(g) });
         for (const it of g.items) announce(it);
         refreshGoal(goalId);
       }
@@ -1240,10 +1262,11 @@ export function createDispatch(deps: {
           .goals(projectId)
           .filter((g) => g.status === 'running')
           .flatMap((g) => g.items.filter((i) => i.status !== 'done').map((i) => i.text));
-        const collab = projectWorkflow(projectId);
+        const workflows = projectWorkflows(projectId);
+        const usual = pickWorkflow(workflows);
         /* a git project: every item gets its own worktree, so independent items may run side by side */
         const isolated = !!deps.worktrees && (await deps.worktrees.usable(repoOf(projectId)));
-        const everyone = collab.orchestratorTalksTo === 'everyone';
+        const everyone = usual.orchestratorTalksTo === 'everyone';
         const state = projectState(repoOf(projectId));
         const features = deps.features
           ? deps.features.repo
@@ -1253,7 +1276,7 @@ export function createDispatch(deps: {
         const task = [
           `Project: ${json({ name: p.name, about: p.note })}`,
           `Who works on it: ${json(staff)}`,
-          `How they work together: ${json(describeCollaboration(collab, name))}`,
+          `How they work together (workflows, the first is the usual one): ${json(describeWorkflows(workflows.length ? workflows : [usual], name))}`,
           `Already on the whiteboard, not done yet: ${json(open)}`,
           `The project right now: ${json(state)}`,
           features ? `Features: ${json(features)}` : '',
@@ -1276,8 +1299,11 @@ export function createDispatch(deps: {
               ? 'Link the goal to the feature it builds in "feature": {"id": "<an id from Features>"} or a new one {"name": "Short name", "description": "What it is, in a sentence or two"} (it goes to Now). It moves to Shipped once every item has landed; set "ships": false when this goal is only a step and the feature isn’t finished by it. A Shipped feature is done: a goal that ADDS something new to it (a new view, a new ability) gets a NEW feature; link a shipped one only for a fix to it. Research or report goals: leave "feature" out.'
               : '',
             '"text" is the whiteboard line (short); "brief" tells the assignee what done looks like.',
-            collab.gates.length
-              ? 'The review gates above run automatically after each build item — do not add separate review or QA items for them.'
+            workflows.length > 1
+              ? 'Pick the workflow whose "when" fits this goal and set "workflow" to its id; leave it out for the first one. These are suggestions: if none fits, pick the closest and say why in "summary". Its "orchestratorTalksTo" decides whom you may brief.'
+              : '',
+            workflows.some((w) => w.gates.length)
+              ? 'The review gates of the workflow run automatically after each build item — do not add separate review or QA items for them.'
               : '',
             isolated
               ? `Every item runs in its own checkout (its own git branch) and merges back when it is accepted, so independent items can run at the same time (up to ${cap} at once). Set "parallel": true on an item that does NOT need the result of the item before it; leave it false when it builds on earlier work. Keep it small: a one-page task is 1–2 items.`
@@ -1301,6 +1327,7 @@ export function createDispatch(deps: {
             ...(features
               ? { feature: { name: 'Feature name', description: 'What it is.', ships: true } }
               : {}),
+            ...(workflows.length > 1 ? { workflow: workflows[1]?.id } : {}),
           })}`,
         ]
           .filter(Boolean)
@@ -1313,7 +1340,11 @@ export function createDispatch(deps: {
             track: { scope: 'project', ownerId: projectId, agentId: orch.id, kind: 'thinking' },
             systemPrompt: crewSystemPrompt(orch, ORCHESTRATOR_ALTITUDE),
             task,
-            validate: validateWith(DispatchSchema, (d) => dispatchIssues(d, crewing(projectId))),
+            validate: validateWith(DispatchSchema, (d) => {
+              const unknown = unknownWorkflowIssue(workflows, d.workflow);
+              if (unknown) return [unknown];
+              return dispatchIssues(d, crewing(projectId, pickWorkflow(workflows, d.workflow)));
+            }),
             onEvent: (e) => {
               if (e.kind === 'tokens')
                 emit(projectId, {
@@ -1326,9 +1357,17 @@ export function createDispatch(deps: {
           planned?.({ projectId, goalText: text, goal: null, error: (e as Error).message });
           throw e;
         }
+        const workflow = pickWorkflow(workflows, value.workflow);
         const goal = store.tx(() =>
           work.insertGoal(
-            { id: randomUUID(), projectId, text, summary: value.summary, ...(caps ? { caps } : {}) },
+            {
+              id: randomUUID(),
+              projectId,
+              text,
+              summary: value.summary,
+              workflow,
+              ...(caps ? { caps } : {}),
+            },
             value.items.map((i) => {
               const item = { agentId: i.assignee, teamId: i.teamId ?? null };
               return {
@@ -1339,22 +1378,13 @@ export function createDispatch(deps: {
                 parallel: i.parallel === true,
                 report: i.report === true,
                 /* report items ask for knowledge, not change: no review gates */
-                gates: i.report ? [] : gatesOf(projectId, item),
+                gates: i.report ? [] : gatesOf(projectId, item, workflow),
               };
             }),
           ),
         );
         linkFeature(goal, value.feature);
-        emit(projectId, {
-          type: 'goal.changed',
-          payload: {
-            goalId: goal.id,
-            status: 'running',
-            text: clip(text, 2000),
-            summary: clip(goal.summary, 1000),
-            quest: goal.quest,
-          },
-        });
+        emit(projectId, { type: 'goal.changed', payload: goalPayload(goal) });
         for (const it of goal.items) announce(it);
         refreshGoal(goal.id);
         pump(projectId);

@@ -2,6 +2,7 @@
    stopped, a plain message. The stored goal stays as it is; this only adds fields for the screens. */
 import type { ChecklistItem, Goal } from '../db/work.ts';
 import { DEFAULT_LOOK, type Look } from '../domain/look.ts';
+import { type WorkflowTag, workflowTag } from '../domain/workflows.ts';
 import { finishedById, workingNowIds } from './people.ts';
 import { type Problem, plainProblem } from './plain-problem.ts';
 
@@ -15,7 +16,8 @@ export type TaskView = Omit<ChecklistItem, 'subtasks'> & {
   problem: Problem | null;
   subtasks: TaskView[];
 };
-export type GoalView = Omit<Goal, 'items'> & { items: TaskView[] };
+/** `workflow`: what the goal runs under, by name (null: an older goal — the project's usual way). */
+export type GoalView = Omit<Goal, 'items' | 'workflow'> & { items: TaskView[]; workflow: WorkflowTag | null };
 
 export function personOf(find: FindAgent, id: string): Person {
   const a = find(id);
@@ -36,4 +38,5 @@ export function presentTask(it: ChecklistItem, find: FindAgent): TaskView {
 export const presentGoal = (g: Goal, find: FindAgent): GoalView => ({
   ...g,
   items: g.items.map((it) => presentTask(it, find)),
+  workflow: g.workflow ? workflowTag(g.workflow) : null,
 });

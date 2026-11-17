@@ -14,6 +14,7 @@ import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
+import { createWorkflows } from './crew/workflows.ts';
 import type { Db } from './db/connection.ts';
 import { runsRepo } from './db/runs.ts';
 import { metaFlag, metaValue } from './db/settings.ts';
@@ -54,6 +55,7 @@ import { createStaffing } from './office/staffing.ts';
 import { teamTools } from './office/team-tools.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
+import { workflowTools } from './office/workflow-tools.ts';
 import { createReports, ReportInputSchema } from './reports/reports.ts';
 import { createBridges } from './room/bridge.ts';
 import { notesOf } from './room/notes-of.ts';
@@ -304,10 +306,12 @@ export function buildApp({
   /* the orchestrator's thread records goals and designs (threads are built below) */
   let threadsRef: ReturnType<typeof createThreads> | null = null;
   const agentName = (id: string) => store.agents.get(id)?.name ?? id;
+  const workflows = createWorkflows({ store, events });
   const collaboration = createCollaboration({
     store,
     events,
     crew,
+    workflows,
     onDesigned: ({ projectId, orchestratorId, reply, ask }) => {
       if (ask) threadsRef?.record(projectId, orchestratorId, { sender: 'user', text: ask });
       threadsRef?.record(projectId, orchestratorId, { sender: 'agent', text: reply });
@@ -449,6 +453,7 @@ export function buildApp({
           ...featureTools(features, store, projectId),
           ...actionTools(actions, projectId, directorId),
           ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
+          ...workflowTools({ workflows, store, note: board.note }, projectId, directorId),
           ...questionTools({ store, runtime }, projectId),
           ...mail.directorTools(projectId, directorId),
           ...pagerTools(pager, projectId, directorId),
@@ -615,7 +620,7 @@ export function buildApp({
   app.register(appRoutes({ apps }));
   app.register(runningRoutes({ running, stopper, store }));
   app.register(portRoutes({ store, ports, apps, db }));
-  app.register(collaborationRoutes({ collaboration }));
+  app.register(collaborationRoutes({ collaboration, workflows }));
   app.register(featureRoutes({ features }));
   app.register(threadRoutes({ threads }));
   app.register(reportRoutes({ reports }));
