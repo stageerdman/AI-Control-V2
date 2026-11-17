@@ -225,6 +225,8 @@ Each phase is one PR-sized commit series, ends with tests, and keeps every exist
    gates: given ?? [], maxSendBacks: base.maxSendBacks, summary: why ?? '<Lead> leads <crew names>', lead, crew}` from
    the default workflow `base`, validates with `workflowIssues(…, {temporary: true})`, and seats guest crew
    (`seatForWork`). The dispatch contract gains the same object form (`workflow` = string | object).
+   **As built:** crew (or a lead) who are Cast agents but not on the project are seated as guests; only names
+   nobody in the studio has are refused.
 2. **Who leads whom now** (new pure helpers in `domain/workflows.ts`):
    - `leadOf(agentId, goal)`: `goal.workflow?.crew?.includes(agentId) && goal.status === 'running'` →
      `goal.workflow.lead`, else null.
@@ -232,7 +234,10 @@ Each phase is one PR-sized commit series, ends with tests, and keeps every exist
 3. **Room** (`server/src/room/room.ts`): `RoomCtx` gets `goalId?: string`. Set it in
    `runtime.setStudioTools` (`server/src/app.ts`, where `room.tools({... chain: []})` is built): the run's checklist
    item via its `runId` (the same lookup `agentFeatureTool` uses) → its `goalId`. Chats and calls have no item →
-   no `goalId` → the usual rules. Calls inherit the caller's `goalId` in `inner`. In `room()` and `call()`, a caller whose goal has a
+   no `goalId` → the usual rules. Calls inherit the caller's `goalId` in `inner`.
+   **As built:** `RoomCtx` carries `runId`, not `goalId`; the room's `deps.goalOfRun` looks up the run's goal at call
+   time. Why: a run's tools are built before dispatch links the run to its item, so a goal fixed at build time was
+   always missing. In `room()` and `call()`, a caller whose goal has a
    temporary lead gets `contact = leadOf(...)` before the usual `contactOf`. `approverFor`'s
    `captainOf` for that caller returns the lead. Pure change in `rule.ts`: `contactOf` takes an optional
    `leadOverride`.
@@ -327,3 +332,5 @@ With real agents on this project:
 
 - 2026-11-17: Design final (Elon). UI call from Jony folded in. Phases 1–5 ready for Uncle Bob (1–4) and Jony (5).
   Phase 6 optional, Phase 7 after 5.
+- 2026-11-17: Phases 1–4 built (Uncle Bob, b630d05, 803 tests green). Phase 5 next (Jony) — the API as built is in
+  `wiki.md` → "Phase 5 API".
