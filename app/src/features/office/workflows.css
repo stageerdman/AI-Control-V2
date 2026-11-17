@@ -113,3 +113,21 @@
   font-weight: 700;
   color: var(--ink-soft);
 }
+.qb-side .so-line {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+/* where the chip sits: after the ribbon on the main card, at the right end of a side card's who row */
+.qb-top > .wf-chip {
+  margin-top: 4px;
+}
+.qb-who:has(> .wf-chip) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.qb-who > .wf-chip {
+  max-width: 50%;
+}

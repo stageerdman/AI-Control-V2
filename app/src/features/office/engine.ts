@@ -143,7 +143,57 @@ export class OfficeEngine {
     clearTimeout(this.chipT);
     this.actors = {};
     this.desks = {};
+    this.rings = {};
     this.box.innerHTML = '';
+  }
+
+  /* ---------------------------------------------------------- crew rings (WORKFLOWS Phase 5) */
+  private rings: Record<string, HTMLDivElement> = {};
+  /** One dashed ring around a temporary workflow's lead + crew desks, its goal on a small pill. Rings no
+      longer listed fade out (reduced motion: they just go). Under the robots, over the floor. */
+  setRings(rings: { goalId: string; label: string; lead: string; crew: string[] }[]): void {
+    if (!this.layer) return;
+    const keep = new Set<string>();
+    for (const r of rings) {
+      const pts = [r.lead, ...r.crew]
+        .map((id) =>
+          id === this.cfg.director ? this.plan.director : this.plan.seats[this.plan.home[id] ?? ''],
+        )
+        .filter((p): p is Pt => !!p);
+      if (!pts.length) continue;
+      keep.add(r.goalId);
+      const minX = Math.min(...pts.map((p) => p.x)) - 80;
+      const maxX = Math.max(...pts.map((p) => p.x)) + 80;
+      const minY = Math.min(...pts.map((p) => p.y)) - 190;
+      const maxY = Math.max(...pts.map((p) => p.y)) + 50;
+      let el = this.rings[r.goalId];
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'o-ring';
+        el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = '<span class="o-ring-pill"></span>';
+        this.layer.appendChild(el);
+        this.rings[r.goalId] = el;
+        requestAnimationFrame(() => el?.classList.add('in'));
+      }
+      el.classList.remove('out');
+      Object.assign(el.style, {
+        left: `${minX}px`,
+        top: `${minY}px`,
+        width: `${maxX - minX}px`,
+        height: `${maxY - minY}px`,
+      });
+      const pill = el.firstElementChild as HTMLElement;
+      pill.textContent = r.label;
+    }
+    for (const [id, el] of Object.entries(this.rings)) {
+      if (keep.has(id)) continue;
+      delete this.rings[id];
+      el.classList.remove('in');
+      el.classList.add('out');
+      const quick = matchMedia('(prefers-reduced-motion:reduce)').matches;
+      setTimeout(() => el.remove(), quick ? 0 : 700);
+    }
   }
 
   private desk(

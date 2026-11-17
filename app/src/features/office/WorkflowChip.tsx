@@ -22,7 +22,11 @@ export function WorkflowChip({
       <span className="sr-only">{label}</span>
       {chip.temporary && (
         <span className="wf-lead" aria-hidden="true">
-          {lead?.look ? <Hero agent={{ name: lead.name, look: lead.look }} size={16} /> : <Hero ghost size={16} />}
+          {lead?.look ? (
+            <Hero agent={{ name: lead.name, look: lead.look }} size={16} />
+          ) : (
+            <Hero ghost size={16} />
+          )}
         </span>
       )}
       <span aria-hidden="true">{chip.name}</span>
