@@ -1,0 +1,9 @@
+[
+  { "go": "#cast/teams/check-crew", "wait": 1000 },
+  { "eval": "(document.evaluate(\"//h3[contains(.,'How this team works') or contains(.,'HOW THIS TEAM WORKS')]\",document,null,9,null).singleNodeValue||document.body).scrollIntoView({block:'start'})" },
+  { "wait": 500 },
+  { "shot": "default" },
+  { "click": "main >> text=Pass it along", "after": 1500 },
+  { "shot": "chain" },
+  { "eval": "document.querySelector('main').innerText.split('HOW THIS TEAM WORKS')[1]?.slice(0,700)" }
+]

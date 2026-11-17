@@ -1,0 +1,6 @@
+[
+  { "go": "#cast/teams" },
+  { "click": "main >> text=New team", "after": 1500 },
+  { "shot": "new" },
+  { "eval": "[...document.querySelectorAll('button, input, select, textarea, h2, h3, h4, [role=dialog] p')].filter(e=>e.offsetParent).map(e=>e.tagName+':'+(e.getAttribute('aria-label')||e.innerText||e.placeholder||e.value||'').trim().slice(0,70)).slice(-60)" }
+]

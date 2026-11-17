@@ -1,0 +1,6 @@
+[
+  { "go": "#cast" },
+  { "click": "main >> text=Teams", "after": 1200 },
+  { "shot": "teams" },
+  { "buttons": "main button, main a" }
+]

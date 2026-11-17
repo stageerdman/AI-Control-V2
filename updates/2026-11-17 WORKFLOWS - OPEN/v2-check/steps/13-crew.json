@@ -1,0 +1,7 @@
+[
+  { "go": "#cast/teams/new" },
+  { "fill": ["input[aria-label='Team name'], input[placeholder='Team name']", "Check Crew"] },
+  { "click": "main >> text=+ Add to crew >> nth=-1", "after": 1000 },
+  { "shot": "picker" },
+  { "eval": "[...document.querySelectorAll('[role=dialog] button, [role=listbox] *, [role=menu] *')].filter(e=>e.offsetParent).map(e=>(e.getAttribute('aria-label')||e.innerText||'').trim().slice(0,60)).slice(0,40)" }
+]

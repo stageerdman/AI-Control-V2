@@ -1,0 +1,5 @@
+[
+  { "click": "text=Cast", "after": 1500 },
+  { "shot": "cast" },
+  { "buttons": "main button, main a" }
+]
