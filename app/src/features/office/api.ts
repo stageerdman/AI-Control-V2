@@ -284,6 +284,8 @@ export const officeApi = {
 
 /** Query keys (strings; invalidate by prefix). */
 export const keys = {
+  /** Every office key of one project (the trailing colon keeps 'aurora' from matching 'aurora-2'). */
+  scope: (pid: string) => `office:${pid}:`,
   office: (pid: string) => `officeview:${pid}`,
   features: (pid: string) => `office:${pid}:features`,
   work: (pid: string) => `office:${pid}:work`,

@@ -71,12 +71,15 @@ export function OfficePage({ route }: PageProps<'office'>) {
   const [boot, setBoot] = useState<Boot | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
-  /* always fresh on entry: the scene starts from now, the stream continues from lastEventId */
+  /* always fresh on entry: the scene starts from now, the stream continues from lastEventId — so what changed
+     while the user was away (a reply, a task closed) never arrives as an event: every cached office read
+     (threads, board, …) is marked stale and reads the server again as it mounts */
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload on project / retry
   useEffect(() => {
     let off = false;
     setBoot(null);
     setError(null);
+    void invalidate(keys.scope(pid));
     Promise.all([
       officeApi.office(pid),
       studio.projects.asks(pid, true),

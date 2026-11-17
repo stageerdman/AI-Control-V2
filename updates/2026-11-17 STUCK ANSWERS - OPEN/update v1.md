@@ -42,14 +42,17 @@
 ### Phase 2 — a finished run always settles its task (server) ✅
 - Item continuations after a run (merge back, put away, launch) never swallow errors: a throw settles the
   item `failed` with the reason (logged with project / item / run), so its goal settles and the office hears.
+- The runtime's `onFinished` / `onAnswered` listeners no longer fail silently: a throw is logged with its run.
 - **Tests** (`server/test/crew/settles-always.test.ts`): a merge that throws fails the item with the reason
   and the goal settles.
 
 ### Phase 3 — coming back to the office shows what happened while away (app) ✅
 - Entering a project's office marks every cached panel of that project stale (`office:<pid>:`), so the chat,
   board, features… are read fresh. Events from then on keep them live as before.
-- **Tests** (`app/src/api/query.test.tsx`): invalidating an unwatched key refetches on the next mount;
-  (`app/src/features/office/...`): the office entry invalidates the project's prefix.
+- **Tests** (`app/src/api/query.test.tsx`): an invalidated key nobody shows refetches on the next mount
+  (old data kept meanwhile), another project's keys untouched. The one-line call in `OfficePage`'s entry
+  effect has no page-level test (there is no OfficePage harness yet).
 
 ## Status
-All three phases done; server and app test suites green. See `wiki.md` for the lessons.
+All three phases done. Server 134 files / 868 tests green, app 65 files / 670 tests green, both typecheck.
+See `wiki.md` for the lessons.

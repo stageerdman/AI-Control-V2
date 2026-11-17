@@ -68,6 +68,35 @@ describe('useQuery / useMutation', () => {
     expect(screen.getByText('after')).toBeTruthy();
   });
 
+  /* Bug: a reply that landed while the user was out of the office never showed — the thread stayed
+     cached as "busy" and the event stream resumed past it. Entering the office invalidates its scope. */
+  it('an invalidated key nobody shows refetches on the next mount, keeping the old data meanwhile', async () => {
+    let reply = 'busy';
+    const f = vi.fn(async () => reply);
+    const other = vi.fn(async () => 'other');
+    const first = render(
+      <>
+        <Show k="office:p:thread:a" f={f} />
+        <Show k="office:p-2:thread:a" f={other} />
+      </>,
+    );
+    await screen.findByText('busy');
+    await screen.findByText('other');
+    first.unmount(); // the user leaves the office
+    reply = 'the reply';
+    await act(() => invalidate('office:p:'));
+    expect(f).toHaveBeenCalledTimes(1); // nothing on screen: no fetch yet
+    render(
+      <>
+        <Show k="office:p:thread:a" f={f} />
+        <Show k="office:p-2:thread:a" f={other} />
+      </>,
+    );
+    expect(screen.getByText('busy')).toBeTruthy(); // old data while it reads again
+    await screen.findByText('the reply');
+    expect(other).toHaveBeenCalledTimes(1); // another project's cache is left alone
+  });
+
   it('mutation runs, records errors without throwing from mutate, invalidates', async () => {
     const f = vi.fn(async () => 'list');
     render(
