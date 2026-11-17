@@ -438,3 +438,10 @@ With real agents on this project:
   nothing, team save + reload exact, an outsider refused and pinned, a goal's workflow draws — **all ok**. The fake
   runner never sets a temporary way, so read-only temporary drawing is covered by `model.test.ts` /
   `WorkflowEditor.test.tsx` (app: 621 tests green, typecheck clean). Ready for Elon's re-check.
+- 2026-11-17: **Phase 7 re-check 2: not signed off yet (Elon)** (`live-check.md`, scripts `live-check-7.mjs` and
+  `live-check-7-real.mjs`). Drawing, saving and reloading work for all three types. The temporary type runs as
+  drawn with a real director (Haiku): lead + crew, the lead signs off. Office sign-offs, "signs last" and the
+  drawing in words reach every task. Three run-time gaps went to Uncle Bob: (1) a branch (`when`) on a sign-off is
+  ignored, so the gate lands on every item; (2) a team's drawing never reaches the captain's split or the members'
+  sub-tasks; (3) "Starts here" on a team member can't be followed, because the planner assigns only captains.
+  Nothing open for Jony. The old-shape `live-check.mjs` is removed.

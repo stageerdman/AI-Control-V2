@@ -1,7 +1,7 @@
 // Phase 5b live check (master's shape): the drawings the editor's own model builds
 // (app/src/features/collab/flow/model.ts — toGraph / toDrawing / withDrawing), sent the way the screens
 // send them (officeApi.saveWorkflows, castApi.teams.saveWorkflow), against a real server with the fake
-// runner (start it as in live-check.mjs). Each one must reload exactly as drawn; a refused one must
+// runner (start it as in live-check.md). Each one must reload exactly as drawn; a refused one must
 // come back with paths that land on an arrow or a node (pinIssues). Then a goal's temporary workflow
 // must draw (read-only, on top of the office way).
 // Run: node "updates/2026-11-17 WORKFLOWS - OPEN/live-check-5b.mjs"  (Node ≥ 23: imports the .ts directly)
