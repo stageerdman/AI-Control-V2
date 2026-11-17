@@ -24,9 +24,19 @@ In progress. Real backend + real web app on throwaway data, clicked through in a
 | Reload → same drawing; board thumb now shows the 3 faces | ✅ |
 | New team (Cast → Teams → + New team), 3 members → "How this team works" under Crew, default "Captain checks all" | ✅ |
 | Switch to "Pass it along" → server `GET /teams/check-crew/workflow` = chain, `own:false`, `shape:"chain"` | ✅ |
-| Run a goal under each team shape and check order / no extra reviews | ⏳ next |
-| Goal's way chip opens that way | ⏳ next |
-| Remove a member from an adjusted way | ⏳ next |
+| Run a goal under "Pass it along" (fake runner; captain answers `parallel:true`) | ✅ parts Brisk → Bramble, `parallel=false`, no extra sign-offs |
+| Same goal, teams on the default "Captain checks all" (ship-it, polish) | ✅ captain's parallel parts stand, no extra sign-offs |
+| Switch check-crew to "Captain checks all" and run again | ✅ parts parallel, no sign-offs |
+| Team's own way (chain + "Bramble signs off Brisk") | ✅ chain order; Brisk's part gets Bramble's review; others none |
+| v1 gap 2 (team way reaching the run) | ✅ closed: `split()` passes `teamWay()` to the captain, `orderedSubtasks` / `memberGates` apply it |
+| Second office way "Hotfix", goal names it → chip on the goal card | ✅ "Open the way: Hotfix" → `#office/aurora/how/hotfix`, the Hotfix drawing; every item got Scarlett's crash test |
+| Remove a member from an adjusted way | ✅ their arrows, sign-off, layout dropped; `final` back to the captain (finding 10) |
+
+Setup notes: the sandbox repo needs one commit, else items get no checkout and a captain never splits
+(`delegable()` needs a workspace). The fake director now picks a non-first way when the goal names it
+("Hotfix: …"), so a fake run can show a way chip (`server/src/crew/fake-brain.ts`). By design the chip only shows
+for a non-default or temporary way, and `final` only orders sign-offs (adds none). `v2-check/goal.mjs` prints a
+goal's items and parts in one screen.
 
 ## Findings (to report)
 
@@ -49,3 +59,16 @@ In progress. Real backend + real web app on throwaway data, clicked through in a
    two forward arrows, so the picture reads as a line, not a loop.
 7. Stale `summary` on the office way ("no review gates yet") after drawing; the page shows `inWords`, so only
    in the API. Not a bug on screen.
+8. **A "checks all work" sign-off is invisible (Jony + Uncle Bob, small).** Hotfix = Scarlett crash-tests every
+   item (`after:"*"`). The page draws Scarlett alone ("Signs last"), and the words line says only "Scarlett signs
+   last." — `drawingInWords` (`workflow-drawing.ts:131`) speaks only branched sign-offs. Show "Scarlett checks all
+   work" in the words and a mark on her card ("Checks all work").
+9. **Adjusting a default team way and adding one sign-off can't be saved (Uncle Bob + Jony, medium).** The
+   default shapes set `final` = captain with no sign-offs; once any sign-off is added, the server
+   (`workflow-drawing.ts:104`) and the editor (`flow/model.ts:230`) refuse: "Sola signs nothing off here — who signs
+   last must be one of the reviewers". The user drew nothing wrong. `final` only orders sign-offs, so a `final`
+   who signs nothing is a harmless no-op: drop the rule (both sides), or clear `final` when it isn't a reviewer.
+10. **Removing a chain member leaves the chain open (Uncle Bob, small).** Sola → Brisk → Bramble → Sola minus
+    Bramble = "Sola hands to Brisk", no way back to Sola. When the removed member sat between two arrows
+    (in → them → out), join in → out ("Brisk → Sola: Brings it back to be pulled together"). The own way's
+    `summary` stays "Chain with a check" (same as 7).
