@@ -1,6 +1,7 @@
 /* The director's whiteboard tools: thin adapters from MCP arguments to the board (src/whiteboard/board.ts). */
 import { QUESTS } from '../domain/quests.ts';
-import { invalid } from '../errors.ts';
+import { GATE_KINDS, TempAskSchema, type WorkflowAsk } from '../domain/workflows.ts';
+import { invalid, parse } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import type { Board, CleanWhich, TaskInput } from './board.ts';
 
@@ -39,10 +40,43 @@ const TASK_PROPS = {
   parallel: { type: 'boolean', description: 'May run alongside the task before it.' },
 };
 const WORKFLOW_PROP = {
-  type: 'string',
   description:
-    'The id of the project workflow the goal runs under (see workflows): pick the one whose "when" fits, or when the user names one ("use the quick-fix way"). Leave it out for the usual (first) one.',
+    'The id of the project workflow the goal runs under (see workflows): pick the one whose "when" fits, or when the user names one ("use the quick-fix way"). Leave it out for the usual (first) one. When the user puts someone in command for this goal only ("Elon, take command and use Bob"), give an object instead: {lead, crew, why?, gates?} — the lead hands the crew work that stays on this goal, can stop or steer them, and signs off each of their tasks; it ends with the goal.',
+  oneOf: [
+    { type: 'string' },
+    {
+      type: 'object',
+      properties: {
+        lead: { type: 'string', description: 'Who leads (name).' },
+        crew: { type: 'array', items: { type: 'string' }, description: 'Who they lead (1–4 names).' },
+        why: { type: 'string', description: 'One line on why.' },
+        gates: {
+          type: 'array',
+          description: 'Extra sign-offs for this goal (the lead’s own sign-off is always there).',
+          items: {
+            type: 'object',
+            properties: {
+              after: { type: 'string' },
+              reviewer: { type: 'string' },
+              kind: { type: 'string', enum: GATE_KINDS },
+              why: { type: 'string' },
+            },
+            required: ['after', 'reviewer', 'kind', 'why'],
+          },
+        },
+      },
+      required: ['lead', 'crew'],
+    },
+  ],
 };
+
+/** A goal's workflow as the tool got it: a stable id, or a temporary lead + crew (names resolve on the board). */
+function workflowAsk(a: Args): WorkflowAsk | undefined {
+  const w = a.workflow;
+  if (typeof w === 'string') return w.trim() || undefined;
+  if (w === undefined || w === null) return undefined;
+  return parse(TempAskSchema, w);
+}
 const FORCE = {
   type: 'boolean',
   description:
@@ -91,7 +125,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
       run: async (a) => {
         const feature = str(a, 'feature')?.trim();
         const quest = oneOf(a, 'quest', QUESTS);
-        const workflow = str(a, 'workflow')?.trim();
+        const workflow = workflowAsk(a);
         return board.addGoal(projectId, by, {
           text: need(a, 'text'),
           ...(str(a, 'summary') ? { summary: str(a, 'summary') } : {}),

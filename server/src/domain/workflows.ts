@@ -222,6 +222,59 @@ export function effectiveGates(
   return [...w.gates, ...signoffs];
 }
 
+/** A temporary workflow as it is asked for (Phase 3): someone leads a small crew on this goal only. */
+export const TempAskSchema = z.strictObject({
+  lead: ref,
+  crew: z
+    .array(ref)
+    .min(1)
+    .max(MAX_CREW)
+    .refine((c) => new Set(c).size === c.length, 'crew has duplicates'),
+  gates: z.array(GateSchema).max(MAX_GATES).optional(),
+  why: z.string().trim().min(1).max(500).optional(),
+});
+export type TempAsk = z.output<typeof TempAskSchema>;
+/** What a goal asks to run under: a stable workflow's id, or a temporary one. */
+export type WorkflowAsk = string | TempAsk;
+
+/** Pure: the temporary workflow for one goal, built on the project's usual one (`base`: whom the orchestrator
+    briefs, how often work may go back). `name` says who's who (agent id → name, `nick` the short form). */
+export function temporaryWorkflow(
+  base: Workflow,
+  ask: TempAsk,
+  name: (id: string) => string,
+  nick: (id: string) => string = name,
+): Workflow {
+  return {
+    id: TEMP_WORKFLOW_ID,
+    name: `${nick(ask.lead)} leads`,
+    when: 'this goal',
+    orchestratorTalksTo: base.orchestratorTalksTo,
+    gates: ask.gates ?? [],
+    maxSendBacks: base.maxSendBacks,
+    summary: ask.why ?? `${name(ask.lead)} leads ${ask.crew.map(name).join(', ')}`,
+    lead: ask.lead,
+    crew: ask.crew,
+  };
+}
+
+type Led = { status: string; workflow: Pick<Workflow, 'lead' | 'crew'> | null };
+
+/** Pure: who leads this agent on this goal right now — the temporary lead while the goal runs, else null. */
+export const leadOf = (agentId: string, goal: Led): string | null =>
+  goal.status === 'running' && goal.workflow?.lead && goal.workflow.crew?.includes(agentId)
+    ? goal.workflow.lead
+    : null;
+
+/** Pure: everyone this agent leads now — the crews of the running goals they lead. */
+export const crewsLedBy = (leadId: string, goals: readonly Led[]): string[] => [
+  ...new Set(
+    goals
+      .filter((g) => g.status === 'running' && g.workflow?.lead === leadId)
+      .flatMap((g) => g.workflow?.crew ?? []),
+  ),
+];
+
 /** Rewrite `new-agent:N` / `new-team:N` to the minted ids (accept), in gates and command. */
 export function resolvePlaceholders<T extends Collaboration & Partial<Pick<Workflow, 'lead' | 'crew'>>>(
   c: T,

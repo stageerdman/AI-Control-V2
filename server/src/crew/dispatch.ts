@@ -30,7 +30,7 @@ import {
   gatesFor,
   type ItemGate,
   pickWorkflow,
-  unknownWorkflowIssue,
+  TempAskSchema,
   type Workflow,
   workflowTag,
 } from '../domain/workflows.ts';
@@ -41,10 +41,12 @@ import type { Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
+import { seatForWork } from '../office/people.ts';
 import { holder } from '../whiteboard/people.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
 import { type Crew, validateWith } from './structured.ts';
+import { resolveWorkflow } from './workflows.ts';
 import {
   integrateTask,
   MAX_TEAM_ROUNDS,
@@ -90,8 +92,9 @@ export const DispatchSchema = z.strictObject({
       ships: z.boolean().optional(),
     })
     .optional(),
-  /** WORKFLOWS: the stable workflow (id) the goal runs under; left out = the project's first. */
-  workflow: z.string().trim().min(1).max(40).optional(),
+  /** WORKFLOWS: the stable workflow (id) the goal runs under, or a temporary one (a lead and their crew);
+      left out = the project's first. */
+  workflow: z.union([z.string().trim().min(1).max(40), TempAskSchema]).optional(),
 });
 export type DispatchPlan = z.output<typeof DispatchSchema>;
 
@@ -247,6 +250,7 @@ export function createDispatch(deps: {
     workflow: workflowTag(workflowOf(g)),
   });
 
+  const commandOf = (w: Workflow) => (w.lead ? [w.lead, ...(w.crew ?? [])] : []);
   /** `w`: the workflow the work runs under (who the orchestrator may brief); default: the project's first. */
   function crewing(projectId: string, w: Workflow = pickWorkflow(projectWorkflows(projectId))): Crewing {
     const p = store.projects.require(projectId);
@@ -262,8 +266,8 @@ export function createDispatch(deps: {
     return {
       captains,
       ...(w.orchestratorTalksTo === 'everyone' ? { members } : {}),
-      /* STUDIO LIFE: guests the user lets the director use count as specialists */
-      specialists: new Set([...p.agentIds, ...store.guests.ids(projectId, true)]),
+      /* STUDIO LIFE: guests the user lets the director use count as specialists; so do a temporary lead + crew */
+      specialists: new Set([...p.agentIds, ...store.guests.ids(projectId, true), ...commandOf(w)]),
       name,
       canReport: (id, teamId) => {
         const a = store.agents.get(id);
@@ -352,6 +356,17 @@ export function createDispatch(deps: {
     return `This goal serves the feature “${f.name}” (${f.id}; ${ends}). Use the \`feature\` tool to read it, set its pct as your part lands, and add one line on what shipped; set status shipped only when the whole feature is done.`;
   }
 
+  /** A temporary workflow's command, as the lead and each crew member read it in their task. */
+  function commandNote(it: ChecklistItem, goal: Goal): string {
+    const { lead, crew = [] } = goal.workflow ?? {};
+    if (!lead) return '';
+    if (it.agentId === lead)
+      return `You lead ${crew.map(name).join(', ')} on this goal. Hand them work with \`call_agent\` \`work: true\` (it stays on this goal); you sign off each of their tasks; \`tell_agent\` / \`stop_work\` reach them.`;
+    if (crew.includes(it.agentId))
+      return `${name(lead)} leads this goal: report to them; they sign off your work.`;
+    return '';
+  }
+
   const orchName = (projectId: string) =>
     store.agents.get(store.projects.require(projectId).orchestratorId)?.name ?? 'The orchestrator';
 
@@ -364,6 +379,7 @@ export function createDispatch(deps: {
       `Your checklist item: ${it.text}`,
       `Brief: ${it.brief}`,
       featureNote(goal),
+      commandNote(it, goal),
       earlierWork(it, goal),
       team
         ? captain
@@ -1302,6 +1318,7 @@ export function createDispatch(deps: {
             workflows.length > 1
               ? 'Pick the workflow whose "when" fits this goal and set "workflow" to its id; leave it out for the first one. These are suggestions: if none fits, pick the closest and say why in "summary". Its "orchestratorTalksTo" decides whom you may brief.'
               : '',
+            'When the user puts someone in command for this goal ("Elon, take command and use Bob"), set "workflow" to {"lead": "<their id>", "crew": ["<ids>"], "why": "one line"}: the lead hands their crew work and signs it off, for this goal only.',
             workflows.some((w) => w.gates.length)
               ? 'The review gates of the workflow run automatically after each build item — do not add separate review or QA items for them.'
               : '',
@@ -1341,9 +1358,8 @@ export function createDispatch(deps: {
             systemPrompt: crewSystemPrompt(orch, ORCHESTRATOR_ALTITUDE),
             task,
             validate: validateWith(DispatchSchema, (d) => {
-              const unknown = unknownWorkflowIssue(workflows, d.workflow);
-              if (unknown) return [unknown];
-              return dispatchIssues(d, crewing(projectId, pickWorkflow(workflows, d.workflow)));
+              const r = resolveWorkflow(store, projectId, d.workflow);
+              return r.issues.length ? r.issues : dispatchIssues(d, crewing(projectId, r.workflow));
             }),
             onEvent: (e) => {
               if (e.kind === 'tokens')
@@ -1357,7 +1373,8 @@ export function createDispatch(deps: {
           planned?.({ projectId, goalText: text, goal: null, error: (e as Error).message });
           throw e;
         }
-        const workflow = pickWorkflow(workflows, value.workflow);
+        const { workflow, toSeat } = resolveWorkflow(store, projectId, value.workflow);
+        for (const id of toSeat) seatForWork(store, projectId, id, text);
         const goal = store.tx(() =>
           work.insertGoal(
             {

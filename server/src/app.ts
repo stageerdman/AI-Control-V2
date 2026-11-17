@@ -39,7 +39,8 @@ import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
 import { createKinCopies } from './office/kin-copies.ts';
-import { captainTools } from './office/leader-tools.ts';
+import { leadOf } from './domain/workflows.ts';
+import { leadTools } from './office/leader-tools.ts';
 import { createLifecycle } from './office/lifecycle.ts';
 import { createMail } from './office/mail.ts';
 import { createOffice } from './office/office.ts';
@@ -287,19 +288,26 @@ export function buildApp({
     helpCaps: caps.review,
     comms,
     memoryOf: notesOf({ runs: (id) => runsRepo(db).list(id), desk: (p, a) => desk.list(p, a) }),
-    /* `call_agent` with work: true — a side quest with one task for the callee (built below; runs later, after
-       the callee's main quest work) */
-    addWork: (projectId, byId, calleeId, request) => {
+    /* `call_agent` with work: true — a temporary lead's crew task stays on the lead's goal (main work); anyone
+       else's is a side quest with one task for the callee (runs later, after the callee's main quest work) */
+    addWork: (projectId, byId, calleeId, request, goalId) => {
       const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
-      seatForWork(store, projectId, calleeId, request);
       /* the request also queues on the callee's own to-do list, in the order requests came */
       todos.add({ projectId, agentId: calleeId, fromId: byId, text: request });
-      const goal = board.addDirectGoal(projectId, byId, {
+      const goal = goalId ? actions.work.goal(goalId) : null;
+      if (goal && leadOf(calleeId, goal) === byId)
+        return board.addCrewTask(projectId, goal.id, byId, { text, owner: calleeId, brief: request });
+      seatForWork(store, projectId, calleeId, request);
+      const side = board.addDirectGoal(projectId, byId, {
         text,
         tasks: [{ text, owner: calleeId, brief: request }],
         quest: 'side',
       });
-      return goal.summary || goal.text;
+      return side.summary || side.text;
+    },
+    leadOf: (goalId, agentId) => {
+      const g = actions.work.goal(goalId);
+      return g ? leadOf(agentId, g) : null;
     },
   });
   const creator = createCreator({ store, events, crew, room });
@@ -507,17 +515,28 @@ export function buildApp({
     creator,
     scratchDir: join(config.home, 'scratch'),
   });
+  const goalOfRun = (runId: string | undefined) => {
+    const goalId = runId ? actions.work.itemByRun(runId)?.goalId : undefined;
+    return goalId ? { goalId } : {};
+  };
   /* every agent run's studio tools: the room (call_agent, comms_log), its feature, mail when it may (+ propose_agent at HQ) */
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
-    ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [] }),
+    /* a checklist item's run works on its goal: a temporary lead there leads the crew (chats have none) */
+    ...room.tools({
+      scope: 'project',
+      ownerId: projectId,
+      agentId,
+      chain: [],
+      ...goalOfRun(runId),
+    }),
     ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
     ...historyTools(db, { projectId, agentId, runId }),
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     ...mail.tools(projectId, agentId),
     pageTool(pager, projectId, agentId),
     ...todoTools(todos, agentName, projectId, agentId),
-    /* a team captain stops and tells their own team (the director does the whole project) */
-    ...captainTools(actions, projectId, agentId),
+    /* a team captain stops and tells their own team, a temporary lead their crew (the director: the whole project) */
+    ...leadTools(actions, projectId, agentId, actions.work.goals(projectId)),
     ...(hq.get() === projectId
       ? [
           proposeTool(creatorChats, () => ({

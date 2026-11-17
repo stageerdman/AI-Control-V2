@@ -4,10 +4,10 @@
    Every change lands in the board's history (who changed how the work runs). */
 import type { WorkflowsService } from '../crew/workflows.ts';
 import type { Store } from '../db/store.ts';
-import { GATE_KINDS, type Gate, type Workflow } from '../domain/workflows.ts';
+import { GATE_KINDS, type Workflow } from '../domain/workflows.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
-import { agentByName } from './people.ts';
+import { workflowRefs } from './workflow-refs.ts';
 
 export type WorkflowToolDeps = {
   workflows: WorkflowsService;
@@ -29,22 +29,7 @@ export const slug = (s: string) =>
 
 export function workflowTools(d: WorkflowToolDeps, projectId: string, by: string): CapableTool[] {
   const name = (id: string) => d.store.agents.get(id)?.name ?? d.store.teams.get(id)?.name ?? id;
-  const agentId = (said: string) => agentByName(d.store, said)?.id ?? said;
-  /** A gate's `after`: anyone ("*" / "any"), a team of the project by name or id, else an agent. */
-  const afterId = (said: string) => {
-    if (said === '*' || said.toLowerCase() === 'any') return '*';
-    const p = d.store.projects.require(projectId);
-    const team = p.teamIds
-      .map((t) => d.store.teams.get(t))
-      .find((t) => t && (t.id === said || t.name.toLowerCase() === said.toLowerCase()));
-    return team?.id ?? agentId(said);
-  };
-  const gate = (g: Args): Gate => ({
-    after: afterId(str(g, 'after') ?? '*'),
-    reviewer: agentId(str(g, 'reviewer') ?? ''),
-    kind: (str(g, 'kind') ?? 'review') as Gate['kind'],
-    why: str(g, 'why') ?? '',
-  });
+  const { gate } = workflowRefs(d.store, projectId);
 
   const describe = (w: Workflow, i: number) => {
     const gates = w.gates.length

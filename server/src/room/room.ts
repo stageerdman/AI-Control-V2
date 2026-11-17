@@ -35,8 +35,15 @@ export const HelpSchema = z.strictObject({
 const READ_ONLY = ['Read', 'Glob', 'Grep'];
 
 export type RoomScope = 'draft' | 'project';
-/** Who is acting, where, and through whom they were reached (cycle + depth guard). */
-export type RoomCtx = { scope: RoomScope; ownerId: string; agentId: string; chain: readonly string[] };
+/** Who is acting, where, and through whom they were reached (cycle + depth guard). `goalId`: the goal the
+    acting run works on (a checklist item's run; calls inherit it) — a temporary lead there leads them. */
+export type RoomCtx = {
+  scope: RoomScope;
+  ownerId: string;
+  agentId: string;
+  chain: readonly string[];
+  goalId?: string;
+};
 export type CallArgs = { agent: string; request: string; why?: string; work?: boolean };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -56,7 +63,9 @@ export function createRoom(deps: {
   /** What the callee left on this project: latest delivery and desk note, in a few lines (or null). */
   memoryOf?: (projectId: string, agentId: string) => string | null;
   /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them. */
-  addWork?: (projectId: string, byId: string, calleeId: string, request: string) => string;
+  addWork?: (projectId: string, byId: string, calleeId: string, request: string, goalId?: string) => string;
+  /** WORKFLOWS: who leads this agent on this goal right now (a running goal's temporary lead), or null. */
+  leadOf?: (goalId: string, agentId: string) => string | null;
 }) {
   const { db, store, events, crew } = deps;
   /** One call at a time per callee: the next caller waits its turn (calleeId → the call in progress). */
@@ -180,6 +189,14 @@ export function createRoom(deps: {
     return hit ?? null;
   }
 
+  /** The one who leads `id` here: the acting agent's temporary lead on their goal first, else their team's captain. */
+  function leaderOf(ctx: RoomCtx, teams: ReturnType<typeof teamsOf>) {
+    return (id: string): string | null =>
+      (id === ctx.agentId && ctx.goalId ? deps.leadOf?.(ctx.goalId, id) : null) ??
+      teams.find((t) => t.members.some((m) => m.agentId === id))?.captainId ??
+      null;
+  }
+
   function roomView(ctx: RoomCtx) {
     const here = present(ctx.scope, ctx.ownerId);
     const orch = orchestratorOf(ctx.scope, ctx.ownerId);
@@ -199,11 +216,7 @@ export function createRoom(deps: {
       .filter((a) => CALLABLE.has(a.kind) && !here.includes(a.id))
       .slice(0, 40)
       .map((a) => ({ name: a.name, role: a.role }));
-    const contact = contactOf(
-      ctx.agentId,
-      orch,
-      (id) => teams.find((t) => t.members.some((m) => m.agentId === id))?.captainId ?? null,
-    );
+    const contact = contactOf(ctx.agentId, orch, leaderOf(ctx, teams));
     return {
       ...(contact ? { yourContact: store.agents.get(contact)?.name ?? contact } : {}),
       inTheRoom: here.map(person),
@@ -230,8 +243,9 @@ export function createRoom(deps: {
       calleeId: callee.id,
       orchestratorId: orch,
       inRoom: (id) => here.includes(id),
-      captainOf: (id) => teams.find((t) => t.members.some((m) => m.agentId === id))?.captainId ?? null,
+      captainOf: leaderOf(ctx, teams),
     });
+    const leads = !!approverId && !!ctx.goalId && deps.leadOf?.(ctx.goalId, caller.id) === approverId;
     const why = clip((args.why?.trim() || request).replace(/[.?!\s]+$/, ''), 80);
     const callId = randomUUID();
     const log = (kind: 'call' | 'answer' | 'allow', from: string, to: string, text: string) =>
@@ -268,7 +282,11 @@ export function createRoom(deps: {
               kind: 'thinking',
               asked: 'call',
             },
-            systemPrompt: helperPrompt(approver, approverId === orch ? 'Orchestrator' : 'Captain', false),
+            systemPrompt: helperPrompt(
+              approver,
+              approverId === orch ? 'Orchestrator' : leads ? 'Lead' : 'Captain',
+              false,
+            ),
             task: [
               `${caller.name} (${caller.role}) wants to bring ${callee.name} (${callee.role}) into the room.`,
               `Why: ${json(why)}`,
@@ -276,7 +294,9 @@ export function createRoom(deps: {
               `In the room now: ${json(here.map((id) => store.agents.get(id)?.name ?? id))}`,
               approverId === orch
                 ? 'You keep the big picture: allow it if it clearly helps the work, refuse if it is off-scope or wasteful.'
-                : `You captain ${caller.name}'s team: allow it if it clearly helps your team's work, refuse if it is off-scope or wasteful.`,
+                : leads
+                  ? `You lead ${caller.name} on this goal: allow it if it clearly helps the goal, refuse if it is off-scope or wasteful.`
+                  : `You captain ${caller.name}'s team: allow it if it clearly helps your team's work, refuse if it is off-scope or wasteful.`,
               'Answer with one JSON object: {"allow": true or false, "reply": "one short line to them — if no, why, in one sentence"}',
             ].join('\n\n'),
             validate: validateWith(AllowSchema),
@@ -314,7 +334,9 @@ export function createRoom(deps: {
     const project = ctx.scope === 'project' ? store.projects.require(ctx.ownerId) : null;
     /* the work goes on the board at once, so it is never lost in the call */
     const onBoard =
-      args.work && project && deps.addWork ? deps.addWork(project.id, caller.id, callee.id, request) : null;
+      args.work && project && deps.addWork
+        ? deps.addWork(project.id, caller.id, callee.id, request, ctx.goalId)
+        : null;
     return inTurn(callee.id, () => help(ctx, { caller, callee, request, project, onBoard, step, log }));
   }
 

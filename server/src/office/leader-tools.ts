@@ -1,8 +1,10 @@
 /* A leader's hands on running work: stop it (`stop_work`) or tell someone running a note (`tell_agent`).
-   The director leads the whole project; a captain leads only their team (`team` → only those agent ids).
+   The director leads the whole project; a captain leads only their team, a temporary lead their crew (`team` →
+   only those agent ids).
    One pair of tools for both, so the two never drift apart. */
 import type { Agent } from '../db/agents.ts';
 import type { Store } from '../db/store.ts';
+import { crewsLedBy } from '../domain/workflows.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import type { DirectorStopper } from './director-stop.ts';
@@ -96,11 +98,22 @@ export function leaderTools(s: LeaderServices, l: Leader, reach: Reach): Capable
   ];
 }
 
-/** A captain's tools on a project: stop and tell, scoped to the teams they captain here (none → []). */
-export function captainTools(s: LeaderServices, projectId: string, agentId: string): CapableTool[] {
+/** A lead's tools on a project: stop and tell, scoped to the teams they captain here plus the crews they lead
+    on its running goals (`goals`: the project's; a temporary lead's reach ends with the goal). None → []. */
+export function leadTools(
+  s: LeaderServices,
+  projectId: string,
+  agentId: string,
+  goals: Parameters<typeof crewsLedBy>[1],
+): CapableTool[] {
   const p = s.store.projects.get(projectId);
   const led = (p?.teamIds ?? []).map((id) => s.store.teams.get(id)).filter((t) => t?.captainId === agentId);
-  if (!led.length) return [];
-  const team = [...new Set(led.flatMap((t) => t?.members.map((m) => m.agentId) ?? []))];
+  const team = [
+    ...new Set([
+      ...led.flatMap((t) => t?.members.map((m) => m.agentId) ?? []),
+      ...crewsLedBy(agentId, goals),
+    ]),
+  ];
+  if (!team.length) return [];
   return leaderTools(s, { projectId, byId: agentId, team }, teamReach(s.store, team));
 }

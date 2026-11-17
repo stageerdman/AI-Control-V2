@@ -10,8 +10,10 @@ import { featuresRepo } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type NewItem, workRepo } from '../db/work.ts';
 import type { Quest } from '../domain/quests.ts';
-import { pickWorkflow, unknownWorkflowIssue, type Workflow } from '../domain/workflows.ts';
+import { resolveWorkflow } from '../crew/workflows.ts';
+import { pickWorkflow, type Workflow, type WorkflowAsk } from '../domain/workflows.ts';
 import { conflict, invalid } from '../errors.ts';
+import { seatForWork } from '../office/people.ts';
 import { boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
 import { type Roster, resolveOwner } from './owner.ts';
@@ -45,13 +47,27 @@ export type NewGoal = {
   tasks: TaskInput[];
   feature?: FeatureLink;
   quest?: Quest;
-  /** The stable workflow (id) it runs under; left out = the project's first. */
-  workflow?: string;
+  /** The stable workflow (id) it runs under, or a temporary one; left out = the project's first. */
+  workflow?: WorkflowAsk;
 };
 
 const MAX_TASKS = 8;
 const DAY_MS = 86_400_000;
 const isOpen = (i: ChecklistItem) => i.status === 'todo' || i.status === 'running';
+
+/** Where a lead's next crew task goes (0-based): after the lead's last task and the crew tasks right after it;
+    a lead without a task of their own → at the end. */
+export function crewSlot(
+  items: readonly Pick<ChecklistItem, 'agentId'>[],
+  leadId: string,
+  crew: readonly string[],
+): number {
+  const lead = items.findLastIndex((i) => i.agentId === leadId);
+  if (lead < 0) return items.length;
+  let at = lead + 1;
+  while (at < items.length && crew.includes(items[at]?.agentId ?? '')) at++;
+  return at;
+}
 
 export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   const { store, port } = deps;
@@ -88,12 +104,14 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     };
   }
 
-  /** The stable workflow a new goal asks for (none = the project's first); an unknown id is refused. */
-  function chooseWorkflow(projectId: string, id: string | undefined): Workflow {
-    const list = store.projects.require(projectId).workflows ?? [];
-    const issue = unknownWorkflowIssue(list, id);
-    if (issue) throw invalid(`${issue}. See them with workflows.`);
-    return pickWorkflow(list, id);
+  /** The workflow a new goal asks for (none = the project's first; a stable id; or a temporary lead + crew).
+      Refused with the field; a temporary crew's Cast agents are seated as guests. */
+  function chooseWorkflow(projectId: string, ask: WorkflowAsk | undefined, goalText: string): Workflow {
+    const r = resolveWorkflow(store, projectId, ask);
+    if (r.issues.length)
+      throw invalid(`${r.issues.join('; ')}.${typeof ask === 'string' ? ' See them with workflows.' : ''}`);
+    for (const id of r.toSeat) seatForWork(store, projectId, id, goalText);
+    return r.workflow;
   }
 
   function goalOf(projectId: string, id: string): Goal {
@@ -193,7 +211,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       throw invalid('A side quest never serves a feature — leave "feature" out, or make it a main quest.');
     if (a.feature && !features.get(projectId, a.feature.id))
       throw invalid(`No feature '${a.feature.id}' — look with features first.`);
-    const workflow = chooseWorkflow(projectId, a.workflow);
+    const workflow = chooseWorkflow(projectId, a.workflow, a.text);
     const items = a.tasks.map((t) => newItem(projectId, t, workflow, direct));
     const goal = store.tx(() =>
       work.insertGoal(
@@ -242,6 +260,33 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         [g.id],
         `Added '${item.text}' for ${name(item.agentId)}.${skipWarning(g.id, item.id)}`,
       );
+    },
+
+    /** A temporary lead hands a crew member work (Phase 3): it stays on the lead's goal as main work, right after
+        the lead's own task and the crew work before it, waits its turn, and the lead signs it off. */
+    addCrewTask(
+      projectId: string,
+      goalId: string,
+      leadId: string,
+      t: { text: string; owner: string; brief: string },
+    ): string {
+      const g = goalOf(projectId, goalId);
+      const owner = { agentId: t.owner, teamId: null };
+      const item: NewItem = {
+        id: randomUUID(),
+        text: t.text,
+        brief: t.brief,
+        ...owner,
+        parallel: false,
+        gates: port.gatesOf(projectId, owner, port.workflowOf(g)),
+      };
+      const at = crewSlot(g.items, leadId, g.workflow?.crew ?? []);
+      work.appendItems(g, [item]);
+      work.moveItem(item.id, at);
+      wake(g.id);
+      history.record(projectId, leadId, 'add', `Added '${item.text}' to '${g.text}' for ${name(t.owner)}`);
+      port.changed(projectId, [g.id]);
+      return `Added to this goal as ${name(t.owner)}'s task #${at + 1}; you sign it off.`;
     },
 
     async editGoal(projectId: string, by: string, id: string, e: GoalEdit): Promise<string> {
