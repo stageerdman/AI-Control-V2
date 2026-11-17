@@ -20,7 +20,7 @@ describe('pacedBrain (free runner demo pacing)', () => {
   });
   it('pace adds a wait after every step; "ask me" asks first', () => {
     const steps = pacedBrain(500)(spec('Build it, but ask me first'));
-    expect(steps[0]).toMatchObject({ ask: expect.any(String), options: ['Go ahead', 'Hold on'] });
+    expect(steps[0]).toMatchObject({ ask: expect.any(String), options: ['Yes', 'No'] });
     expect(steps[1]).toEqual({ wait: 500 });
     expect(steps.filter((s) => 'wait' in s)).toHaveLength(steps.length / 2);
   });

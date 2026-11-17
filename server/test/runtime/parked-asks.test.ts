@@ -175,6 +175,26 @@ describe('open questions survive a reload and a restart', () => {
     expect(t.messages.some((m) => m.text.includes('restarted before I could answer'))).toBe(false);
   });
 
+  it("the director's chat turn carries on after a restart too (its tools exist by then)", async () => {
+    dir = tempDir();
+    h = boot(() => asking, dir.dir);
+    const url = '/projects/aurora/threads/a-pixel/messages';
+    const r = await h.call('POST', url, { text: 'Is the bug fixed?' });
+    await until(
+      () => openAsks(h as H),
+      (a) => a.length === 1,
+    );
+    await h.close();
+
+    h = boot(() => [{ result: 'Thanks — carrying on.' }], dir.dir, false);
+    const [q] = await openAsks(h);
+    expect(q?.runId).not.toBe(r.body.runId); // continued, not answered with "the studio restarted"
+    await answer(h, q?.id as string, 'Yes');
+    await h.runtime.settled(q?.runId as string);
+    const t = (await h.call('GET', url)).body as { messages: { from: string; text: string }[] };
+    expect(t.messages.at(-1)).toMatchObject({ from: 'a-pixel', text: 'Thanks — carrying on.' });
+  });
+
   it('stopping a run that waits on a parked question withdraws the question', async () => {
     const first = await askThenClose();
     h = boot(() => [{ result: 'never' }], dir?.dir, false);

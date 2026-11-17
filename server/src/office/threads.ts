@@ -637,7 +637,10 @@ export function createThreads(deps: {
         const t = run && turnOf(run);
         if (!run || !t) continue;
         const asking = runtime.asks(run.projectId, 'open').some((a) => a.runId === run.id);
-        if (!(asking && continueTurn(run))) replied(t, run);
+        if (asking && continueTurn(run)) continue;
+        /* not carried on: the "studio restarted" reply goes out and its question leaves the screen with it */
+        if (asking) runtime.withdrawAsks(run.id);
+        replied(t, run);
       }
     },
 

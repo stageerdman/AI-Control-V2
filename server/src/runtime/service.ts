@@ -856,6 +856,10 @@ export function createRuntime(deps: RuntimeDeps) {
       store.projects.require(projectId);
       return repo.asks(projectId, status);
     },
+    /** Nothing will carry this ended run on: its parked questions leave the screen (chat + pager). */
+    withdrawAsks(runId: string): void {
+      for (const id of repo.cancelAsks(runId)) settle(repo.ask(id) as Ask);
+    },
     /** The pager: asks across the studio (default: open ones). */
     studioAsks: (status: Ask['status'] | undefined, unseenOnly = false) =>
       repo.studioAsks(status, unseenOnly),

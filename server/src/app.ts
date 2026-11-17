@@ -501,7 +501,6 @@ export function buildApp({
     rebuilds,
   });
   threadsRef = threads;
-  threads.recover(interrupted);
   /* someone finished a step → they tell the director, who decides what the user hears (chat, page or keep) */
   const reportIn = createReportIn({ db, store, events, crew, threads, comms });
   const pages = createPages({ db, store });
@@ -529,6 +528,8 @@ export function buildApp({
     creator,
     scratchDir: join(config.home, 'scratch'),
   });
+  /* continue chat turns a restart cut off — only now: the director's tools use mail and creatorChats (built above) */
+  threads.recover(interrupted);
   /* every agent run's studio tools: the room (call_agent, comms_log), its feature, mail when it may (+ propose_agent at HQ) */
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
     /* the room finds the run's goal when a tool is used: a temporary lead there leads the crew */
