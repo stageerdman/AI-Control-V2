@@ -23,6 +23,12 @@
   temporary one; a sign-off strip only where there are reviewers; the office ring around a crew fades when the goal
   ends. No workflow picker on the board: choosing is done by voice through the orchestrator.
 
+- **A default must be a picture of what already happens** (v2, Jony). The team default ("Captain checks all")
+  draws today's split → parts → pull together, with no gates, so showing it costs nothing and can't lie. The
+  server derives it, and the screens and the run both read that, so they never disagree.
+- **The drawing is the page.** One picture of a way, not chips plus a drawing. Ways in are pictures (a live
+  thumb) and the things that already point at a way (a goal's chip), not text links.
+
 ## Phase 5 API (as built, b630d05) — build the screens against this
 
 `Person = {id, name, look}` (the same shape tasks already use for `workingNow` / `finishedBy`; someone who left →

@@ -19,7 +19,7 @@
 
 - The Cast stored each agent's tools but never showed them, so "who can do what" was a guess (Nov 2026). The agent panel now lists Edit / Run / Reach straight from the runtime's rules (design/cast/tools.md).
 
-- They couldn't find the workflow diagram: it was three hops deep behind small text links, and on teams it only appeared after the team was saved with members (Nov 2026). Review and redesign proposal: design/workflows/review.md.
+- They couldn't find the workflow diagram: it was three hops deep behind small text links, and on teams it only appeared after the team was saved with members (Nov 2026). Review and redesign proposal: design/workflows/review.md. Final screens and plan: design/workflows/{way-thumb,how-we-work,team-way,editor-polish}.md and updates/2026-11-17 WORKFLOWS - OPEN/update v2.md.
 
 ## Assumptions (guesses — check)
 - A live picture of the way (thumbnail) is found faster than a text link, and most teams keep the "Captain checks all" default. Check: time to open How we work; share of teams still on the default after a week.
