@@ -112,6 +112,7 @@ describe('sign-off sheet, pure', () => {
           name: 'Baron leads',
           temporary: true,
           lead: 'a-baron',
+          crew: ['a-pete'],
         },
       }),
     ).not.toThrow();

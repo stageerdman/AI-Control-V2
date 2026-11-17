@@ -16,6 +16,7 @@ const workflowTag = z.strictObject({
   name: text(60),
   temporary: z.boolean(),
   lead: id.optional(),
+  crew: z.array(id).max(4).optional(),
 });
 
 export const EVENT_SCHEMAS = {
