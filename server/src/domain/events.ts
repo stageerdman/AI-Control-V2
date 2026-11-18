@@ -281,6 +281,8 @@ export const EVENT_SCHEMAS = {
     from: z.enum(['user', 'agent']),
     kind: z.enum(['text', 'error']),
     text: text(20_000),
+    /** When the line was said (its place in the chat) — an answered question keeps the time it was asked. */
+    at: z.string().max(40).optional(),
     runId: id.optional(),
     /** The report this turn filed (the reply is one line pointing at it), or the report a follow-up is about. */
     reportId: id.optional(),

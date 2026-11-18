@@ -249,12 +249,16 @@ export function Panel(p: PanelProps) {
     if (ctx?.reportId) aboutTitles.set(ctx.reportId, ctx.title);
     p.clearContext();
     const said = ctx && !ctx.reportId ? `About “${ctx.title}”: ${v}` : v;
+    /* the agent waits on your answer: what you type answers it, like the card (a note would never reach it) */
+    const waiting = ctx?.reportId ? undefined : asks.find((a) => !answers[a.id]);
+    if (waiting) return answer(waiting, said);
     try {
       const r = await officeApi.say(pid, id, said, ctx?.reportId);
       setQueryData<Thread>(key, (prev) => ({
         projectId: pid,
         agentId: id,
-        busy: true,
+        /* a line without a run answered a question (the server saw it first): typing stays as it was */
+        busy: r.message.runId ? true : (prev?.busy ?? false),
         messages: mergeMessage(prev?.messages ?? [], r.message),
       }));
     } catch (e) {

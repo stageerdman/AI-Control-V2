@@ -816,6 +816,8 @@ export type EventPayloads = {
     from: 'user' | 'agent';
     kind: 'text' | 'error';
     text: string;
+    /** When the line was said (its place in the chat); older servers leave it out → the event's time. */
+    at?: string;
     runId?: string;
     /** The report this turn filed (the reply is one line pointing at it). */
     reportId?: string;
