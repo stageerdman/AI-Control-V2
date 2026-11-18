@@ -720,8 +720,10 @@ export function createDispatch(deps: {
         return;
       }
       if (it.resumeRunId) {
-        /* its session can't be resumed: start the item over (its checkout keeps what was done) */
+        /* its session can't be resumed: start the item over (its checkout keeps what was done) — and the
+           question it left open closes, since the fresh run never reads its answer */
         work.setItem(it.id, { status: 'running', resumeRunId: null });
+        runtime.withdrawAsks(it.resumeRunId);
         startItem(it.id);
         return;
       }

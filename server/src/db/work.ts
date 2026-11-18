@@ -421,6 +421,11 @@ export function workRepo(db: Db) {
       const r = db.prepare('SELECT * FROM checklist_items WHERE run_id = ?').get(runId) as Row | undefined;
       return r ? toItem(r) : null;
     },
+    /** An item queued or running will resume this run's session (and so read its parked questions). */
+    willResume: (runId: string): boolean =>
+      !!db
+        .prepare("SELECT 1 FROM checklist_items WHERE resume_run_id = ? AND status IN ('todo', 'running')")
+        .get(runId),
     /** Items of a project in a status, oldest goal first, then checklist order. */
     projectItems: (projectId: string, status: ItemStatus): ChecklistItem[] =>
       (

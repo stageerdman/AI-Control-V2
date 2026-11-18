@@ -22,7 +22,7 @@ import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
 import { wayInWords } from '../domain/workflows.ts';
-import { conflict, notFound } from '../errors.ts';
+import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
@@ -499,21 +499,26 @@ export function createThreads(deps: {
   /** A message typed while the agent waits on the user's answer IS the answer: a note would never reach a run
       blocked on its question, and the line would sit above the still-open question. Null: nothing to answer. */
   function answerByChat(projectId: string, agentId: string, text: string) {
-    const ask = runtime
+    const open = runtime
       .asks(projectId, 'open')
       .filter((a) => a.agentId === agentId)
-      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))[0];
-    if (!ask) return null;
-    lastAnswer = null;
-    try {
-      runtime.answer(projectId, ask.id, text);
-    } catch {
-      /* answered on its card a moment ago: this is a plain message */
-      return null;
-    }
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    /* oldest first; one nobody waits on any more is refused (and withdrawn): try the next */
+    const ask = open.find((a) => tryAnswer(projectId, a.id, text));
     const saved = lastAnswer as { askId: string; line: ThreadMessage | null } | null;
     lastAnswer = null;
-    return saved?.askId === ask.id && saved.line ? { message: saved.line, runId: ask.runId } : null;
+    return ask && saved?.askId === ask.id && saved.line ? { message: saved.line, runId: ask.runId } : null;
+  }
+  /** False when the runtime refuses: answered on its card a moment ago, or nobody waits on it. */
+  function tryAnswer(projectId: string, askId: string, text: string): boolean {
+    lastAnswer = null;
+    try {
+      runtime.answer(projectId, askId, text);
+      return true;
+    } catch (e) {
+      if (e instanceof AppError && e.code === 'conflict') return false;
+      throw e;
+    }
   }
 
   /** The thread a run answers, from the stored user line carrying its id (memory is lost on a restart, and a

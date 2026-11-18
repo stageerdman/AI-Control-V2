@@ -659,6 +659,8 @@ export type EventPayloads = {
     credentialId?: string;
   };
   'ask.answered': { askId: string; answer: string };
+  /** Nobody will read the answer any more: the question leaves. */
+  'ask.withdrawn': { askId: string };
   'chat.message': {
     from: 'user' | 'orchestrator' | 'creator' | 'agent';
     agentId?: string;
@@ -861,6 +863,7 @@ export const EVENT_TYPES = [
   'agent.status',
   'ask.opened',
   'ask.answered',
+  'ask.withdrawn',
   'chat.message',
   'room.joined',
   'room.call',

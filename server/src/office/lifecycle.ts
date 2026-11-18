@@ -19,6 +19,7 @@ const TRIGGERS = new Set([
   'run.finished',
   'ask.opened',
   'ask.answered',
+  'ask.withdrawn',
   'goal.changed',
   'checklist.item',
   'feature.changed',

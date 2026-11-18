@@ -545,6 +545,9 @@ export function buildApp({
   });
   /* continue chat turns a restart cut off — only now: the director's tools use mail and creatorChats (built above) */
   threads.recover(interrupted);
+  /* a parked question survives only when work resumes its session (a queued item; continued turns are live):
+     the rest — hand-started runs, reviews, guests — close now instead of swallowing an answer later */
+  runtime.adoptCarriers((runId) => actions.work.willResume(runId));
   /* every agent run's studio tools: the room (call_agent, comms_log), its feature, mail when it may (+ propose_agent at HQ) */
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
     /* the room finds the run's goal when a tool is used: a temporary lead there leads the crew */

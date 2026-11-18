@@ -251,7 +251,8 @@ export function Panel(p: PanelProps) {
     const said = ctx && !ctx.reportId ? `About “${ctx.title}”: ${v}` : v;
     /* the agent waits on your answer: what you type answers it, like the card (a note would never reach it) */
     const waiting = ctx?.reportId ? undefined : asks.find((a) => !answers[a.id]);
-    if (waiting) return answer(waiting, said);
+    /* a question nobody waits on any more leaves, and the words go out as a plain message instead */
+    if (waiting && (await answer(waiting, said, true))) return;
     try {
       const r = await officeApi.say(pid, id, said, ctx?.reportId);
       setQueryData<Thread>(key, (prev) => ({
@@ -270,14 +271,21 @@ export function Panel(p: PanelProps) {
     e.preventDefault();
     void send(text);
   };
-  const answer = async (a: PendingAsk, value: string) => {
+  /** True when the answer went in. A 409 means the question is closed (answered elsewhere, or withdrawn): its
+      card leaves either way; typed words (`typed`) then go out as a message, a card's answer says why not. */
+  const answer = async (a: PendingAsk, value: string, typed = false): Promise<boolean> => {
     try {
       await studio.projects.answer(pid, a.id, value);
       setAnswers((m) => ({ ...m, [a.id]: value }));
       /* the server saves the question and this answer in the thread (two `thread.message` lines) */
       p.answered(a.id);
+      return true;
     } catch (e) {
-      addLocal(note(a.agentId, isApiError(e) ? e.message : 'The answer didn’t go through.', 'error'));
+      const closed = isApiError(e) && e.status === 409;
+      if (closed) p.answered(a.id);
+      if (!(closed && typed))
+        addLocal(note(a.agentId, isApiError(e) ? e.message : 'The answer didn’t go through.', 'error'));
+      return !closed;
     }
   };
 

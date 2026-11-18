@@ -52,6 +52,8 @@ export const EVENT_SCHEMAS = {
     credentialId: id.optional(),
   }),
   'ask.answered': z.strictObject({ askId: id, answer: text() }),
+  /** Nobody will read the answer any more (its run ended and nothing carries it on): the question leaves. */
+  'ask.withdrawn': z.strictObject({ askId: id }),
   /** The setup chat (B6): a message from the user, the orchestrator or the Agent Creator. */
   'chat.message': z.strictObject({
     /** 'agent' = anyone else in the room (a guest a call brought in), by agentId. */

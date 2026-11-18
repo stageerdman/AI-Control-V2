@@ -140,6 +140,7 @@ export function reduce(live: Live, ev: StudioEvent): Live {
       return { ...live, pending: [...live.pending, ask] };
     }
     case 'ask.answered':
+    case 'ask.withdrawn':
       return live.pending.some((a) => a.id === ev.payload.askId)
         ? { ...live, pending: live.pending.filter((a) => a.id !== ev.payload.askId) }
         : live;

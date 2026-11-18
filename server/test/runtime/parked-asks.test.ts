@@ -3,6 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { workRepo } from '../../src/db/work.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { tempDir, testApp } from '../helpers.ts';
@@ -17,8 +18,13 @@ const asking: FakeStep[] = [
   { result: 'ok' },
 ];
 
-const boot = (script: (s: RunSpec) => FakeStep[], at?: string, first = true) => {
-  const h = testApp({ seed: true, runner: fakeRunner(script), ...(at ? { at } : {}) });
+const boot = (script: (s: RunSpec) => FakeStep[], at?: string, first = true, maxConcurrent?: number) => {
+  const h = testApp({
+    seed: true,
+    runner: fakeRunner(script),
+    ...(at ? { at } : {}),
+    ...(maxConcurrent === undefined ? {} : { maxConcurrent }),
+  });
   if (first) {
     mkdirSync(join(h.config.sandbox, 'aurora'));
     h.store.projects.update('aurora', { folder: 'aurora' });
@@ -48,11 +54,17 @@ describe('open questions survive a reload and a restart', () => {
     dir = undefined;
   });
 
-  /** Boot, start a run that asks, then close the studio while it waits. → the asking run's id. */
+  /** Boot, start a whiteboard item's run that asks, then close the studio while it waits. → the asking run's id.
+      (The item is what carries the session on after the restart: dispatch.recover queues its resume.) */
   async function askThenClose(): Promise<string> {
     dir = tempDir();
     h = boot(() => asking, dir.dir);
     const run = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'fix it' })).body;
+    const work = workRepo(h.db);
+    work.insertGoal({ id: 'g1', projectId: 'aurora', text: 'Fix it', summary: 'Fix it' }, [
+      { id: 'i1', text: 'Fix it', brief: 'fix it', agentId: 'a-baron', teamId: null },
+    ]);
+    work.setItem('i1', { status: 'running', runId: run.id });
     await until(
       () => openAsks(h as H),
       (a) => a.length === 1,
@@ -60,6 +72,14 @@ describe('open questions survive a reload and a restart', () => {
     await (h as H).close(); // the studio closes (or restarts) while the question is open
     return run.id;
   }
+  /** The open question once the item's resumed session took it over. */
+  const resumedAsk = async (first: string) =>
+    (
+      await until(
+        () => openAsks(h as H),
+        (a) => a.length === 1 && a[0]?.runId !== first,
+      )
+    )[0] as AskView;
 
   it('a reload reads the open question again and answering it finishes the same run', async () => {
     h = boot(() => asking);
@@ -88,25 +108,25 @@ describe('open questions survive a reload and a restart', () => {
     const [q] = await openAsks(h);
     expect([q?.question, q?.runId, q?.status]).toEqual([QUESTION, first, 'open']);
 
-    const next = (
-      await h.call('POST', '/projects/aurora/runs', {
-        agentId: 'a-baron',
-        task: 'carry on',
-        resumeRunId: first,
-      })
-    ).body;
+    const still = await resumedAsk(first); // the item resumed its session: same question, now that run's
     await tick();
     expect(specs).toHaveLength(0); // nothing runs before the user answers
-    const [still] = await openAsks(h);
-    expect([still?.id, still?.runId]).toEqual([q?.id, next.id]); // same question, now the resumed run's
+    expect(still.id).toBe(q?.id);
 
-    await answer(h, q?.id as string, 'Yes, it works');
-    expect((await h.runtime.settled(next.id)).status).toBe('succeeded');
-    expect(specs).toHaveLength(1);
+    expect((await answer(h, still.id, 'Yes, it works')).status).toBe(200);
+    expect((await h.runtime.settled(still.runId)).status).toBe('succeeded');
+    // delivered once (later runs — the item's follow-ups — never get it again)
+    expect(specs.filter((s) => s.task.includes('The user answered'))).toHaveLength(1);
     expect(specs[0]?.resumeSessionId).toBe(`fake-${first}`);
     expect(specs[0]?.task).toContain(`You asked the user: "${QUESTION}"`);
     expect(specs[0]?.task).toContain('The user answered: "Yes, it works"');
-    expect(specs[0]?.task.endsWith('carry on')).toBe(true);
+
+    // closed, and it stays closed across another restart
+    await h.close();
+    h = boot(() => [{ result: 'never' }], dir?.dir, false);
+    expect(await openAsks(h)).toEqual([]);
+    const all = (await h.call('GET', '/projects/aurora/asks')).body as AskView[];
+    expect(all.map((a) => [a.id, a.status, a.answer])).toEqual([[q?.id, 'answered', 'Yes, it works']]);
   });
 
   it('an answer given before the session resumes is carried into it', async () => {
@@ -119,6 +139,7 @@ describe('open questions survive a reload and a restart', () => {
       },
       dir?.dir,
       false,
+      0, // the item's resume stays queued (no free slot)
     );
     const [q] = await openAsks(h);
     expect((await answer(h, q?.id as string, 'No')).status).toBe(200); // nothing runs yet: the answer is kept
@@ -198,15 +219,9 @@ describe('open questions survive a reload and a restart', () => {
   it('stopping a run that waits on a parked question withdraws the question', async () => {
     const first = await askThenClose();
     h = boot(() => [{ result: 'never' }], dir?.dir, false);
-    const next = (
-      await h.call('POST', '/projects/aurora/runs', {
-        agentId: 'a-baron',
-        task: 'carry on',
-        resumeRunId: first,
-      })
-    ).body;
-    await h.call('POST', `/projects/aurora/runs/${next.id}/cancel`);
-    expect((await h.runtime.settled(next.id)).status).toBe('cancelled');
+    const { runId } = await resumedAsk(first);
+    await h.call('POST', `/projects/aurora/runs/${runId}/cancel`);
+    expect((await h.runtime.settled(runId)).status).toBe('cancelled');
     expect(await openAsks(h)).toEqual([]);
   });
 });

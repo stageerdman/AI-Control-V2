@@ -142,6 +142,13 @@ describe('office state — events → what each robot shows', () => {
     expect(deriveActor(live, 'a').kind).toBe('coding');
   });
 
+  it('ask.withdrawn takes the question off the screen too (nobody will read its answer)', () => {
+    let live = initLive(office);
+    live = reduce(live, ev('ask.opened', { askId: 'q1', agentId: 'a', kind: 'question', question: '?' }));
+    live = reduce(live, ev('ask.withdrawn', { askId: 'q1' }));
+    expect(live.pending).toEqual([]);
+  });
+
   it('a waiting status without an open ask is just waiting (the "!" only comes from asks)', () => {
     const live = reduce(
       initLive(office),

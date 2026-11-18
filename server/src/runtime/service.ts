@@ -230,6 +230,18 @@ export function createRuntime(deps: RuntimeDeps) {
     for (const w of waiters.get(ask.id) ?? []) w(ask);
     waiters.delete(ask.id);
   };
+  /** Nobody will read the answers to this run's open questions: they close and leave every screen. */
+  const withdraw = (runId: string) => {
+    for (const id of repo.cancelAsks(runId)) {
+      const ask = repo.ask(id) as Ask;
+      settle(ask);
+      emit(ask.projectId, { type: 'ask.withdrawn', payload: { askId: id } });
+    }
+  };
+  /* besides live runs, who carries an ended run's session on (dispatch's queued resumes); wired by the app */
+  let carriedOn: (runId: string) => boolean = () => false;
+  /** An answer to this run's question reaches an agent: the run is live, or a resume of its session is coming. */
+  const reaches = (runId: string) => live.has(runId) || carriedOn(runId);
 
   /* ---------------------------------------------------------------- asks */
   function openAsk(runId: string, question: string, options?: string[]): Ask {
@@ -308,7 +320,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const o = outcome.status === 'cancelled' ? { ...outcome, error: STOPPED_BY_YOU } : outcome;
     repo.finish(run.id, o);
     recordEnd(l, o);
-    for (const id of repo.cancelAsks(run.id)) settle(repo.ask(id) as Ask);
+    withdraw(run.id);
     emit(
       run.projectId,
       {
@@ -930,8 +942,19 @@ export function createRuntime(deps: RuntimeDeps) {
       return repo.asks(projectId, status);
     },
     /** Nothing will carry this ended run on: its parked questions leave the screen (chat + pager). */
-    withdrawAsks(runId: string): void {
-      for (const id of repo.cancelAsks(runId)) settle(repo.ask(id) as Ask);
+    withdrawAsks: withdraw,
+    /** Boot: `fn` names the ended runs whose session work will resume; every other parked question is
+        withdrawn now (an answer to it would reach nobody). → how many runs lost theirs. */
+    adoptCarriers(fn: (runId: string) => boolean): number {
+      carriedOn = fn;
+      const stranded = new Set(
+        repo
+          .studioAsks('open', false)
+          .map((a) => a.runId)
+          .filter((runId) => !reaches(runId)),
+      );
+      for (const runId of stranded) withdraw(runId);
+      return stranded.size;
     },
     /** The pager: asks across the studio (default: open ones). */
     studioAsks: (status: Ask['status'] | undefined, unseenOnly = false) =>
@@ -945,6 +968,13 @@ export function createRuntime(deps: RuntimeDeps) {
       const a = repo.ask(askId);
       if (!a || a.projectId !== projectId) throw notFound('Ask', askId);
       if (a.status !== 'open') throw conflict(`This question is already ${a.status}`);
+      if (!reaches(a.runId)) {
+        /* its run ended and nothing carries it on: storing the answer would lose it silently */
+        withdraw(a.runId);
+        throw conflict(
+          'Nobody is waiting for this answer any more — the work that asked has ended. Tell the agent in chat instead.',
+        );
+      }
       repo.answerAsk(askId, answer);
       const done = repo.ask(askId) as Ask;
       const l = live.get(a.runId);
