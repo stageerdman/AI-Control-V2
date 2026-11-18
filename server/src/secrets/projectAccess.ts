@@ -165,47 +165,66 @@ export function projectAccess(
 
     sync(projectId: string): SyncResult {
       const { dir, folder } = projectDir(projectId);
-      const { env, missing } = grantedEnv(projectId);
-      const path = join(dir, '.env');
-      const existed = existsSync(path);
-      const { outside, blockKeys } = splitBlock(readEnvFile(path));
-      const written = Object.keys(env);
-      /* the block wins over a hand-written duplicate of a granted key */
-      const kept = outside.filter((l) => !(l.key && written.includes(l.key)));
-      let next = kept;
-      if (written.length) {
-        const last = kept[kept.length - 1];
-        const gap = last && last.raw.trim() !== '' ? [{ raw: '' }] : [];
-        next = [
-          ...kept,
-          ...gap,
-          { raw: BLOCK_BEGIN },
-          ...written.map((k) => parseEnv(formatLine(k, env[k] as string))[0] as EnvLine),
-          { raw: BLOCK_END },
-        ];
-      }
-      if (existed || written.length) writeFileAtomic(path, serializeEnv(next), 0o600);
-      return {
-        file: join(folder, '.env'),
-        written,
-        removed: blockKeys.filter((k) => !written.includes(k)),
-        missing,
-        gitignore: ensureGitignore(dir),
-      };
+      return syncInto(projectId, dir, folder);
+    },
+
+    /** The same managed block in a running agent's own checkout (`dir`: its absolute cwd, already guarded by the
+        runtime) — how a newly granted access reaches a session that is already working. */
+    syncDir: (projectId: string, dir: string): SyncResult => {
+      if (!existsSync(dir) || !statSync(dir).isDirectory())
+        throw conflict(`The working folder is missing on disk`, { dir });
+      return syncInto(projectId, dir, dir);
     },
 
     /** For the agent runtime (B5): the env a run in this project may see. Never send over HTTP. */
     envFor: (projectId: string): Record<string, string> => grantedEnv(projectId).env,
 
     /** For agents' prompts: what each granted access provides, by label and env var. No values. */
-    agentAccess: (projectId: string): AgentAccess[] =>
-      granted(projectId).map((a) => ({
-        name: a.name,
-        serves: a.serves,
-        instructions: a.instructions,
-        fields: a.fields.map((f) => ({ label: f.label, envVar: f.envVar, hasValue: f.hasValue })),
-      })),
+    agentAccess: (projectId: string): AgentAccess[] => granted(projectId).map(agentView),
+
+    /** One access as an agent is told about it (no values); null when it is gone. */
+    agentAccessOf: (accessId: string): AgentAccess | null => {
+      const a = store.accesses.list().find((x) => x.id === accessId);
+      return a ? agentView(a) : null;
+    },
   };
+  /** Write exactly the granted values into `<dir>/.env`'s managed block; `label` names the folder in the result. */
+  function syncInto(projectId: string, dir: string, label: string): SyncResult {
+    const { env, missing } = grantedEnv(projectId);
+    const path = join(dir, '.env');
+    const existed = existsSync(path);
+    const { outside, blockKeys } = splitBlock(readEnvFile(path));
+    const written = Object.keys(env);
+    /* the block wins over a hand-written duplicate of a granted key */
+    const kept = outside.filter((l) => !(l.key && written.includes(l.key)));
+    let next = kept;
+    if (written.length) {
+      const last = kept[kept.length - 1];
+      const gap = last && last.raw.trim() !== '' ? [{ raw: '' }] : [];
+      next = [
+        ...kept,
+        ...gap,
+        { raw: BLOCK_BEGIN },
+        ...written.map((k) => parseEnv(formatLine(k, env[k] as string))[0] as EnvLine),
+        { raw: BLOCK_END },
+      ];
+    }
+    if (existed || written.length) writeFileAtomic(path, serializeEnv(next), 0o600);
+    return {
+      file: join(label, '.env'),
+      written,
+      removed: blockKeys.filter((k) => !written.includes(k)),
+      missing,
+      gitignore: ensureGitignore(dir),
+    };
+  }
   return svc;
 }
 export type ProjectAccess = ReturnType<typeof projectAccess>;
+
+const agentView = (a: Access): AgentAccess => ({
+  name: a.name,
+  serves: a.serves,
+  instructions: a.instructions,
+  fields: a.fields.map((f) => ({ label: f.label, envVar: f.envVar, hasValue: f.hasValue })),
+});

@@ -224,7 +224,21 @@ export function buildApp({
   });
   const access = projectAccess(store, secrets, config.sandbox, {
     cabinet: theCabinet,
-    notify: (p, a, granted) => accessNote(p, a, granted ? 'granted' : 'revoked'),
+    notify: (p, a, granted) => {
+      accessNote(p, a, granted ? 'granted' : 'revoked');
+      /* LIVE ACCESS: agents already working here get it now (grants arrive over HTTP, after the runtime exists) */
+      if (!granted) return;
+      try {
+        runtime.accessShared(p, a);
+      } catch (e) {
+        /* the grant is saved either way; the next session picks it up */
+        console.error('[access] could not tell working agents about a new access', {
+          projectId: p,
+          accessId: a,
+          error: (e as Error).message,
+        });
+      }
+    },
   });
   const reports = createReports({ db, store, events, secretValues: secretValuesOf(secrets) });
   /* every project owns a stable port block: its app's port + spares for agents' own servers */
@@ -252,6 +266,7 @@ export function buildApp({
     sandbox: config.sandbox,
     envFor: access.envFor,
     accessFor: access.agentAccess,
+    liveAccess: { about: access.agentAccessOf, writeInto: access.syncDir },
     ports,
     toolkitsRoot: join(config.home, 'toolkits'),
     worktreesRoot: join(config.home, 'worktrees'),

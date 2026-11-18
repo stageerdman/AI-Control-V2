@@ -35,6 +35,7 @@ import {
 import type { Running } from '../running/registry.ts';
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { tracked } from '../usage/usage.ts';
+import { accessNotice, type Pickup } from './access-notice.ts';
 import { composePrompt } from './compose.ts';
 import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
 import { autoAnswer } from './confirm.ts';
@@ -65,8 +66,14 @@ export type StartRun = {
 };
 type Live = {
   run: Run;
+  /** Where it works (the project folder or its item checkout). */
+  cwd: string;
+  /** A big-picture run: no secrets, no project access. */
+  big: boolean;
   handle: RunHandle;
   token: string;
+  /** The granted values it may see — the same array its runner scrubs with, so a value granted mid-run is
+      scrubbed too. */
   secrets: string[];
   /** It has file_report. */
   files: boolean;
@@ -143,6 +150,12 @@ export type RuntimeDeps = {
   envFor: (projectId: string) => Record<string, string>;
   /** What each granted access provides, by label + env var (no values) — named in the agent's prompt (G1). */
   accessFor?: (projectId: string) => AgentAccess[];
+  /** LIVE ACCESS: an access shared while agents work — what it is (no values), and writing the project's granted
+      values into a working folder's .env (throws when it can't → the agent is told to restart). */
+  liveAccess?: {
+    about: (accessId: string) => AgentAccess | null;
+    writeInto: (projectId: string, dir: string) => void;
+  };
   /** G1: the project's port block — each agent run gets a spare as PORT (+ AI_STUDIO_PORTS) and a line in its brief. */
   ports?: Ports;
   parentEnv?: NodeJS.ProcessEnv;
@@ -487,6 +500,8 @@ export function createRuntime(deps: RuntimeDeps) {
     const bridge = studioTools.length && deps.bridges ? deps.bridges.open(studioTools) : null;
     const l: Live = {
       run,
+      cwd,
+      big: !!big,
       token,
       secrets,
       files,
@@ -528,32 +543,8 @@ export function createRuntime(deps: RuntimeDeps) {
 
     /* an agent with its own toolset gets exactly those tools; null = the full studio kit */
     const perms = !big && agent.tools ? runPermissions(agent.tools, deps.shell ?? AGENT_SHELL.dev) : null;
-    const spec: RunSpec = {
-      runId,
-      cwd,
-      systemPrompt:
-        big?.systemPrompt ??
-        composePrompt({
-          agent,
-          kin: store.agents.kinOf(agent.id).map((k) => k.name),
-          team,
-          project: { name: project.name },
-          toolkit,
-          ...(perms
-            ? { shell: perms.shell, edit: perms.edit, settingsPrefix: perms.fullShell }
-            : deps.shell
-              ? { shell: deps.shell }
-              : {}),
-          ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
-          ...(ports ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } } : {}),
-          room: bridge && studioToolsFor ? WORKING_WITH_OTHERS : null,
-          memory: forgetTool ? YOUR_MEMORY : null,
-          principles,
-        }),
-      task: req.task,
-      model: deps.model,
-      caps,
-      env: runEnv(deps.parentEnv ?? process.env, granted, {
+    const envWith = (values: Record<string, string>) =>
+      runEnv(deps.parentEnv ?? process.env, values, {
         ...(ports
           ? {
               PORT: String(ports.port),
@@ -565,7 +556,34 @@ export function createRuntime(deps: RuntimeDeps) {
         ...(!big && baseUrl
           ? { AI_STUDIO_NUDGE_URL: `${baseUrl}/internal/runs/${runId}/nudge`, AI_STUDIO_RUN_TOKEN: token }
           : {}),
-      }),
+      });
+    const promptNow = () =>
+      big?.systemPrompt ??
+      composePrompt({
+        agent,
+        kin: store.agents.kinOf(agent.id).map((k) => k.name),
+        team,
+        project: { name: project.name },
+        toolkit,
+        ...(perms
+          ? { shell: perms.shell, edit: perms.edit, settingsPrefix: perms.fullShell }
+          : deps.shell
+            ? { shell: deps.shell }
+            : {}),
+        ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
+        ...(ports ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } } : {}),
+        room: bridge && studioToolsFor ? WORKING_WITH_OTHERS : null,
+        memory: forgetTool ? YOUR_MEMORY : null,
+        principles,
+      });
+    const spec: RunSpec = {
+      runId,
+      cwd,
+      systemPrompt: promptNow(),
+      task: req.task,
+      model: deps.model,
+      caps,
+      env: envWith(granted),
       secretValues: secrets,
       ...(big ? { tools: [] } : {}),
       ...(perms ? { tools: perms.tools, allowedTools: perms.allowedTools, fullShell: perms.fullShell } : {}),
@@ -661,7 +679,21 @@ export function createRuntime(deps: RuntimeDeps) {
               const { resumeSessionId: _old, ...fresh } = spec;
               record(run, secrets, 'system', next.line ?? next.brief, { kind: next.kind });
               l.mark = markNow();
-              watch(runner.start({ ...fresh, task: next.brief, sessionId: randomUUID() }, io));
+              /* LIVE ACCESS: a fresh session gets what is granted now — access shared mid-run included */
+              const now = big ? {} : deps.envFor(projectId);
+              scrubAlso(l, now);
+              watch(
+                runner.start(
+                  {
+                    ...fresh,
+                    systemPrompt: promptNow(),
+                    env: envWith(now),
+                    task: next.brief,
+                    sessionId: randomUUID(),
+                  },
+                  io,
+                ),
+              );
               return;
             } catch (e) {
               o = { ...NOTHING_SPENT, status: 'failed', error: (e as Error).message };
@@ -798,6 +830,46 @@ export function createRuntime(deps: RuntimeDeps) {
     record(l.run, l.secrets, 'user', said, { kind: 'note', from });
     return l.run;
   }
+  /** LIVE ACCESS: an access was just shared with this project. Every agent working here gets it in the .env of
+      its working folder and a note saying it can use it now — or, when that can't be written, a note to restart
+      (forget), which starts a fresh session with it in the environment. → who was told what. */
+  function accessShared(
+    projectId: string,
+    accessId: string,
+  ): { runId: string; agentId: string; how: Pickup }[] {
+    const shared = deps.liveAccess;
+    const working = [...live.values()].filter((l) => l.run.projectId === projectId && !l.big && !l.cancelled);
+    const access = shared && working.length ? shared.about(accessId) : null;
+    if (!shared || !access) return [];
+    const granted = deps.envFor(projectId);
+    return working.map((l) => {
+      scrubAlso(l, granted);
+      const how = pickup(l, shared.writeInto);
+      const note = accessNotice(access, how, !!deps.desk);
+      l.notes.push(note);
+      record(l.run, l.secrets, 'system', note, { kind: 'access', accessId, pickup: how });
+      return { runId: l.run.id, agentId: l.run.agentId, how };
+    });
+  }
+  /** Write the granted values into the run's working folder's .env; 'restart' when that isn't possible. */
+  function pickup(l: Live, writeInto: (projectId: string, dir: string) => void): Pickup {
+    try {
+      writeInto(l.run.projectId, l.cwd);
+      return 'live';
+    } catch (e) {
+      console.error('[runtime] could not share an access live — the agent is told to restart', {
+        projectId: l.run.projectId,
+        runId: l.run.id,
+        agentId: l.run.agentId,
+        error: (e as Error).message,
+      });
+      return 'restart';
+    }
+  }
+  /** Values granted after the run began are scrubbed from its chat, events and stream too. */
+  function scrubAlso(l: Live, granted: Record<string, string>) {
+    for (const v of Object.values(granted)) if (v && !l.secrets.includes(v)) l.secrets.push(v);
+  }
   /** A toolsmith's toolkit: `<toolkitsRoot>/<agentId>/` (created 0700, inside the data dir — never anywhere else). */
   function toolkitFor(agent: { id: string; name: string; roleId: string | null }) {
     if (!deps.toolkitsRoot || !agent.roleId || !store.roles.get(agent.roleId)?.toolsmith) return null;
@@ -830,6 +902,7 @@ export function createRuntime(deps: RuntimeDeps) {
   return {
     start,
     tell,
+    accessShared,
     list(projectId: string) {
       store.projects.require(projectId);
       return repo.list(projectId);
