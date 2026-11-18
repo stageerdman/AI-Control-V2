@@ -38,5 +38,8 @@ What we learned, for whoever touches chats, dispatch or the app cache next.
   rely on it.
 - **Browser check:** `reload-check/drive.mjs` (needs `playwright-core` installed in that folder, a fake-runner
   server on 3569 and vite on 3570; the project folder must exist in the sandbox or messages get a 409).
+- **Live browser check with a real agent:** `live-answer-check/drive.mjs typed|reload`. To reach a member's
+  chat as a user: `!` then Enter while it asks; once it's quiet, click its `.o-body` → "Open chat". Don't count
+  the question's text in your own instruction line as a second copy.
 - **Replay tests:** `server/test/office/replies-kept.test.ts` (away / told note / restart),
   `server/test/crew/settles-always.test.ts` (merge throws), `app/src/api/query.test.tsx` (stale on return).
