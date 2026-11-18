@@ -169,4 +169,54 @@ if (phase === 'reload-in-office') {
   await shot('office');
 }
 
+if (phase === 'typed') {
+  /* the answer typed in the message box (not the card): it answers the question, in order, also after a reload */
+  await go(`#office/${PID}`);
+  await wait(2000);
+  await say('Please ask me if it works');
+  await wait(9000);
+  console.log('director asked', await chat());
+  await say('No, still broken');
+  await wait(1500);
+  console.log('director right after typing', await chat());
+  await shot('director-typed');
+  await wait(15000);
+  console.log('director later', await chat());
+  await page.reload();
+  await wait(6000);
+  await go(`#office/${PID}`);
+  await wait(3000);
+  console.log('director after reload', await chat());
+  await shot('director-reload');
+}
+
+if (phase === 'typed-member') {
+  /* a team member's question (the old lost-answer case): open it from the pager, type the answer.
+     The pager stays quiet while you're in the office, so this starts on Projects. */
+  const open = await api('GET', `/projects/${PID}/asks`);
+  if (!open?.some((a) => a.agentId === 'a-query' && a.status === 'open'))
+    await api('POST', `/projects/${PID}/threads/a-query/messages`, { text: 'Please ask me if it works' });
+  await wait(9000);
+  console.log('pager:', await pager());
+  await page.click('#pager .o-pg-screen');
+  await wait(3500);
+  await page.keyboard.press('!');
+  await wait(500);
+  await page.keyboard.press('Enter');
+  await wait(1500);
+  console.log('member asked', await chat());
+  await say('Tomorrow, after the deploy');
+  await wait(1500);
+  console.log('member right after typing', await chat());
+  await shot('member-typed');
+  await wait(15000);
+  const th = await api('GET', `/projects/${PID}/threads/a-query/messages`);
+  console.log(
+    'member thread on the server',
+    th?.messages?.map((m) => `${m.at} ${m.from} ${m.kind}: ${m.text.slice(0, 70)}`),
+  );
+  const asks = await api('GET', `/projects/${PID}/asks`);
+  console.log('open asks on the server', asks);
+}
+
 await browser.close();

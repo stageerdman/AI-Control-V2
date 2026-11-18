@@ -231,6 +231,137 @@ describe('project conversations (threads)', () => {
     ]);
   });
 
+  describe('the question first, then the answer — however the user answers', () => {
+    const openAsk = async (agentId: string) => {
+      for (;;) {
+        const open = (await h.call('GET', '/projects/aurora/asks?status=open')).body as {
+          id: string;
+          agentId: string;
+          runId: string;
+          createdAt: string;
+        }[];
+        const a = open.find((x) => x.agentId === agentId);
+        if (a) return a;
+        await new Promise((x) => setTimeout(x, 10));
+      }
+    };
+    const lines = async (agentId: string) =>
+      ((await h.call('GET', url(agentId))).body.messages as { from: string; text: string }[]).map((m) => [
+        m.from,
+        m.text,
+      ]);
+    const runs = () => (h.db.prepare('SELECT COUNT(*) AS n FROM runs').get() as { n: number }).n;
+
+    it('typed in the chat while an agent at work waits on its question: it answers it (no note, no new run)', async () => {
+      h = studio(() => [{ ask: 'Blue or green?', options: ['Blue', 'Green'] }, { result: 'Green it is.' }]);
+      const work = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' }))
+        .body;
+      const ask = await openAsk('a-baron');
+      const before = runs();
+      const r = await h.call('POST', url('a-baron'), { text: 'Green, please' });
+      expect(r.status).toBe(202);
+      expect(r.body.runId).toBe(work.id);
+      expect(r.body.message).toMatchObject({ from: 'user', text: 'Green, please', runId: null });
+      expect(runs()).toBe(before);
+      const done = (await h.call('GET', '/projects/aurora/asks')).body.find(
+        (a: { id: string }) => a.id === ask.id,
+      );
+      expect(done).toMatchObject({ status: 'answered', answer: 'Green, please', answeredBy: 'user' });
+      // the run got it as its answer, not as a note it would never read
+      const said = getChatMessages(h.db, work.id);
+      expect(said.some((m) => m.meta?.kind === 'answer' && m.text === 'Green, please')).toBe(true);
+      expect(said.some((m) => m.meta?.kind === 'note')).toBe(false);
+      await h.runtime.settled(work.id);
+      expect(await lines('a-baron')).toEqual([
+        ['a-baron', 'Blue or green?'],
+        ['user', 'Green, please'],
+      ]);
+    });
+
+    it('the director waiting on its question: a typed message answers it instead of a 409', async () => {
+      h = studio(() => [
+        { ask: 'Checkout or search first?', options: ['Checkout', 'Search'] },
+        { result: 'Search first.' },
+      ]);
+      const turn = await h.call('POST', url('a-pixel'), { text: 'which first?' });
+      await openAsk('a-pixel');
+      const r = await h.call('POST', url('a-pixel'), { text: 'Search' });
+      expect(r.status).toBe(202);
+      expect(r.body.runId).toBe(turn.body.runId);
+      await h.runtime.settled(turn.body.runId);
+      expect(await lines('a-pixel')).toEqual([
+        ['user', 'which first?'],
+        ['a-pixel', 'Checkout or search first?'],
+        ['user', 'Search'],
+        ['a-pixel', 'Search first.'],
+      ]);
+    });
+
+    it('the question keeps the time it was asked: a line said in between stays after it, after a reload too', async () => {
+      h = studio(() => [
+        { ask: 'Ship it tonight?', options: ['Tonight', 'Tomorrow'] },
+        { result: 'Shipping.' },
+      ]);
+      const work = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' }))
+        .body;
+      const ask = await openAsk('a-baron');
+      await new Promise((x) => setTimeout(x, 5));
+      const between = (
+        h.db
+          .prepare(
+            "INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, created_at) VALUES ('m-between', 'aurora', 'a-baron', 'agent', 'text', 'Backups are done.', NULL, ?) RETURNING created_at",
+          )
+          .get(new Date().toISOString()) as { created_at: string }
+      ).created_at;
+      await new Promise((x) => setTimeout(x, 5));
+      expect(
+        (await h.call('POST', `/projects/aurora/asks/${ask.id}/answer`, { answer: 'Tonight' })).status,
+      ).toBe(200);
+      await h.runtime.settled(work.id);
+      const got = (await h.call('GET', url('a-baron'))).body.messages as {
+        from: string;
+        text: string;
+        at: string;
+      }[];
+      expect(got.map((m) => [m.from, m.text])).toEqual([
+        ['a-baron', 'Ship it tonight?'],
+        ['a-baron', 'Backups are done.'],
+        ['user', 'Tonight'],
+      ]);
+      expect(got[0]?.at).toBe(ask.createdAt);
+      expect((got[0]?.at ?? '') < between).toBe(true);
+      // the live event carries the same time, so the open chat puts it in the same place
+      const ev = h.events
+        .after('project', 'aurora')
+        .filter((e) => e.type === 'thread.message')
+        .map((e) => e.payload as { text: string; at?: string });
+      expect(ev.find((e) => e.text === 'Ship it tonight?')?.at).toBe(ask.createdAt);
+    });
+
+    it('the card and the chat answer at once: saved once, the second is a plain message', async () => {
+      h = studio(() => [
+        { ask: 'Blue or green?', options: ['Blue', 'Green'] },
+        { wait: 50 },
+        { result: 'Done.' },
+      ]);
+      const work = (await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'deploy' }))
+        .body;
+      const ask = await openAsk('a-baron');
+      const [card, typed] = await Promise.all([
+        h.call('POST', `/projects/aurora/asks/${ask.id}/answer`, { answer: 'Blue' }),
+        h.call('POST', url('a-baron'), { text: 'Blue' }),
+      ]);
+      // whichever lands first answers; the other is refused (the card) or kept as a plain message (the chat)
+      expect(typed.status).toBe(202);
+      expect([200, 409]).toContain(card.status);
+      await h.runtime.settled(work.id);
+      const got = await lines('a-baron');
+      expect(got.filter(([, t]) => t === 'Blue or green?')).toHaveLength(1);
+      expect(got[0]).toEqual(['a-baron', 'Blue or green?']);
+      expect(got[1]).toEqual(['user', 'Blue']);
+    });
+  });
+
   it('a failed or stopped turn leaves an error message; asks are answered on the asks endpoint; secrets are scrubbed', async () => {
     h = studio((s) =>
       s.task.includes('"please fail"')

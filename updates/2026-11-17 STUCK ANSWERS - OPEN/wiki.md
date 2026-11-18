@@ -20,6 +20,17 @@ What we learned, for whoever touches chats, dispatch or the app cache next.
   every dependency those runs' tools close over (`mail`, `creatorChats` in `server/src/app.ts`) — a `const`
   used too early throws a TDZ error only at run time, and only for the director.
 - **A question nobody will act on must leave the screen.** If a cut-off turn can't carry on, withdraw its ask.
+- **While an agent asks, what you type is the answer.** A run blocked in `ask_user` never reads a note
+  (`runtime.tell`). Both the app (`Panel.tsx send`) and the server (`threads.say` → `answerByChat`) route a
+  typed line to the open ask; never send it as a note.
+- **A line keeps its own time.** Save a line at the moment it happened (a question at `ask.createdAt`, not at
+  answer time) and put that time in the event payload (`thread.message` `at`); the app orders by it, not by
+  when the event was sent.
+- **The pager stays quiet while you're in the office** — a browser check of a pager path must start on
+  Projects (`drive.mjs typed-member`).
+- **Never start a check server without `AI_STUDIO_HOME`/`AI_STUDIO_SANDBOX` set to a throwaway folder** and
+  `VITE_API_URL=http://127.0.0.1:3569` on vite; the server refuses a data dir another backend uses, but don't
+  rely on it.
 - **Browser check:** `reload-check/drive.mjs` (needs `playwright-core` installed in that folder, a fake-runner
   server on 3569 and vite on 3570; the project folder must exist in the sandbox or messages get a 409).
 - **Replay tests:** `server/test/office/replies-kept.test.ts` (away / told note / restart),

@@ -96,4 +96,18 @@ describe('an open question in the chat', () => {
     expect(send).toHaveBeenCalledWith('p1', 'k1', 'Yes');
     expect(typing()).not.toBeNull();
   });
+
+  it('typing in the message box while the question is open answers it (not a note it would never read)', async () => {
+    const send = vi.spyOn(studio.projects, 'answer').mockResolvedValue({} as never);
+    const say = vi.spyOn(officeApi, 'say');
+    render(<Panel {...props({ asks: [ask] })} />);
+    await screen.findByText('Fix the reload bug');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message Mira Vale' }), {
+      target: { value: 'Tomorrow morning' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(screen.getByText('✓ Tomorrow morning')).toBeTruthy());
+    expect(send).toHaveBeenCalledWith('p1', 'k1', 'Tomorrow morning');
+    expect(say).not.toHaveBeenCalled();
+  });
 });

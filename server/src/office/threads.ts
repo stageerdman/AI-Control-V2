@@ -17,7 +17,7 @@ import { CREW_CAPS } from '../crew/structured.ts';
 import type { Agent } from '../db/agents.ts';
 import type { Db } from '../db/connection.ts';
 import type { Project } from '../db/projects.ts';
-import { INTERRUPTED, type Run, runsRepo } from '../db/runs.ts';
+import { type Ask, INTERRUPTED, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
@@ -189,11 +189,13 @@ export function createThreads(deps: {
       reportId?: string | null;
       goalId?: string | null;
       rebuild?: Offer | null;
+      /** When it was said, if not now (an answered question keeps the time it was asked). */
+      at?: string;
     },
   ): ThreadMessage => {
     const id = randomUUID();
     const text = scrub(m.text);
-    const at = now();
+    const at = m.at ?? now();
     db.prepare(
       'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, rebuild, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).run(
@@ -218,6 +220,7 @@ export function createThreads(deps: {
           from: m.sender,
           kind: m.kind,
           text: clip(text, 20_000),
+          at,
           ...(m.runId ? { runId: m.runId } : {}),
           ...(m.reportId ? { reportId: m.reportId } : {}),
           ...(m.goalId ? { goalId: m.goalId } : {}),
@@ -466,18 +469,52 @@ export function createThreads(deps: {
     });
   }
 
-  /* an agent's question the user answered stays in the agent's thread as two lines: the question, then the
-     answer (the open-ask card is gone once answered). No runId: these lines never pick the session to resume. */
-  runtime.onAnswered((ask) => {
-    if (!ask.answer?.trim()) return;
-    insert(ask.projectId, ask.agentId, { sender: 'agent', kind: 'text', text: ask.question, runId: null });
+  /** An agent's question the user answered stays in the agent's thread as two lines: the question at the time
+      it was asked, then the answer now (the open-ask card is gone once answered). No runId: these lines never
+      pick the session to resume. Returns the answer line. */
+  function saveAnswered(ask: Ask): ThreadMessage | null {
+    if (!ask.answer?.trim()) return null;
+    /* asked before the current chat began (it can't be: New chat waits for open questions) → keep it in view */
+    const asked = ask.createdAt >= chats.currentStart(ask.projectId, ask.agentId) ? ask.createdAt : undefined;
     insert(ask.projectId, ask.agentId, {
+      sender: 'agent',
+      kind: 'text',
+      text: ask.question,
+      runId: null,
+      ...(asked ? { at: asked } : {}),
+    });
+    return insert(ask.projectId, ask.agentId, {
       sender: 'user',
       kind: 'text',
       text: clip(ask.answer.trim(), 20_000),
       runId: null,
     });
+  }
+  /* the answer line saved last, for `say` (the runtime calls its listeners synchronously inside `answer`) */
+  let lastAnswer: { askId: string; line: ThreadMessage | null } | null = null;
+  runtime.onAnswered((ask) => {
+    lastAnswer = { askId: ask.id, line: saveAnswered(ask) };
   });
+
+  /** A message typed while the agent waits on the user's answer IS the answer: a note would never reach a run
+      blocked on its question, and the line would sit above the still-open question. Null: nothing to answer. */
+  function answerByChat(projectId: string, agentId: string, text: string) {
+    const ask = runtime
+      .asks(projectId, 'open')
+      .filter((a) => a.agentId === agentId)
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))[0];
+    if (!ask) return null;
+    lastAnswer = null;
+    try {
+      runtime.answer(projectId, ask.id, text);
+    } catch {
+      /* answered on its card a moment ago: this is a plain message */
+      return null;
+    }
+    const saved = lastAnswer as { askId: string; line: ThreadMessage | null } | null;
+    lastAnswer = null;
+    return saved?.askId === ask.id && saved.line ? { message: saved.line, runId: ask.runId } : null;
+  }
 
   /** The thread a run answers, from the stored user line carrying its id (memory is lost on a restart, and a
       note told to running work never had a turn). Null: not a chat run, or it already replied. */
@@ -694,6 +731,9 @@ export function createThreads(deps: {
     ): { message: ThreadMessage; runId: string } {
       const p = store.projects.require(projectId);
       const s = seat(p, agentId);
+      /* the agent waits on the user's answer: this message answers it (a follow-up on a report never does) */
+      const answered = opts.reportId ? null : answerByChat(projectId, s.agent.id, text);
+      if (answered) return answered;
       let resumeRunId = lastRunWithSession(projectId, s.agent.id);
       /* the orchestrator's long-resumed session drifts back to old ideas (F3: "four goals" after being told one) */
       let recap: string | null = null;

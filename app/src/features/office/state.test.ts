@@ -205,6 +205,25 @@ describe('threads', () => {
       runId: 'r2',
     });
   });
+  it('an answered question keeps the time it was asked: it lands before a line said after it', () => {
+    const q = ev('thread.message', {
+      agentId: 'a',
+      messageId: 'q1',
+      from: 'agent',
+      kind: 'text',
+      text: 'Blue or green?',
+      at: '2026-11-13T10:00:00.000Z',
+    }) as StudioEvent<'thread.message'>;
+    expect(threadMessageOf({ ...q, at: '2026-11-13T10:05:00.000Z' }).at).toBe('2026-11-13T10:00:00.000Z');
+    const between = m('b', '2026-11-13T10:01:00.000Z');
+    const t = mergeMessage([between], threadMessageOf({ ...q, at: '2026-11-13T10:05:00.000Z' }));
+    expect(t.map((x) => x.id)).toEqual(['q1', 'b']);
+    // an older server without the line's time: the event's time
+    const { at: _, ...old } = q.payload;
+    expect(threadMessageOf({ ...q, payload: old, at: '2026-11-13T10:05:00.000Z' }).at).toBe(
+      '2026-11-13T10:05:00.000Z',
+    );
+  });
   it('merge: no duplicates, oldest first even when an event arrives late', () => {
     let t = [m('1', '2026-11-13T10:00:00Z'), m('3', '2026-11-13T10:02:00Z')];
     t = mergeMessage(t, m('3', '2026-11-13T10:02:00Z', 'again'));

@@ -82,6 +82,29 @@ Headless Chromium against a fake-runner server (`reload-check/drive.mjs`, phases
   - **App:** no typing dots under an open question (`Panel.tsx`); the New chat line says "X needs you" while
     the agent asks (`new-chat.ts`).
 
+### Phase 6 — the question first, then the answer, however you answer (Jony, server fix agreed with Uncle Bob) ✅
+Report: "the chat sometimes shows my answer before the agent's question, or without the question at all."
+- **Cause 1 — a typed answer never reached the agent.** Clicking the card answered the question. Typing the
+  answer in the message box instead sent it as an ordinary note to a run that was blocked waiting for the
+  answer, so the agent never read it and the question stayed open. The chat showed your line above the
+  still-open card (answer before question), and in the director's chat the server refused it (409).
+  Fix: while an agent has an open question, what you type *is* the answer — in the app (`Panel.tsx send()`
+  answers the open ask like the card) and on the server too (`threads.say` → `answerByChat` answers the
+  oldest open ask of that agent), so any client gets it right.
+- **Cause 2 — the question got the answer's time.** The question line was written to the thread only when it
+  was answered, stamped with that moment, and the app placed lines by the event's time, not the line's own.
+  Anything said in between could land above the question. Fix: the question line is saved at the time it was
+  asked (`ask.createdAt`), the answer at the time it was given, and the `thread.message` event carries the
+  line's own time (`at`), which the app uses (`state.ts threadMessageOf`).
+- **Tests:** `server/test/office/threads.test.ts` ("the question first, then the answer — however the user
+  answers": typed answer for an agent at work, director no 409, question keeps its asked time with a line in
+  between, card + chat race), `app/src/features/office/state.test.ts` (line keeps its own time),
+  `Panel.asks.test.tsx` (typing in the message box answers the open question, no note sent).
+- **Browser check** (`drive.mjs typed` and `typed-member`): director and a team member, both answered by
+  typing. Chat shows "You: ask me… / Agent: question / You: answer / Agent: reply" right away and after a
+  reload; the server thread has the question at its asked time (70 s before the answer); both asks closed
+  `answered by user`; both agents carried on and replied.
+
 ## Status
 All phases done. Server 134 files / 868 tests green, app 65 files / 670 tests green, both typecheck.
 See `wiki.md` for the lessons.
