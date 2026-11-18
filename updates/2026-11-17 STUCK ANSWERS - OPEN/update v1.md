@@ -105,6 +105,33 @@ Report: "the chat sometimes shows my answer before the agent's question, or with
   reload; the server thread has the question at its asked time (70 s before the answer); both asks closed
   `answered by user`; both agents carried on and replied.
 
+### Phase 7 — an answer never vanishes into a question nobody waits on (Uncle Bob) ✅
+Report: "I answered the agent's question and the answer got lost."
+- **Cause.** After a restart (or when a cut-off run couldn't be resumed) its question stayed *open*, though
+  nothing would ever pick the answer up again. Answering it stored the answer and closed the card, but no
+  agent ever read it. Typing to that agent was worse: the typed words were treated as the answer to that dead
+  question, so they were swallowed too and no chat turn started. And a question closed by the server
+  (cancelled) sent no event, so its card stayed on screen until a reload.
+- **Fix (server).** `runtime/service.ts`: one `withdraw()` closes an ask as cancelled and emits
+  `ask.withdrawn`. An answer is only accepted if someone can still read it (`reaches(runId)`: the run is live
+  or will be carried on after a restart); otherwise the question is withdrawn and the answer gets a 409
+  "Nobody is waiting for this answer any more…". At boot `adoptCarriers` (in `app.ts`, after
+  `threads.recover`, using `work.willResume`) tells the runtime which cut-off runs will carry on; the rest have
+  their questions withdrawn. `crew/dispatch.ts` withdraws the old questions when a resume fails.
+  `office/threads.ts answerByChat` tries the open questions oldest first and skips refused ones, so typed
+  words reach a live question or start a normal chat turn.
+- **Fix (app).** `ask.withdrawn` drops the card (`state.ts`); if an answer gets a 409 the card goes and the
+  words go out as an ordinary message (`Panel.tsx answer()`).
+- **Tests:** `server/test/runtime/stranded-asks.test.ts` (a hand-started run's question withdrawn at restart;
+  answer after the work stopped → 409 and closed for good; typed words go out as a message and get a reply; a
+  run ending with its question open withdraws it with an event), `server/test/runtime/parked-asks.test.ts`
+  (rewritten: a run that will carry on keeps its question; the answer is delivered once, the question is
+  closed and stays closed across another restart).
+- **Live check** (`stranded-check/`, real Claude Code runs): answer quoted back by the agent, chat in order
+  you → question → answer → reply, question closed by user and still closed after a restart; a hand-started
+  run's question withdrawn at boot, a late answer refused, a typed line got a real reply. See
+  `stranded-check/results.md`.
+
 ## Status
-All phases done. Server 134 files / 868 tests green, app 65 files / 670 tests green, both typecheck.
+All phases done. Server 898 tests green, app 678 tests green, both typecheck.
 See `wiki.md` for the lessons.

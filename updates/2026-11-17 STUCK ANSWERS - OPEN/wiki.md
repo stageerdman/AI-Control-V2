@@ -20,6 +20,11 @@ What we learned, for whoever touches chats, dispatch or the app cache next.
   every dependency those runs' tools close over (`mail`, `creatorChats` in `server/src/app.ts`) — a `const`
   used too early throws a TDZ error only at run time, and only for the director.
 - **A question nobody will act on must leave the screen.** If a cut-off turn can't carry on, withdraw its ask.
+- **Only accept an answer someone can read.** An open ask is only real if its run is live or will be carried
+  on (`reaches(runId)` in `runtime/service.ts`). Anything else is withdrawn through the one `withdraw()` helper,
+  which always emits `ask.withdrawn` — never close an ask without an event, or its card sticks on screen.
+- **Live checks of `ask_user` need a real choice.** A yes/no question is auto-approved by the studio and never
+  opens; ask "Alpha or Beta?" instead.
 - **While an agent asks, what you type is the answer.** A run blocked in `ask_user` never reads a note
   (`runtime.tell`). Both the app (`Panel.tsx send`) and the server (`threads.say` → `answerByChat`) route a
   typed line to the open ask; never send it as a note.

@@ -11,7 +11,9 @@ import { join } from 'node:path';
 
 const phase = process.argv[2] === 'after' ? 'after' : 'ask';
 const API = 'http://127.0.0.1:3569';
-const STATE = join(import.meta.dirname, 'node_modules', 'state.json');
+/* the server's AI_STUDIO_SANDBOX (see results.md) */
+const SANDBOX = join(import.meta.dirname, '..', '..', '..', 'server', 'node_modules', '.stranded', 'sandbox');
+const STATE =join(import.meta.dirname, 'node_modules', 'state.json');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, detail = '') => {
@@ -53,6 +55,7 @@ if (phase === 'ask') {
     prompt: 'You are a careful engineer taking part in a studio check. Follow the task exactly.',
   });
   const folder = `asks-${tag}`;
+  mkdirSync(join(SANDBOX, folder), { recursive: true });
   const project = await call('POST', '/projects', { name: `Asks ${tag}`, folder, agentIds: [agent.id] });
   const pid = project.id;
   console.log('project', pid, 'agent', agent.id);
@@ -69,15 +72,19 @@ if (phase === 'ask') {
   const t = await until('A replies', () => thread(pid, agent.id), (x) => !x.busy && x.messages.at(-1)?.from !== 'user');
   console.log(show(t));
   check('A: the agent got the answer (quotes it back)', t.messages.some((m) => m.text.includes(`COLOUR=${word}`)));
-  const order = t.messages.map((m) => (m.kind === 'ask' ? 'question' : m.kind === 'answer' ? 'answer' : m.from === 'user' ? 'you' : 'agent'));
-  check('A: chat reads you → question → answer → reply', order.join(',') === 'you,question,answer,agent', order.join(','));
+  /* the thread records the question as the agent's line and the answer as the user's, in the order they happened */
   const qaNow = (await asks(pid)).find((a) => a.id === qa.id);
+  const order = t.messages.map((m) =>
+    m.from === 'user' ? (m.text === word ? 'answer' : 'you') : m.text === qaNow.question ? 'question' : 'agent',
+  );
+  check('A: chat reads you → question → answer → reply', order.join(',') === 'you,question,answer,agent', order.join(','));
+  check('A: the answer is in the chat once', t.messages.filter((m) => m.text === word).length === 1);
   check('A: question closed (answered by user)', qaNow.status === 'answered' && qaNow.answeredBy === 'user', qaNow.status);
 
   /* B: a hand-started run asks and waits — then the studio restarts under it */
   const run = await call('POST', `/projects/${pid}/runs`, {
     agentId: agent.id,
-    task: 'Use your ask_user tool to ask me exactly "Ship it today?" with the options Yes and No. Then reply with SHIP=<my answer>.',
+    task: 'Use your ask_user tool to ask me exactly "Which release name should we use?" with the options Alpha and Beta. Then reply with NAME=<my answer>.',
     caps: { maxTurns: 20, maxBudgetUsd: 1 },
   });
   const qb = (await until('B asks', () => asks(pid), (l) => l.some((a) => a.runId === run.id && a.status === 'open'))).find(
@@ -97,16 +104,16 @@ if (phase === 'after') {
   check('no open questions left on the screen', list.every((x) => x.status !== 'open'));
   const pager = await call('GET', '/asks');
   check('pager has none of them', !JSON.stringify(pager).includes(qb));
-  const late = await raw('POST', `/projects/${pid}/asks/${qb}/answer`, { answer: 'Yes' });
+  const late = await raw('POST', `/projects/${pid}/asks/${qb}/answer`, { answer: 'Alpha' });
   check('answering B says it is closed (409)', late.status === 409, JSON.stringify(late.body).slice(0, 160));
 
   const sent = await call('POST', `/projects/${pid}/threads/${agentId}/messages`, {
-    text: 'Yes, ship it. Reply with exactly GOT=ship and nothing else.',
+    text: 'Alpha. Reply with exactly GOT=alpha and nothing else.',
   });
   check('typed words start a real chat turn (not swallowed as an answer)', !!sent.message.runId);
   const t = await until('reply', () => thread(pid, agentId), (x) => !x.busy && x.messages.at(-1)?.from !== 'user');
   console.log(show(t));
-  check('the agent replied to it', t.messages.at(-1)?.text.includes('GOT=ship'));
+  check('the agent replied to it', t.messages.at(-1)?.text.includes('GOT=alpha'));
 }
 
 console.log(results.every(Boolean) ? '\nALL PASS' : '\nSOME FAILED');
