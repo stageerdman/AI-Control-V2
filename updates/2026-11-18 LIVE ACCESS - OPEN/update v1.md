@@ -16,6 +16,11 @@ they get a clear notice to restart, with their chat and work kept.
 4. **Tests** ✅ — `server/test/runtime/live-access.test.ts`: live, restart (forget → env + prompt have it, same
    run, same chat), no notice on revoke, notice wording. Full suite green.
 
+5. **Live check** ✅ — real agent runs on a sandboxed server (`live-check/drive.mjs`, `live-check/results.md`):
+   an access granted while the agent was mid-task reached it in the same run. Live path: used from `.env` right
+   away. Restart path (`.env` unwritable): the agent got the notice, called `forget`, and the fresh session had it.
+   A local lab API proved it was really used (right token, secret word returned), and the token never appeared in the chat.
+
 ## Status
 Done. Next, if wanted: tell working agents about a revoke, and about a value added later to an access they
 already have.
