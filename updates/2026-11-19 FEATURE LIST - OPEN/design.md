@@ -64,6 +64,9 @@ SHELVED
   - an exact name match → open it.
   The row Enter will act on shows a small `↵` at its right end, so Enter is never a guess.
 - **Esc** in the field: clears it if it has text; otherwise Esc goes back to the office, as today.
+- **Click the dimmed background** (outside the card) → back to the office, same as "← Office". Clicks
+  anywhere on the card (field, chips, rows, padding) never close it. `ZoomCard onDismiss` in Board.tsx,
+  used by the features card only for now; the backdrop is `aria-hidden` (keyboard has Esc / Back).
 - **↓** from the field moves focus into the rows; rows are normal buttons (Tab works too).
 - New-feature names are capped at 120 characters (the server's limit); `maxLength` on the field.
 

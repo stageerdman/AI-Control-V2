@@ -206,6 +206,7 @@
 /* ---------------- zoomed cards (whiteboard · health · features · feature) ---------------- */
 .o-layers{position:absolute;inset:0;z-index:5;pointer-events:none}
 .o-layers>*{pointer-events:auto}
+.ob-dismiss{position:absolute;inset:0}
 .ob-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-48%);width:min(860px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;
   background:#fdfcf7;color:var(--ink);border-radius:16px;box-shadow:0 30px 60px rgba(8,4,24,.5);padding:20px 26px 24px;opacity:0;transition:opacity .25s,transform .3s var(--ease-out)}
 .ob-card.in{opacity:1;transform:translate(-50%,-50%)}

@@ -78,11 +78,14 @@ function ZoomCard({
   kind,
   label,
   fresh,
+  onDismiss,
   children,
 }: {
   kind: string;
   label: string;
   fresh: boolean;
+  /** Set to close the card on a click on the background around it. */
+  onDismiss?: () => void;
   children: React.ReactNode;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -120,16 +123,22 @@ function ZoomCard({
     }
   };
   return (
-    <div
-      ref={el}
-      className={`ob-card ob-k-${kind}${shown ? ' in' : ''}`}
-      role="dialog"
-      aria-modal="false"
-      aria-label={label}
-      onKeyDown={trap}
-    >
-      {children}
-    </div>
+    <>
+      {onDismiss && (
+        /* the dimmed background: a click outside the card closes it (keyboard: Esc / Back) */
+        <div className="ob-dismiss" aria-hidden="true" data-testid="ob-dismiss" onClick={onDismiss} />
+      )}
+      <div
+        ref={el}
+        className={`ob-card ob-k-${kind}${shown ? ' in' : ''}`}
+        role="dialog"
+        aria-modal="false"
+        aria-label={label}
+        onKeyDown={trap}
+      >
+        {children}
+      </div>
+    </>
   );
 }
 
@@ -163,7 +172,7 @@ export function Board(p: BoardProps) {
       );
     case 'features':
       return (
-        <ZoomCard key={k} kind="features" label="Features" fresh={fresh}>
+        <ZoomCard key={k} kind="features" label="Features" fresh={fresh} onDismiss={office}>
           <Back label="Office" aria="Back to the office" onClick={office} />
           <FeatureList pid={p.pid} dir={p.dir} go={p.go} />
         </ZoomCard>
