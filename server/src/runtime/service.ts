@@ -46,6 +46,7 @@ import { answeredBrief, parkedHandle } from './parked.ts';
 import { runPermissions } from './permissions.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL } from './stream.ts';
+import { resolveThinking, type ThinkingStep, thinkingPair, workThinking } from './thinking.ts';
 
 export type StartRun = {
   agentId: string;
@@ -65,6 +66,8 @@ export type StartRun = {
   asked?: Asked;
   /** The checklist item this run serves, for time estimates (performance/rollup.ts). Absent → no task's work. */
   itemId?: string;
+  /** This task's thinking power (runtime/thinking.ts); absent → the agent's default, then the kind of work's. */
+  thinking?: ThinkingStep | null;
 };
 type Live = {
   run: Run;
@@ -460,6 +463,12 @@ export function createRuntime(deps: RuntimeDeps) {
     const secrets = Object.values(granted).filter(Boolean);
     const runId = randomUUID();
     const token = randomUUID();
+    const thinking = resolveThinking({
+      task: req.thinking,
+      agent: agent.thinking,
+      work: workThinking(req.kind),
+    });
+    const power = thinkingPair(thinking, deps.model);
     const run = repo.insert({
       id: runId,
       projectId,
@@ -467,7 +476,8 @@ export function createRuntime(deps: RuntimeDeps) {
       teamId: req.teamId ?? null,
       task: req.task,
       runner: runner.name,
-      model: deps.model,
+      model: power.model,
+      thinking,
       caps,
       kind: req.kind ?? null,
       asked: req.asked ?? null,
@@ -596,7 +606,8 @@ export function createRuntime(deps: RuntimeDeps) {
       cwd,
       systemPrompt: promptNow(),
       task: req.task,
-      model: deps.model,
+      model: power.model,
+      effort: power.effort,
       caps,
       env: envWith(granted),
       secretValues: secrets,

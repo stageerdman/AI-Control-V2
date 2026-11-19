@@ -711,6 +711,8 @@ export function createDispatch(deps: {
         /* the office's work clock: a gate's review, a report item's research, everything else is building */
         kind: it.stage === 'review' ? 'reviewing' : it.report ? 'research' : 'building',
         itemId: it.id,
+        /* the task's thinking power is for whoever builds it; a gate's reviewer looks with its own (or Deep) */
+        ...(it.thinking && it.stage !== 'review' ? { thinking: it.thinking } : {}),
         ...(caps ? { caps } : {}),
         ...(it.workspace ? { workdir: it.workspace.cwd } : {}),
       });
@@ -1467,6 +1469,8 @@ export function createDispatch(deps: {
             who: orch.name,
             contract: DISPATCH,
             track: { scope: 'project', ownerId: projectId, agentId: orch.id, kind: 'thinking' },
+            /* planning a goal sets every task after it: worth a deeper look */
+            thinking: 'deep',
             systemPrompt: crewSystemPrompt(orch, ORCHESTRATOR_ALTITUDE),
             task,
             validate: validateWith(DispatchSchema, (d) => {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { parse } from '../errors.ts';
 import type { Pages } from '../office/pages.ts';
 import type { Runtime } from '../runtime/service.ts';
+import { ThinkingSchema } from '../runtime/thinking.ts';
 import { Id, IdParams } from './schemas.ts';
 
 const RunBody = z.strictObject({
@@ -16,6 +17,8 @@ const RunBody = z.strictObject({
     })
     .optional(),
   resumeRunId: z.uuid().optional(),
+  /** This run's thinking power; absent → the agent's default. */
+  thinking: ThinkingSchema.optional(),
 });
 const RunParams = z.object({ id: Id, runId: z.uuid() });
 const AskParams = z.object({ id: Id, askId: z.uuid() });

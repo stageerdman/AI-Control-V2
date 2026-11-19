@@ -98,8 +98,13 @@ Performance's rule, no money is shown: tokens and time only, with the model name
 
 ## Status
 - [x] Roadmap (this file) and the definition above
-- [ ] Phase 1 — the dial in the runtime
-- [ ] Phase 2 — agent default, task override
+- [x] Phase 1 — the dial in the runtime (migration 44; `runtime/thinking.ts`; runs and crew calls record their
+  step; live: CLI 2.1.322 ran Light = Sonnet + `low`, 0 thinking tokens, and Deepest = Opus + `max`, which thought.
+  The "Normal no worse than today" comparison waits for Performance numbers from real work.)
+- [x] Phase 2 — agent default, task override (agent routes + manual run route take `thinking`; whiteboard
+  `add_goal`/`add_task`/`edit_task` take a step or `default`; sub-tasks inherit; a gate's review uses the
+  reviewer's own step or Deep, never the builder's task override; planning → Deep, health → Light; an agent's own
+  default beats the kind of work's)
 - [ ] Phase 3 — self-raise
 - [ ] Phase 4 — cost per step
 - [ ] Phase 5 — UI dial

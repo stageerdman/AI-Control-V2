@@ -295,6 +295,7 @@ export function buildApp({
     model,
     scratchDir: join(config.home, 'scratch'),
     caps: caps.orchestrator,
+    thinkingOf: (agentId) => store.agents.get(agentId)?.thinking,
   });
   const chat = createSetupChat({ store, events, crew });
   /* AGENT MCP: who is in the room, and agents calling each other into it */

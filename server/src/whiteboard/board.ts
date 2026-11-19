@@ -14,6 +14,7 @@ import type { Quest } from '../domain/quests.ts';
 import { pickWorkflow, type Workflow, type WorkflowAsk } from '../domain/workflows.ts';
 import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
+import type { ThinkingStep } from '../runtime/thinking.ts';
 import { boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
 import { type Roster, resolveOwner } from './owner.ts';
@@ -27,8 +28,12 @@ export type TaskInput = {
   brief?: string;
   parallel?: boolean;
   branches?: string[];
+  /** This task's thinking power; null or absent = its owner's default. */
+  thinking?: ThinkingStep | null;
 };
 export type TaskEdit = {
+  /** null = back to its owner's default. */
+  thinking?: ThinkingStep | null;
   text?: string;
   brief?: string;
   owner?: string;
@@ -150,6 +155,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       brief: t.brief?.trim() || t.text.trim(),
       ...owner,
       parallel: t.parallel === true,
+      thinking: t.thinking ?? null,
       gates: port.gatesOf(projectId, { ...owner, branches: t.branches }, w),
     };
   }
@@ -366,7 +372,10 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
             newOwner ? 'hand it to someone else' : `mark it ${e.status}`,
           ),
         );
-      else if (it.status === 'running' && (e.text || e.brief || e.position || e.parallel !== undefined))
+      else if (
+        it.status === 'running' &&
+        (e.text || e.brief || e.position || e.parallel !== undefined || e.thinking !== undefined)
+      )
         notes.push(
           `It is running: ${name(it.agentId)} keeps the brief they started with; the change counts from its next run.`,
         );
@@ -374,6 +383,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         ...(e.text?.trim() ? { text: e.text.trim() } : {}),
         ...(e.brief?.trim() ? { brief: e.brief.trim() } : {}),
         ...(e.parallel !== undefined ? { parallel: e.parallel } : {}),
+        ...(e.thinking !== undefined ? { thinking: e.thinking } : {}),
         ...(newOwner && owner ? { ...owner, gates: port.gatesOf(projectId, owner, w) } : {}),
       });
       if (e.position !== undefined) work.moveItem(id, e.position - 1);
