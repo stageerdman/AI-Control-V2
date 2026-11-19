@@ -1,5 +1,7 @@
 # Agent thinking power — wiki
 
+- **Shelved 2026-11-19:** dropped (credits worry, not clearly needed); see the top of update v1.
+
 - **Two levers, one dial.** Quality and cost of thought come from the model (price, ability) and the effort
   (how much it reasons). Users get one four-step dial; the step → (model, effort) table is the only place both
   are named.

@@ -16,7 +16,6 @@ import type { Running } from '../running/registry.ts';
 import { ORCHESTRATOR_CAPS } from '../runtime/config.ts';
 import { runEnv } from '../runtime/env.ts';
 import type { Caps, RunEvent, Runner, RunOutcome } from '../runtime/runner.ts';
-import { resolveThinking, type ThinkingStep, thinkingPair } from '../runtime/thinking.ts';
 
 export const CREW_CAPS: Caps = ORCHESTRATOR_CAPS;
 
@@ -37,8 +36,6 @@ export type CrewDeps = {
   bridges?: Bridges;
   /** RUNNING: every call is on the studio's running list while it lives (and can be stopped from there). */
   running?: Running;
-  /** An agent's own thinking power default (absent → none set), for calls with a `track`. */
-  thinkingOf?: (agentId: string) => ThinkingStep | null | undefined;
 };
 
 export type CrewCall<T> = {
@@ -58,8 +55,6 @@ export type CrewCall<T> = {
   track?: Track;
   /** AGENT MCP: studio tools for this call (room, call_agent, create_*), open for both attempts. */
   tools?: readonly BridgeTool[];
-  /** This kind of work's thinking power (planning thinks Deep, a health check Light); the agent's own wins. */
-  thinking?: ThinkingStep;
 };
 export type CrewResult<T> = { value: T; attempts: number; outcomes: RunOutcome[] };
 
@@ -118,29 +113,20 @@ export function createCrew(deps: CrewDeps) {
   const { runner } = deps;
 
   type Open = ReturnType<Bridges['open']> | null;
-  /** The call's step: the agent's own default, else the kind of work's, else Normal. */
-  const stepOf = (call: CrewCall<unknown>): ThinkingStep =>
-    resolveThinking({
-      agent: call.track ? deps.thinkingOf?.(call.track.agentId) : null,
-      work: call.thinking,
-    });
   const invoke = async (
     call: CrewCall<unknown>,
     task: string,
-    resumeSessionId: string | undefined,
-    bridge: Open,
-    thinking: ThinkingStep,
+    resumeSessionId?: string,
+    bridge: Open = null,
   ) => {
     if (!call.workspace) mkdirSync(deps.scratchDir, { recursive: true, mode: 0o700 });
-    const power = thinkingPair(thinking, deps.model);
     const handle = runner.start(
       {
         runId: randomUUID(),
         cwd: call.workspace?.cwd ?? deps.scratchDir,
         systemPrompt: call.systemPrompt,
         task,
-        model: power.model,
-        effort: power.effort,
+        model: deps.model,
         caps: call.caps ?? deps.caps ?? CREW_CAPS,
         env: runEnv(deps.parentEnv ?? process.env, {}),
         secretValues: [],
@@ -180,11 +166,10 @@ export function createCrew(deps: CrewDeps) {
       if (runner.unavailable) throw conflict(runner.unavailable);
       const bridge = call.tools?.length && deps.bridges ? deps.bridges.open(call.tools) : null;
       const outcomes: RunOutcome[] = [];
-      const thinking = stepOf(call as CrewCall<unknown>);
-      const timing = call.track && deps.clock ? deps.clock.start({ ...call.track, thinking }) : null;
+      const timing = call.track && deps.clock ? deps.clock.start(call.track) : null;
       let ok = false;
       try {
-        const r = await attempts(call, bridge, outcomes, thinking);
+        const r = await attempts(call, bridge, outcomes);
         ok = true;
         return r;
       } finally {
@@ -198,7 +183,6 @@ export function createCrew(deps: CrewDeps) {
     call: CrewCall<T>,
     bridge: Open,
     outcomes: RunOutcome[],
-    thinking: ThinkingStep,
   ): Promise<CrewResult<T>> {
     let issues: string[] = [];
     let sessionId: string | undefined;
@@ -215,13 +199,7 @@ export function createCrew(deps: CrewDeps) {
               'Reply again with ONLY the corrected JSON object.',
               ...(sessionId ? [] : ['', 'The original request, again:', '', call.task]),
             ].join('\n');
-      const o = await invoke(
-        call as CrewCall<unknown>,
-        task,
-        attempt === 2 ? sessionId : undefined,
-        bridge,
-        thinking,
-      );
+      const o = await invoke(call as CrewCall<unknown>, task, attempt === 2 ? sessionId : undefined, bridge);
       outcomes.push(o);
       if (o.status !== 'succeeded')
         throw agentError(`${call.who} could not finish: ${o.error ?? o.status}`, {

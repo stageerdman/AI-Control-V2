@@ -99,4 +99,20 @@ describe('migrations', () => {
     expect(work.goal('g1')?.workflow).toBeNull();
     await h.close();
   });
+
+  it('45: a database that stored thinking power drops it and keeps the rows', () => {
+    const db = new DatabaseSync(':memory:');
+    const dropped = MIGRATIONS.findIndex((sql) => sql.includes('DROP COLUMN thinking'));
+    for (const sql of MIGRATIONS.slice(0, dropped)) db.exec(sql);
+    db.exec(`PRAGMA user_version = ${dropped}`);
+    db.exec(
+      "INSERT INTO agents (id, kind, name, look, position, thinking, created_at, updated_at) VALUES ('a', 'agent', 'x', '{}', 0, 'deepest', '', '')",
+    );
+    migrate(db);
+    const cols = (t: string) =>
+      (db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name);
+    for (const t of ['agents', 'checklist_items', 'runs', 'crew_time']) expect(cols(t)).not.toContain('thinking');
+    expect(db.prepare('SELECT id FROM agents').all()).toEqual([{ id: 'a' }]);
+    db.close();
+  });
 });

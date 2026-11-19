@@ -1,3 +1,8 @@
+> **Shelved — dropped on 2026-11-19.** The user didn't want it: worried about credits (a Deep step costs more)
+> and not sure it was needed. It was taken out of the studio; every run is back to one studio-wide model and the
+> CLI's default effort. Migration 44 added the `thinking` columns, migration 45 drops them. This plan is kept in
+> case it comes back.
+
 # Agent thinking power — update v1
 
 ## Goal

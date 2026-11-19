@@ -3,7 +3,6 @@ import { QUESTS } from '../domain/quests.ts';
 import { GATE_KINDS, TempAskSchema, type WorkflowAsk } from '../domain/workflows.ts';
 import { invalid, parse } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
-import { THINKING_STEPS, type ThinkingStep } from '../runtime/thinking.ts';
 import type { Board, CleanWhich, TaskInput } from './board.ts';
 
 type Args = Record<string, unknown>;
@@ -22,12 +21,6 @@ function oneOf<T extends string>(a: Args, k: string, allowed: readonly T[]): T |
   if (!allowed.includes(v as T)) throw invalid(`"${k}" is one of: ${allowed.join(', ')}.`);
   return v as T;
 }
-/** A task's thinking power as the tool got it: a step, 'default' (null: its owner's own), or left out. */
-const THINKING_CHOICES = [...THINKING_STEPS, 'default'] as const;
-function thinkingOf(a: Args): { thinking?: ThinkingStep | null } {
-  const t = oneOf(a, 'thinking', THINKING_CHOICES);
-  return t === undefined ? {} : { thinking: t === 'default' ? null : t };
-}
 const task = (a: Args): TaskInput => ({
   text: str(a, 'text') ?? '',
   owner: str(a, 'owner') ?? '',
@@ -35,7 +28,6 @@ const task = (a: Args): TaskInput => ({
   ...(str(a, 'brief') ? { brief: str(a, 'brief') } : {}),
   parallel: bool(a, 'parallel') === true,
   ...(ids(a, 'branches') ? { branches: ids(a, 'branches') } : {}),
-  ...thinkingOf(a),
 });
 
 const TASK_PROPS = {
@@ -52,12 +44,6 @@ const TASK_PROPS = {
     items: { type: 'string' },
     description:
       'Only when the workflow has sign-offs on a branch ("when", see workflows): the labels that hold for this task, word for word ([] = none). Left out, every branched sign-off applies.',
-  },
-  thinking: {
-    type: 'string',
-    enum: THINKING_CHOICES,
-    description:
-      'How hard its owner thinks on this one task: light (quick, cheap), normal, deep, deepest (slowest, most careful). Leave it out (or default) for the owner’s own setting; only when the user asks or the task clearly needs it.',
   },
 };
 const WORKFLOW_PROP = {
@@ -237,7 +223,6 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
           ...(position ? { position } : {}),
           ...(parallel !== undefined ? { parallel } : {}),
           ...(status ? { status } : {}),
-          ...thinkingOf(a),
           force: bool(a, 'force') === true,
         });
       },

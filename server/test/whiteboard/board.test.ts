@@ -101,44 +101,6 @@ describe('the director edits the whiteboard', () => {
     expect(board()).toEqual([]);
   });
 
-  it('a task’s thinking power reaches its run; default clears it; an unknown step is refused', async () => {
-    const turns: FakeStep[][] = [];
-    const builds: RunSpec[] = [];
-    const crew = scriptedCrew({}, (s) => {
-      if (isChat(s)) return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
-      builds.push(s);
-      return [{ wait: 10_000 }, { result: 'never' }];
-    });
-    h = testApp({ seed: true, runner: crew.runner });
-    mkdirSync(join(h.config.sandbox, 'aurora'));
-    h.store.projects.update('aurora', { folder: 'aurora' });
-    const work = workRepo(h.db);
-    const item = () => work.goals('aurora')[0]?.items[0];
-    const turn = async (args: Record<string, unknown>, tool = 'edit_task') => {
-      turns.push([{ tool, args }]);
-      const r = await h.call('POST', url, { text: 'board work' });
-      await h.runtime.settled(r.body.runId);
-      return getChatMessages(h.db, r.body.runId).find((m) => m.role === 'assistant')?.text ?? '';
-    };
-
-    await turn(
-      { text: 'Back up', tasks: [{ text: 'Back up the db', owner: 'Baron', thinking: 'deepest' }] },
-      'add_goal',
-    );
-    await until(
-      () => builds.length === 1 && !!item()?.runId,
-      () => item(),
-    );
-    expect(item()?.thinking).toBe('deepest');
-    expect(builds[0]?.effort).toBe('max');
-    expect(h.runtime.get('aurora', item()?.runId as string).thinking).toBe('deepest');
-
-    expect(await turn({ task: item()?.id, thinking: 'turbo' })).toContain('"thinking" is one of');
-    expect(await turn({ task: item()?.id, thinking: 'default' })).toContain('It is running');
-    expect(item()?.thinking).toBeNull();
-    await turn({ tasks: [item()?.id], force: true }, 'remove_from_board');
-  });
-
   it('shows each change live, logs who made it, and puts removals and clean-ups back', async () => {
     const turns: FakeStep[][] = [];
     const crew = scriptedCrew({}, (s) =>

@@ -14,7 +14,6 @@ import { slugify, uniqueId } from '../domain/ids.ts';
 import { DEFAULT_LOOK, type Look } from '../domain/look.ts';
 import type { Toolset } from '../domain/toolset.ts';
 import { AppError, invalid, notFound } from '../errors.ts';
-import { isThinkingStep, type ThinkingStep } from '../runtime/thinking.ts';
 import type { Db } from './connection.ts';
 import type { RolesRepo } from './roles.ts';
 import { exists, nextPosition, now, row, rows } from './util.ts';
@@ -36,8 +35,6 @@ export type AgentRecord = {
   deleted_at?: string | null;
   /** Kin group: copies of one agent share it and one set of instructions; NULL = alone (absent before migration 38). */
   kin_id?: string | null;
-  /** Its default thinking power; NULL = the kind of work decides (absent before migration 44). */
-  thinking?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -57,8 +54,6 @@ export type Agent = {
   canMail: boolean;
   /** Working tools: what it may edit and run. null = the studio's full kit. */
   tools: Toolset | null;
-  /** Its default thinking power (src/runtime/thinking.ts); null = the kind of work decides. */
-  thinking: ThinkingStep | null;
   teamIds: string[];
   /** Projects using this agent (as orchestrator, specialist, or via a team). */
   projectIds: string[];
@@ -79,7 +74,6 @@ export type AgentCreate = {
   look?: Look;
   prompt?: string;
   tools?: Toolset | null;
-  thinking?: ThinkingStep | null;
 };
 export type AgentPatch = Partial<Omit<AgentCreate, 'kind' | 'tools'>> & { canMail?: boolean };
 
@@ -141,7 +135,6 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
     prompt: r.prompt,
     canMail: r.can_mail !== 0,
     tools: r.tools ? (JSON.parse(r.tools) as Toolset) : null,
-    thinking: isThinkingStep(r.thinking) ? r.thinking : null,
     teamIds: teamIds(r.id),
     projectIds: projectIds(r.id),
     canDelete: canDelete(r, cast),
@@ -190,7 +183,6 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         look: JSON.stringify(input.look ?? DEFAULT_LOOK),
         prompt: input.prompt ?? '',
         tools: input.tools ? JSON.stringify(input.tools) : null,
-        thinking: input.thinking ?? null,
         position: nextPosition(db, 'agents'),
         created_at: t,
         updated_at: t,
@@ -228,9 +220,6 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
       if (patch.canMail !== undefined)
         for (const k of together)
           db.prepare('UPDATE agents SET can_mail = ? WHERE id = ?').run(patch.canMail ? 1 : 0, k);
-      /* how hard it thinks is its own, not its kin's: a copy may think lighter on the same instructions */
-      if (patch.thinking !== undefined)
-        db.prepare('UPDATE agents SET thinking = ? WHERE id = ?').run(patch.thinking, id);
       return repo.require(id);
     },
 
@@ -290,8 +279,8 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
     /** Every column, so a restored agent comes back exactly as it was (mail rights and tools included). */
     insertRecord(r: AgentRecord): void {
       db.prepare(
-        `INSERT INTO agents (id, kind, name, nick, role_id, look, prompt, position, can_mail, tools, kin_id, thinking, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO agents (id, kind, name, nick, role_id, look, prompt, position, can_mail, tools, kin_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.kind,
@@ -304,7 +293,6 @@ export function agentsRepo(db: Db, roles: RolesRepo) {
         r.can_mail ?? 1,
         r.tools ?? null,
         r.kin_id ?? null,
-        r.thinking ?? null,
         r.created_at,
         r.updated_at,
       );

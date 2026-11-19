@@ -21,7 +21,6 @@ import {
   WORK_KINDS,
   type WorkKind,
 } from '../performance/spans.ts';
-import type { ThinkingStep } from '../runtime/thinking.ts';
 
 export const KIND_LABELS: Record<WorkKind, string> = {
   thinking: 'Thinking & planning',
@@ -40,8 +39,6 @@ export type Track = {
   asked?: Asked;
   /** The checklist item it serves (a captain's split), for time estimates; absent = no task's work. */
   itemId?: string;
-  /** The thinking power the call ran with (runtime/thinking.ts); absent = no model call (Rivet's scaffold). */
-  thinking?: ThinkingStep;
 };
 /** How a crew call ended; no usage = not measured (Rivet's scaffold uses no model). */
 export type CrewEnd = { turns?: number; status: 'succeeded' | 'failed' | 'cancelled'; usage?: Tokens };
@@ -64,19 +61,9 @@ export function createWorkClock(db: Db) {
     start(t: Track): string {
       const id = randomUUID();
       db.prepare(
-        `INSERT INTO crew_time (id, scope, owner_id, agent_id, kind, asked, item_id, thinking, started_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        id,
-        t.scope,
-        t.ownerId,
-        t.agentId,
-        t.kind,
-        t.asked ?? null,
-        t.itemId ?? null,
-        t.thinking ?? null,
-        now(),
-      );
+        `INSERT INTO crew_time (id, scope, owner_id, agent_id, kind, asked, item_id, started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(id, t.scope, t.ownerId, t.agentId, t.kind, t.asked ?? null, t.itemId ?? null, now());
       return id;
     },
     end(id: string, e: CrewEnd) {

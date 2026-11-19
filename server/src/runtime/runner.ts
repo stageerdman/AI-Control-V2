@@ -1,6 +1,5 @@
 /* The Runner seam. The runtime service never knows HOW an agent runs — a scripted
    FakeRunner (tests, demos) or the headless Claude Code CLI — only this contract. */
-import type { Effort } from './thinking.ts';
 
 export type Caps = { maxTurns: number; maxBudgetUsd: number };
 
@@ -12,8 +11,6 @@ export type RunSpec = {
   systemPrompt: string;
   task: string;
   model: string;
-  /** Claude Code's `--effort` for the session (src/runtime/thinking.ts); absent → the CLI's default. */
-  effort?: Effort;
   caps: Caps;
   /** Complete process env (minimal base + granted secrets). Nothing else is inherited. */
   env: Record<string, string>;

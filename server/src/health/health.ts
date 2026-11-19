@@ -164,8 +164,6 @@ export function createHealth(deps: {
           who: orch.name,
           contract: HEALTH,
           track: { scope: 'project', ownerId: projectId, agentId: orch.id, kind: 'reviewing' },
-          /* a quick read-only look: Light is enough */
-          thinking: 'light',
           systemPrompt: crewSystemPrompt(orch, ALTITUDE),
           task,
           validate: validateWith(HealthSchema),

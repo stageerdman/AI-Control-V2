@@ -106,7 +106,6 @@ export function cliArgs(
     '--verbose',
     '--model',
     spec.model,
-    ...(spec.effort ? ['--effort', spec.effort] : []),
     '--append-system-prompt',
     spec.systemPrompt,
     '--restricted',

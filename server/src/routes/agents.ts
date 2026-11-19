@@ -9,7 +9,6 @@ import { type ToolList, toolList } from '../domain/tool-list.ts';
 import { parse } from '../errors.ts';
 import type { AgentEdits } from '../office/agent-edits.ts';
 import type { KinCopies } from '../office/kin-copies.ts';
-import { ThinkingSchema } from '../runtime/thinking.ts';
 import { Id, IdParams, Name, Text } from './schemas.ts';
 
 const fields = {
@@ -18,8 +17,6 @@ const fields = {
   roleId: Id.nullable().optional(),
   look: LookSchema.optional(),
   prompt: Text.optional(),
-  /** Its default thinking power; null = the kind of work decides. */
-  thinking: ThinkingSchema.nullable().optional(),
 };
 /* kind is chosen once, at creation; it never changes (the cast rules depend on it) */
 const AgentCreate = z.strictObject({ kind: z.enum(AGENT_KINDS).optional(), ...fields });
