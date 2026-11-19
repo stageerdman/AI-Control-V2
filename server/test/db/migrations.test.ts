@@ -133,12 +133,54 @@ describe('migrations', () => {
       .prepare('SELECT id, name, status, position, description, closed_at FROM features ORDER BY id')
       .all();
     expect(got).toEqual([
-      { id: 'f-both', name: 'Both', status: 'planned', position: 1, description: 'Desc.\n\nVis.', closed_at: null },
-      { id: 'f-none', name: 'Neither', status: 'planned', position: 3, description: 'Kept as is ', closed_at: null },
-      { id: 'f-park', name: 'Agent Thinking Power', status: 'shelved', position: 1, description: '', closed_at: 'u4' },
-      { id: 'f-quiet', name: 'Shipped, no events', status: 'shipped', position: 2, description: '', closed_at: 'u6' },
-      { id: 'f-ship', name: 'Shipped by events', status: 'shipped', position: 1, description: '', closed_at: 't3' },
-      { id: 'f-vis', name: 'Vision only', status: 'planned', position: 2, description: 'Vis.', closed_at: null },
+      {
+        id: 'f-both',
+        name: 'Both',
+        status: 'planned',
+        position: 1,
+        description: 'Desc.\n\nVis.',
+        closed_at: null,
+      },
+      {
+        id: 'f-none',
+        name: 'Neither',
+        status: 'planned',
+        position: 3,
+        description: 'Kept as is ',
+        closed_at: null,
+      },
+      {
+        id: 'f-park',
+        name: 'Agent Thinking Power',
+        status: 'shelved',
+        position: 1,
+        description: '',
+        closed_at: 'u4',
+      },
+      {
+        id: 'f-quiet',
+        name: 'Shipped, no events',
+        status: 'shipped',
+        position: 2,
+        description: '',
+        closed_at: 'u6',
+      },
+      {
+        id: 'f-ship',
+        name: 'Shipped by events',
+        status: 'shipped',
+        position: 1,
+        description: '',
+        closed_at: 't3',
+      },
+      {
+        id: 'f-vis',
+        name: 'Vision only',
+        status: 'planned',
+        position: 2,
+        description: 'Vis.',
+        closed_at: null,
+      },
     ]);
     const cols = (db.prepare('PRAGMA table_info(features)').all() as { name: string }[]).map((c) => c.name);
     expect(cols).not.toContain('vision');
@@ -160,7 +202,8 @@ describe('migrations', () => {
     migrate(db);
     const cols = (t: string) =>
       (db.prepare(`PRAGMA table_info(${t})`).all() as { name: string }[]).map((c) => c.name);
-    for (const t of ['agents', 'checklist_items', 'runs', 'crew_time']) expect(cols(t)).not.toContain('thinking');
+    for (const t of ['agents', 'checklist_items', 'runs', 'crew_time'])
+      expect(cols(t)).not.toContain('thinking');
     expect(db.prepare('SELECT id FROM agents').all()).toEqual([{ id: 'a' }]);
     db.close();
   });

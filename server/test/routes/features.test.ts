@@ -115,7 +115,9 @@ describe('features API', () => {
         return t;
       };
       const patch = async (id: string, body: object) =>
-        (await h.call('PATCH', `/projects/aurora/features/${id}`, body)).body as F & { closedAt: string | null };
+        (await h.call('PATCH', `/projects/aurora/features/${id}`, body)).body as F & {
+          closedAt: string | null;
+        };
       const t1 = at(1);
       const born = (await add({ name: 'Born denied', status: 'denied' })) as F & { closedAt: string };
       expect(born).toMatchObject({ status: 'denied', closedAt: t1 });
@@ -137,7 +139,11 @@ describe('features API', () => {
         .after('project', 'aurora')
         .filter((e) => e.type === 'feature.changed')
         .at(-1);
-      expect(ev?.payload).toMatchObject({ featureId: f.id, status: 'shelved', closedAt: '2026-11-06T10:00:00.000Z' });
+      expect(ev?.payload).toMatchObject({
+        featureId: f.id,
+        status: 'shelved',
+        closedAt: '2026-11-06T10:00:00.000Z',
+      });
 
       // order: Now, Planned by position; Shipped, Shelved, Denied newest closed first
       at(7);

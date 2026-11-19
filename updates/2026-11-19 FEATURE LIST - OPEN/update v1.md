@@ -16,8 +16,8 @@ Design and the exact server contract: [`design.md`](design.md) (same folder).
 
 ## Status
 - [x] Roadmap and design (Jony, 2026-11-19).
-- [ ] Phase 1: server data. [ ] Phase 2: server rules. [ ] Phase 3: the list. [ ] Phase 4: the feature page.
-  [ ] Phase 5: live check.
+- [x] Phase 1: server data. [x] Phase 2: server rules (Uncle Bob, 2026-11-19; see "API (as built)" below).
+  [ ] Phase 3: the list. [ ] Phase 4: the feature page. [ ] Phase 5: live check.
 
 ## Phases
 Phases 1–2 are server (one checklist item); 3–4 are app (one item, starts after 1–2 land);
@@ -106,3 +106,46 @@ buttons cleanly. Then mark both features shipped.
 5. List order: Now, Planned by position; Shipped, Shelved, Denied by `closedAt` newest first.
 6. Progress, goal linking and auto-ship rules for the two new stages (Phase 2).
 7. Agent tool limited to now/planned/shipped.
+
+## API (as built, Phases 1–2)
+What the app can rely on now. Differences from the plan above are marked **(changed)**.
+
+**Feature** (every read, list item, POST/PATCH answer):
+```
+{ id, projectId, name, status: 'now'|'planned'|'shipped'|'shelved'|'denied',
+  order (1-based in its stage), pct: number|null, owner: string|null,
+  description: string, createdAt: ISO, updatedAt: ISO, closedAt: ISO|null }
+```
+- `GET /projects/:id/features`: Now, Planned (by `order`), then Shipped, Shelved, Denied (each `closedAt`
+  newest first, then `order`).
+- `POST /projects/:id/features` `{name, status?, order?, pct?, owner?, description?}`. Creating straight into
+  a closed stage sets `closedAt` to now.
+- `PATCH /projects/:id/features/:featureId`, same fields, all optional.
+- `closedAt` is the server's: open → closed and closed → another closed stage set it to now; closed → open
+  clears it; a save that keeps the stage leaves it alone.
+- **(changed)** Bad input, including `vision` or `closedAt` in a body, is a **422** (this codebase's
+  validation status), not 400.
+- Event `feature.changed {featureId, name, status, order, closedAt, …}` (`deleted: true` on delete).
+- Stage rules live in one pure module, `server/src/domain/feature-stages.ts` (`FEATURE_STATUSES`,
+  `AGENT_FEATURE_STATUSES`, `isClosed`, `closedAtAfter`); the app can mirror `isClosed` = shipped|shelved|denied.
+
+**Migration 46** (runs once on start):
+- Vision text merged into description (`description\n\nvision`, or just one when the other is empty);
+  the column is dropped.
+- `closedAt` back-filled for shipped rows from the event that shipped them (the first "shipped" event after
+  the last "open" one, so later edits don't move the date), else `updated_at`.
+- **(changed)** Features named `Shelved: X` / `Denied: X` move to that stage, the prefix dropped from the
+  name (e.g. "Shelved: Agent Thinking Power" → "Agent Thinking Power" in Shelved), dated from `updated_at`.
+  Positions are renumbered in every stage.
+
+**Rules:**
+- Progress = shipped ÷ (all − shelved − denied); if nothing is left, the goal % as before.
+- A new goal linked to a planned, shelved or denied feature moves it to Now (`closedAt` cleared).
+- A goal that finishes on a feature the user closed while it ran leaves it alone (no pct, no auto-ship).
+- Director tools (`features`, `add_feature`, `edit_feature`) take all five stages and show the date:
+  `f-x — X [planned #1, added 3 Nov]`, `[shelved #2, shelved 19 Nov]` (year added when not this year).
+- The agents' `feature` tool takes now/planned/shipped only: `"status" is one of: now, planned, shipped.`
+- The timesheet rollup counts a feature as finished when it is closed (any of the three).
+
+**App compat done with it** (so the app builds; the real UI is Phases 3–4): `api.ts` `Feature` has
+`closedAt` and no `vision`; the feature page dropped the Vision field.

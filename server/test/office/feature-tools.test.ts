@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getChatMessages } from '../../src/db/chats.ts';
 import { workRepo } from '../../src/db/work.ts';
+import { featureDay } from '../../src/office/feature-tools.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { scriptedCrew } from '../crew/brain.ts';
@@ -12,6 +13,8 @@ import { testApp } from '../helpers.ts';
 
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
 const url = '/projects/aurora/threads/a-pixel/messages';
+/** Every feature here is added (and closed) today. */
+const today = () => featureDay(new Date().toISOString(), new Date());
 
 describe('the director edits the features list', () => {
   let h: ReturnType<typeof testApp>;
@@ -56,7 +59,9 @@ describe('the director edits the features list', () => {
       tool: 'add_feature',
       args: { name: 'Dark mode', description: 'A dark theme for the whole app.' },
     });
-    expect(added).toMatch(/^Added to the features list: f-dark-mode — Dark mode \[planned #1\]/);
+    expect(added).toContain(
+      `Added to the features list: f-dark-mode — Dark mode [planned #1, added ${today()}]`,
+    );
     const [f] = await list();
     expect(f).toMatchObject({ id: 'f-dark-mode', name: 'Dark mode', status: 'planned', order: 1 });
     expect(workRepo(h.db).goals('aurora')).toEqual([]);
@@ -75,7 +80,9 @@ describe('the director edits the features list', () => {
       { tool: 'add_feature', args: { name: 'Sync' } },
     );
     const [view] = await turn('what features are there?', { tool: 'features', args: {} });
-    expect(view).toBe('f-backups — Backups [planned #1]\nf-sync — Sync [planned #2]');
+    expect(view).toBe(
+      `f-backups — Backups [planned #1, added ${today()}]\nf-sync — Sync [planned #2, added ${today()}]`,
+    );
 
     const [moved, badStatus, nobody] = await turn(
       'we are doing sync now, Baron has it, half done',
@@ -83,8 +90,8 @@ describe('the director edits the features list', () => {
       { tool: 'edit_feature', args: { feature: 'f-sync', status: 'later' } },
       { tool: 'edit_feature', args: { feature: 'f-sync', owner: 'Zed' } },
     );
-    expect(moved).toBe('Feature updated: f-sync — Sync [now #1, 50%, Baron von Backup]');
-    expect(badStatus).toMatch(/"status" is one of: now, planned, shipped/);
+    expect(moved).toBe(`Feature updated: f-sync — Sync [now #1, 50%, Baron von Backup, added ${today()}]`);
+    expect(badStatus).toMatch(/"status" is one of: now, planned, shipped, shelved, denied\./);
     expect(nobody).toMatch(/Nobody and no team called 'Zed'/);
     expect((await list()).map((f) => [f.id, f.status, f.order, f.owner])).toEqual([
       ['f-sync', 'now', 1, 'a-baron'],
@@ -97,9 +104,29 @@ describe('the director edits the features list', () => {
       { tool: 'remove_feature', args: { feature: 'f-backups' } },
       { tool: 'remove_feature', args: { feature: 'f-backups' } },
     );
-    expect(shipped).toBe('Feature updated: f-sync — Sync [shipped #1, 100%]');
+    expect(shipped).toBe(`Feature updated: f-sync — Sync [shipped #1, 100%, shipped ${today()}]`);
     expect(removed).toBe('Removed from the features list: Backups');
     expect(gone).toMatch(/not found/i);
     expect((await list()).map((f) => f.id)).toEqual(['f-sync']);
+  });
+
+  it('shelves and denies features, dated the day they close', async () => {
+    const { turn, list } = studio();
+    await turn(
+      'plan two',
+      { tool: 'add_feature', args: { name: 'Themes' } },
+      { tool: 'add_feature', args: { name: 'Chat' } },
+    );
+    const [shelved, denied] = await turn(
+      'shelve themes, deny chat',
+      { tool: 'edit_feature', args: { feature: 'f-themes', status: 'shelved' } },
+      { tool: 'edit_feature', args: { feature: 'f-chat', status: 'denied' } },
+    );
+    expect(shelved).toBe(`Feature updated: f-themes — Themes [shelved #1, shelved ${today()}]`);
+    expect(denied).toBe(`Feature updated: f-chat — Chat [denied #1, denied ${today()}]`);
+    expect((await list()).map((f) => [f.id, f.status]).sort()).toEqual([
+      ['f-chat', 'denied'],
+      ['f-themes', 'shelved'],
+    ]);
   });
 });

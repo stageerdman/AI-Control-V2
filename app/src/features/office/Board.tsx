@@ -4,7 +4,7 @@
      how       How we work (HowWeWork.tsx): the way, drawn; edit it in place, or ask the director
      health    health board: the latest report (A–F + good / to fix), the repo + GitHub, "Run health check"
      features  features folder: Now / Planned / Shipped (identical rows) + add
-     feature   one feature: name, status, Description + Vision as plain text blocks, save / delete
+     feature   one feature: name, status, Description as one plain text block, save / delete
      reports   the Reports tray → list · report → one report (features/reports)
    The camera zooms onto the object (OfficePage), the scene behind is covered by a still scrim, the
    card fades in. Esc / Back = one layer. */

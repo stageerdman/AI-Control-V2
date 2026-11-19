@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { memberGates, parseRework, splitIssues } from '../../src/crew/team.ts';
+import { featuresRepo } from '../../src/db/features.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
@@ -534,6 +535,27 @@ describe('features follow goals (F1c)', () => {
     const g = await settled(h, r.body.id);
     expect(g).toMatchObject({ status: 'done', featureId: 'f-cart', ships: false });
     expect((await h.call('GET', '/projects/aurora/features/f-cart')).body.status).toBe('now');
+    expect(types(h, 'feature.shipped')).toEqual([]);
+  });
+
+  it('a shelved feature comes back to Now with a new goal; denied while it runs, it stays denied', async () => {
+    let denyNow = () => {};
+    const s = studio({ dispatch: [solo({ id: 'f-cart' })] }, () => {
+      denyNow();
+      return [{ result: 'done' }];
+    });
+    h = s.h;
+    await h.call('POST', '/projects/aurora/features', { name: 'Cart', status: 'shelved' });
+    const statusNow: string[] = [];
+    denyNow = () => {
+      statusNow.push(featuresRepo(h.db).require('aurora', 'f-cart').status);
+      featuresRepo(h.db).update('aurora', 'f-cart', { status: 'denied' });
+    };
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Cart again' });
+    const g = await settled(h, r.body.id);
+    expect(g).toMatchObject({ status: 'done', featureId: 'f-cart' });
+    expect(statusNow[0]).toBe('now');
+    expect((await h.call('GET', '/projects/aurora/features/f-cart')).body.status).toBe('denied');
     expect(types(h, 'feature.shipped')).toEqual([]);
   });
 

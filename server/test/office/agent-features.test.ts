@@ -99,6 +99,20 @@ describe('agents keep features up to date', () => {
     expect(await s.feature()).toMatchObject({ status: 'now', pct: 40 });
   });
 
+  it('an agent cannot shelve or deny its feature — only the user and the director can', async () => {
+    const s = await studio(
+      [
+        { tool: 'feature', args: { status: 'shelved' } },
+        { tool: 'feature', args: { status: 'denied' } },
+        { result: 'Built.' },
+      ],
+      false,
+    );
+    h = s.h;
+    expect((await s.finished()).status).toBe('done');
+    expect(await s.feature()).toMatchObject({ status: 'now', closedAt: null });
+  });
+
   it('add_goal with an unknown feature is refused, and nothing is added', async () => {
     h = testApp({
       seed: true,

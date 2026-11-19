@@ -67,12 +67,14 @@ describe('project lifecycle', () => {
       target: null,
       goal: { id: g.body.id, text: 'Go', pct: 100, status: 'done' },
     });
-    // features take over: 1 of 4 shipped
+    // features take over: 1 of 4 shipped (shelved and denied ones don't count)
     for (const [name, status] of [
       ['Cart', 'shipped'],
       ['Search', 'now'],
       ['Wishlist', 'planned'],
       ['Reviews', 'planned'],
+      ['Chat', 'shelved'],
+      ['Ads', 'denied'],
     ])
       await h.call('POST', '/projects/aurora/features', { name, status });
     expect((await h.call('PATCH', '/projects/aurora', { target: 'v1.0' })).body.target).toBe('v1.0');
