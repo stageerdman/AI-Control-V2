@@ -1,7 +1,8 @@
 /* How the team works — the wall clock's sheet, grown up (design: updates/2026-11-16 AGENT PERFORMANCE - OPEN/
    design.md). One read per office and range (GET /projects/:id/performance); everything it says is worked out
    in model.ts. Top to bottom: range · three measures (also the chooser) · one chart · Worth a look · who does
-   the work · kind of work. No money anywhere. */
+   the work · kind of work · how long work takes (HowLong.tsx, its own read: GET /projects/:id/timesheet).
+   No money anywhere. */
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { type Agent, useQuery } from '../../../api';
 import { Hero } from '../../../characters';
@@ -9,7 +10,9 @@ import { hueHex } from '../../../design/palette';
 import { Button, Pill, Sheet } from '../../../ui';
 import { Radios } from '../../cast/Radios';
 import { keys, officeApi, type Performance, type PerfRange } from '../api';
+import { useTimesheet } from '../TimeTag';
 import { worked } from '../time';
+import { HowLong } from './HowLong';
 import {
   type Bar,
   bars,
@@ -100,6 +103,7 @@ function TeamBody({
     }
   };
   const q = usePerformance(pid, range);
+  const sheet = useTimesheet(pid);
   /* switching range: keep the last numbers on screen (dimmed) until the new ones land, so nothing jumps */
   const last = useRef<Performance | undefined>(undefined);
   if (q.data) last.current = q.data;
@@ -123,15 +127,18 @@ function TeamBody({
       ) : !p ? (
         <Loading range={range} onRange={pickRange} />
       ) : (
-        <TeamView
-          p={p}
-          name={name}
-          agents={agents}
-          crew={crew}
-          range={range}
-          onRange={pickRange}
-          busy={!q.data}
-        />
+        <>
+          <TeamView
+            p={p}
+            name={name}
+            agents={agents}
+            crew={crew}
+            range={range}
+            onRange={pickRange}
+            busy={!q.data}
+          />
+          <HowLong sheet={sheet.data} agents={agents} />
+        </>
       )}
     </div>
   );

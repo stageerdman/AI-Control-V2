@@ -4,8 +4,10 @@
 import { type ReactNode, useId, useState } from 'react';
 import type { ChecklistItem } from '../../api';
 import { Hero } from '../../characters';
+import type { TimeTag as TimeTagView } from './estimates';
 import { SignoffStrip } from './SignoffStrip';
 import { type CardMark, type TaskCardView, taskCard, taskHover } from './state';
+import { TimeTag } from './TimeTag';
 
 type Props = {
   item: ChecklistItem;
@@ -14,9 +16,11 @@ type Props = {
   /** A stopped step's Continue / Drop, on its own row (the quest trail). */
   actions?: ReactNode;
   className?: string;
+  /** How long it took / usually takes (estimates.ts). Members' parts get none: the team item counts them. */
+  time?: TimeTagView | null;
 };
 
-export function TaskCard({ item, nameOf, sub, actions, className }: Props) {
+export function TaskCard({ item, nameOf, sub, actions, className, time }: Props) {
   const v = taskCard(item, nameOf);
   const hover = taskHover(item, nameOf);
   const kids = sub ? [] : (item.subtasks ?? []);
@@ -27,10 +31,11 @@ export function TaskCard({ item, nameOf, sub, actions, className }: Props) {
         <span className="sr-only">{v.sr} </span>
         {item.text}
       </span>
-      {item.signoffs?.length ? (
+      {item.signoffs?.length || time ? (
         <span className="ob-right">
           <People v={v} />
-          <SignoffStrip signoffs={item.signoffs} />
+          <TimeTag tag={time} />
+          {item.signoffs?.length ? <SignoffStrip signoffs={item.signoffs} /> : null}
         </span>
       ) : (
         <People v={v} />

@@ -8,10 +8,12 @@ import { Hero } from '../../characters';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
 import { type Feature, keys } from './api';
+import type { TimeTag as TimeTagView } from './estimates';
 import { type MainQuest, questBoard, type SideQuest } from './quests';
 import { SignedLine } from './SignoffStrip';
 import { taskCard } from './state';
 import { Mark, People, Problem, TaskCard } from './TaskCard';
+import { TimeTag } from './TimeTag';
 import { WorkflowChip } from './WorkflowChip';
 import { chipOf, signedLine } from './workflow-view';
 import './quests.css';
@@ -29,14 +31,27 @@ type Props = {
   defaultWorkflowId?: string;
   /** For tests: what "this hour" is. */
   now?: Date;
+  /** Time per top-level task id (estimates.ts): what it took, or what it usually takes. */
+  times?: Map<string, TimeTagView>;
 };
 
 type Who = (id: string) => { name: string; look?: Look } | null;
-type Wf = { who?: Who; wid?: string; open?: (way: string) => void };
+type Wf = { who?: Who; wid?: string; open?: (way: string) => void; times?: Map<string, TimeTagView> };
 
-export function QuestBoard({ pid, dir, goals, features, go, nameOf, who, defaultWorkflowId, now }: Props) {
+export function QuestBoard({
+  pid,
+  dir,
+  goals,
+  features,
+  go,
+  nameOf,
+  who,
+  defaultWorkflowId,
+  now,
+  times,
+}: Props) {
   const b = questBoard(goals, features, now);
-  const wf: Wf = { who, wid: defaultWorkflowId, open: (way) => go('how', way) };
+  const wf: Wf = { who, wid: defaultWorkflowId, open: (way) => go('how', way), times };
   return (
     <>
       <section aria-labelledby="qbMain" className="qb-sec">
@@ -161,6 +176,7 @@ function MainCard({
                 key={s.id}
                 item={s.item}
                 nameOf={nameOf}
+                time={wf.times?.get(s.item.id)}
                 className={i < lastDone ? 'qb-lit' : undefined}
                 actions={
                   stuck ? <GoalActions pid={pid} goals={[{ id: stuck } as Goal]} label={null} /> : undefined
@@ -217,7 +233,10 @@ function SideCard({ q, i, nameOf, wf }: { q: SideQuest; i: number; nameOf: Props
         ) : v.mark === 'todo' ? (
           <span className="qb-wait">Waiting</span>
         ) : (
-          <People v={v} />
+          <span className="ob-right">
+            <People v={v} />
+            <TimeTag tag={q.item ? wf?.times?.get(q.item.id) : null} />
+          </span>
         )}
         {wf && <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} onOpen={wf.open} />}
       </div>

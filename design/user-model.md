@@ -21,7 +21,10 @@
 
 - They couldn't find the workflow diagram: it was three hops deep behind small text links, and on teams it only appeared after the team was saved with members (Nov 2026). Review and redesign proposal: design/workflows/review.md. Final screens and plan: design/workflows/{way-thumb,how-we-work,team-way,editor-polish}.md and updates/2026-11-17 WORKFLOWS - OPEN/update v2.md.
 
+- They wanted to know how long agents really take, and a sensible guess for open work (Nov 2026). Real data: most tasks take ~5m (range 3–10m), features ~25–35m. Times now sit on task cards and feature rows, and the team sheet has "How long work takes" (design/time-estimates.md).
+
 ## Assumptions (guesses — check)
+- People read agent time as "how long it took", and a median with a middle-half range is good enough to plan with. Check: do people ask about wall-clock time? Compare guesses with real times after 20+ more tasks.
 - A live picture of the way (thumbnail) is found faster than a text link, and most teams keep the "Captain checks all" default. Check: time to open How we work; share of teams still on the default after a week.
 - Three plain rows (Edit / Run / Reach) answer "can this agent do X?" without the old "works with" prose. Check: do people still ask what an agent can do after opening its panel?
 - People want a fresh Pixel chat mostly right after a goal finishes, when nothing runs. Read-only old Pixel chats are enough. Check: taps on the dimmed pill; attempts to type in a past Pixel chat.

@@ -2,8 +2,8 @@
    GET /projects/:id/timesheet and /estimate). */
 import type { Db } from '../db/connection.ts';
 import { type Row, rows } from '../db/util.ts';
-import { type Estimates, estimatesOf } from './estimate.ts';
-import { type Board, rollUp, type Timesheet } from './rollup.ts';
+import { type Estimate, type Estimates, estimatesOf } from './estimate.ts';
+import { type Board, itemFinished, rollUp, type Timesheet } from './rollup.ts';
 import { readSpans } from './spans.ts';
 
 /** The office's checklist items, goals and features — only what the roll-up needs. */
@@ -41,11 +41,24 @@ export function readBoard(db: Db, projectId: string): Board {
   return { items, goals, features };
 }
 
-export type OfficeTimesheet = Timesheet & { estimates: Estimates };
+/** Each task also carries `estimate`: for open work (to do / running), the guess for its assignee; else null. */
+export type OfficeTimesheet = Omit<Timesheet, 'tasks'> & {
+  tasks: (Timesheet['tasks'][number] & { estimate: Estimate | null })[];
+  estimates: Estimates;
+};
 
 export function timesheetOf(db: Db, projectId: string, at: Date = new Date()): OfficeTimesheet {
   const sheet = rollUp(readSpans(db, projectId), readBoard(db, projectId), at.getTime());
-  return { ...sheet, estimates: estimatesOf(sheet) };
+  const byAgent = new Map<string, Estimate | null>();
+  const guess = (agentId: string) => {
+    if (!byAgent.has(agentId)) byAgent.set(agentId, estimatesOf(sheet, agentId).task);
+    return byAgent.get(agentId) ?? null;
+  };
+  return {
+    ...sheet,
+    tasks: sheet.tasks.map((t) => ({ ...t, estimate: itemFinished(t.status) ? null : guess(t.agentId) })),
+    estimates: estimatesOf(sheet),
+  };
 }
 
 /** Guesses for new work on this office; `agentId` = who would take the task. */

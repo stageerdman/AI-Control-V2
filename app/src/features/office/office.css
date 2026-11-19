@@ -445,6 +445,9 @@
 .ob-target-in{width:140px;font:inherit;font-size:13px;font-weight:700;text-align:center;padding:4px 8px;border-radius:10px;border:2px solid var(--line);color:var(--ink);background:#fff}
 .ob-stage{font-size:12.5px;font-weight:800;color:var(--ink-soft);white-space:nowrap}
 .ob-stage.t-sun{color:#b07a00}
+/* time tag (TimeTag.tsx · design/time-estimates.md): the status word's voice, tabular numbers */
+.ob-time{font-size:12.5px;font-weight:800;color:var(--ink-soft);white-space:nowrap;font-variant-numeric:tabular-nums}
+.ob-time.over{color:#8a5f00} /* sun, dark enough for 4.5:1 at this size */
 .ob-card.ob-k-how{width:min(760px,calc(100% - 32px))}
 .ob-h{margin:14px 0 2px;font-size:22px;font-weight:900;letter-spacing:-.01em}
 .ob-how-ask{display:flex;gap:8px;margin-top:14px}

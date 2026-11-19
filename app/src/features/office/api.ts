@@ -163,6 +163,47 @@ export type Performance = {
   days: (Measures & { day: string; byAgent: Record<string, Measures> })[];
 };
 
+/** How long work really took, and a guess for new work (GET /projects/:id/timesheet —
+    server/src/performance/{rollup,estimate,timesheet}.ts). Active = agent time (parallel runs add up). */
+export type WorkTimes = {
+  startedAt: string | null;
+  /** null while open (or never worked on). */
+  endedAt: string | null;
+  activeMs: number;
+  wallMs: number;
+  runs: number;
+  turns: number;
+  tokens: number;
+  live: number;
+  byAgent: { agentId: string; ms: number; tokens: number; runs: number }[];
+};
+export type EstimateRange = { typical: number; low: number; high: number };
+/** A median of finished work, the middle half as the range; null on the server under 3 samples. */
+export type Estimate = { ms: EstimateRange; tokens: EstimateRange; basis: number; from: 'agent' | 'office' };
+export type Timesheet = {
+  /** Top-level checklist items; members' sub-tasks count in their team item. */
+  tasks: {
+    itemId: string;
+    goalId: string;
+    agentId: string;
+    text: string;
+    status: string;
+    time: WorkTimes;
+    /** Open work only: the guess for its assignee. Absent on older servers. */
+    estimate?: Estimate | null;
+  }[];
+  goals: {
+    goalId: string;
+    featureId: string | null;
+    text: string;
+    status: string;
+    tasks: number;
+    time: WorkTimes;
+  }[];
+  features: { featureId: string; name: string; status: string; goals: number; time: WorkTimes }[];
+  estimates: { task: Estimate | null; goal: Estimate | null; feature: Estimate | null };
+};
+
 /** One saved chat (a run) — server/src/db/chats.ts. */
 export type ChatSummary = {
   runId: string;
@@ -278,6 +319,7 @@ export const officeApi = {
     http.get<Performance>(
       `/projects/${e(pid)}/performance?range=${range}&tz=${new Date().getTimezoneOffset()}`,
     ),
+  timesheet: (pid: string) => http.get<Timesheet>(`/projects/${e(pid)}/timesheet`),
   studioAsks: () => http.get<StudioAsk[]>('/asks?unseen=true'),
   seen: (projectId: string) => http.post<{ seen: number }>('/asks/seen', { projectId }),
 };
@@ -304,6 +346,8 @@ export const keys = {
   time: (pid: string) => `office:${pid}:time`,
   /** Under `time`: the clock's events read it again too. */
   performance: (pid: string, range: PerfRange) => `office:${pid}:time:perf:${range}`,
+  /** Under `time` too: a run starting or ending reads the task times again. */
+  timesheet: (pid: string) => `office:${pid}:time:sheet`,
   project: (pid: string) => `office:${pid}:project`,
   /* STUDIO LIFE */
   deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,

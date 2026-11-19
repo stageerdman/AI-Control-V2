@@ -406,6 +406,52 @@
   animation: pf-in 0.16s ease-out;
 }
 
+/* how long work takes (HowLong.tsx) */
+.pf-hl-hint {
+  margin: -4px 0 8px;
+}
+.pf-guess,
+.pf-done {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pf-guess {
+  gap: 6px;
+}
+.pf-guess li {
+  display: grid;
+  grid-template-columns: 88px auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  font-weight: 700;
+}
+.pf-soft {
+  font-size: 13px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pf-done {
+  gap: 2px;
+}
+.pf-done li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 6px;
+  font-weight: 700;
+}
+.pf-done-t {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @keyframes pf-grow {
   from {
     transform: scaleY(0);
