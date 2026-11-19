@@ -1,4 +1,5 @@
 /* Runs + asks repository (plain SQL, no rules — the runtime service owns those). */
+import { isThinkingStep, type ThinkingStep } from '../runtime/thinking.ts';
 import type { Db } from './connection.ts';
 import { now, rows } from './util.ts';
 
@@ -25,6 +26,8 @@ export type Run = {
   endedAt: string | null;
   /** The kind of work (office work clock); null = older runs, read from the row. */
   kind: string | null;
+  /** The thinking power it ran with (src/runtime/thinking.ts); null = runs from before it was recorded. */
+  thinking: ThinkingStep | null;
 };
 export type Ask = {
   id: string;
@@ -82,6 +85,7 @@ const toRun = (r: RunRow): Run => ({
   startedAt: r.started_at as string,
   endedAt: (r.ended_at as string) ?? null,
   kind: (r.kind as string) ?? null,
+  thinking: isThinkingStep(r.thinking) ? r.thinking : null,
 });
 const toAsk = (r: RunRow): Ask => ({
   id: r.id as string,
@@ -107,11 +111,12 @@ export function runsRepo(db: Db) {
         asked?: string | null;
         /** The checklist item it serves (time estimates); absent = no task's work. */
         itemId?: string | null;
+        thinking?: ThinkingStep | null;
       },
     ): Run {
       db.prepare(
-        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind, asked, item_id)
-         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind, asked, item_id, thinking)
+         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.projectId,
@@ -125,6 +130,7 @@ export function runsRepo(db: Db) {
         r.kind ?? null,
         r.asked ?? null,
         r.itemId ?? null,
+        r.thinking ?? null,
       );
       return this.get(r.id) as Run;
     },

@@ -667,6 +667,14 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX runs_item ON runs(item_id);
   `,
+  /* 44 — thinking power (updates/2026-11-19 AGENT THINKING POWER): an agent's default step and a task's override
+     (light | normal | deep | deepest; NULL = not set), and the step each run and crew call used (NULL = before). */
+  `
+  ALTER TABLE agents ADD COLUMN thinking TEXT;
+  ALTER TABLE checklist_items ADD COLUMN thinking TEXT;
+  ALTER TABLE runs ADD COLUMN thinking TEXT;
+  ALTER TABLE crew_time ADD COLUMN thinking TEXT;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

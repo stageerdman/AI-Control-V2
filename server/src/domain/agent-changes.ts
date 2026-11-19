@@ -2,7 +2,7 @@
    Pure: compares two snapshots of the same agent. */
 import type { Look } from './look.ts';
 
-export const AGENT_FIELDS = ['name', 'nick', 'role', 'look', 'prompt', 'canMail'] as const;
+export const AGENT_FIELDS = ['name', 'nick', 'role', 'look', 'prompt', 'canMail', 'thinking'] as const;
 export type AgentField = (typeof AGENT_FIELDS)[number];
 
 type Snapshot = {
@@ -12,6 +12,7 @@ type Snapshot = {
   look: Look;
   prompt: string;
   canMail: boolean;
+  thinking?: string | null;
 };
 
 const LOOK_KEYS = ['hat', 'tool', 'body', 'antenna', 'face', 'hue', 'decal'] as const;
@@ -27,6 +28,7 @@ export function changedFields(before: Snapshot, after: Snapshot): AgentField[] {
     look: !sameLook(before.look, after.look),
     prompt: before.prompt !== after.prompt,
     canMail: before.canMail !== after.canMail,
+    thinking: (before.thinking ?? null) !== (after.thinking ?? null),
   };
   return AGENT_FIELDS.filter((f) => changed[f]);
 }

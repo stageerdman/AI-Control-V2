@@ -3,6 +3,7 @@
 import type { Quest } from '../domain/quests.ts';
 import { type ItemGate, type Workflow, WorkflowSchema } from '../domain/workflows.ts';
 import type { Workspace } from '../git/worktrees.ts';
+import { isThinkingStep, type ThinkingStep } from '../runtime/thinking.ts';
 import type { Db } from './connection.ts';
 import { now } from './util.ts';
 
@@ -67,6 +68,8 @@ export type ChecklistItem = {
   teamPlan: string | null;
   /** The members' sub-tasks (oldest round first; empty on sub-tasks themselves). */
   subtasks: ChecklistItem[];
+  /** This task's thinking power override (null = its agent's default decides). */
+  thinking: ThinkingStep | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -114,9 +117,10 @@ export type NewItem = Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 
   parallel?: boolean;
   report?: boolean;
   gates?: ItemGate[];
+  thinking?: ThinkingStep | null;
 };
 export type ItemEdit = Partial<
-  Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel' | 'gates'>
+  Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel' | 'gates' | 'thinking'>
 >;
 
 type Row = Record<string, unknown>;
@@ -154,6 +158,7 @@ const toItem = (r: Row): ChecklistItem => ({
   teamRounds: (r.team_rounds as number) ?? 0,
   teamPlan: (r.team_plan as string | null) ?? null,
   subtasks: [],
+  thinking: isThinkingStep(r.thinking) ? r.thinking : null,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
 });
@@ -219,8 +224,8 @@ export function workRepo(db: Db) {
   function insertItems(goalId: string, projectId: string, start: number, list: NewItem[]) {
     const t = now();
     const ins = db.prepare(
-      `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
+      `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, thinking, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
     );
     list.forEach((i, n) => {
       ins.run(
@@ -235,6 +240,7 @@ export function workRepo(db: Db) {
         i.parallel ? 1 : 0,
         i.report ? 1 : 0,
         JSON.stringify(i.gates ?? []),
+        i.thinking ?? null,
         t,
         t,
       );
@@ -311,7 +317,7 @@ export function workRepo(db: Db) {
       const given = Object.fromEntries(Object.entries(change).filter(([, v]) => v !== undefined));
       const next = { ...cur, ...given };
       db.prepare(
-        'UPDATE checklist_items SET text = ?, brief = ?, agent_id = ?, team_id = ?, parallel = ?, gates = ?, updated_at = ? WHERE id = ?',
+        'UPDATE checklist_items SET text = ?, brief = ?, agent_id = ?, team_id = ?, parallel = ?, gates = ?, thinking = ?, updated_at = ? WHERE id = ?',
       ).run(
         next.text,
         next.brief,
@@ -319,6 +325,7 @@ export function workRepo(db: Db) {
         next.teamId,
         next.parallel ? 1 : 0,
         JSON.stringify(next.gates),
+        next.thinking,
         now(),
         id,
       );
@@ -389,8 +396,9 @@ export function workRepo(db: Db) {
       const t = now();
       const start = children(parent.id).length;
       const ins = db.prepare(
-        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, parent_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'todo', ?, ?, ?)`,
+        /* a sub-task thinks as hard as the team item it is part of */
+        `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, thinking, status, parent_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'todo', ?, ?, ?)`,
       );
       list.forEach((i, n) => {
         ins.run(
@@ -404,6 +412,7 @@ export function workRepo(db: Db) {
           parent.teamId,
           i.parallel ? 1 : 0,
           JSON.stringify(i.gates ?? []),
+          parent.thinking,
           parent.id,
           t,
           t,
