@@ -83,6 +83,21 @@ describe('GET /projects/:id/timesheet', () => {
     expect(e.task).toMatchObject({ from: 'agent', basis: 3, tokens: { typical: 1100 } });
     expect((await h.call('GET', '/projects/aurora/estimate?agentId=a-lint')).body.task.from).toBe('office');
   });
+
+  it('an open task carries the guess for its assignee; finished ones carry none', async () => {
+    h = testApp({ seed: true });
+    for (const n of [1, 2, 3]) {
+      goal(`g${n}`, 'done');
+      item(`i${n}`, `g${n}`, 'a-semic', 'done');
+      run(`r${n}`, `i${n}`, 'a-semic', n * 100, n * 100 + 10 * n);
+    }
+    goal('open', 'running');
+    item('next', 'open', 'a-semic', 'todo');
+    const sheet = (await h.call('GET', '/projects/aurora/timesheet')).body;
+    const byId = Object.fromEntries(sheet.tasks.map((t: { itemId: string }) => [t.itemId, t]));
+    expect(byId.next.estimate).toMatchObject({ from: 'agent', basis: 3, ms: { typical: 20 * 60_000 } });
+    expect(byId.i1.estimate).toBeNull();
+  });
 });
 
 describe('migration 43', () => {

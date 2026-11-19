@@ -30,7 +30,9 @@ import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi 
 import { GithubRow } from './GithubRow';
 import { HowWeWork } from './HowWeWork';
 import { Glyph, QuestBoard } from './QuestBoard';
+import { featureTags, taskTags } from './estimates';
 import { ASPECTS, appView, boardProgress } from './state';
+import { TimeTag, useTimesheet } from './TimeTag';
 import { ago } from './time';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
@@ -242,6 +244,8 @@ function Whiteboard({ pid, dir, go, nameOf, resolve, people }: BoardProps) {
   const words = usual?.inWords || usual?.summary;
   const features = useFeatures(pid);
   const progress = useProgress(pid);
+  const sheet = useTimesheet(pid);
+  const times = taskTags(sheet.data, nameOf);
   const goals = work.data ?? [];
   const { pct, target, shipped, aria } = boardProgress(goals, progress.data);
   const C = 2 * Math.PI * 20;
@@ -300,6 +304,7 @@ function Whiteboard({ pid, dir, go, nameOf, resolve, people }: BoardProps) {
         nameOf={nameOf}
         who={resolve.agent}
         defaultWorkflowId={usual?.id}
+        times={times}
       />
     </div>
   );
@@ -597,6 +602,7 @@ function Health({ pid }: { pid: string }) {
 /* ------------------------------------------------------------ features folder */
 function Folder({ pid, dir, go }: BoardProps) {
   const features = useFeatures(pid);
+  const times = featureTags(useTimesheet(pid).data);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const create = useMutation((n: string) => officeApi.createFeature(pid, { name: n }), {
@@ -616,6 +622,7 @@ function Folder({ pid, dir, go }: BoardProps) {
                 <Mark st={f.status} />
                 <span className="sr-only">{ST_LABEL[f.status]}:</span>
                 <span className="ob-rn">{f.name}</span>
+                <TimeTag tag={times.get(f.id)} />
                 <span className="ob-chev" aria-hidden="true">
                   ›
                 </span>
