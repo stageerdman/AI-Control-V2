@@ -40,3 +40,18 @@ export function goalBlock(g: Goal, r: BoardReader): string {
 export function boardText(goals: Goal[], r: BoardReader): string {
   return goals.length ? goals.map((g) => goalBlock(g, r)).join('\n\n') : 'The whiteboard is empty.';
 }
+
+const RECENT_ENDED = 3;
+
+/** The board as it is this moment, short: active goals in full, then the last few that ended, one line each —
+    read fresh on every call, so a finished or stopped goal never lingers as current. */
+export function boardNow(goals: Goal[], r: BoardReader): string {
+  const active = goals.filter((g) => g.status === 'running');
+  const ended = goals.filter((g) => g.status !== 'running').slice(0, RECENT_ENDED);
+  return [
+    active.length ? active.map((g) => goalBlock(g, r)).join('\n\n') : 'No goal is active.',
+    ...(ended.length
+      ? [`Ended lately: ${ended.map((g) => `${clip(g.text, 120)} [${g.status}]`).join('; ')}`]
+      : []),
+  ].join('\n');
+}

@@ -3,6 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { workRepo } from '../../src/db/work.ts';
 import { createDesk } from '../../src/office/desk.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -66,6 +67,30 @@ describe('calls inside a project', () => {
     const task = s.crewCalls()[0]?.task ?? '';
     expect(task).toContain('Your notes on this project');
     expect(task).toContain('doing the checkout button');
+  });
+
+  it("the orchestrator's notes show the whiteboard now: a goal that finished is no longer active", async () => {
+    const s = project(callOnce('a-pete', { agent: 'Pixel', request: 'What is my goal?', why: 'ask' }), {
+      help: [
+        { answer: 'The OneDrive fix.', say: 'onedrive' },
+        { answer: 'Nothing active.', say: 'none' },
+      ],
+    });
+    const work = workRepo(h.db);
+    work.insertGoal({ id: 'g-onedrive', projectId: 'aurora', text: 'Fix OneDrive connect', summary: '' }, []);
+    const pixelNotes = () => {
+      const task = s.crewCalls().at(-1)?.task ?? '';
+      return task.slice(task.indexOf('The whiteboard right now'));
+    };
+
+    await h.runtime.settled(await start('a-pete'));
+    expect(pixelNotes()).toContain('Goal g-onedrive [running');
+
+    work.setGoalStatus('g-onedrive', 'done');
+    await h.runtime.settled(await start('a-pete'));
+    expect(pixelNotes()).toContain('No goal is active.');
+    expect(pixelNotes()).toContain('Ended lately: Fix OneDrive connect [done]');
+    expect(pixelNotes()).not.toContain('[running');
   });
 
   it('work: true puts the request on the whiteboard as the callee’s task, a side quest', async () => {

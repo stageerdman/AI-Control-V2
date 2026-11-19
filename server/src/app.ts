@@ -306,7 +306,12 @@ export function buildApp({
     sandbox: config.sandbox,
     helpCaps: caps.review,
     comms,
-    memoryOf: notesOf({ runs: (id) => runsRepo(db).list(id), desk: (p, a) => desk.list(p, a) }),
+    /* the board is built further down; calls only come once the app is up */
+    memoryOf: notesOf({
+      runs: (id) => runsRepo(db).list(id),
+      desk: (p, a) => desk.list(p, a),
+      board: (id) => board.now(id),
+    }),
     /* `call_agent` with work: true — handover: true from inside the caller's own build hands that item over (owner,
        branch, reviews follow the callee); a temporary lead's crew task stays on the lead's goal (main work); anyone
        else's is a side quest with one task for the callee (runs later, after the callee's main quest work) */

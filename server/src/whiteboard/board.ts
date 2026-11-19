@@ -15,7 +15,7 @@ import { pickWorkflow, type Workflow, type WorkflowAsk } from '../domain/workflo
 import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
-import { type BoardReader, boardText, goalBlock } from './board-text.ts';
+import { type BoardReader, boardNow, boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
 import { type Owner, type Roster, resolveOwner } from './owner.ts';
 
@@ -287,6 +287,8 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
 
   return {
     view: (projectId: string) => boardText(work.goals(projectId), reader(projectId)),
+    /** Active goals in full + the last few that ended: what a called agent reads as "now". */
+    now: (projectId: string) => boardNow(work.goals(projectId), reader(projectId)),
     history: (projectId: string) => history.text(projectId),
     /** A change to how the board's work runs (its workflows), in the board's history. */
     note: (projectId: string, by: string, summary: string) =>
