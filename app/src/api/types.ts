@@ -769,13 +769,13 @@ export type EventPayloads = {
   'project.changed': { imageUrl?: string | null; name?: string };
   'github.changed': { published: boolean; url: string | null; visibility: GithubView['visibility'] };
   'github.push': { ok: boolean; commit?: string; note?: string };
-  /** An item passes between desks: to a reviewer, back to its builder (rework / merge-fix). */
+  /** An item passes between desks: to a reviewer, back to its builder (rework / merge-fix), or to a new owner (handover). */
   handoff: {
     itemId: string;
     goalId: string;
     from: string;
     to: string;
-    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver';
+    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver' | 'handover';
     gate?: number;
     note?: string;
     /** Team handoffs: `itemId` is the sub-task, this is its team item. */

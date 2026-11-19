@@ -192,14 +192,15 @@ export const EVENT_SCHEMAS = {
   /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
       (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). F1c, inside a team:
       captain → member (delegate: a sub-task; rework: the captain's notes), member → captain (deliver: merged into
-      the team's branch). On team handoffs itemId is the sub-task and parentId the team item. */
+      the team's branch). On team handoffs itemId is the sub-task and parentId the team item. Handover: the item
+      itself changes owner (its branch and reviews follow the new owner). */
   handoff: z.strictObject({
     itemId: id,
     goalId: id,
     parentId: id.optional(),
     from: id,
     to: id,
-    kind: z.enum(['review', 'rework', 'merge-fix', 'delegate', 'deliver']),
+    kind: z.enum(['review', 'rework', 'merge-fix', 'delegate', 'deliver', 'handover']),
     gate: z.enum(GATE_KINDS).optional(),
     note: text().optional(),
   }),

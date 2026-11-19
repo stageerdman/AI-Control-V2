@@ -50,6 +50,7 @@ import { seatForWork } from '../office/people.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { holder } from '../whiteboard/people.ts';
+import { dropSessions, freshBuild, type HandoverMode, handoverMode, outlivedOwner } from './handover.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
 import { type Crew, validateWith } from './structured.ts';
@@ -469,8 +470,8 @@ export function createDispatch(deps: {
   /** A run's status and session (null: no such run). */
   const runOf = (runId: string | null) =>
     runId
-      ? ((deps.db.prepare('SELECT status, session_id FROM runs WHERE id = ?').get(runId) as
-          | { status: string; session_id: string | null }
+      ? ((deps.db.prepare('SELECT status, session_id, agent_id FROM runs WHERE id = ?').get(runId) as
+          | { status: string; session_id: string | null; agent_id: string }
           | undefined) ?? null)
       : null;
   /** The run's session, if it has one to resume. */
@@ -819,7 +820,7 @@ export function createDispatch(deps: {
     it: ChecklistItem,
     from: string,
     to: string,
-    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver',
+    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver' | 'handover',
     note?: string,
     gate?: ItemGate,
   ) =>
@@ -1210,7 +1211,8 @@ export function createDispatch(deps: {
     const it = work.itemByRun(run.id);
     if (it?.status === 'running') {
       try {
-        if (it.stage === 'review') afterReview(it, run);
+        if (outlivedOwner(it, run.agentId)) restartForOwner(it);
+        else if (it.stage === 'review') afterReview(it, run);
         else if (it.teamPhase === 'integrate') afterIntegrate(it, run);
         else afterBuild(it, run);
       } catch (e) {
@@ -1255,6 +1257,39 @@ export function createDispatch(deps: {
     return gatesFor(w, owner).filter((g) => onProject(g.reviewer));
   }
 
+  /* ---------------------------------------------------------------- handovers (src/crew/handover.ts) */
+
+  /** A run outlived its item's owner (the item changed hands while it ran): the new owner builds it fresh in
+      the same checkout — the run's result never goes to review as the new owner's work. */
+  function restartForOwner(it: ChecklistItem) {
+    settle(it, freshBuild());
+  }
+
+  /** Hand an item to a new owner: done work changes hands as it is; open work gets the new owner's fresh build on
+      the same branch (a live run first ends as the old owner's). Its review history stays with the item; every
+      review from here on is of the new owner's work. `note`: why, on the whiteboard and in the handoff. */
+  function handOver(
+    itemId: string,
+    to: { agentId: string; teamId: string | null },
+    note?: string,
+  ): HandoverMode {
+    const it = work.item(itemId);
+    if (!it) throw notFound('Checklist item', itemId);
+    const mode = handoverMode(it);
+    const gates = it.report ? [] : gatesOf(it.projectId, to, goalWorkflow(it.goalId, it.projectId));
+    store.tx(() => {
+      work.editItem(it.id, mode === 'keep' ? to : { ...to, gates });
+      /* the old owner's summary goes too: reviewers read the note as the current owner's */
+      if (mode === 'now') work.setItem(it.id, { ...freshBuild(), note: note ?? null });
+      if (mode === 'later') work.setItem(it.id, { status: 'running', ...dropSessions, note: note ?? null });
+    });
+    const cur = work.item(it.id) as ChecklistItem;
+    handoff(cur, it.agentId, to.agentId, 'handover', note);
+    announce(cur);
+    if (mode === 'now') pump(it.projectId);
+    return mode;
+  }
+
   const STOP_WAIT_MS = 60_000;
   /** The director's whiteboard tools (src/whiteboard) change the board through this port. */
   const board = {
@@ -1282,26 +1317,13 @@ export function createDispatch(deps: {
         await new Promise((r) => setTimeout(r, 50));
       }
     },
+    handOver,
     /** Queue a finished or stopped item again: it carries on in its own session when it had one, or
-        (`fresh`: done work redone, or a new owner) starts its build over. */
+        (`fresh`: done work redone) starts its build over. */
     reopen(itemId: string, fresh: boolean) {
       const it = work.item(itemId);
       if (!it) return;
-      work.setItem(
-        it.id,
-        fresh
-          ? {
-              ...requeuePatch(it, false),
-              stage: 'build',
-              gateIndex: 0,
-              sendBacks: 0,
-              notes: null,
-              buildRunId: null,
-              mergeTries: 0,
-              teamPhase: null,
-            }
-          : requeuePatch(it, !!sessionOf(it.runId)),
-      );
+      work.setItem(it.id, fresh ? { ...freshBuild(), note: null } : requeuePatch(it, !!sessionOf(it.runId)));
     },
     /** The board changed under these goals: tell the screen, settle them and start what may start. */
     changed(projectId: string, goalIds: string[]) {
@@ -1322,6 +1344,22 @@ export function createDispatch(deps: {
 
   return {
     board,
+    /** `call_agent` with work: true from inside the caller's own build run of an item hands that item over to the
+        callee (it follows them: owner, branch, reviews). → the item, or null when this isn't that case (a
+        reviewer, a captain's split, a member's part, any other run: the work goes on as a task of its own). */
+    handOverFromRun(runId: string, byId: string, toId: string, request: string): ChecklistItem | null {
+      const it = work.itemByRun(runId);
+      if (!it || toId === byId || it.agentId !== byId || it.status !== 'running') return null;
+      if (it.parentId || it.teamPhase || it.stage !== 'build') return null;
+      /* stays the team's only when the new owner sits on that team */
+      const onTeam = !!it.teamId && !!store.teams.get(it.teamId)?.members.some((m) => m.agentId === toId);
+      handOver(
+        it.id,
+        { agentId: toId, teamId: onTeam ? it.teamId : null },
+        clip(`Handed over by ${name(byId)}: ${request}`, 2000),
+      );
+      return work.item(it.id);
+    },
     list: (projectId: string) => {
       store.projects.require(projectId);
       return work.goals(projectId);
@@ -1579,6 +1617,11 @@ export function createDispatch(deps: {
         for (const it of work.projectItems(projectId, 'running')) {
           if (it.teamPhase === 'members') continue; // waits on its members' parts (queued again below)
           const run = runOf(it.runId);
+          if (run && outlivedOwner(it, run.agent_id)) {
+            /* handed over while it ran: the new owner starts it, never the old owner's session */
+            restartForOwner(it);
+            continue;
+          }
           if (run?.status === 'succeeded') {
             /* its run had finished: it was merging back — merge again */
             accept(it);

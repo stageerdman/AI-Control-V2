@@ -62,8 +62,15 @@ export function createRoom(deps: {
   comms?: Comms;
   /** What the callee left on this project: latest delivery and desk note, in a few lines (or null). */
   memoryOf?: (projectId: string, agentId: string) => string | null;
-  /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them. */
-  addWork?: (projectId: string, byId: string, calleeId: string, request: string, goalId?: string) => string;
+  /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them. `runId`:
+      the caller's run (from inside their own item's build, the item itself is handed over). */
+  addWork?: (
+    projectId: string,
+    byId: string,
+    calleeId: string,
+    request: string,
+    at: { goalId?: string; runId?: string },
+  ) => string;
   /** WORKFLOWS: who leads this agent on this goal right now (a running goal's temporary lead), or null. */
   leadOf?: (goalId: string, agentId: string) => string | null;
   /** The goal a run works on (a checklist item's run), or null. Asked at call time: dispatch links a run to its
@@ -344,7 +351,10 @@ export function createRoom(deps: {
     /* the work goes on the board at once, so it is never lost in the call */
     const onBoard =
       args.work && project && deps.addWork
-        ? deps.addWork(project.id, caller.id, callee.id, request, goalOf(ctx))
+        ? deps.addWork(project.id, caller.id, callee.id, request, {
+            goalId: goalOf(ctx),
+            ...(ctx.runId ? { runId: ctx.runId } : {}),
+          })
         : null;
     return inTurn(callee.id, () => help(ctx, { caller, callee, request, project, onBoard, step, log }));
   }

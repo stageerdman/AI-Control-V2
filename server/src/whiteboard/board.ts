@@ -374,17 +374,21 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         ...(e.text?.trim() ? { text: e.text.trim() } : {}),
         ...(e.brief?.trim() ? { brief: e.brief.trim() } : {}),
         ...(e.parallel !== undefined ? { parallel: e.parallel } : {}),
-        ...(newOwner && owner ? { ...owner, gates: port.gatesOf(projectId, owner, w) } : {}),
       });
       if (e.position !== undefined) work.moveItem(id, e.position - 1);
+      /* its branch and reviews follow the new owner; done work changes hands as it is */
+      const handed = newOwner && owner ? port.handOver(id, owner) : null;
       const cur = work.item(id) as ChecklistItem;
-      const status =
-        e.status ?? (newOwner && cur.status !== 'done' && cur.status !== 'todo' ? 'todo' : undefined);
-      if (status === 'todo' && cur.status !== 'todo') port.reopen(id, newOwner || cur.status === 'done');
-      else if (status === 'done' && cur.status !== 'done')
+      if (e.status === 'todo' && cur.status !== 'todo') port.reopen(id, cur.status === 'done');
+      else if (e.status === 'done' && cur.status !== 'done')
         work.setItem(id, { status: 'done', runId: cur.runId });
-      else if (status === 'cancelled' && cur.status === 'todo') await port.stopItems(projectId, [id]);
-      if (newOwner && owner) notes.push(`Now ${name(owner.agentId)}'s.`);
+      else if (e.status === 'cancelled' && cur.status === 'todo') await port.stopItems(projectId, [id]);
+      if (handed && owner)
+        notes.push(
+          handed === 'keep'
+            ? `Now ${name(owner.agentId)}'s — it was done, so their finished work stays as it is.`
+            : `Now ${name(owner.agentId)}'s: they build it on the same branch, and its reviews look at their work.`,
+        );
       keepRunning(wasRunning);
       wake(it.goalId);
       history.record(projectId, by, 'edit', `Edited '${it.text}' (${changed(e)})`);

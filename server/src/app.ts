@@ -309,10 +309,17 @@ export function buildApp({
     memoryOf: notesOf({ runs: (id) => runsRepo(db).list(id), desk: (p, a) => desk.list(p, a) }),
     /* `call_agent` with work: true — a temporary lead's crew task stays on the lead's goal (main work); anyone
        else's is a side quest with one task for the callee (runs later, after the callee's main quest work) */
-    addWork: (projectId, byId, calleeId, request, goalId) => {
+    addWork: (projectId, byId, calleeId, request, { goalId, runId }) => {
       const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
       /* the request also queues on the callee's own to-do list, in the order requests came */
       todos.add({ projectId, agentId: calleeId, fromId: byId, text: request });
+      /* from inside the caller's own build: the item itself follows the callee (owner, branch, reviews) */
+      const handed = runId ? dispatch.handOverFromRun(runId, byId, calleeId, request) : null;
+      if (handed) {
+        seatForWork(store, projectId, calleeId, request);
+        const [from, to] = [agentName(byId), agentName(calleeId)];
+        return `'${handed.text}' — handed over from ${from}: it is ${to}'s now, on the same branch, and its reviews look at their work. ${from}: commit what you have and end your turn.`;
+      }
       const goal = goalId ? actions.work.goal(goalId) : null;
       if (goal && leadOf(calleeId, goal) === byId)
         return board.addCrewTask(projectId, goal.id, byId, { text, owner: calleeId, brief: request });
