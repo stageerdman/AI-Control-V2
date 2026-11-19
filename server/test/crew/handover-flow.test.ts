@@ -144,6 +144,84 @@ describe('handovers: the item, its branch and its reviews follow the new owner',
     expect(handoffs.slice(at + 1)).toContain(`review:${BOB}→${LINT}`);
   }, 20_000);
 
+  /* Regression (the real Pensieve bug): after the handover the reviewer kept sending the item back to Columbo,
+     whose branch had nothing on it. Every review must see Bob's commits, and the send-back must reach Bob. */
+  it('Pensieve send-back: Lint asks for changes on Bob’s branch, Bob reworks in his own session, never Columbo', async () => {
+    const specs: RunSpec[] = [];
+    const reviewed: { branch: string; commits: string[] }[] = [];
+    const s = studio((app, spec) => {
+      specs.push(spec);
+      if (isReview(spec)) {
+        const branch = /Their work is on branch (\S+) in this checkout/.exec(spec.task)?.[1] ?? '';
+        const log = branch ? git(spec.cwd, 'log', '--format=%s', `main..${branch}`) : '';
+        reviewed.push({ branch, commits: log ? log.split('\n') : [] });
+        return reviewed.length === 1
+          ? [{ result: '{"verdict":"changes","notes":"Memories need a timestamp."}' }]
+          : [{ result: '{"verdict":"approve","notes":"Good."}' }];
+      }
+      if (isRunOf(app, spec, COLUMBO))
+        return [
+          {
+            tool: 'call_agent',
+            args: { agent: 'Baron', request: 'Take the Pensieve, it is backend work.', why: 'hand over', handover: true },
+          },
+          { result: 'Handed it to Baron.' },
+        ];
+      return commit(spec, spec.task.includes('Memories need a timestamp.') ? 'timestamps.txt' : 'pensieve.txt');
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
+    const work = workRepo(h.db);
+    const it = await until(
+      () => work.item(r.body.items[0].id) as ChecklistItem,
+      (i) => i.status === 'done' || i.status === 'failed',
+    );
+    expect(it).toMatchObject({ status: 'done', agentId: BOB, sendBacks: 1 });
+    expect(it.reviews.map((x) => x.verdict)).toEqual(['changes', 'approve']);
+
+    /* both reviews were of Bob's work, on one non-empty branch that grew with the rework */
+    const reviews = specs.filter(isReview);
+    expect(reviews.map((x) => x.task.match(/^You are reviewing (.+?)'s work/)?.[1])).toEqual([
+      'Baron von Backup',
+      'Baron von Backup',
+    ]);
+    expect(reviews.some((x) => x.task.includes('Captain Semicolon'))).toBe(false);
+    expect(new Set(reviewed.map((x) => x.branch)).size).toBe(1);
+    expect(reviewed[0]?.commits).toEqual(['pensieve.txt']);
+    expect(reviewed[1]?.commits).toEqual(['timestamps.txt', 'pensieve.txt']);
+
+    /* the send-back went to Bob: his session resumed with the notes; Columbo ran once and never again */
+    const runs = (await h.call('GET', '/projects/aurora/runs')).body as {
+      id: string;
+      agentId: string;
+      task: string;
+      startedAt: string;
+    }[];
+    const byStart = (a: { startedAt: string }, b: { startedAt: string }) => a.startedAt.localeCompare(b.startedAt);
+    const bob = runs.filter((x) => x.agentId === BOB).sort(byStart);
+    expect(runs.filter((x) => x.agentId === COLUMBO)).toHaveLength(1);
+    expect(bob).toHaveLength(2);
+    expect(bob[1]?.task).toContain('Memories need a timestamp.');
+    const rework = s.crew.calls.filter((c) => !isReview(c) && c.task.includes('sent it back'));
+    expect(rework).toHaveLength(1);
+    expect(rework[0]?.resumeSessionId).toBe(`fake-${bob[0]?.id}`);
+    expect(it.buildRunId).toBe(bob[1]?.id);
+
+    const ev = h.events.after('project', 'aurora') as Ev[];
+    const handoffs = ev
+      .filter((e) => e.type === 'handoff')
+      .map((e) => `${e.payload.kind}:${e.payload.from}→${e.payload.to}`);
+    const at = handoffs.indexOf(`handover:${COLUMBO}→${BOB}`);
+    expect(at).toBeGreaterThanOrEqual(0);
+    expect(handoffs.slice(at + 1).filter((x) => !x.startsWith('deliver:'))).toEqual([
+      `review:${BOB}→${LINT}`,
+      `rework:${LINT}→${BOB}`,
+      `review:${BOB}→${LINT}`,
+    ]);
+    expect(handoffs.slice(at + 1).some((x) => x.endsWith(`→${COLUMBO}`))).toBe(false);
+    expect(git(join(h.config.sandbox, 'aurora'), 'log', '--format=%s', 'main')).toContain('timestamps.txt');
+  }, 20_000);
+
   it('plain work: true from a build is side work: the caller keeps its item', async () => {
     const s = studio((app, spec) =>
       isRunOf(app, spec, COLUMBO) && spec.task.includes('Your checklist item: Build the Pensieve')
