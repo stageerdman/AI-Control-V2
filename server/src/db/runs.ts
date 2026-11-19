@@ -105,11 +105,13 @@ export function runsRepo(db: Db) {
         kind?: string | null;
         /** Why the agent works (agent performance); absent = a task. */
         asked?: string | null;
+        /** The checklist item it serves (time estimates); absent = no task's work. */
+        itemId?: string | null;
       },
     ): Run {
       db.prepare(
-        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind, asked)
-         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO runs (id, project_id, agent_id, team_id, task, status, runner, model, caps, started_at, kind, asked, item_id)
+         VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         r.id,
         r.projectId,
@@ -122,6 +124,7 @@ export function runsRepo(db: Db) {
         now(),
         r.kind ?? null,
         r.asked ?? null,
+        r.itemId ?? null,
       );
       return this.get(r.id) as Run;
     },

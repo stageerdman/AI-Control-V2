@@ -63,6 +63,8 @@ export type StartRun = {
   kind?: WorkKind;
   /** Why the agent works, for agent performance (performance/). Absent → a task. */
   asked?: Asked;
+  /** The checklist item this run serves, for time estimates (performance/rollup.ts). Absent → no task's work. */
+  itemId?: string;
 };
 type Live = {
   run: Run;
@@ -469,6 +471,7 @@ export function createRuntime(deps: RuntimeDeps) {
       caps,
       kind: req.kind ?? null,
       asked: req.asked ?? null,
+      itemId: req.itemId ?? null,
     });
     record(run, secrets, 'user', req.task);
     /* reporters research on the web; every agent may file a report (the user asked for one, or work ends in one) */

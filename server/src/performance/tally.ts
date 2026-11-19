@@ -2,7 +2,7 @@
    how their work ended — with the previous window's totals for trends and a per-local-day breakdown.
    A span counts where it started: its time, tokens and the request all land on that day, so days and windows
    always add up and nothing is counted twice. No money anywhere. */
-import { type Asked, firstStart, type Span, spanMs, WORK_KINDS, type WorkKind } from './spans.ts';
+import { type Asked, firstStart, type Span, spanMs, spanTokens, WORK_KINDS, type WorkKind } from './spans.ts';
 import { dayLabel, dayStart, daysOf, type Window } from './window.ts';
 
 /** The three measures of the sheet. */
@@ -47,14 +47,9 @@ export type Performance = {
 
 const zero = (): Measures => ({ ms: 0, tokens: 0, requests: 0 });
 
-function tokensOf(s: Span): number {
-  const t = s.tokens;
-  return t ? t.input + t.output + t.cacheRead + t.cacheWrite : 0;
-}
-
 function add(m: Measures, s: Span, nowMs: number): void {
   m.ms += spanMs(s, nowMs);
-  m.tokens += tokensOf(s);
+  m.tokens += spanTokens(s);
   m.requests++;
 }
 
@@ -106,7 +101,7 @@ export function tally(spans: readonly Span[], w: Window, nowMs: number): Perform
     a.kinds[s.kind] += spanMs(s, nowMs);
     a.turns += s.turns;
     a.split.reread += s.tokens?.cacheRead ?? 0;
-    a.split.fresh += tokensOf(s) - (s.tokens?.cacheRead ?? 0);
+    a.split.fresh += spanTokens(s) - (s.tokens?.cacheRead ?? 0);
     a.asked[s.asked]++;
     if (s.outcome === 'stopped') a.stopped++;
     if (!s.tokens) unmeasured++;

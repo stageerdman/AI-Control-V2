@@ -22,6 +22,7 @@ const span = (
   tokens: o.tokens === undefined ? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } : o.tokens,
   start,
   end: minutes === 'live' ? null : new Date(Date.parse(start) + minutes * 60_000).toISOString(),
+  itemId: null,
 });
 
 describe('the window', () => {
@@ -115,7 +116,13 @@ describe('the tally', () => {
       { ...span('a-blair', '2026-10-01T10:00:00.000Z', 99), kind: 'thinking' }, // outside: not counted
     ];
     const [blair] = tally(spans2, windowOf('7d', CET, NOW, null), NOW).agents;
-    expect(blair?.kinds).toEqual({ thinking: 0, building: 30 * 60_000, reviewing: 15 * 60_000, research: 0, setup: 0 });
+    expect(blair?.kinds).toEqual({
+      thinking: 0,
+      building: 30 * 60_000,
+      reviewing: 15 * 60_000,
+      research: 0,
+      setup: 0,
+    });
   });
 
   it('per local day: every day of the window, a span on the day it started, split by agent', () => {
