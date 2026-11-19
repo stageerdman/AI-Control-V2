@@ -14,6 +14,7 @@ import type { Quest } from '../domain/quests.ts';
 import { pickWorkflow, type Workflow, type WorkflowAsk } from '../domain/workflows.ts';
 import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
+import { projectMembers } from '../room/members.ts';
 import { type BoardReader, boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
 import { type Owner, type Roster, resolveOwner } from './owner.ts';
@@ -103,10 +104,8 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         ? [{ id: t.id, name: t.name, captainId: t.captainId, memberIds: t.members.map((m) => m.agentId) }]
         : [];
     });
-    const ids = new Set([
-      ...c.specialists,
-      ...teams.flatMap((t) => [...(t.captainId ? [t.captainId] : []), ...t.memberIds]),
-    ]);
+    /* the room's members, plus a temporary lead's crew not seated yet */
+    const ids = new Set([...projectMembers(store, projectId), ...c.specialists]);
     const people = [...ids].flatMap((id) => {
       const a = store.agents.get(id);
       return a ? [{ id, name: a.name, nick: a.nick }] : [];
@@ -114,6 +113,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     return {
       people,
       teams,
+      directorId: p.orchestratorId,
       specialists: c.specialists,
       everyone: direct || w.orchestratorTalksTo === 'everyone',
     };
@@ -302,9 +302,8 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     /** Work handed to the director (`call_agent` work: true to them, outside a build): a side quest whose task
         waits with them for a new owner (dispatch never starts the director's tasks). */
     addForDirector(projectId: string, by: string, t: { text: string; brief: string }): Goal {
-      const director = { agentId: store.projects.require(projectId).orchestratorId, teamId: null };
-      const a: NewGoal = { text: t.text, tasks: [{ ...t, owner: director.agentId }], quest: 'side' };
-      return putGoal(projectId, by, a, () => director).goal;
+      const owner = store.projects.require(projectId).orchestratorId;
+      return putGoal(projectId, by, { text: t.text, tasks: [{ ...t, owner }], quest: 'side' }).goal;
     },
 
     addTask(projectId: string, by: string, a: TaskInput & { goal: string; position?: number }): string {

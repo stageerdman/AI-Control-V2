@@ -23,6 +23,7 @@ import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { BridgeTool } from './bridge.ts';
 import { CALLS_ARE_FOR_QUESTIONS, WORKING_WITH_OTHERS } from './context.ts';
+import { projectMembers } from './members.ts';
 import { approverFor, callRefusal, contactOf } from './rule.ts';
 
 export const ALLOW_CALL = 'allow-call';
@@ -139,20 +140,11 @@ export function createRoom(deps: {
     return [...here];
   };
 
-  /** Everyone present, in order: the orchestrator, the project's staff, then whoever joined. */
+  /** Everyone present, in order: the project's members (or a draft's orchestrator), then whoever joined. */
   function present(scope: RoomScope, ownerId: string): string[] {
-    const ids: string[] = [];
-    const add = (id: string | null | undefined) => {
-      if (id && !ids.includes(id)) ids.push(id);
-    };
-    add(orchestratorOf(scope, ownerId));
-    for (const t of teamsOf(scope, ownerId)) for (const m of t.members) add(m.agentId);
-    if (scope === 'project') {
-      for (const id of store.projects.require(ownerId).agentIds) add(id);
-      for (const id of store.guests.ids(ownerId)) add(id); // brought in by the user
-    }
-    for (const id of joined(scope, ownerId)) add(id);
-    return ids.filter((id) => store.agents.get(id));
+    const base = scope === 'project' ? projectMembers(store, ownerId) : [orchestratorOf(scope, ownerId)];
+    const ids = new Set([...base, ...joined(scope, ownerId)].filter((id): id is string => !!id));
+    return [...ids].filter((id) => store.agents.get(id));
   }
 
   /** Bring someone in (once). */

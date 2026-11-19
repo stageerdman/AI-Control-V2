@@ -6,8 +6,11 @@ import { invalid } from '../errors.ts';
 export type RosterPerson = { id: string; name: string; nick?: string | null };
 export type RosterTeam = { id: string; name: string; captainId: string | null; memberIds: string[] };
 export type Roster = {
+  /** Everyone on the project (the room's members), the orchestrator included. */
   people: RosterPerson[];
   teams: RosterTeam[];
+  /** The orchestrator: may hold a task, which waits with them for a new owner (dispatch never starts it). */
+  directorId: string;
   specialists: ReadonlySet<string>;
   /** The director may brief team members directly (collaboration.orchestratorTalksTo = 'everyone'). */
   everyone: boolean;
@@ -45,6 +48,7 @@ export function resolveOwner(r: Roster, who: string, team?: string): Owner {
   if (!p) throw invalid(`Nobody called '${who}' works on this project. On it: ${onIt(r)}.`);
   const wanted = team ? r.teams.find((t) => t.id === team.trim() || key(t.name) === key(team)) : undefined;
   if (team && !wanted) throw invalid(`There is no team called '${team}' on this project.`);
+  if (!wanted && p.id === r.directorId) return { agentId: p.id, teamId: null };
   const led = r.teams.filter((t) => t.captainId === p.id && (!wanted || t.id === wanted.id));
   const seats = r.teams.filter((t) => t.memberIds.includes(p.id) && (!wanted || t.id === wanted.id));
   const pick = (list: RosterTeam[]): Owner => {
@@ -62,5 +66,6 @@ export function resolveOwner(r: Roster, who: string, team?: string): Owner {
         ? `${p.name} is on ${seat.name} — brief it through its captain ${nameOf(r, seat.captainId)}.`
         : `${p.name} is on ${seat.name}, which has no captain — give the task to a specialist or a captain.`,
     );
-  throw invalid(`${p.name} is not on ${wanted ? wanted.name : 'this project'}. On it: ${onIt(r)}.`);
+  if (wanted) throw invalid(`${p.name} is not on ${wanted.name}. On it: ${onIt(r)}.`);
+  throw invalid(`${p.name} is on this project but can’t own tasks here yet. Tasks can go to: ${onIt(r)}.`);
 }

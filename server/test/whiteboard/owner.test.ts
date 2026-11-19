@@ -7,12 +7,15 @@ const roster = (everyone = false): Roster => ({
     { id: 'pete', name: 'Pixel Pete', nick: 'Pete' },
     { id: 'baron', name: 'Baron von Backup', nick: 'Baron' },
     { id: 'both', name: 'Twin Lead' },
+    { id: 'pixel', name: 'Pixel' },
+    { id: 'guest', name: 'Quiet Guest' },
   ],
   teams: [
     { id: 'ship', name: 'Ship It', captainId: 'cap', memberIds: ['cap', 'pete'] },
     { id: 'polish', name: 'Polish', captainId: 'both', memberIds: ['both'] },
     { id: 'more', name: 'More', captainId: 'both', memberIds: ['both'] },
   ],
+  directorId: 'pixel',
   specialists: new Set(['baron']),
   everyone,
 });
@@ -41,5 +44,12 @@ describe('resolveOwner', () => {
       "Nobody called 'Ivy' works on this project. On it: Captain Semicolon (captain of Ship It), Twin Lead (captain of Polish), Twin Lead (captain of More), Baron von Backup (specialist).",
     );
     expect(() => resolveOwner(roster(), 'Baron', 'Nope')).toThrow("no team called 'Nope'");
+  });
+
+  it('the orchestrator may hold a task (it waits with them); a member who can’t own work is told so', () => {
+    expect(resolveOwner(roster(), 'pixel')).toEqual({ agentId: 'pixel', teamId: null });
+    expect(() => resolveOwner(roster(), 'Quiet Guest')).toThrow(
+      'Quiet Guest is on this project but can’t own tasks here yet.',
+    );
   });
 });

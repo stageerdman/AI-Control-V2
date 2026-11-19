@@ -47,6 +47,7 @@ import { resolveInSandbox } from '../fs/sandbox.ts';
 import type { Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import { seatForWork } from '../office/people.ts';
+import { projectMembers } from '../room/members.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { holder } from '../whiteboard/people.ts';
@@ -1258,12 +1259,8 @@ export function createDispatch(deps: {
 
   /** The review gates a new item gets for its owner under workflow `w` (reviewers who left the project are skipped). */
   function gatesOf(projectId: string, owner: GateOwner, w: Workflow): ItemGate[] {
-    const p = store.projects.require(projectId);
-    const onProject = (id: string) =>
-      p.agentIds.includes(id) ||
-      store.guests.ids(projectId).includes(id) ||
-      p.teamIds.some((t) => store.teams.get(t)?.members.some((m) => m.agentId === id));
-    return gatesFor(w, owner).filter((g) => onProject(g.reviewer));
+    const members = projectMembers(store, projectId);
+    return gatesFor(w, owner).filter((g) => members.includes(g.reviewer));
   }
 
   /* ---------------------------------------------------------------- handovers (src/crew/handover.ts) */

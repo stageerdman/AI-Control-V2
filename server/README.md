@@ -251,6 +251,9 @@ review history stay; the new owner's build task carries the handover note. Plain
 **Declining** — to the orchestrator, `work: true` from inside one's own build counts as a handover too: the item goes back to them and
 waits (no run) until they give it an owner with `edit_task`; any other `work: true` to them parks a side quest of theirs the same way.
 Their whiteboard shows such tasks as `[waiting for a new owner]`.
+**Members** (`src/room/members.ts`): one list of who is on a project — the orchestrator (always, teams or not), team captains and
+members, specialists, Cast guests. The room, the whiteboard's owner roster and the review gates all read it, so anyone the room shows can
+be named on the board; the orchestrator may hold a task (it waits with them), the rest own work by the dispatch rules above.
 
 **Teams & features** (F1c, `src/crew/team.ts`; the user's rule: teams are the primary unit, captains lead them). An item for a team's
 captain, in a git project, on a team with ≥ 2 members, is a small **team task**: (1) the captain splits it (`team-split`, prompt: split
