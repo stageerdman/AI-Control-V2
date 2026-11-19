@@ -1,9 +1,9 @@
-/* A working agent's `feature` tool: read the feature its work serves, set its pct and status, and add one line
-   on what shipped. A thin adapter over the features service (office/features.ts), like the director's
+/* A working agent's feature tools: `feature` reads the feature its work serves, sets its pct and status, and adds
+   one line on what shipped; `propose_feature` asks the director for a new one. Thin adapters over the features service (office/features.ts), like the director's
    feature-tools.ts, so the office updates live (`feature.changed`). */
 import type { Feature } from '../db/features.ts';
 import type { WorkRepo } from '../db/work.ts';
-import { AGENT_FEATURE_STATUSES } from '../domain/feature-stages.ts';
+import { AGENT_FEATURE_STATUSES, PROPOSED_STATUSES } from '../domain/feature-stages.ts';
 import { invalid } from '../errors.ts';
 import type { BridgeTool } from '../room/bridge.ts';
 import { progressPatch } from './feature-tools.ts';
@@ -57,6 +57,40 @@ export function agentFeatureTool(deps: { features: Features; work: WorkRepo }, m
       const patch = { ...progress, ...done, ...withLine(f, a.line) };
       if (!Object.keys(patch).length) return view(f);
       return `Feature updated:\n${view(deps.features.update(me.projectId, f.id, patch))}`;
+    },
+  };
+}
+
+/** A working agent's `propose_feature`: ask for a new feature; it waits for the director's yes (then it is on
+    the features list) or no. */
+export function proposeFeatureTool(
+  features: Features,
+  me: { projectId: string; agentId: string },
+): BridgeTool {
+  return {
+    name: 'propose_feature',
+    description:
+      'Propose a new feature for the Features list (never put feature requests in issues.txt). It waits for the orchestrator, who approves it (it lands in Features) or declines it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'The feature, in a few words.' },
+        description: { type: 'string', description: 'What it is and why, in plain words.' },
+        status: { type: 'string', enum: ['now', 'planned'], description: 'now (being built) or planned.' },
+        pct: { type: 'number', description: 'How far along it already is, 0–100.' },
+      },
+      required: ['name'],
+    },
+    run: async (a) => {
+      const name = typeof a.name === 'string' ? a.name.trim() : '';
+      if (!name) throw invalid('"name" is required.');
+      const p = features.propose(me.projectId, {
+        name,
+        description: typeof a.description === 'string' ? a.description.trim() : '',
+        ...progressPatch(a, PROPOSED_STATUSES),
+        proposedBy: me.agentId,
+      });
+      return `Proposed “${p.name}” (${p.id}). The orchestrator approves or declines it; once approved it is in Features.`;
     },
   };
 }

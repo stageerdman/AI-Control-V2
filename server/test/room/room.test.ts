@@ -223,6 +223,7 @@ describe('calls inside a project', () => {
       'cancel_run',
       'my_history',
       'feature',
+      'propose_feature',
       'send_mail',
       'mail_directory',
       'page_user',

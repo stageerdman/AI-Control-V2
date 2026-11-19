@@ -34,7 +34,7 @@ import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { actionTools } from './office/action-tools.ts';
 import { createAgentEdits } from './office/agent-edits.ts';
-import { agentFeatureTool } from './office/agent-feature-tool.ts';
+import { agentFeatureTool, proposeFeatureTool } from './office/agent-feature-tool.ts';
 import { createChatWork } from './office/chat-work.ts';
 import { createDesk } from './office/desk.ts';
 import { createDirectorStop } from './office/director-stop.ts';
@@ -571,6 +571,7 @@ export function buildApp({
     ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
     ...historyTools(db, { projectId, agentId, runId }),
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
+    proposeFeatureTool(features, { projectId, agentId }),
     ...mail.tools(projectId, agentId),
     pageTool(pager, projectId, agentId),
     ...todoTools(todos, agentName, projectId, agentId),

@@ -32,8 +32,18 @@ export const OFFICE_OBJECTS: readonly OfficeObject[] = [
   {
     name: 'Features list',
     what: 'What the project is building: Planned, Now, Shipped, with how far along each is.',
-    how: 'The director adds and edits features (without touching the whiteboard); an agent sets its own feature’s progress as work lands.',
-    tools: [...director('features', 'add_feature', 'edit_feature', 'remove_feature'), ...all('feature')],
+    how: 'The director adds and edits features (without touching the whiteboard) and approves or declines the ones agents propose; an agent sets its own feature’s progress as work lands.',
+    tools: [
+      ...director(
+        'features',
+        'add_feature',
+        'edit_feature',
+        'remove_feature',
+        'approve_feature',
+        'decline_feature',
+      ),
+      ...all('feature', 'propose_feature'),
+    ],
   },
   {
     name: 'The room & calls',

@@ -1,7 +1,9 @@
 /* The features folder (U1): Now / Planned / Shipped / Shelved / Denied, each with a plain description.
    The UI edits them; the director's chat tools (feature-tools.ts) go through the same service.
-   Every change is announced as `feature.changed` (after the write commits). */
+   Agents propose new ones (agent-feature-tool.ts); a proposal waits until the director approves it into a feature
+   or declines it. Every change to a feature is announced as `feature.changed` (after the write commits). */
 import type { Db } from '../db/connection.ts';
+import { type FeatureProposal, featureProposalsRepo, type ProposalCreate } from '../db/feature-proposals.ts';
 import { type Feature, type FeatureCreate, type FeaturePatch, featuresRepo } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import type { EventLog } from '../events/log.ts';
@@ -9,6 +11,7 @@ import type { EventLog } from '../events/log.ts';
 export function createFeatures(deps: { db: Db; store: Store; events: EventLog }) {
   const { store, events } = deps;
   const repo = featuresRepo(deps.db);
+  const proposals = featureProposalsRepo(deps.db);
   const announce = (f: Feature, deleted = false) =>
     events.append('project', f.projectId, {
       type: 'feature.changed',
@@ -50,6 +53,37 @@ export function createFeatures(deps: { db: Db; store: Store; events: EventLog })
     remove(projectId: string, id: string): Feature {
       store.projects.require(projectId);
       return write(() => repo.remove(projectId, id), true);
+    },
+    /** An agent asks for a new feature: it waits for the director (approve / decline). */
+    propose(projectId: string, p: ProposalCreate): FeatureProposal {
+      store.projects.require(projectId);
+      return proposals.create(projectId, p);
+    },
+    proposals(projectId: string): FeatureProposal[] {
+      store.projects.require(projectId);
+      return proposals.list(projectId);
+    },
+    /** The director's yes: the proposal becomes a real feature (what it asked for, `changes` on top; owner =
+        the proposer unless changed) and leaves the waiting list, in one transaction. */
+    approve(projectId: string, proposalId: string, changes: FeaturePatch = {}): Feature {
+      store.projects.require(projectId);
+      return write(() => {
+        const p = proposals.remove(projectId, proposalId);
+        const owner = store.agents.get(p.proposedBy) ? p.proposedBy : null;
+        return repo.create(projectId, {
+          name: p.name,
+          description: p.description,
+          status: p.status,
+          pct: p.pct,
+          owner,
+          ...changes,
+        });
+      });
+    },
+    /** The director's no: the proposal is dropped. */
+    decline(projectId: string, proposalId: string): FeatureProposal {
+      store.projects.require(projectId);
+      return proposals.remove(projectId, proposalId);
     },
     /** Read-only view for other services (the orchestrator's summary). */
     repo,

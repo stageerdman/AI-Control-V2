@@ -736,6 +736,21 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX features_by_project ON features(project_id, status, position);
   `,
+  /* 47 — feature proposals: an agent asks for a new feature; it waits here until the director approves it (it
+     becomes a real feature) or declines it. Its own table, so the features list only ever holds decided features. */
+  `
+  CREATE TABLE feature_proposals (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL CHECK (status IN ('now', 'planned')),
+    pct         INTEGER,
+    proposed_by TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX feature_proposals_by_project ON feature_proposals(project_id, created_at);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

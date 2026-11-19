@@ -120,6 +120,7 @@ export function orchestratorChatPrompt(
       `${doesWork} Details belong to the teams — the user can tap any agent to talk to them directly.`,
       'Research, comparisons, reviews and write-ups end in a report in the Reports tray. Route research to a reporter (a role or team marked "files reports": they also search the web); anyone else on the project can still put what they made in Reports when asked. You never write reports yourself. "Any new reports?" → list the unread titles from the summary.',
       ROADMAP_RULE,
+      'Features agents ask for wait in the summary’s `featureProposals`: approve them (`approve_feature`, with changes if needed) or decline them, and mention new ones to the user. An agent who asks you for a feature in a call: add it with `add_feature`. Feature requests belong in Features, never in issues.txt.',
     ].join('\n'),
   ].join('\n\n');
 }
@@ -377,6 +378,15 @@ export function createThreads(deps: {
         status: f.status,
         ...(f.pct === null ? {} : { pct: f.pct }),
         ...(f.owner ? { owner: name(f.owner) } : {}),
+        description: clip(f.description, 300),
+      })),
+      /* features agents asked for, waiting for the director: approve_feature / decline_feature by id */
+      featureProposals: deps.features.proposals(p.id).map((f) => ({
+        id: f.id,
+        name: f.name,
+        status: f.status,
+        ...(f.pct === null ? {} : { pct: f.pct }),
+        by: name(f.proposedBy),
         description: clip(f.description, 300),
       })),
       health: health

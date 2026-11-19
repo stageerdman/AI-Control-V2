@@ -4,6 +4,9 @@ export const FEATURE_STATUSES = ['now', 'planned', 'shipped', 'shelved', 'denied
 export type FeatureStatus = (typeof FEATURE_STATUSES)[number];
 /** What a working agent may set; shelving and denying are the user's (or the director's) call. */
 export const AGENT_FEATURE_STATUSES = ['now', 'planned', 'shipped'] as const;
+/** Where a proposed feature may start: open stages only (a proposal is for work still to land). */
+export const PROPOSED_STATUSES = ['now', 'planned'] as const;
+export type ProposedStatus = (typeof PROPOSED_STATUSES)[number];
 
 export const isClosed = (s: string) => s === 'shipped' || s === 'shelved' || s === 'denied';
 

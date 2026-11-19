@@ -42,6 +42,7 @@ describe('composePrompt', () => {
     expect(p).toContain('ask_user');
     expect(p).toContain('You are pre-approved for anything your tools allow in this project.');
     expect(p).toContain('Never ask the user for permission or confirmation');
+    expect(p).toContain('Feature requests go in Features, never in issues.txt');
     expect(p).not.toContain('captain');
   });
 
@@ -63,7 +64,9 @@ describe('composePrompt', () => {
     expect(p).toContain(
       'You share these instructions with your kin Pixel Pete and Pixel Sol (other copies of the same agent). Wherever they name one of your kin, read it as you, Pixel Bea.',
     );
-    expect(p.indexOf('You share these instructions')).toBeLessThan(p.indexOf('You are Pixel Pete, a frontend'));
+    expect(p.indexOf('You share these instructions')).toBeLessThan(
+      p.indexOf('You are Pixel Pete, a frontend'),
+    );
     expect(composePrompt({ agent, kin: [], project: { name: 'P' } })).not.toContain('your kin');
   });
 });

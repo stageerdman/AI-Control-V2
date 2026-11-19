@@ -1,5 +1,6 @@
 /* The director's features tools: thin adapters from MCP arguments to the features service (office/features.ts),
    so a change from the chat behaves exactly like one from the UI (same rules, same `feature.changed`). */
+import type { FeatureProposal } from '../db/feature-proposals.ts';
 import { FEATURE_STATUSES, type Feature, type FeaturePatch, type FeatureStatus } from '../db/features.ts';
 import type { Store } from '../db/store.ts';
 import { invalid } from '../errors.ts';
@@ -18,17 +19,17 @@ function need(a: Args, k: string): string {
 
 /** A feature's status (one of `allowed`) and pct from tool arguments, checked (the director's and the agents'
     feature tools). */
-export function progressPatch(
+export function progressPatch<S extends FeatureStatus>(
   a: Args,
-  allowed: readonly FeatureStatus[] = FEATURE_STATUSES,
-): Pick<FeaturePatch, 'status' | 'pct'> {
+  allowed: readonly S[],
+): { status?: S; pct?: number } {
   const status = str(a, 'status');
-  if (status !== undefined && !allowed.includes(status as FeatureStatus))
+  if (status !== undefined && !allowed.includes(status as S))
     throw invalid(`"status" is one of: ${allowed.join(', ')}.`);
   const pct = num(a, 'pct');
   if (pct !== undefined && (pct < 0 || pct > 100)) throw invalid('"pct" is 0–100.');
   return {
-    ...(status ? { status: status as Feature['status'] } : {}),
+    ...(status ? { status: status as S } : {}),
     ...(pct !== undefined ? { pct } : {}),
   };
 }
@@ -78,12 +79,14 @@ export function featureTools(features: Features, store: Store, projectId: string
       .join(', ');
     return `${f.id} — ${f.name} [${f.status} #${f.order}, ${extra}]`;
   };
+  const proposalLine = (p: FeatureProposal) =>
+    `${p.id} — ${p.name} [${p.status}${p.pct !== null ? `, ${p.pct}%` : ''}, by ${nameOf(p.proposedBy)}]${p.description ? `: ${p.description}` : ''}`;
   const fields = (a: Args): FeaturePatch => {
     const owner = str(a, 'owner');
     return {
       ...(str(a, 'name')?.trim() ? { name: str(a, 'name')?.trim() } : {}),
       ...(str(a, 'description') !== undefined ? { description: str(a, 'description') } : {}),
-      ...progressPatch(a),
+      ...progressPatch(a, FEATURE_STATUSES),
       ...(num(a, 'order') !== undefined ? { order: num(a, 'order') } : {}),
       ...(owner !== undefined ? { owner: ownerId(owner) } : {}),
     };
@@ -98,12 +101,42 @@ export function featureTools(features: Features, store: Store, projectId: string
       inputSchema: { type: 'object', properties: {} },
       run: async () => {
         const all = features.list(projectId);
-        return all.length ? all.map(line).join('\n') : 'The features list is empty.';
+        const asked = features.proposals(projectId);
+        return [
+          all.length ? all.map(line).join('\n') : 'The features list is empty.',
+          asked.length ? `Proposed by agents, waiting for you:\n${asked.map(proposalLine).join('\n')}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n');
       },
     },
     {
+      name: 'approve_feature',
+      can: 'approve a feature an agent proposed (the summary’s featureProposals): it lands in Features, as proposed or with your changes',
+      description:
+        'Approve an agent’s feature proposal: it becomes a feature on the features list (owner = the proposer unless you set one). Any field you give replaces what they proposed.',
+      inputSchema: {
+        type: 'object',
+        properties: { proposal: { type: 'string', description: 'The proposal id (fp-…).' }, ...FIELDS },
+        required: ['proposal'],
+      },
+      run: async (a) =>
+        `Approved, now on the features list: ${line(features.approve(projectId, need(a, 'proposal'), fields(a)))}`,
+    },
+    {
+      name: 'decline_feature',
+      can: 'decline a feature an agent proposed: it is dropped and never reaches Features',
+      description: 'Decline an agent’s feature proposal: it is dropped.',
+      inputSchema: {
+        type: 'object',
+        properties: { proposal: { type: 'string', description: 'The proposal id (fp-…).' } },
+        required: ['proposal'],
+      },
+      run: async (a) => `Declined: ${features.decline(projectId, need(a, 'proposal')).name}`,
+    },
+    {
       name: 'add_feature',
-      can: '"add X to the features list" / "put X on the roadmap": add a feature (Planned unless the user says otherwise). It starts no work — never also put it on the whiteboard unless the user asks for the work',
+      can: '"add X to the features list" / "put X on the roadmap", or an agent asked you for a feature: add a feature (Planned unless told otherwise). It starts no work — never also put it on the whiteboard unless the user asks for the work',
       description:
         'Add a feature to the features list (Planned unless told otherwise). This does not put anything on the whiteboard or start work.',
       inputSchema: { type: 'object', properties: FIELDS, required: ['name'] },
