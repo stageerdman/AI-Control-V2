@@ -2,6 +2,7 @@
    it; focus moves in on open and goes back to where it was on close. */
 import { type ReactNode, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useBackdropDismiss } from './backdrop';
 
 const FOCUSABLE =
   'button:not([disabled]),[href],input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
@@ -22,6 +23,7 @@ export function Sheet({ open, onClose, label, wide, className, closeButton = tru
   const sheet = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
+  const backdrop = useBackdropDismiss(() => close.current());
 
   useEffect(() => {
     if (!open) return;
@@ -56,9 +58,8 @@ export function Sheet({ open, onClose, label, wide, className, closeButton = tru
 
   if (!open) return null;
   return createPortal(
-    // biome-ignore lint/a11y/noStaticElementInteractions: scrim click = dismiss; Escape is the keyboard path
-    // biome-ignore lint/a11y/useKeyWithClickEvents: Escape handled on document
-    <div className="scrim" onClick={(e) => e.target === e.currentTarget && close.current()}>
+    /* a click on the dimmed background closes it (keyboard: Escape, on document) */
+    <div className="scrim" {...backdrop}>
       <div
         ref={sheet}
         className={['sheet', wide && 'wide', className].filter(Boolean).join(' ')}

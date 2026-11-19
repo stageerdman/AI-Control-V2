@@ -22,7 +22,7 @@ import {
   type WorkflowsView,
 } from '../../api';
 import type { OfficeSub } from '../../shell/router';
-import { Button, toast } from '../../ui';
+import { Button, toast, useBackdropDismiss } from '../../ui';
 import { type Person, type Resolve, WayThumb } from '../collab';
 import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
@@ -46,6 +46,12 @@ export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossie
   feature: 'dossier',
   reports: 'reports',
   report: 'reports',
+};
+/** One layer back (Esc, Back, a background click): a sub-card returns to its list, the rest to the office. */
+export const LAYER_BACK: Partial<Record<OfficeSub, OfficeSub>> = {
+  feature: 'features',
+  report: 'reports',
+  how: 'board',
 };
 const GRADE_WORD: Record<string, string> = {
   A: 'Great',
@@ -84,11 +90,12 @@ function ZoomCard({
   kind: string;
   label: string;
   fresh: boolean;
-  /** Set to close the card on a click on the background around it. */
-  onDismiss?: () => void;
+  /** A click on the background around the card: the same as Esc (one layer back). */
+  onDismiss: () => void;
   children: React.ReactNode;
 }) {
   const el = useRef<HTMLDivElement>(null);
+  const backdrop = useBackdropDismiss(onDismiss);
   const [shown, setShown] = useState(!fresh);
   // biome-ignore lint/correctness/useExhaustiveDependencies: run once per card
   useEffect(() => {
@@ -124,10 +131,8 @@ function ZoomCard({
   };
   return (
     <>
-      {onDismiss && (
-        /* the dimmed background: a click outside the card closes it (keyboard: Esc / Back) */
-        <div className="ob-dismiss" aria-hidden="true" data-testid="ob-dismiss" onClick={onDismiss} />
-      )}
+      {/* the dimmed background: a click outside the card closes it (keyboard: Esc / Back) */}
+      <div className="ob-dismiss" aria-hidden="true" {...backdrop} />
       <div
         ref={el}
         className={`ob-card ob-k-${kind}${shown ? ' in' : ''}`}
@@ -149,43 +154,47 @@ export function Board(p: BoardProps) {
   lastObj.current = obj;
   const k = `${p.sub}/${p.id ?? ''}`;
   const office = () => p.go('room');
+  /* a background click is Esc: the card's own handler first (unsaved changes), else one layer back */
+  const dismiss = () => {
+    if (!p.escapeRef.current?.()) p.go(LAYER_BACK[p.sub] ?? 'room');
+  };
   switch (p.sub) {
     case 'board':
       return (
-        <ZoomCard key={k} kind="board" label="Whiteboard" fresh={fresh}>
+        <ZoomCard key={k} kind="board" label="Whiteboard" fresh={fresh} onDismiss={dismiss}>
           <Back label="Office" aria="Back to the office" onClick={office} />
           <Whiteboard {...p} />
         </ZoomCard>
       );
     case 'how':
       return (
-        <ZoomCard key="how" kind="how" label="How we work" fresh={fresh}>
+        <ZoomCard key="how" kind="how" label="How we work" fresh={fresh} onDismiss={dismiss}>
           <HowWeWork {...p} />
         </ZoomCard>
       );
     case 'health':
       return (
-        <ZoomCard key={k} kind="health" label="Health check report" fresh={fresh}>
+        <ZoomCard key={k} kind="health" label="Health check report" fresh={fresh} onDismiss={dismiss}>
           <Back label="Office" aria="Back to the office" onClick={office} />
           <Health pid={p.pid} />
         </ZoomCard>
       );
     case 'features':
       return (
-        <ZoomCard key={k} kind="features" label="Features" fresh={fresh} onDismiss={office}>
+        <ZoomCard key={k} kind="features" label="Features" fresh={fresh} onDismiss={dismiss}>
           <Back label="Office" aria="Back to the office" onClick={office} />
           <FeatureList pid={p.pid} dir={p.dir} go={p.go} />
         </ZoomCard>
       );
     case 'feature':
       return (
-        <ZoomCard key={k} kind="feature" label="Feature" fresh={fresh}>
+        <ZoomCard key={k} kind="feature" label="Feature" fresh={fresh} onDismiss={dismiss}>
           <FeaturePage {...p} id={p.id ?? ''} />
         </ZoomCard>
       );
     case 'reports':
       return (
-        <ZoomCard key={k} kind="reports" label="Reports" fresh={fresh}>
+        <ZoomCard key={k} kind="reports" label="Reports" fresh={fresh} onDismiss={dismiss}>
           <ReportsList
             projectId={p.pid}
             back={{ label: 'Office', onClick: office }}
@@ -195,7 +204,7 @@ export function Board(p: BoardProps) {
       );
     case 'report':
       return (
-        <ZoomCard key={k} kind="report" label="Report" fresh={fresh}>
+        <ZoomCard key={k} kind="report" label="Report" fresh={fresh} onDismiss={dismiss}>
           <ReportView
             projectId={p.pid}
             reportId={p.id ?? ''}

@@ -32,7 +32,7 @@ import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../r
 import { RunningPill, RunningSheet, runningKey, useRunning } from '../running';
 import { AccessSheet } from './AccessSheet';
 import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
-import { Board, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
+import { Board, LAYER_BACK, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
@@ -654,12 +654,7 @@ function Office({
     if (!obj && opener.current && document.contains(opener.current))
       opener.current.focus({ preventScroll: true });
   }, [sub, world]);
-  const layerBack = useCallback(() => {
-    if (sub === 'feature') goSub('features');
-    else if (sub === 'report') goSub('reports');
-    else if (sub === 'how') goSub('board');
-    else goSub('room');
-  }, [sub, goSub]);
+  const layerBack = useCallback(() => goSub(LAYER_BACK[sub] ?? 'room'), [sub, goSub]);
 
   /* ---------- the few interactive objects */
   const [accessOpen, setAccessOpen] = useState(false);

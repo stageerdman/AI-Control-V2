@@ -1,5 +1,6 @@
 /* Shared UI primitives — the prototype's base.css classes (design/prototype.css) as components. */
 export { Button, type ButtonProps } from './Button';
+export { useBackdropDismiss } from './backdrop';
 export { Chip, Pill, type PillTone } from './Chip';
 export { Field, TextArea } from './Field';
 export { Panel, SceneHead } from './Layout';

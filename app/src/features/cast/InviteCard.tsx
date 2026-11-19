@@ -7,7 +7,7 @@ import { type KeyboardEvent, useEffect, useId, useLayoutEffect, useRef, useState
 import { type Agent, type CopyDraft, isApiError, type Look, studio } from '../../api';
 import { Hero, LOOK_SLOTS, randomLook, setPose } from '../../characters';
 import { hueHex } from '../../design/palette';
-import { Button } from '../../ui';
+import { Button, useBackdropDismiss } from '../../ui';
 import { announce, hop, poof, reducedMotion, trapTab } from './fx';
 import { kinOf, nameTaken, nextFreeHue, sharesLine, twinOf } from './kin';
 import { DICE } from './LookRig';
@@ -308,9 +308,11 @@ export function InviteDialog({
       close();
     } else if (e.key === 'Tab' && card.current) trapTab(e.nativeEvent, card.current);
   };
+  const backdrop = useBackdropDismiss(close);
   const label = inv.name.trim() || 'them';
   return (
-    <div className="ic-scrim">
+    /* a click on the dimmed background closes it (keyboard: Esc) */
+    <div className="ic-scrim" {...backdrop}>
       <form
         ref={card}
         className="ic"

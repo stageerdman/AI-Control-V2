@@ -65,8 +65,18 @@ SHELVED
   The row Enter will act on shows a small `↵` at its right end, so Enter is never a guess.
 - **Esc** in the field: clears it if it has text; otherwise Esc goes back to the office, as today.
 - **Click the dimmed background** (outside the card) → back to the office, same as "← Office". Clicks
-  anywhere on the card (field, chips, rows, padding) never close it. `ZoomCard onDismiss` in Board.tsx,
-  used by the features card only for now; the backdrop is `aria-hidden` (keyboard has Esc / Back).
+  anywhere on the card (field, chips, rows, padding) never close it. The backdrop is `aria-hidden`
+  (keyboard has Esc / Back).
+- **Every panel does the same** (one rule, `useBackdropDismiss` in app/src/ui/backdrop.ts):
+  - all office cards (whiteboard, how we work, health, features, one feature, reports, one report):
+    a background click = Esc = one layer back. The card's own Esc handler runs first, so unsaved
+    changes (one feature, How we work editing) ask instead of being lost.
+  - every `Sheet` (safe, mail, bell, running now, team, notes, principles, picture, ports, history,
+    access editor) and the invite card.
+  - It closes only when the press *and* the release land on the background: a drag that starts in
+    the panel (selecting text) and ends outside never closes it.
+  - Not changed: the Cast zooms (full pages, no dimmed background) and Rearrange (the whole overlay
+    is the drag workspace — there is no background to click; Close / Esc).
 - **↓** from the field moves focus into the rows; rows are normal buttons (Tab works too).
 - New-feature names are capped at 120 characters (the server's limit); `maxLength` on the field.
 

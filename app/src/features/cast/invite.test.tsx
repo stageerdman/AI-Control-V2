@@ -192,6 +192,19 @@ describe('the invite card', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
     document.removeEventListener('keydown', zoomKeys);
   });
+
+  it('a click on the dimmed background closes it; clicks inside never do', async () => {
+    const { onClose, name } = await open();
+    const press = (el: Element) => {
+      fireEvent.mouseDown(el);
+      fireEvent.click(el);
+    };
+    press(screen.getByRole('dialog'));
+    press(name);
+    expect(onClose).not.toHaveBeenCalled();
+    press(document.querySelector('.ic-scrim') as HTMLElement);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('the zoom panel: ＋ Invite another and the Kin row', () => {
