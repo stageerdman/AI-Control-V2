@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { projectState } from '../apps/run-command.ts';
 import type { Db } from '../db/connection.ts';
 import type { Feature } from '../db/features.ts';
+import { isClosed } from '../domain/feature-stages.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
@@ -343,7 +344,7 @@ export function createDispatch(deps: {
     if (!fs || !g.featureId || !g.ships) return;
     try {
       const f = fs.repo.get(g.projectId, g.featureId);
-      if (!f || f.status === 'shipped') return;
+      if (!f || isClosed(f.status)) return; // shipped, or shelved / denied by the user meanwhile: leave it
       if (!ended) {
         if (g.pct > (f.pct ?? 0)) fs.update(g.projectId, f.id, { pct: g.pct });
         return;
@@ -360,13 +361,14 @@ export function createDispatch(deps: {
     }
   }
 
-  /** Link a new goal to its feature: an existing one (planned → now), or a new one in Now. → the feature linked. */
+  /** Link a new goal to its feature: an existing one (planned, shelved or denied → now: the director links only
+      when the user asked for that work), or a new one in Now. → the feature linked. */
   function linkFeature(goal: Goal, f: DispatchPlan['feature']): Feature | null {
     const fs = deps.features;
     if (!fs || !f) return null;
     try {
       let feature = f.id ? fs.repo.get(goal.projectId, f.id) : null;
-      if (feature && feature.status === 'planned')
+      if (feature && feature.status !== 'now' && feature.status !== 'shipped')
         feature = fs.update(goal.projectId, feature.id, { status: 'now' });
       if (!feature && f.name)
         feature = fs.create(goal.projectId, {

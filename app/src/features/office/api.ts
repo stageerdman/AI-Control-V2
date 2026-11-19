@@ -66,13 +66,12 @@ export type Feature = {
   pct: number | null;
   owner: string | null;
   description: string;
-  vision: string;
   createdAt: string;
   updatedAt: string;
+  /** When it entered shipped (shelved / denied); null while open. Set by the server. */
+  closedAt: string | null;
 };
-export type FeatureCreate = Partial<
-  Pick<Feature, 'status' | 'order' | 'pct' | 'owner' | 'description' | 'vision'>
-> & {
+export type FeatureCreate = Partial<Pick<Feature, 'status' | 'order' | 'pct' | 'owner' | 'description'>> & {
   name: string;
 };
 export type FeaturePatch = Partial<Omit<FeatureCreate, never>>;

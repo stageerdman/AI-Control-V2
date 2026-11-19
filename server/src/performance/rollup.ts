@@ -2,6 +2,7 @@
    A task is a top-level checklist item; its members' sub-tasks count in it. A goal sums its tasks, a feature
    its goals. Spans with no task (chats, calls, planning) are left out. Active = agent time (summed spans);
    wall = first start to the end, or to now while open. */
+import { isClosed } from '../domain/feature-stages.ts';
 import { type Span, spanMs, spanTokens } from './spans.ts';
 
 export type AgentTime = { agentId: string; ms: number; tokens: number; runs: number };
@@ -58,7 +59,8 @@ export type Timesheet = { tasks: TaskTime[]; goals: GoalTime[]; features: Featur
 const OPEN_WORK = new Set(['todo', 'running']);
 export const itemFinished = (status: string) => !OPEN_WORK.has(status);
 export const goalFinished = (status: string) => status !== 'running';
-export const featureFinished = (status: string) => status === 'shipped';
+/** Shipped, shelved or denied: no more time is coming. */
+export const featureFinished = isClosed;
 
 /** The times of one piece of work from its spans. */
 export function timesOf(spans: readonly Span[], finished: boolean, nowMs: number): WorkTimes {

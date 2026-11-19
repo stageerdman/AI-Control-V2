@@ -1,13 +1,14 @@
 /* Features repository (the office's features folder). A feature lives in one status
-   group — now / planned / shipped — at a 1-based `order` inside it; every write keeps
-   each group's order dense (1, 2, 3…), so moving or deleting never leaves gaps. */
+   group — now / planned (open) or shipped / shelved / denied (closed) — at a 1-based `order`
+   inside it; every write keeps each group's order dense (1, 2, 3…), so moving or deleting never
+   leaves gaps. The repo alone stamps `closedAt`: the moment a feature entered its closed stage. */
+import { closedAtAfter, FEATURE_STATUSES, type FeatureStatus } from '../domain/feature-stages.ts';
 import { slugify, uniqueId } from '../domain/ids.ts';
 import { invalid, notFound } from '../errors.ts';
 import type { Db } from './connection.ts';
 import { now, type Row, row, rows } from './util.ts';
 
-export const FEATURE_STATUSES = ['now', 'planned', 'shipped'] as const;
-export type FeatureStatus = (typeof FEATURE_STATUSES)[number];
+export { FEATURE_STATUSES, type FeatureStatus };
 
 export type Feature = {
   id: string;
@@ -19,11 +20,12 @@ export type Feature = {
   pct: number | null;
   /** Agent or team id carrying it (null = nobody yet). */
   owner: string | null;
-  /** One plain text block each. */
+  /** One plain text block. */
   description: string;
-  vision: string;
   createdAt: string;
   updatedAt: string;
+  /** When it entered shipped / shelved / denied; null while open. */
+  closedAt: string | null;
 };
 export type FeatureCreate = {
   name: string;
@@ -32,7 +34,6 @@ export type FeatureCreate = {
   pct?: number | null;
   owner?: string | null;
   description?: string;
-  vision?: string;
 };
 export type FeaturePatch = Partial<FeatureCreate>;
 
@@ -45,9 +46,9 @@ const toFeature = (r: Row): Feature => ({
   pct: (r.pct as number | null) ?? null,
   owner: (r.owner as string | null) ?? null,
   description: r.description as string,
-  vision: r.vision as string,
   createdAt: r.created_at as string,
   updatedAt: r.updated_at as string,
+  closedAt: (r.closed_at as string | null) ?? null,
 });
 
 export function featuresRepo(db: Db) {
@@ -87,13 +88,15 @@ export function featuresRepo(db: Db) {
   };
 
   const repo = {
-    /** Now, then Planned, then Shipped; each in its order. */
+    /** Now, then Planned (each in its order); then Shipped, Shelved, Denied (each newest closed first). */
     list: (projectId: string): Feature[] =>
       rows<Row>(
         db
           .prepare(
             `SELECT * FROM features WHERE project_id = ?
-             ORDER BY CASE status WHEN 'now' THEN 0 WHEN 'planned' THEN 1 ELSE 2 END, position, rowid`,
+             ORDER BY CASE status WHEN 'now' THEN 0 WHEN 'planned' THEN 1 WHEN 'shipped' THEN 2
+                                  WHEN 'shelved' THEN 3 ELSE 4 END,
+                      closed_at DESC, position, rowid`,
           )
           .all(projectId),
       ).map(toFeature),
@@ -116,7 +119,7 @@ export function featuresRepo(db: Db) {
       const status = f.status ?? 'planned';
       const t = now();
       db.prepare(
-        `INSERT INTO features (id, project_id, name, status, position, pct, owner, description, vision, created_at, updated_at)
+        `INSERT INTO features (id, project_id, name, status, position, pct, owner, description, created_at, updated_at, closed_at)
          VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
@@ -126,9 +129,9 @@ export function featuresRepo(db: Db) {
         f.pct ?? null,
         f.owner ?? null,
         f.description ?? '',
-        f.vision ?? '',
         t,
         t,
+        closedAtAfter(undefined, status, null, t),
       );
       place(projectId, status, id, f.order);
       return repo.require(projectId, id);
@@ -138,16 +141,17 @@ export function featuresRepo(db: Db) {
       const cur = repo.require(projectId, id);
       assertOwner(patch.owner);
       const next = { ...cur, ...patch };
+      const t = now();
       db.prepare(
-        'UPDATE features SET name = ?, status = ?, pct = ?, owner = ?, description = ?, vision = ?, updated_at = ? WHERE id = ?',
+        'UPDATE features SET name = ?, status = ?, pct = ?, owner = ?, description = ?, updated_at = ?, closed_at = ? WHERE id = ?',
       ).run(
         next.name,
         next.status,
         next.pct ?? null,
         next.owner ?? null,
         next.description,
-        next.vision,
-        now(),
+        t,
+        closedAtAfter(cur.status, next.status, cur.closedAt, t),
         id,
       );
       if (next.status !== cur.status) {

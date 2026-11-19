@@ -1,4 +1,4 @@
-/* The features folder (U1): Now / Planned / Shipped, each with a plain description + vision.
+/* The features folder (U1): Now / Planned / Shipped / Shelved / Denied, each with a plain description.
    The UI edits them; the director's chat tools (feature-tools.ts) go through the same service.
    Every change is announced as `feature.changed` (after the write commits). */
 import type { Db } from '../db/connection.ts';
@@ -17,6 +17,7 @@ export function createFeatures(deps: { db: Db; store: Store; events: EventLog })
         name: f.name.slice(0, 120),
         status: f.status,
         order: f.order,
+        closedAt: f.closedAt,
         pct: f.pct,
         owner: f.owner,
         ...(deleted ? { deleted: true as const } : {}),

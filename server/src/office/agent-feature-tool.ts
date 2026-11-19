@@ -3,6 +3,7 @@
    feature-tools.ts, so the office updates live (`feature.changed`). */
 import type { Feature } from '../db/features.ts';
 import type { WorkRepo } from '../db/work.ts';
+import { AGENT_FEATURE_STATUSES } from '../domain/feature-stages.ts';
 import { invalid } from '../errors.ts';
 import type { BridgeTool } from '../room/bridge.ts';
 import { progressPatch } from './feature-tools.ts';
@@ -11,12 +12,11 @@ import type { Features } from './features.ts';
 type Caller = { projectId: string; runId: string };
 const MAX_LINE = 300;
 
-/** Description first, then the vision; what the agent reads back after every call. */
+/** What the agent reads back after every call. */
 const view = (f: Feature) =>
   [
     `${f.id} — ${f.name} [${f.status}${f.pct !== null ? `, ${f.pct}%` : ''}]`,
     f.description ? `Description:\n${f.description}` : '',
-    f.vision ? `Vision:\n${f.vision}` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -46,13 +46,13 @@ export function agentFeatureTool(deps: { features: Features; work: WorkRepo }, m
       properties: {
         feature: { type: 'string', description: 'A feature id; leave out for the one your goal serves.' },
         pct: { type: 'number', description: 'How far along the whole feature is, 0–100.' },
-        status: { type: 'string', enum: ['now', 'planned', 'shipped'] },
+        status: { type: 'string', enum: [...AGENT_FEATURE_STATUSES] },
         line: { type: 'string', description: 'One line added to its description: what shipped.' },
       },
     },
     run: async (a) => {
       const f = deps.features.get(me.projectId, featureId(a.feature));
-      const progress = progressPatch(a);
+      const progress = progressPatch(a, AGENT_FEATURE_STATUSES);
       const done = progress.status === 'shipped' && progress.pct === undefined ? { pct: 100 } : {};
       const patch = { ...progress, ...done, ...withLine(f, a.line) };
       if (!Object.keys(patch).length) return view(f);

@@ -247,7 +247,7 @@ export const MIGRATIONS: readonly string[] = [
   CREATE INDEX health_by_project ON health_reports(project_id, created_at);
   `,
 
-  /* 10 — the features folder (U1): Now / Planned / Shipped, each a plain description + vision.
+  /* 10 — the features folder (U1): Now / Planned / Shipped, each a plain description + vision (46 reshapes it).
      position = order within its status (1-based, kept dense by src/db/features.ts). */
   `
   CREATE TABLE features (
@@ -681,6 +681,60 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE checklist_items DROP COLUMN thinking;
   ALTER TABLE runs DROP COLUMN thinking;
   ALTER TABLE crew_time DROP COLUMN thinking;
+  `,
+  /* 46 — feature list (updates/2026-11-19 FEATURE LIST): two closed stages (shelved, denied) beside shipped, the
+     day a feature closed (closed_at), and vision folded into description. SQLite can't change a CHECK, so the
+     table is rebuilt; nothing references features, so the drop cascades nowhere.
+     closed_at back-fill: a shipped row dates from the first event showing it shipped after the last one showing
+     it open (the move that shipped it, not later edits), else updated_at. Features parked by name before the
+     stages existed ("Shelved: X", "Denied: X") move to that stage under their plain name. */
+  `
+  CREATE TEMP TABLE feature_events AS
+    SELECT id, at, type, scope_id AS project_id, json_extract(payload, '$.featureId') AS feature_id,
+      (type = 'feature.shipped' OR json_extract(payload, '$.status') = 'shipped') AS shipped
+    FROM events WHERE scope = 'project' AND type IN ('feature.changed', 'feature.shipped');
+  CREATE TABLE features_v46 (
+    id          TEXT PRIMARY KEY,
+    project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    status      TEXT NOT NULL CHECK (status IN ('now', 'planned', 'shipped', 'shelved', 'denied')),
+    position    INTEGER NOT NULL,
+    pct         INTEGER CHECK (pct BETWEEN 0 AND 100),
+    owner       TEXT,
+    description TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    closed_at   TEXT
+  );
+  INSERT INTO features_v46 (id, project_id, name, status, position, pct, owner, description, created_at, updated_at, closed_at)
+  SELECT id, project_id, name, status, position, pct, owner,
+    CASE
+      WHEN trim(vision) = '' THEN description
+      WHEN trim(description) = '' THEN trim(vision)
+      ELSE trim(description) || char(10) || char(10) || trim(vision)
+    END,
+    created_at, updated_at,
+    CASE WHEN status = 'shipped' THEN coalesce(
+      (SELECT min(e.at) FROM feature_events e
+        WHERE e.project_id = features.project_id AND e.feature_id = features.id AND e.shipped
+          AND e.id > coalesce((SELECT max(o.id) FROM feature_events o
+            WHERE o.project_id = features.project_id AND o.feature_id = features.id AND NOT o.shipped), 0)),
+      updated_at) END
+  FROM features;
+  DROP TABLE features;
+  DROP TABLE feature_events;
+  ALTER TABLE features_v46 RENAME TO features;
+  UPDATE features
+    SET status = lower(substr(name, 1, instr(name, ':') - 1)),
+        name = trim(substr(name, instr(name, ':') + 1)),
+        closed_at = updated_at
+    WHERE name LIKE 'Shelved:_%' OR name LIKE 'Denied:_%';
+  UPDATE features SET position = (
+    SELECT n FROM (
+      SELECT id, row_number() OVER (PARTITION BY project_id, status ORDER BY position, rowid) AS n FROM features
+    ) r WHERE r.id = features.id
+  );
+  CREATE INDEX features_by_project ON features(project_id, status, position);
   `,
 ];
 

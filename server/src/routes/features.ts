@@ -14,7 +14,6 @@ const fields = {
   pct: z.number().int().min(0).max(100).nullable().optional(),
   owner: Id.nullable().optional(),
   description: Block.optional(),
-  vision: Block.optional(),
 };
 const FeatureCreate = z.strictObject(fields);
 const FeaturePatch = z.strictObject({ ...fields, name: fields.name.optional() });

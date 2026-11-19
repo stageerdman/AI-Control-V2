@@ -702,18 +702,10 @@ function Folder({ pid, dir, go }: BoardProps) {
 }
 
 /* ------------------------------------------------------------ one feature */
-type Draft = { name: string; status: FeatureStatus; description: string; vision: string };
-const draftOf = (f: Feature): Draft => ({
-  name: f.name,
-  status: f.status,
-  description: f.description,
-  vision: f.vision,
-});
+type Draft = { name: string; status: FeatureStatus; description: string };
+const draftOf = (f: Feature): Draft => ({ name: f.name, status: f.status, description: f.description });
 const same = (a: Draft, b: Draft) =>
-  a.name.trim() === b.name.trim() &&
-  a.status === b.status &&
-  a.description === b.description &&
-  a.vision === b.vision;
+  a.name.trim() === b.name.trim() && a.status === b.status && a.description === b.description;
 
 function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
   const features = useFeatures(pid);
@@ -726,7 +718,6 @@ function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
       officeApi.updateFeature(pid, id, {
         name: d.name.trim() || (f?.name ?? 'Feature'),
         description: d.description.trim(),
-        vision: d.vision.trim(),
         ...(f && d.status !== f.status ? { status: d.status } : {}),
       }),
     { invalidate: [keys.features(pid)] },
@@ -806,19 +797,9 @@ function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
       <textarea
         id="obDesc"
         className="ob-ta"
-        rows={5}
+        rows={10}
         value={d.description}
         onChange={(e) => set({ description: e.target.value })}
-      />
-      <label className="ob-fl" htmlFor="obVis">
-        Vision
-      </label>
-      <textarea
-        id="obVis"
-        className="ob-ta"
-        rows={4}
-        value={d.vision}
-        onChange={(e) => set({ vision: e.target.value })}
       />
       {(save.error || del.error) && (
         <p className="ob-err" role="alert" style={{ marginTop: 12 }}>

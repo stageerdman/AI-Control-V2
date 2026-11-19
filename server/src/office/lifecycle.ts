@@ -2,7 +2,8 @@
 
    Status (a project on set — `draft` / `archived` are the user's and never touched):
      needs = an agent is waiting on the user (an open ask) · live = a run or checklist work is in flight · idle = nothing.
-   Overall progress: features shipped / total when the features folder has any; else the current goal's %.
+   Overall progress: features shipped / total when the features folder has any that count (shelved and denied
+   don't); else the current goal's %.
    The current goal = the newest running goal, else the newest. `target` labels what it counts towards ("v1.0").
 
    Driven by the event log: every run / ask / goal / feature event of a project re-reads the truth from the db,
@@ -56,13 +57,13 @@ export function createLifecycle(deps: { db: Db; store: Store; events: EventLog }
 
   function progressOf(projectId: string): Progress {
     const p = store.projects.require(projectId);
-    const list = features.list(projectId);
-    const shipped = list.filter((f) => f.status === 'shipped').length;
+    const counted = features.list(projectId).filter((f) => f.status !== 'shelved' && f.status !== 'denied');
+    const shipped = counted.filter((f) => f.status === 'shipped').length;
     const goals = work.goals(projectId);
     const g = goals.find((x) => x.status === 'running') ?? goals[0] ?? null;
     const goal = g ? { id: g.id, text: g.text, pct: g.pct, status: g.status } : null;
-    const pct = list.length ? Math.round((shipped / list.length) * 100) : (goal?.pct ?? p.progress);
-    return { pct, shipped, total: list.length, target: p.target, goal };
+    const pct = counted.length ? Math.round((shipped / counted.length) * 100) : (goal?.pct ?? p.progress);
+    return { pct, shipped, total: counted.length, target: p.target, goal };
   }
 
   function refresh(projectId: string) {

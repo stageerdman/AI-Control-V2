@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { AGENT_FIELDS } from './agent-changes.ts';
 import { GATE_KINDS } from './collaboration.ts';
+import { FEATURE_STATUSES } from './feature-stages.ts';
 import { QUESTS } from './quests.ts';
 
 const id = z.string().trim().min(1).max(80);
@@ -242,8 +243,9 @@ export const EVENT_SCHEMAS = {
   'feature.changed': z.strictObject({
     featureId: id,
     name: text(120),
-    status: z.enum(['now', 'planned', 'shipped']),
+    status: z.enum(FEATURE_STATUSES),
     order: z.number().int().min(1),
+    closedAt: z.string().max(40).nullable().optional(),
     pct: z.number().int().min(0).max(100).nullable().optional(),
     owner: id.nullable().optional(),
     deleted: z.literal(true).optional(),
