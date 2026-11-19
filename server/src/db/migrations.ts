@@ -656,6 +656,17 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE teams ADD COLUMN way_shape TEXT NOT NULL DEFAULT 'captain' CHECK (way_shape IN ('captain', 'chain'));
   `,
+  /* 43 — time estimates (updates/2026-11-19 TIME ESTIMATES): the checklist item a run or crew call serves (NULL = not
+     a task's work: chats, calls, planning). Older runs are linked back from the item rows that point at them. */
+  `
+  ALTER TABLE runs ADD COLUMN item_id TEXT;
+  ALTER TABLE crew_time ADD COLUMN item_id TEXT;
+  UPDATE runs SET item_id = (
+    SELECT c.id FROM checklist_items c
+    WHERE c.run_id = runs.id OR c.build_run_id = runs.id OR c.resume_run_id = runs.id LIMIT 1
+  );
+  CREATE INDEX runs_item ON runs(item_id);
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

@@ -710,6 +710,7 @@ export function createDispatch(deps: {
         ...spec,
         /* the office's work clock: a gate's review, a report item's research, everything else is building */
         kind: it.stage === 'review' ? 'reviewing' : it.report ? 'research' : 'building',
+        itemId: it.id,
         ...(caps ? { caps } : {}),
         ...(it.workspace ? { workdir: it.workspace.cwd } : {}),
       });
@@ -1028,7 +1029,13 @@ export function createDispatch(deps: {
       ({ value } = await crew.call({
         who: captain.name,
         contract: TEAM_SPLIT,
-        track: { scope: 'project', ownerId: it.projectId, agentId: captain.id, kind: 'thinking' },
+        track: {
+          scope: 'project',
+          ownerId: it.projectId,
+          agentId: captain.id,
+          kind: 'thinking',
+          itemId: it.id,
+        },
         systemPrompt: call.systemPrompt,
         task: call.task,
         caps: SPLIT_CAPS,

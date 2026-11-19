@@ -100,6 +100,7 @@ import { settingsRoutes } from './routes/settings.ts';
 import { teamRoutes, teamWorkflowRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
+import { timesheetRoutes } from './routes/timesheet.ts';
 import { todoRoutes } from './routes/todos.ts';
 import { trashRoutes } from './routes/trash.ts';
 import { usageRoutes } from './routes/usage.ts';
@@ -633,6 +634,7 @@ export function buildApp({
   app.register(setterRoutes({ store, config, events, github, clock }));
   app.register(timeRoutes({ store, clock }));
   app.register(performanceRoutes({ db, store }));
+  app.register(timesheetRoutes({ db, store }));
   app.register(portraitRoutes({ portraits: createPortraits({ db, store, events, home: config.home }) }));
   app.register(githubRoutes({ github }));
   app.register(settingsRoutes({ github, autoApprove, hq, store }));

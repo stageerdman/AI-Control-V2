@@ -39,6 +39,8 @@ export type Span = {
   tokens: Tokens | null;
   start: string;
   end: string | null;
+  /** The checklist item it served (time estimates); null = no task's work (chats, calls, planning). */
+  itemId: string | null;
 };
 
 const ASKED: readonly string[] = ['task', 'call', 'chat'] satisfies Asked[];
@@ -64,7 +66,7 @@ function runSpans(db: Db, projectId: string): Span[] {
   return rows<Row>(
     db
       .prepare(
-        `SELECT r.agent_id, r.kind, r.asked, r.task, r.status, r.turns, r.started_at, r.ended_at,
+        `SELECT r.agent_id, r.kind, r.asked, r.task, r.status, r.turns, r.started_at, r.ended_at, r.item_id,
                 r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_write_tokens, a.kind AS agent_kind
          FROM runs r LEFT JOIN agents a ON a.id = r.agent_id WHERE r.project_id = ?`,
       )
@@ -82,6 +84,7 @@ function runSpans(db: Db, projectId: string): Span[] {
     tokens: tokensOf(r),
     start: r.started_at as string,
     end: (r.ended_at as string | null) ?? null,
+    itemId: (r.item_id as string | null) ?? null,
   }));
 }
 
@@ -89,7 +92,7 @@ function crewSpans(db: Db, projectId: string): Span[] {
   return rows<Row>(
     db
       .prepare(
-        `SELECT agent_id, kind, asked, status, turns, started_at, ended_at,
+        `SELECT agent_id, kind, asked, status, turns, started_at, ended_at, item_id,
                 input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
          FROM crew_time WHERE scope = 'project' AND owner_id = ?`,
       )
@@ -103,6 +106,7 @@ function crewSpans(db: Db, projectId: string): Span[] {
     tokens: tokensOf(r),
     start: r.started_at as string,
     end: (r.ended_at as string | null) ?? null,
+    itemId: (r.item_id as string | null) ?? null,
   }));
 }
 
@@ -116,6 +120,12 @@ export function firstStart(spans: readonly Span[]): string | null {
   let first: string | null = null;
   for (const s of spans) if (!first || s.start < first) first = s.start;
   return first;
+}
+
+/** All the tokens a span burned (new + re-read); 0 when not measured. */
+export function spanTokens(s: Span): number {
+  const t = s.tokens;
+  return t ? t.input + t.output + t.cacheRead + t.cacheWrite : 0;
 }
 
 /** How long a span lasted: still going → up to `nowMs`; ended without a time (shouldn't happen) → nothing. */

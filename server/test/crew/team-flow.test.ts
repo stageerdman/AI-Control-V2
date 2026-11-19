@@ -118,6 +118,24 @@ describe('captains delegate (F1c)', () => {
     expect(it0.subtasks[0]).toMatchObject({ parentId: it0.id, teamId: 'ship-it' });
     expect(peak).toBe(2); // both members at once
 
+    // time estimates: every run says which item it served, and so does the captain's split
+    const ids = [it0.id, ...it0.subtasks.map((x: { id: string }) => x.id)];
+    const runItems = h.db.prepare("SELECT item_id FROM runs WHERE project_id = 'aurora'").all();
+    expect(runItems.length).toBeGreaterThan(3);
+    for (const r of runItems) expect(ids).toContain((r as { item_id: string }).item_id);
+    expect(h.db.prepare("SELECT item_id FROM crew_time WHERE agent_id = 'a-semic'").all()).toEqual([
+      { item_id: it0.id },
+    ]);
+    const sheet = (await h.call('GET', '/projects/aurora/timesheet')).body;
+    const task = sheet.tasks.find((t: { itemId: string }) => t.itemId === it0.id);
+    expect(task.time.runs).toBe(runItems.length + 1); // every run and the split, sub-tasks included
+    expect(task.time.endedAt).not.toBeNull();
+    expect(task.time.byAgent.map((a: { agentId: string }) => a.agentId).sort()).toEqual(
+      ['a-lint', 'a-pete', 'a-scar', 'a-semic'].sort(),
+    );
+    expect(sheet.goals[0]).toMatchObject({ goalId: r.body.id, status: 'done' });
+    expect(sheet.goals[0].time.activeMs).toBe(task.time.activeMs);
+
     // the split call: the captain's own words, its team and members' jobs, read-only in the item's checkout
     const splitCall = s.crew.crewCalls().find((c) => c.task.startsWith('AI Studio contract: team-split'));
     expect(splitCall?.task).toContain('"whatWeDo"');

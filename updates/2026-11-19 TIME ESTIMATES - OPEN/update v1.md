@@ -40,7 +40,7 @@ every run and crew call — now also know which task they served.
   a sample.
 
 ### Phase 4 — the read (server)
-- `GET /projects/:id/times` → `{ tasks, goals, features, estimates }` — one request per office.
+- `GET /projects/:id/timesheet` → `{ tasks, goals, features, estimates }` — one request per office.
 - `GET /projects/:id/estimate?agentId=` → the estimate for a new task (for that assignee), goal and feature.
 - **Tests:** route shape, 404 for an unknown office, an office with no work, a finished goal rolls up and feeds
   the estimate.
@@ -57,11 +57,21 @@ Show times on the whiteboard and the features folder, and the estimate when new 
 
 ## Status
 - [x] Roadmap
-- [ ] Phase 1 — `item_id` on runs and crew calls
-- [ ] Phase 2 — `performance/rollup.ts`
-- [ ] Phase 3 — `performance/estimate.ts`
-- [ ] Phase 4 — `GET /projects/:id/times`, `GET /projects/:id/estimate`
+- [x] Phase 1 — `item_id` on runs and crew calls (migration 43 + back-fill; dispatch sets it on item runs and
+  the captain's split). Tested in `test/crew/team-flow.test.ts` and `test/performance/timesheet.test.ts`.
+- [x] Phase 2 — `performance/rollup.ts` (`test/performance/rollup.test.ts`)
+- [x] Phase 3 — `performance/estimate.ts` (same test file)
+- [x] Phase 4 — `GET /projects/:id/timesheet`, `GET /projects/:id/estimate?agentId=` (`performance/timesheet.ts`,
+  `routes/timesheet.ts`). Named `timesheet`, not `times`: `/projects/:id/time` is already the work clock.
 - [ ] Phase 5 — UI (separate item)
+
+## The read (for the app)
+`GET /projects/:id/timesheet` →
+`{ tasks: [{ itemId, goalId, agentId, text, status, time }], goals: [{ goalId, featureId, text, status, tasks, time }],
+features: [{ featureId, name, status, goals, time }], estimates: { task, goal, feature } }` where
+`time = { startedAt, endedAt, activeMs, wallMs, runs, turns, tokens, live, byAgent: [{ agentId, ms, tokens, runs }] }`
+and an estimate is `null` or `{ ms: { typical, low, high }, tokens: { typical, low, high }, basis, from: 'agent' | 'office' }`.
+`GET /projects/:id/estimate?agentId=` → just `{ task, goal, feature }`, the task one for that assignee.
 
 ## Decisions
 - One reader: spans (`performance/spans.ts`) stay the only reader of `runs` + `crew_time` for time and tokens.
