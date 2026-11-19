@@ -61,6 +61,8 @@ export type Agent = {
   tools?: Toolset | null;
   /** The Cast API's plain tool list (every /agents reply carries it). */
   toolList?: ToolList;
+  /** Its default thinking power (server runtime/thinking.ts); null/absent = the kind of work decides. */
+  thinking?: ThinkingStep | null;
   teamIds: string[];
   projectIds: string[];
   canDelete: DeleteVerdict;
@@ -81,7 +83,12 @@ export type AgentCreate = {
   look?: Look;
   prompt?: string;
 };
-export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>> & { canMail?: boolean };
+export type AgentPatch = Partial<Omit<AgentCreate, 'kind'>> & {
+  canMail?: boolean;
+  thinking?: ThinkingStep | null;
+};
+/** Thinking power: one dial, four steps (each a fixed model + effort pair on the server). */
+export type ThinkingStep = 'light' | 'normal' | 'deep' | 'deepest';
 
 export type Member = { agentId: string; instr: string };
 export type Team = {
@@ -707,7 +714,7 @@ export type EventPayloads = {
   /** A Cast agent on this project was edited (GET /agents/:id has the new values). */
   'agent.changed': {
     agentId: string;
-    fields: ('name' | 'nick' | 'role' | 'look' | 'prompt' | 'canMail')[];
+    fields: ('name' | 'nick' | 'role' | 'look' | 'prompt' | 'canMail' | 'thinking')[];
   };
   'cast.created': { kind: 'agent' | 'team' | 'role'; id: string; name: string; by?: string };
   'health.checked': {

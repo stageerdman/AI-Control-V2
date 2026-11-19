@@ -107,7 +107,9 @@ Performance's rule, no money is shown: tokens and time only, with the model name
   default beats the kind of work's)
 - [ ] Phase 3 — self-raise
 - [ ] Phase 4 — cost per step
-- [ ] Phase 5 — UI dial
+- [ ] Phase 5 — UI dial (in part: the Cast panel's Thinking control — four steps, one plain line each, saves
+  on pick; Normal clears the agent's own step. design/cast/thinking.md. Still to do: per-step averages, the
+  goal/task override, the working badge, voice.)
 - [ ] Phase 6 — second look
 
 ## Decisions

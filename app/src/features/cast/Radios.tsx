@@ -14,7 +14,9 @@ export function Radios({
   onHover,
   onLeave,
   autoFocus,
+  describedBy,
 }: {
+  describedBy?: string;
   label: string;
   items: RadioItem[];
   value: string;
@@ -39,6 +41,7 @@ export function Radios({
       className={`cx-radios ${className}`}
       role="radiogroup"
       aria-label={label}
+      aria-describedby={describedBy}
       onMouseLeave={onLeave}
       onKeyDown={(e) => {
         const i = refs.current.indexOf(document.activeElement as HTMLButtonElement);

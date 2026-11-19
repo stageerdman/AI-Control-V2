@@ -12,13 +12,15 @@ import { isCrew, KIND_ABOUT, KIND_LABEL } from './model';
 import { Radios } from './Radios';
 import { RoleCombo } from './RoleCombo';
 import { busyReason, saveAgent } from './store';
+import { savedStep, shownStep } from './thinking';
+import { ThinkingDial } from './ThinkingDial';
 import { ToolList } from './ToolList';
 
 export type PanelAgent = Pick<
   Agent,
   'id' | 'kind' | 'name' | 'roleId' | 'role' | 'prompt' | 'teamIds' | 'projectIds' | 'canDelete' | 'canMail'
 > &
-  Partial<Pick<Agent, 'toolList'>>;
+  Partial<Pick<Agent, 'toolList' | 'thinking'>>;
 
 export const AgentPanel = forwardRef<
   HTMLDivElement,
@@ -225,6 +227,19 @@ export const AgentPanel = forwardRef<
             }}
           />
         </section>
+        {exists && !draft && (
+          <section className="zp-sec zp-thinking" aria-labelledby="zpThinkLabel">
+            <h3 className="zp-label" id="zpThinkLabel">
+              Thinking
+              <span className="zp-hint">how hard it thinks</span>
+            </h3>
+            <ThinkingDial
+              id="zpThink"
+              value={shownStep(agent.thinking)}
+              onPick={(s) => void saveAgent(agent.id, { thinking: savedStep(s) }, { onSaved })}
+            />
+          </section>
+        )}
         {exists && !draft && agent.toolList && (
           <section className="zp-sec zp-tools" aria-labelledby="zpToolsLabel">
             <h3 className="zp-label" id="zpToolsLabel">
