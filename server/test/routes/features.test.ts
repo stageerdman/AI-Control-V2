@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testApp } from '../helpers.ts';
 
 type F = { id: string; name: string; status: string; order: number };
@@ -24,15 +24,15 @@ describe('features API', () => {
       pct: null,
       owner: null,
       description: '',
-      vision: '',
+      closedAt: null,
     });
+    expect(r.body).not.toHaveProperty('vision');
     const full = await add({
       name: 'Checkout',
       status: 'now',
       pct: 48,
       owner: 'ship-it',
       description: 'One-page checkout.\n\nStripe intents.',
-      vision: 'Paying takes 30 seconds.',
     });
     expect(full).toMatchObject({ status: 'now', order: 1, pct: 48, owner: 'ship-it' });
     expect((await h.call('GET', `/projects/aurora/features/${full.id}`)).body.description).toBe(
@@ -45,10 +45,19 @@ describe('features API', () => {
         name: 'Voice search',
         status: 'planned',
         order: 1,
+        closedAt: null,
         pct: null,
         owner: null,
       },
-      { featureId: 'f-checkout', name: 'Checkout', status: 'now', order: 1, pct: 48, owner: 'ship-it' },
+      {
+        featureId: 'f-checkout',
+        name: 'Checkout',
+        status: 'now',
+        order: 1,
+        closedAt: null,
+        pct: 48,
+        owner: 'ship-it',
+      },
     ]);
   });
 
@@ -83,7 +92,6 @@ describe('features API', () => {
     await add({ name: 'Later' });
     const r = await h.call('PATCH', `/projects/aurora/features/${f.id}`, {
       description: 'Verified-buyer reviews.',
-      vision: 'Trustworthy at a glance.',
       pct: null,
       owner: null,
     });
@@ -96,6 +104,62 @@ describe('features API', () => {
       .at(-1);
     expect(last?.payload).toMatchObject({ featureId: f.id, deleted: true });
     expect((await h.call('GET', `/projects/aurora/features/${f.id}`)).status).toBe(404);
+  });
+
+  it('shelved and denied are stages; closedAt is stamped on closing, kept on edits, moved and cleared', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const at = (day: number) => {
+        const t = `2026-11-${String(day).padStart(2, '0')}T10:00:00.000Z`;
+        vi.setSystemTime(new Date(t));
+        return t;
+      };
+      const patch = async (id: string, body: object) =>
+        (await h.call('PATCH', `/projects/aurora/features/${id}`, body)).body as F & { closedAt: string | null };
+      const t1 = at(1);
+      const born = (await add({ name: 'Born denied', status: 'denied' })) as F & { closedAt: string };
+      expect(born).toMatchObject({ status: 'denied', closedAt: t1 });
+      const f = await add({ name: 'Dial' });
+      const t2 = at(2);
+      expect(await patch(f.id, { status: 'shipped' })).toMatchObject({ closedAt: t2 }); // open → closed
+      at(3);
+      expect(await patch(f.id, { description: 'edited' })).toMatchObject({ closedAt: t2 }); // no stage change
+      const t4 = at(4);
+      expect(await patch(f.id, { status: 'shelved' })).toMatchObject({ status: 'shelved', closedAt: t4 }); // closed → closed
+      expect(
+        (await h.call('GET', `/projects/aurora/features/${f.id}`)).body as { closedAt: string },
+      ).toMatchObject({ closedAt: t4 });
+      at(5);
+      expect(await patch(f.id, { status: 'planned' })).toMatchObject({ closedAt: null }); // back to open
+      at(6);
+      await patch(f.id, { status: 'shelved' });
+      const ev = h.events
+        .after('project', 'aurora')
+        .filter((e) => e.type === 'feature.changed')
+        .at(-1);
+      expect(ev?.payload).toMatchObject({ featureId: f.id, status: 'shelved', closedAt: '2026-11-06T10:00:00.000Z' });
+
+      // order: Now, Planned by position; Shipped, Shelved, Denied newest closed first
+      at(7);
+      await add({ name: 'Old ship', status: 'shipped' });
+      at(8);
+      await add({ name: 'New ship', status: 'shipped' });
+      at(9);
+      await add({ name: 'Denied late', status: 'denied' });
+      await add({ name: 'Plan' });
+      await add({ name: 'Doing', status: 'now' });
+      expect((await list()).map((x) => x.name)).toEqual([
+        'Doing',
+        'Plan',
+        'New ship',
+        'Old ship',
+        'Dial',
+        'Denied late',
+        'Born denied',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('validates: unknown project / feature / owner, bad status, strict bodies; features are per project', async () => {
@@ -111,7 +175,11 @@ describe('features API', () => {
       422,
     );
     expect((await h.call('POST', '/projects/aurora/features', { name: 'x', pct: 101 })).status).toBe(422);
+    // vision is gone (merged into description) and closedAt is the server's to set
+    expect((await h.call('POST', '/projects/aurora/features', { name: 'x', vision: 'v' })).status).toBe(422);
     const f = await add({ name: 'Mine' });
+    for (const body of [{ vision: 'v' }, { closedAt: '2026-01-01T00:00:00.000Z' }])
+      expect((await h.call('PATCH', `/projects/aurora/features/${f.id}`, body)).status).toBe(422);
     expect((await h.call('GET', `/projects/atlas/features/${f.id}`)).status).toBe(404);
     expect((await h.call('PATCH', '/projects/aurora/features/f-ghost', { name: 'y' })).status).toBe(404);
     expect((await h.call('GET', '/projects/atlas/features')).body).toEqual([]);

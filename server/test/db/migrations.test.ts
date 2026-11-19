@@ -100,6 +100,55 @@ describe('migrations', () => {
     await h.close();
   });
 
+  it('46: vision folds into description, shipped rows get their shipping day, "Shelved: X" moves to Shelved', () => {
+    const db = new DatabaseSync(':memory:');
+    for (const sql of MIGRATIONS.slice(0, 45)) db.exec(sql);
+    db.exec('PRAGMA user_version = 45');
+    db.exec(`INSERT INTO agents (id, kind, name, look, position, created_at, updated_at)
+             VALUES ('o', 'orchestrator', 'O', '{}', 0, '', '')`);
+    db.exec(`INSERT INTO projects (id, name, status, orchestrator_id, tile, position, created_at, updated_at)
+             VALUES ('p', 'P', 'idle', 'o', '{}', 0, '', '')`);
+    const feature = db.prepare(
+      `INSERT INTO features (id, project_id, name, status, position, description, vision, created_at, updated_at)
+       VALUES (?, 'p', ?, ?, ?, ?, ?, 'c', ?)`,
+    );
+    feature.run('f-both', 'Both', 'planned', 1, ' Desc. ', ' Vis. ', 'u1');
+    feature.run('f-vis', 'Vision only', 'planned', 2, '', 'Vis.', 'u2');
+    feature.run('f-none', 'Neither', 'planned', 3, 'Kept as is ', '  ', 'u3');
+    feature.run('f-park', 'Shelved: Agent Thinking Power', 'planned', 4, '', '', 'u4');
+    feature.run('f-ship', 'Shipped by events', 'shipped', 1, '', '', 'u5');
+    feature.run('f-quiet', 'Shipped, no events', 'shipped', 2, '', '', 'u6');
+    const ev = db.prepare(
+      "INSERT INTO events (scope, scope_id, type, payload, at) VALUES ('project', 'p', ?, ?, ?)",
+    );
+    const changed = (status: string, at: string) =>
+      ev.run('feature.changed', JSON.stringify({ featureId: 'f-ship', status }), at);
+    changed('shipped', 't1'); // shipped once…
+    changed('now', 't2'); // …reopened…
+    changed('shipped', 't3'); // …shipped again: this is the day
+    changed('shipped', 't4'); // a later edit while shipped doesn't move it
+    migrate(db);
+
+    const got = db
+      .prepare('SELECT id, name, status, position, description, closed_at FROM features ORDER BY id')
+      .all();
+    expect(got).toEqual([
+      { id: 'f-both', name: 'Both', status: 'planned', position: 1, description: 'Desc.\n\nVis.', closed_at: null },
+      { id: 'f-none', name: 'Neither', status: 'planned', position: 3, description: 'Kept as is ', closed_at: null },
+      { id: 'f-park', name: 'Agent Thinking Power', status: 'shelved', position: 1, description: '', closed_at: 'u4' },
+      { id: 'f-quiet', name: 'Shipped, no events', status: 'shipped', position: 2, description: '', closed_at: 'u6' },
+      { id: 'f-ship', name: 'Shipped by events', status: 'shipped', position: 1, description: '', closed_at: 't3' },
+      { id: 'f-vis', name: 'Vision only', status: 'planned', position: 2, description: 'Vis.', closed_at: null },
+    ]);
+    const cols = (db.prepare('PRAGMA table_info(features)').all() as { name: string }[]).map((c) => c.name);
+    expect(cols).not.toContain('vision');
+    expect(() =>
+      db.exec(`INSERT INTO features (id, project_id, name, status, position, created_at, updated_at)
+               VALUES ('x', 'p', 'x', 'later', 1, '', '')`),
+    ).toThrow(/CHECK/);
+    db.close();
+  });
+
   it('45: a database that stored thinking power drops it and keeps the rows', () => {
     const db = new DatabaseSync(':memory:');
     const dropped = MIGRATIONS.findIndex((sql) => sql.includes('DROP COLUMN thinking'));
