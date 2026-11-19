@@ -84,14 +84,13 @@ describe('AgentPanel → Tools', () => {
       />,
     );
 
-  it('a saved agent: a named Tools region after the Brain and Thinking, before mail', () => {
+  it('a saved agent: a named Tools region right after the Brain, before mail', () => {
     panel({ ...base, toolList: FULL });
     const region = screen.getByRole('region', { name: 'Tools' });
     expect(within(region).getByText('Any file in the project')).toBeTruthy();
     const secs = [...document.querySelectorAll('.zp-sec')];
     const at = secs.indexOf(region);
-    expect(secs[at - 1]?.classList.contains('zp-thinking')).toBe(true);
-    expect(secs[at - 2]?.querySelector('#zpPrompt')).toBeTruthy();
+    expect(secs[at - 1]?.querySelector('#zpPrompt')).toBeTruthy();
     expect(secs[at + 1]?.classList.contains('zp-reports')).toBe(true);
   });
 

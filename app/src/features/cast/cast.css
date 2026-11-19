@@ -524,11 +524,6 @@ button.lk-tag:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
 .zp-reports>div{flex:1;min-width:0}
 .zp-reports .zp-label{margin-bottom:6px}
 .zp-reports .zp-hint-line{margin:0}
-/* Thinking power: four equal segments, then one plain line (design/cast/thinking.md) */
-.th-steps{display:flex;width:100%}
-.th-steps .cx-radio{flex:1;min-height:36px;font-size:13px}
-.th-about{margin:10px 0 0;min-height:3em;font-size:13.5px;line-height:1.5;font-weight:600;color:var(--cream-72);transition:color .15s}
-.th-about.peek{color:var(--cream-60)}
 /* Workflows v2: how this team works — heading + Adjust, shape, the thumb, the words (design/workflows/team-way.md) */
 .sq-way-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px}
 .sq-way-head .zp-label{margin:0}

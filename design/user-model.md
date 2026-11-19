@@ -23,10 +23,7 @@
 
 - They wanted to know how long agents really take, and a sensible guess for open work (Nov 2026). Real data: most tasks take ~5m (range 3–10m), features ~25–35m. Times now sit on task cards and feature rows, and the team sheet has "How long work takes" (design/time-estimates.md).
 
-- They wanted some agents to think harder (design, hard bugs) and others lighter (chores), without tuning models (Nov 2026). The agent panel now has one four-step Thinking control with a plain line per step (design/cast/thinking.md).
-
 ## Assumptions (guesses — check)
-- Four named steps with one plain line each are enough to pick from; nobody needs to see the model or effort level. Most agents stay on Normal. Check: how many agents move off Normal in a week, and do people flip back and forth (a sign the words aren't clear)?
 - People read agent time as "how long it took", and a median with a middle-half range is good enough to plan with. Check: do people ask about wall-clock time? Compare guesses with real times after 20+ more tasks.
 - A live picture of the way (thumbnail) is found faster than a text link, and most teams keep the "Captain checks all" default. Check: time to open How we work; share of teams still on the default after a week.
 - Three plain rows (Edit / Run / Reach) answer "can this agent do X?" without the old "works with" prose. Check: do people still ask what an agent can do after opening its panel?
