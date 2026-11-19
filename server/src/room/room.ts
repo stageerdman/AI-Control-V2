@@ -63,7 +63,8 @@ export function createRoom(deps: {
   /** What the callee left on this project: latest delivery and desk note, in a few lines (or null). */
   memoryOf?: (projectId: string, agentId: string) => string | null;
   /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them.
-      `handoverFrom` (`handover: true`): the caller's run — the item it builds is itself handed to the callee. */
+      `handoverFrom` (`handover: true`, or work sent to the orchestrator): the caller's run — the item it builds is
+      itself handed to the callee. Work for the orchestrator waits with them for a new owner. */
   addWork?: (
     projectId: string,
     byId: string,
@@ -348,15 +349,20 @@ export function createRoom(deps: {
     join(ctx, callee.id, caller.id, why);
     log('call', caller.id, callee.id, request);
     const project = ctx.scope === 'project' ? store.projects.require(ctx.ownerId) : null;
-    /* the work goes on the board at once, so it is never lost in the call */
+    /* the work goes on the board at once, so it is never lost in the call. Work sent to the orchestrator from a
+       build is that item declined: it goes back to them, the same as a handover */
+    const toDirector = callee.id === orch;
+    const handsOver = (args.handover || (args.work && toDirector)) && ctx.runId;
     const onBoard =
       args.work && project && deps.addWork
         ? deps.addWork(project.id, caller.id, callee.id, request, {
             goalId: goalOf(ctx),
-            ...(args.handover && ctx.runId ? { handoverFrom: ctx.runId } : {}),
+            ...(handsOver ? { handoverFrom: ctx.runId } : {}),
           })
         : null;
-    return inTurn(callee.id, () => help(ctx, { caller, callee, request, project, onBoard, step, log }));
+    return inTurn(callee.id, () =>
+      help(ctx, { caller, callee, request, project, onBoard, toDirector, step, log }),
+    );
   }
 
   /** The callee answers one call (its turn; others wait). */
@@ -368,11 +374,12 @@ export function createRoom(deps: {
       request: string;
       project: ReturnType<Store['projects']['require']> | null;
       onBoard: string | null;
+      toDirector: boolean;
       step: (s: 'working' | 'answered' | 'failed', note?: string) => void;
       log: (kind: 'answer', from: string, to: string, text: string) => void;
     },
   ): Promise<string> {
-    const { caller, callee, request, project, onBoard, step, log } = c;
+    const { caller, callee, request, project, onBoard, toDirector, step, log } = c;
     step('working');
     status(ctx, callee.id, `For ${nick(caller)}`);
     const draft = ctx.scope === 'draft' ? store.drafts.require(ctx.ownerId) : null;
@@ -396,7 +403,11 @@ export function createRoom(deps: {
           `Their request: ${json(clip(request, 4000))}`,
           `Where: ${json(project ? { project: project.name } : { projectBeingSetUp: draft?.name, about: draft?.about })}`,
           ...(onBoard
-            ? [`On the whiteboard now as your task: ${json(onBoard)} — you will do it there.`]
+            ? [
+                toDirector
+                  ? `Back with you on the whiteboard, waiting for a new owner: ${json(onBoard)} — give it one there (edit_task owner).`
+                  : `On the whiteboard now as your task: ${json(onBoard)} — you will do it there.`,
+              ]
             : []),
           ...(project
             ? [`Your notes on this project: ${notes ? json(notes) : 'none yet.'}`, CALLS_ARE_FOR_QUESTIONS]
@@ -449,7 +460,7 @@ export function createRoom(deps: {
             work: {
               type: 'boolean',
               description:
-                'true = this is work for them: put it on the whiteboard as their task (projects only).',
+                'true = this is work for them: put it on the whiteboard as their task (projects only). To the orchestrator from your own build: you decline your item, it goes back to them for a new owner.',
             },
             handover: {
               type: 'boolean',

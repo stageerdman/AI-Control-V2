@@ -247,8 +247,10 @@ work in the project folder as before (in order unless `parallel`). Item fields: 
 with `handover: true` from inside its own build — and its branch and reviews follow the new owner (`handoff` kind `handover`). By its
 status: **done** changes hands as it is (nothing reruns); **running** ends as the old owner's run, then restarts for the new owner (that
 run never goes to review); anything else is a fresh build for the new owner at once (first gate, sessions dropped). The checkout and the
-review history stay; the new owner's build task carries the handover note. Handed to the orchestrator, the item waits with them (no run).
-Plain `work: true` stays side work: the caller keeps its item.
+review history stay; the new owner's build task carries the handover note. Plain `work: true` stays side work: the caller keeps its item.
+**Declining** — to the orchestrator, `work: true` from inside one's own build counts as a handover too: the item goes back to them and
+waits (no run) until they give it an owner with `edit_task`; any other `work: true` to them parks a side quest of theirs the same way.
+Their whiteboard shows such tasks as `[waiting for a new owner]`.
 
 **Teams & features** (F1c, `src/crew/team.ts`; the user's rule: teams are the primary unit, captains lead them). An item for a team's
 captain, in a git project, on a team with ≥ 2 members, is a small **team task**: (1) the captain splits it (`team-split`, prompt: split

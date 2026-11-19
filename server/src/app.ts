@@ -314,11 +314,19 @@ export function buildApp({
       const text = request.split('\n')[0]?.slice(0, 200) || request.slice(0, 200);
       /* the request also queues on the callee's own to-do list, in the order requests came */
       todos.add({ projectId, agentId: calleeId, fromId: byId, text: request });
+      const toDirector = calleeId === store.projects.require(projectId).orchestratorId;
       const handed = handoverFrom ? dispatch.handOverFromRun(handoverFrom, byId, calleeId, request) : null;
+      const [from, to] = [agentName(byId), agentName(calleeId)];
+      if (handed && toDirector)
+        return `'${handed.text}' — declined by ${from}: it is back with ${to}, waiting for a new owner on the same branch. ${from}: commit what you have and end your turn.`;
       if (handed) {
         seatForWork(store, projectId, calleeId, request);
-        const [from, to] = [agentName(byId), agentName(calleeId)];
         return `'${handed.text}' — handed over from ${from}: it is ${to}'s now, on the same branch, and its reviews look at their work. ${from}: commit what you have and end your turn.`;
+      }
+      /* the director never builds: their work waits on the board until they give it an owner */
+      if (toDirector) {
+        const parked = board.addForDirector(projectId, byId, { text, brief: request });
+        return `'${parked.text}' — with ${to} on the whiteboard, waiting for a new owner.`;
       }
       const goal = goalId ? actions.work.goal(goalId) : null;
       if (goal && leadOf(calleeId, goal) === byId)

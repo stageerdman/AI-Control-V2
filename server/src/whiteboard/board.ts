@@ -14,9 +14,9 @@ import type { Quest } from '../domain/quests.ts';
 import { pickWorkflow, type Workflow, type WorkflowAsk } from '../domain/workflows.ts';
 import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
-import { boardText, goalBlock } from './board-text.ts';
+import { type BoardReader, boardText, goalBlock } from './board-text.ts';
 import { createHistory } from './history.ts';
-import { type Roster, resolveOwner } from './owner.ts';
+import { type Owner, type Roster, resolveOwner } from './owner.ts';
 
 export type BoardPort = ReturnType<typeof createDispatch>['board'];
 /** `branches`: the workflow's branch labels (a gate's `when`) that hold for this task; left out = all hold. */
@@ -86,6 +86,11 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   const name = (id: string) => store.agents.get(id)?.name ?? id;
   const history = createHistory({ db: deps.db, store, name });
   const usualId = (projectId: string) => pickWorkflow(store.projects.require(projectId).workflows ?? []).id;
+  const reader = (projectId: string): BoardReader => ({
+    name,
+    usualId: usualId(projectId),
+    directorId: store.projects.require(projectId).orchestratorId,
+  });
 
   /** Who may own work under workflow `w`. `direct`: the user picked the person themselves, so any team
       member may own the task. */
@@ -141,9 +146,16 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     return it;
   }
 
-  function newItem(projectId: string, t: TaskInput, w: Workflow, direct = false): NewItem {
+  /** Who a new task goes to under workflow `w`. */
+  type PickOwner = (t: TaskInput, w: Workflow) => Owner;
+  const named =
+    (projectId: string, direct = false): PickOwner =>
+    (t, w) =>
+      resolveOwner(roster(projectId, w, direct), t.owner ?? '', t.team);
+
+  function newItem(projectId: string, t: TaskInput, w: Workflow, pick: PickOwner): NewItem {
     if (!t.text?.trim()) throw invalid('Every task needs "text".');
-    const owner = resolveOwner(roster(projectId, w, direct), t.owner ?? '', t.team);
+    const owner = pick(t, w);
     return {
       id: randomUUID(),
       text: t.text.trim(),
@@ -201,7 +213,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   const reply = (projectId: string, goalIds: string[], lead: string) => {
     port.changed(projectId, goalIds);
     const shown = goalIds.map((id) => work.goal(id)).filter((g): g is Goal => !!g);
-    return [lead.trim(), ...shown.map((g) => goalBlock(g, name, usualId(projectId)))].join('\n\n');
+    return [lead.trim(), ...shown.map((g) => goalBlock(g, reader(projectId)))].join('\n\n');
   };
   /** The parts of an edit that were asked for, for the log line. */
   const changed = (e: object) =>
@@ -232,7 +244,12 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   }
 
   /** A new goal on the board, announced (so dispatch starts it) → the goal and the line that says so. */
-  function putGoal(projectId: string, by: string, a: NewGoal, direct = false): { goal: Goal; text: string } {
+  function putGoal(
+    projectId: string,
+    by: string,
+    a: NewGoal,
+    pick: PickOwner = named(projectId),
+  ): { goal: Goal; text: string } {
     const p = store.projects.require(projectId);
     if (!p.folder) throw conflict('This project has no folder yet — set it up first.');
     if (!a.text?.trim()) throw invalid('A goal needs "text".');
@@ -243,7 +260,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     if (a.feature && !features.get(projectId, a.feature.id))
       throw invalid(`No feature '${a.feature.id}' — look with features first.`);
     const workflow = chooseWorkflow(projectId, a.workflow, a.text);
-    const items = a.tasks.map((t) => newItem(projectId, t, workflow, direct));
+    const items = a.tasks.map((t) => newItem(projectId, t, workflow, pick));
     const goal = store.tx(() =>
       work.insertGoal(
         {
@@ -269,7 +286,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
   }
 
   return {
-    view: (projectId: string) => boardText(work.goals(projectId), name, usualId(projectId)),
+    view: (projectId: string) => boardText(work.goals(projectId), reader(projectId)),
     history: (projectId: string) => history.text(projectId),
     /** A change to how the board's work runs (its workflows), in the board's history. */
     note: (projectId: string, by: string, summary: string) =>
@@ -280,11 +297,19 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
 
     addGoal: (projectId: string, by: string, a: NewGoal): string => putGoal(projectId, by, a).text,
     /** The user's own goal for one person they picked (from that person's chat): any seat on the project. */
-    addDirectGoal: (projectId: string, by: string, a: NewGoal): Goal => putGoal(projectId, by, a, true).goal,
+    addDirectGoal: (projectId: string, by: string, a: NewGoal): Goal =>
+      putGoal(projectId, by, a, named(projectId, true)).goal,
+    /** Work handed to the director (`call_agent` work: true to them, outside a build): a side quest whose task
+        waits with them for a new owner (dispatch never starts the director's tasks). */
+    addForDirector(projectId: string, by: string, t: { text: string; brief: string }): Goal {
+      const director = { agentId: store.projects.require(projectId).orchestratorId, teamId: null };
+      const a: NewGoal = { text: t.text, tasks: [{ ...t, owner: director.agentId }], quest: 'side' };
+      return putGoal(projectId, by, a, () => director).goal;
+    },
 
     addTask(projectId: string, by: string, a: TaskInput & { goal: string; position?: number }): string {
       const g = goalOf(projectId, a.goal);
-      const item = newItem(projectId, a, port.workflowOf(g));
+      const item = newItem(projectId, a, port.workflowOf(g), named(projectId));
       work.appendItems(g, [item]);
       if (a.position !== undefined) work.moveItem(item.id, a.position - 1);
       wake(g.id);
@@ -305,15 +330,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       t: { text: string; owner: string; brief: string },
     ): string {
       const g = goalOf(projectId, goalId);
-      const owner = { agentId: t.owner, teamId: null };
-      const item: NewItem = {
-        id: randomUUID(),
-        text: t.text,
-        brief: t.brief,
-        ...owner,
-        parallel: false,
-        gates: port.gatesOf(projectId, owner, port.workflowOf(g)),
-      };
+      const item = newItem(projectId, t, port.workflowOf(g), () => ({ agentId: t.owner, teamId: null }));
       const at = crewSlot(g.items, leadId, g.workflow?.crew ?? []);
       work.appendItems(g, [item]);
       work.moveItem(item.id, at);

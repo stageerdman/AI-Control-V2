@@ -12,26 +12,31 @@ const STATUS: Record<ChecklistItem['status'], string> = {
 };
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-function taskLine(it: ChecklistItem, name: (id: string) => string): string {
+/** Who reads the board: names, the project's usual workflow (a goal under another one says which), and the
+    director — a queued task of theirs was handed back to them and never starts until it has a new owner. */
+export type BoardReader = { name: (id: string) => string; usualId: string; directorId: string };
+
+export const waitsForOwner = (it: ChecklistItem, directorId: string): boolean =>
+  it.status === 'todo' && it.agentId === directorId;
+
+function taskLine(it: ChecklistItem, r: BoardReader): string {
   const flags = [it.parallel ? 'parallel' : '', it.report ? 'report' : ''].filter(Boolean).join(', ');
-  return `  ${it.position + 1}. [${STATUS[it.status]}] ${clip(it.text, 200)} — ${name(it.agentId)}${flags ? ` (${flags})` : ''}  id: ${it.id}`;
+  const status = waitsForOwner(it, r.directorId) ? 'waiting for a new owner' : STATUS[it.status];
+  return `  ${it.position + 1}. [${status}] ${clip(it.text, 200)} — ${r.name(it.agentId)}${flags ? ` (${flags})` : ''}  id: ${it.id}`;
 }
 
-/** `usualId`: the project's default workflow — a goal under any other one says which. */
-export function goalBlock(g: Goal, name: (id: string) => string, usualId: string): string {
-  const w = notDefault(g.workflow, usualId);
+export function goalBlock(g: Goal, r: BoardReader): string {
+  const w = notDefault(g.workflow, r.usualId);
   return [
     `${g.quest === 'side' ? 'Side quest' : 'Goal'} ${g.id} [${g.status}, ${g.pct}% done, updated ${g.updatedAt.slice(0, 10)}]: ${clip(g.text, 300)}${w ? ` (workflow: ${w.name})` : ''}`,
     ...(g.summary && g.summary !== g.text ? [`  Plan: ${clip(g.summary, 300)}`] : []),
     ...(g.featureId
       ? [`  Feature: ${g.featureId}${g.ships ? ' (ships when this goal is done)' : ' (one step of it)'}`]
       : []),
-    ...(g.items.length ? g.items.map((i) => taskLine(i, name)) : ['  (no tasks)']),
+    ...(g.items.length ? g.items.map((i) => taskLine(i, r)) : ['  (no tasks)']),
   ].join('\n');
 }
 
-export function boardText(goals: Goal[], name: (id: string) => string, usualId: string): string {
-  return goals.length
-    ? goals.map((g) => goalBlock(g, name, usualId)).join('\n\n')
-    : 'The whiteboard is empty.';
+export function boardText(goals: Goal[], r: BoardReader): string {
+  return goals.length ? goals.map((g) => goalBlock(g, r)).join('\n\n') : 'The whiteboard is empty.';
 }

@@ -42,10 +42,12 @@ type Ev = { type: string; payload: Record<string, unknown> };
 const isReview = (s: RunSpec) => s.task.startsWith('You are reviewing');
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
 
+/** Aurora with a git folder; `work` scripts every run but the director's chat turns (played by `director`). */
 function studio(work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[]) {
   const box: { h?: ReturnType<typeof testApp> } = {};
+  const turns: FakeStep[][] = [];
   const crew = scriptedCrew({ dispatch: [PLAN], help: [{ answer: 'On it.', say: 'on it' }] }, (s) =>
-    work(box.h as never, s),
+    isChat(s) ? [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }] : work(box.h as never, s),
   );
   const h = testApp({ seed: true, runner: crew.runner });
   box.h = h;
@@ -56,7 +58,14 @@ function studio(work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[])
   git(repo, 'add', '.');
   git(repo, 'commit', '-q', '-m', 'init');
   h.store.projects.update('aurora', { folder: 'aurora', workflows: [CHECKED] });
-  return { h, crew };
+  /** One director chat turn calling this whiteboard tool → what the tool answered. */
+  const director = async (tool: string, args: Record<string, unknown>) => {
+    turns.push([{ tool, args }]);
+    const r = await h.call('POST', '/projects/aurora/threads/a-pixel/messages', { text: 'board' });
+    await h.runtime.settled(r.body.runId);
+    return getChatMessages(h.db, r.body.runId).find((m) => m.role === 'assistant')?.text ?? '';
+  };
+  return { h, crew, director };
 }
 const isRunOf = (h: ReturnType<typeof testApp>, s: RunSpec, agentId: string) =>
   s.systemPrompt.startsWith(`# ${h.store.agents.require(agentId).name}\n`);
@@ -166,62 +175,104 @@ describe('handovers: the item, its branch and its reviews follow the new owner',
     await new Promise((x) => setTimeout(x, 100));
   }, 20_000);
 
-  it('a declined item comes back to the orchestrator: it waits with them, nothing fails', async () => {
-    const s = studio((app, spec) =>
-      isRunOf(app, spec, COLUMBO)
-        ? [
-            {
-              tool: 'call_agent',
-              args: {
-                agent: 'Pixel',
-                request: 'Not mine, please re-plan it.',
-                why: 'decline',
-                handover: true,
-              },
-            },
-            { result: 'Gave it back.' },
-          ]
-        : [{ result: 'Done.' }],
-    );
-    h = s.h;
-    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
-    const work = workRepo(h.db);
-    const id = r.body.items[0].id as string;
-    const runs = async () => (await h.call('GET', '/projects/aurora/runs')).body as { status: string }[];
-    await until(
-      () => work.item(id) as ChecklistItem,
-      (i) => i.agentId === 'a-pixel' && i.status === 'todo',
-    );
-    await until(
-      () => h.runtime.liveCount(),
-      (n) => n === 0,
-    );
-    await new Promise((x) => setTimeout(x, 50)); // let Columbo's run wrap up
-    expect(work.item(id)).toMatchObject({ agentId: 'a-pixel', status: 'todo', buildRunId: null });
-    expect((await runs()).length).toBe(1); // only Columbo's: the director doesn't build it
-    /* the parked item keeps the goal open: stop it here so its checkout is put away before the app closes */
-    await h.call('POST', `/projects/aurora/work/${r.body.id}/cancel`);
-    await until(
-      () => work.item(id)?.status,
-      (st) => st === 'cancelled',
-    );
-    await new Promise((x) => setTimeout(x, 100));
-  });
+  it.each([
+    ['handover: true', { handover: true }],
+    ['work: true', { work: true }],
+  ])(
+    'a declined item (%s) comes back to the orchestrator: it waits for a new owner, they give it to Bob',
+    async (_, flag) => {
+      const s = studio((app, spec) => {
+        if (isReview(spec)) return [{ result: '{"verdict":"approve","notes":"Good."}' }];
+        if (!isRunOf(app, spec, COLUMBO)) return commit(spec, 'pensieve.txt');
+        return [
+          {
+            tool: 'call_agent',
+            args: { agent: 'Pixel', request: 'Not mine, please re-plan it.', why: 'decline', ...flag },
+          },
+          { result: 'Gave it back.' },
+        ];
+      });
+      h = s.h;
+      const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
+      const work = workRepo(h.db);
+      const id = r.body.items[0].id as string;
+      const runs = async () =>
+        (await h.call('GET', '/projects/aurora/runs')).body as { id: string; agentId: string }[];
+      await until(
+        () => work.item(id) as ChecklistItem,
+        (i) => i.agentId === 'a-pixel' && i.status === 'todo',
+      );
+      await until(
+        () => h.runtime.liveCount(),
+        (n) => n === 0,
+      );
+      await new Promise((x) => setTimeout(x, 50)); // let Columbo's run wrap up
+      expect(work.item(id)).toMatchObject({ agentId: 'a-pixel', status: 'todo', buildRunId: null });
+      expect((await runs()).length).toBe(1); // only Columbo's: the director doesn't build it
+      const calls = (h.events.after('project', 'aurora') as Ev[])
+        .filter((e) => e.type === 'room.call')
+        .map((e) => e.payload.status);
+      expect(calls).toContain('answered');
+      expect(calls).not.toContain('failed');
 
-  it('the director reassigns with edit_task: done work stays done; a failed item is rebuilt by the new owner', async () => {
-    const turns: FakeStep[][] = [];
+      /* the director sees it waiting for a new owner and gives it one: Bob builds it on the same branch */
+      expect(await s.director('whiteboard', {})).toMatch(
+        /\[waiting for a new owner\] Build the Pensieve — Pixel/,
+      );
+      expect(await s.director('edit_task', { task: id, owner: 'Baron' })).toContain('Now Baron von Backup');
+      const done = await until(
+        () => work.item(id) as ChecklistItem,
+        (i) => i.status === 'done' || i.status === 'failed',
+      );
+      expect(done).toMatchObject({ status: 'done', agentId: BOB });
+      expect((await runs()).find((x) => x.id === done.buildRunId)?.agentId).toBe(BOB);
+    },
+    20_000,
+  );
+
+  it('work: true to the orchestrator from outside a build waits with them as a side quest', async () => {
+    let asked = false;
     const s = studio((_app, spec) => {
-      if (isChat(spec)) return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
+      if (isReview(spec) && !asked) {
+        asked = true;
+        return [
+          {
+            tool: 'call_agent',
+            args: { agent: 'Pixel', request: 'Add backups for the Pensieve.', why: 'flag it', work: true },
+          },
+          { result: '{"verdict":"approve","notes":"Good."}' },
+        ];
+      }
       if (isReview(spec)) return [{ result: '{"verdict":"approve","notes":"Good."}' }];
       return commit(spec, `${spec.runId}.txt`);
     });
     h = s.h;
-    const turn = async (args: Record<string, unknown>) => {
-      turns.push([{ tool: 'edit_task', args }]);
-      const r = await h.call('POST', '/projects/aurora/threads/a-pixel/messages', { text: 'reassign' });
-      await h.runtime.settled(r.body.runId);
-      return getChatMessages(h.db, r.body.runId).find((m) => m.role === 'assistant')?.text ?? '';
-    };
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
+    const work = workRepo(h.db);
+    const goals = await until(
+      () => work.goals('aurora'),
+      (gs) => gs.length === 2 && work.item(r.body.items[0].id)?.status === 'done',
+    );
+    /* the reviewed item stays its builder's; the new work waits with the director, never started */
+    expect(work.item(r.body.items[0].id)).toMatchObject({ status: 'done', agentId: COLUMBO });
+    const side = goals.find((g) => g.id !== r.body.id) as (typeof goals)[number];
+    expect(side.quest).toBe('side');
+    expect(side.items[0]).toMatchObject({ agentId: 'a-pixel', status: 'todo', runId: null });
+    expect(await s.director('whiteboard', {})).toMatch(/\[waiting for a new owner\] Add backups/);
+    await h.call('POST', `/projects/aurora/work/${side.id}/cancel`);
+    await until(
+      () => work.goal(side.id)?.items[0]?.status,
+      (st) => st === 'cancelled',
+    );
+  }, 20_000);
+
+  it('the director reassigns with edit_task: done work stays done; a failed item is rebuilt by the new owner', async () => {
+    const s = studio((_app, spec) => {
+      if (isReview(spec)) return [{ result: '{"verdict":"approve","notes":"Good."}' }];
+      return commit(spec, `${spec.runId}.txt`);
+    });
+    h = s.h;
+    const turn = (args: Record<string, unknown>) => s.director('edit_task', args);
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
     const work = workRepo(h.db);
     const id = r.body.items[0].id as string;
