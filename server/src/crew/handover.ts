@@ -36,5 +36,11 @@ export const freshBuild = (): ItemPatch => ({
   teamPhase: null,
 });
 
+const HANDED = 'Handed over by ';
+/** The item's note when a builder hands it on: what the new owner reads in their build task. */
+export const handoverNote = (byName: string, request: string): string => `${HANDED}${byName}: ${request}`;
+/** The note the new owner builds from, or '' when the item's note is something else (a result, a failure). */
+export const handoverLine = (note: string | null): string => (note?.startsWith(HANDED) ? note : '');
+
 /** A run whose agent no longer holds its item: its item changed hands while it ran (its result isn't theirs). */
 export const outlivedOwner = (it: ChecklistItem, runAgentId: string): boolean => holder(it) !== runAgentId;

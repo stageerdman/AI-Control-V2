@@ -26,6 +26,7 @@ export const WORKING_WITH_OTHERS = [
   '- You share a room with the people on this work. The `room` tool shows who is in it, who leads whom, and who else is in the studio — the orchestrator too: you may call them.',
   '- Need a hand outside your lane (a design, a second opinion, a quick check)? Use `call_agent` with their name, a self-contained request (they know nothing else), and a few words of why. They answer once; you carry on with their answer. They stay in the room. If they are busy with another call, yours waits its turn.',
   `- ${CALLS_RULE}`,
+  '- Your checklist item belongs with someone else (or back with the orchestrator)? Call them with `handover: true`: the item becomes theirs on the same branch and its reviews look at their work. Commit what you have, then end your turn.',
   '- Calling someone already in the room is fine. Bringing in someone new needs a yes: your captain’s if you are on a team, else the orchestrator’s — the studio asks them for you. A no is final; do it yourself.',
   '- The orchestrator keeps the big picture and briefs captains; captains run their teams. Don’t go around your captain on scope or plans. `room` names your contact (`yourContact`): the one you report to and ask first.',
   `- ${LEADERS_RULE} ${ROADMAPS_ARE_FOR_LEADERS}`,

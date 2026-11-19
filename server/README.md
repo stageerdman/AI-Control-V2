@@ -243,6 +243,13 @@ branch…), the item **fails** with the work kept on its branch (named in the no
 committed on the branch and the checkout removed (`… — work kept on branch studio/…` when there was work). Not a git repo yet → items
 work in the project folder as before (in order unless `parallel`). Item fields: `workspace {cwd, branch, base, main} | null`, `mergeTries`.
 
+**Handovers** (`src/crew/handover.ts`). An item changes owner — by the director's `edit_task` owner, or by its builder's `call_agent`
+with `handover: true` from inside its own build — and its branch and reviews follow the new owner (`handoff` kind `handover`). By its
+status: **done** changes hands as it is (nothing reruns); **running** ends as the old owner's run, then restarts for the new owner (that
+run never goes to review); anything else is a fresh build for the new owner at once (first gate, sessions dropped). The checkout and the
+review history stay; the new owner's build task carries the handover note. Handed to the orchestrator, the item waits with them (no run).
+Plain `work: true` stays side work: the caller keeps its item.
+
 **Teams & features** (F1c, `src/crew/team.ts`; the user's rule: teams are the primary unit, captains lead them). An item for a team's
 captain, in a git project, on a team with ≥ 2 members, is a small **team task**: (1) the captain splits it (`team-split`, prompt: split
 when it saves time or matches a member's job; small items it does itself) → event `team.split {itemId, goalId, captainId, teamId, mode,
@@ -302,7 +309,7 @@ a health check, only for a GitHub remote, only when `gh` is installed — never 
 
 Events added: `feature.changed`, `thread.message`, `report.filed` / `report.read` / `report.archived` (U1), `health.checked`, `chat.message`, `plan.changed`, `cast.created` (draft stream, copied to the project on finish),
 `goal.changed`, `checklist.item` (+ `goalId`, `status`, `runId`, `stage`, `holder`), `progress` (the goal's %, project stream).
-F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix, gate?, note?}`,
+F1b: `collaboration.changed {orchestratorTalksTo, gates, summary}`, `handoff {itemId, goalId, from, to, kind: review|rework|merge-fix|delegate|deliver|handover, gate?, note?}`,
 `review.approved {itemId, goalId, reviewerId, gate, notes?}`, `review.changes {itemId, goalId, reviewerId, gate, notes, sendBacks, final?}`,
 `item.merged {itemId, goalId, branch, commit?}`, `thread.message` + `goalId?`, `project.status {status}`, `project.progress {pct, shipped, total, target?, goalId?, goalPct?}`.
 F1c: `team.split`, `handoff` kinds `delegate`/`deliver` + `parentId?`, `checklist.item` + `parentId?`/`teamPhase?`, `feature.shipped {featureId, goalId, name}`, `app.status {status, url?, exitCode?}`.

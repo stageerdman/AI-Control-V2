@@ -44,7 +44,7 @@ export type RoomCtx = {
   chain: readonly string[];
   runId?: string;
 };
-export type CallArgs = { agent: string; request: string; why?: string; work?: boolean };
+export type CallArgs = { agent: string; request: string; why?: string; work?: boolean; handover?: boolean };
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const nick = (a: Pick<Agent, 'name' | 'nick'>) => a.nick || a.name;
@@ -62,14 +62,14 @@ export function createRoom(deps: {
   comms?: Comms;
   /** What the callee left on this project: latest delivery and desk note, in a few lines (or null). */
   memoryOf?: (projectId: string, agentId: string) => string | null;
-  /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them. `runId`:
-      the caller's run (from inside their own item's build, the item itself is handed over). */
+  /** `work: true`: put the request on the whiteboard as the callee's task → the goal's line for them.
+      `handoverFrom` (`handover: true`): the caller's run — the item it builds is itself handed to the callee. */
   addWork?: (
     projectId: string,
     byId: string,
     calleeId: string,
     request: string,
-    at: { goalId?: string; runId?: string },
+    at: { goalId?: string; handoverFrom?: string },
   ) => string;
   /** WORKFLOWS: who leads this agent on this goal right now (a running goal's temporary lead), or null. */
   leadOf?: (goalId: string, agentId: string) => string | null;
@@ -353,7 +353,7 @@ export function createRoom(deps: {
       args.work && project && deps.addWork
         ? deps.addWork(project.id, caller.id, callee.id, request, {
             goalId: goalOf(ctx),
-            ...(ctx.runId ? { runId: ctx.runId } : {}),
+            ...(args.handover && ctx.runId ? { handoverFrom: ctx.runId } : {}),
           })
         : null;
     return inTurn(callee.id, () => help(ctx, { caller, callee, request, project, onBoard, step, log }));
@@ -451,6 +451,11 @@ export function createRoom(deps: {
               description:
                 'true = this is work for them: put it on the whiteboard as their task (projects only).',
             },
+            handover: {
+              type: 'boolean',
+              description:
+                'true = give them the checklist item you are building now: it becomes theirs on the same branch, its reviews look at their work, and you commit what you have and end your turn.',
+            },
           },
           required: ['agent', 'request', 'why'],
         },
@@ -459,7 +464,8 @@ export function createRoom(deps: {
             agent: String(a.agent ?? ''),
             request: String(a.request ?? ''),
             why: String(a.why ?? ''),
-            work: a.work === true,
+            work: a.work === true || a.handover === true,
+            handover: a.handover === true,
           }),
       },
     ];

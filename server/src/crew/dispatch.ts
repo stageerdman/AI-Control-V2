@@ -50,7 +50,15 @@ import { seatForWork } from '../office/people.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { holder } from '../whiteboard/people.ts';
-import { dropSessions, freshBuild, type HandoverMode, handoverMode, outlivedOwner } from './handover.ts';
+import {
+  dropSessions,
+  freshBuild,
+  type HandoverMode,
+  handoverLine,
+  handoverMode,
+  handoverNote,
+  outlivedOwner,
+} from './handover.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
 import { type Crew, validateWith } from './structured.ts';
@@ -428,6 +436,7 @@ export function createDispatch(deps: {
       `Goal from ${orchName(it.projectId)} (your orchestrator): ${goal.text}`,
       `Your checklist item: ${it.text}`,
       `Brief: ${it.brief}`,
+      handoverLine(it.note),
       featureNote(goal),
       commandNote(it, goal),
       flowNote(goal),
@@ -1356,7 +1365,7 @@ export function createDispatch(deps: {
       handOver(
         it.id,
         { agentId: toId, teamId: onTeam ? it.teamId : null },
-        clip(`Handed over by ${name(byId)}: ${request}`, 2000),
+        clip(handoverNote(name(byId), request), 2000),
       );
       return work.item(it.id);
     },
