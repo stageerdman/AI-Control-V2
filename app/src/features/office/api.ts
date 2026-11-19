@@ -55,7 +55,8 @@ export type OfficeProgress = {
   goal: { id: string; text: string; pct: number; status: string } | null;
 };
 
-export type FeatureStatus = 'now' | 'planned' | 'shipped';
+/** Open: now, planned. Closed (dated by `closedAt`, out of progress): shipped, shelved, denied. */
+export type FeatureStatus = 'now' | 'planned' | 'shipped' | 'shelved' | 'denied';
 export type Feature = {
   id: string;
   projectId: string;

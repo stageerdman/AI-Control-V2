@@ -17,7 +17,19 @@ Design and the exact server contract: [`design.md`](design.md) (same folder).
 ## Status
 - [x] Roadmap and design (Jony, 2026-11-19).
 - [x] Phase 1: server data. [x] Phase 2: server rules (Uncle Bob, 2026-11-19; see "API (as built)" below).
-  [ ] Phase 3: the list. [ ] Phase 4: the feature page. [ ] Phase 5: live check.
+  [x] Phase 3: the list. [x] Phase 4: the feature page (Jony, 2026-11-19; see "App (as built)" below).
+  [~] Phase 5: live check: done against the real 53 features (read from the running server, mapped the way
+  migration 46 does); not yet looked at in a real window (narrow card, screen reader) once the server is installed.
+
+## App (as built, Phases 3–4)
+- `features/office/feature-list.ts` (pure): `filterFeatures`, `stageCounts`, `visibleChips`, `exactMatch`,
+  `enterAction`, `newStage`, `featureDate`, `dateLine`, `STAGES`, `STAGE_LABEL`, `isClosed`.
+- `features/office/FeatureList.tsx`: the folder card (field, chips, groups, Add row, states, keys: Enter,
+  Esc, ↓/↑, ←/→, `/`). `board-parts.tsx`: `Back`, `Mark` (five shape-coded marks), `useFeatures`.
+- Feature page (`Board.tsx`): date line under the name, five stage buttons (wrap), one Description.
+- `estimates.ts` `featureTags`: open = now|planned, so shelved/denied rows show what they took.
+- Live check on real data: 53 rows, chips `All 53 · Now 1 · Planned 21 · Shipped 30 · Shelved 1` (Denied
+  hidden), "list ux" → UX: Feature List, 21 descriptions carry merged Vision text.
 
 ## Phases
 Phases 1–2 are server (one checklist item); 3–4 are app (one item, starts after 1–2 land);

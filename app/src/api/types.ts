@@ -805,8 +805,9 @@ export type EventPayloads = {
   'feature.changed': {
     featureId: string;
     name: string;
-    status: 'now' | 'planned' | 'shipped';
+    status: 'now' | 'planned' | 'shipped' | 'shelved' | 'denied';
     order: number;
+    closedAt?: string | null;
     pct?: number | null;
     owner?: string | null;
     deleted?: true;

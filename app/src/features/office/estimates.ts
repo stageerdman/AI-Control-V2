@@ -79,13 +79,14 @@ export function taskTags(sheet: Timesheet | undefined, nameOf: (id: string) => s
   return out;
 }
 
-/** Tag per feature id: shipped = what it took; in progress = so far of the usual. Not-started features get
-   no tag: it would be the same guess on every row (it lives once, on the team sheet). */
+/** Tag per feature id: closed (shipped / shelved / denied) = what it took; in progress = so far of the
+   usual. Not-started features get no tag: it would be the same guess on every row (it lives once, on the
+   team sheet). */
 export function featureTags(sheet: Timesheet | undefined): Map<string, TimeTag> {
   const out = new Map<string, TimeTag>();
   for (const f of sheet?.features ?? []) {
     const guess = f.time.activeMs > 0 ? sheet?.estimates.feature : null;
-    const tag = timeTag(f.time, f.status !== 'shipped', guess, 'feature');
+    const tag = timeTag(f.time, f.status === 'now' || f.status === 'planned', guess, 'feature');
     if (tag) out.set(f.featureId, tag);
   }
   return out;

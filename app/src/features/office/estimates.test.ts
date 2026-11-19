@@ -147,6 +147,18 @@ describe('featureTags', () => {
     expect(tags.has('f2')).toBe(false);
     expect(tags.get('f3')?.text).toBe('20m of ~4h');
   });
+  it('shelved / denied show what they took, not "so far of the usual"', () => {
+    const s = sheet({
+      features: [
+        { featureId: 'f1', name: 'A', status: 'shelved', goals: 1, time: times(20 * M) },
+        { featureId: 'f2', name: 'B', status: 'denied', goals: 1, time: times(5 * M) },
+      ],
+      estimates: { task: null, goal: null, feature: est(240, 120, 360) },
+    });
+    const tags = featureTags(s);
+    expect(tags.get('f1')?.text).toBe('20m');
+    expect(tags.get('f2')?.spoken).toBe('took 5m');
+  });
 });
 
 describe('guessRows', () => {

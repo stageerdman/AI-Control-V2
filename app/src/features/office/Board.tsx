@@ -3,8 +3,8 @@
                per row: in review / sent back / merging), "How we work →"
      how       How we work (HowWeWork.tsx): the way, drawn; edit it in place, or ask the director
      health    health board: the latest report (A–F + good / to fix), the repo + GitHub, "Run health check"
-     features  features folder: Now / Planned / Shipped (identical rows) + add
-     feature   one feature: name, status, Description as one plain text block, save / delete
+     features  features folder (FeatureList.tsx): search-or-add field, stage chips, dated rows by stage
+     feature   one feature: name, date line, five stages, Description as one plain text block, save / delete
      reports   the Reports tray → list · report → one report (features/reports)
    The camera zooms onto the object (OfficePage), the scene behind is covered by a still scrim, the
    card fades in. Esc / Back = one layer. */
@@ -27,12 +27,15 @@ import { type Person, type Resolve, WayThumb } from '../collab';
 import { PortsSheet, portsLine, usePorts } from '../ports';
 import { type Report, ReportsList, ReportView } from '../reports';
 import { type Feature, type FeatureStatus, keys, type OfficeProgress, officeApi } from './api';
-import { featureTags, taskTags } from './estimates';
+import { Back, Mark, useFeatures } from './board-parts';
+import { taskTags } from './estimates';
+import { FeatureList } from './FeatureList';
+import { dateLine, STAGE_LABEL, STAGES } from './feature-list';
 import { GithubRow } from './GithubRow';
 import { HowWeWork } from './HowWeWork';
 import { Glyph, QuestBoard } from './QuestBoard';
 import { ASPECTS, appView, boardProgress } from './state';
-import { TimeTag, useTimesheet } from './TimeTag';
+import { useTimesheet } from './TimeTag';
 import { ago } from './time';
 
 export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossier' | 'reports'>> = {
@@ -43,11 +46,6 @@ export const OBJ_OF: Partial<Record<OfficeSub, 'whiteboard' | 'health' | 'dossie
   feature: 'dossier',
   reports: 'reports',
   report: 'reports',
-};
-const ST_LABEL: Record<FeatureStatus, string> = {
-  now: 'In progress',
-  planned: 'Planned',
-  shipped: 'Shipped',
 };
 const GRADE_WORD: Record<string, string> = {
   A: 'Great',
@@ -135,28 +133,6 @@ function ZoomCard({
   );
 }
 
-const Back = ({ label, aria, onClick }: { label: string; aria: string; onClick: () => void }) => (
-  <button type="button" className="ob-back" aria-label={aria} onClick={onClick}>
-    ← {label}
-  </button>
-);
-const Mark = ({ st }: { st: FeatureStatus }) => (
-  <span className={`ob-mark m-${st}`} aria-hidden="true">
-    {st === 'shipped' && (
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path
-          d="M4 8.5l2.6 2.6L12 5.6"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    )}
-  </span>
-);
-
 export function Board(p: BoardProps) {
   const obj = OBJ_OF[p.sub];
   const lastObj = useRef<string | undefined>(undefined);
@@ -189,7 +165,7 @@ export function Board(p: BoardProps) {
       return (
         <ZoomCard key={k} kind="features" label="Features" fresh={fresh}>
           <Back label="Office" aria="Back to the office" onClick={office} />
-          <Folder {...p} />
+          <FeatureList pid={p.pid} dir={p.dir} go={p.go} />
         </ZoomCard>
       );
     case 'feature':
@@ -227,8 +203,7 @@ export function Board(p: BoardProps) {
 
 /* ------------------------------------------------------------ whiteboard */
 export const useWork = (pid: string) => useQuery<Goal[]>(keys.work(pid), () => studio.projects.work(pid));
-export const useFeatures = (pid: string) =>
-  useQuery<Feature[]>(keys.features(pid), () => officeApi.features(pid));
+export { useFeatures };
 export const useProgress = (pid: string) =>
   useQuery<OfficeProgress | null>(keys.progress(pid), () => officeApi.progress(pid));
 export const useWorkflows = (pid: string) =>
@@ -599,108 +574,6 @@ function Health({ pid }: { pid: string }) {
   );
 }
 
-/* ------------------------------------------------------------ features folder */
-function Folder({ pid, dir, go }: BoardProps) {
-  const features = useFeatures(pid);
-  const times = featureTags(useTimesheet(pid).data);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState('');
-  const create = useMutation((n: string) => officeApi.createFeature(pid, { name: n }), {
-    invalidate: [keys.features(pid)],
-  });
-  const list = features.data ?? [];
-  const group = (st: FeatureStatus, title: string) => {
-    const rows = list.filter((f) => f.status === st).sort((a, b) => a.order - b.order);
-    if (!rows.length) return null;
-    return (
-      <>
-        <h3>{title}</h3>
-        <ul className="ob-rows">
-          {rows.map((f) => (
-            <li key={f.id}>
-              <button type="button" className="ob-row" onClick={() => go('feature', f.id)}>
-                <Mark st={f.status} />
-                <span className="sr-only">{ST_LABEL[f.status]}:</span>
-                <span className="ob-rn">{f.name}</span>
-                <TimeTag tag={times.get(f.id)} />
-                <span className="ob-chev" aria-hidden="true">
-                  ›
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </>
-    );
-  };
-  const submit = async () => {
-    const n = name.trim();
-    if (!n) return;
-    try {
-      const f = await create.mutateAsync(n);
-      setName('');
-      setAdding(false);
-      go('feature', f.id);
-    } catch {
-      /* shown below */
-    }
-  };
-  return (
-    <>
-      <header className="ob-hhead">
-        <h2>Features</h2>
-      </header>
-      <div className="ob-scroll">
-        {features.loading && <p className="ob-empty">Loading…</p>}
-        {features.error && !features.data && <p className="ob-err">Couldn’t load the features.</p>}
-        {features.data && !list.length && (
-          <p className="ob-empty">No features yet. Tell {dir} what to build first.</p>
-        )}
-        {group('now', 'Now')}
-        {group('planned', 'Planned')}
-        {group('shipped', 'Shipped')}
-        {adding ? (
-          <form
-            className="ob-newf"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void submit();
-            }}
-          >
-            <input
-              // biome-ignore lint/a11y/noAutofocus: the user just asked to add one
-              autoFocus
-              aria-label="New feature name"
-              placeholder="Feature name"
-              value={name}
-              maxLength={120}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.stopPropagation();
-                  setAdding(false);
-                }
-              }}
-            />
-            <Button small variant="hero" type="submit" disabled={!name.trim() || create.pending}>
-              Add
-            </Button>
-          </form>
-        ) : (
-          <button type="button" className="ob-add" onClick={() => setAdding(true)}>
-            + New feature
-          </button>
-        )}
-        {create.error && (
-          <p className="ob-err" role="alert">
-            {isApiError(create.error) ? create.error.message : 'Couldn’t add it.'}
-          </p>
-        )}
-      </div>
-    </>
-  );
-}
-
 /* ------------------------------------------------------------ one feature */
 type Draft = { name: string; status: FeatureStatus; description: string };
 const draftOf = (f: Feature): Draft => ({ name: f.name, status: f.status, description: f.description });
@@ -783,11 +656,12 @@ function FeaturePage({ pid, id, go, escapeRef }: BoardProps & { id: string }) {
           onChange={(e) => set({ name: e.target.value })}
         />
       </header>
-      <fieldset className="ob-sts" aria-label="Status">
-        {(['now', 'planned', 'shipped'] as const).map((st) => (
+      <p className="ob-dates">{dateLine(f, new Date())}</p>
+      <fieldset className="ob-sts" aria-label="Stage">
+        {STAGES.map((st) => (
           <button key={st} type="button" aria-pressed={d.status === st} onClick={() => set({ status: st })}>
             <Mark st={st} />
-            {ST_LABEL[st]}
+            {STAGE_LABEL[st]}
           </button>
         ))}
       </fieldset>
