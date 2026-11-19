@@ -8,12 +8,12 @@ export type TimeTag = { text: string; spoken: string; title: string; over: boole
 
 const MIN = 60_000;
 
-/** A guess, rounded so it doesn't pretend: 5-minute steps under an hour, 15 above. "~1h 15m", never "~1h 13m". */
+/** A guess, rounded so it doesn't pretend: whole minutes under 5, 5-minute steps under an hour, 15 above. "~1h 15m", never "~1h 13m". */
 export function about(ms: number): string {
   const m = Math.max(0, ms) / MIN;
   if (m < 1) return worked(ms);
-  const step = m < 60 ? 5 : 15;
-  return worked(Math.max(1, Math.round(m / step) * step) * MIN);
+  const step = m < 5 ? 1 : m < 60 ? 5 : 15;
+  return worked(Math.round(m / step) * step * MIN);
 }
 
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
@@ -37,11 +37,15 @@ export function timeTag(
   const did = worked(spent);
   if (!open) {
     if (!spent) return null;
-    const wall = time?.wallMs ?? 0;
+    const wall = worked(time?.wallMs ?? 0);
     return {
       text: did,
       spoken: `took ${did}`,
-      title: wall ? `${did} of agent time, ${worked(wall)} start to finish` : `${did} of agent time`,
+      /* start-to-finish only when it says something new */
+      title:
+        time?.wallMs && wall !== did
+          ? `${did} of agent time, ${wall} start to finish`
+          : `${did} of agent time`,
       over: false,
     };
   }
@@ -75,11 +79,13 @@ export function taskTags(sheet: Timesheet | undefined, nameOf: (id: string) => s
   return out;
 }
 
-/** Tag per feature id: shipped = what it took; in progress = so far; planned = the guess for a feature. */
+/** Tag per feature id: shipped = what it took; in progress = so far of the usual. Not-started features get
+   no tag: it would be the same guess on every row (it lives once, on the team sheet). */
 export function featureTags(sheet: Timesheet | undefined): Map<string, TimeTag> {
   const out = new Map<string, TimeTag>();
   for (const f of sheet?.features ?? []) {
-    const tag = timeTag(f.time, f.status !== 'shipped', sheet?.estimates.feature, 'feature');
+    const guess = f.time.activeMs > 0 ? sheet?.estimates.feature : null;
+    const tag = timeTag(f.time, f.status !== 'shipped', guess, 'feature');
     if (tag) out.set(f.featureId, tag);
   }
   return out;
@@ -87,7 +93,13 @@ export function featureTags(sheet: Timesheet | undefined): Map<string, TimeTag> 
 
 /* ---------- the team sheet's "How long work takes" */
 
-export type GuessRow = { id: 'task' | 'goal' | 'feature'; label: string; usual: string; range: string; basis: number };
+export type GuessRow = {
+  id: 'task' | 'goal' | 'feature';
+  label: string;
+  usual: string;
+  range: string;
+  basis: number;
+};
 const LABELS = { task: 'A task', goal: 'A goal', feature: 'A feature' } as const;
 
 /** One line per kind of work that has a guess, smallest first. */
@@ -96,7 +108,15 @@ export function guessRows(sheet: Timesheet | undefined): GuessRow[] {
   return (['task', 'goal', 'feature'] as const).flatMap((id) => {
     const e = sheet.estimates[id];
     return e
-      ? [{ id, label: LABELS[id], usual: about(e.ms.typical), range: `${about(e.ms.low)}–${about(e.ms.high)}`, basis: e.basis }]
+      ? [
+          {
+            id,
+            label: LABELS[id],
+            usual: about(e.ms.typical),
+            range: `${about(e.ms.low)}–${about(e.ms.high)}`,
+            basis: e.basis,
+          },
+        ]
       : [];
   });
 }

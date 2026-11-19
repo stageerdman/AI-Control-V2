@@ -47,6 +47,10 @@ every run and crew call — now also know which task they served.
 
 ### Phase 5 — the app (UI, separate checklist item)
 Show times on the whiteboard and the features folder, and the estimate when new work is planned.
+Spec: `design/time-estimates.md`. One small time tag (`features/office/estimates.ts` + `TimeTag.tsx`) on task
+cards (whiteboard, quest trail, side quests) and feature rows: "1h 20m" when finished, "40m of ~2h" while
+working (turns sun-coloured once it runs long), "~2h" before it starts. The team sheet ends with "How long
+work takes": the usual task / goal / feature, and the latest 5 finished tasks with their time.
 
 ### Later (not in v1)
 - **Planning time** (the orchestrator's dispatch call) happens before the goal exists; it is not counted in a
@@ -63,14 +67,17 @@ Show times on the whiteboard and the features folder, and the estimate when new 
 - [x] Phase 3 — `performance/estimate.ts` (same test file)
 - [x] Phase 4 — `GET /projects/:id/timesheet`, `GET /projects/:id/estimate?agentId=` (`performance/timesheet.ts`,
   `routes/timesheet.ts`). Named `timesheet`, not `times`: `/projects/:id/time` is already the work clock.
-- [ ] Phase 5 — UI (separate item)
+- [x] Phase 5 — UI: time tags on task cards + feature rows, "How long work takes" on the team sheet
+  (`estimates.test.ts`, `TaskCard.test.tsx`, `performance/HowLong.test.tsx`). Open tasks in the timesheet now
+  carry their assignee's `estimate`. Checked against a migrated copy of the real studio DB.
 
 ## The read (for the app)
 `GET /projects/:id/timesheet` →
-`{ tasks: [{ itemId, goalId, agentId, text, status, time }], goals: [{ goalId, featureId, text, status, tasks, time }],
+`{ tasks: [{ itemId, goalId, agentId, text, status, time, estimate? }], goals: [{ goalId, featureId, text, status, tasks, time }],
 features: [{ featureId, name, status, goals, time }], estimates: { task, goal, feature } }` where
 `time = { startedAt, endedAt, activeMs, wallMs, runs, turns, tokens, live, byAgent: [{ agentId, ms, tokens, runs }] }`
 and an estimate is `null` or `{ ms: { typical, low, high }, tokens: { typical, low, high }, basis, from: 'agent' | 'office' }`.
+`estimate` is on open (todo / running) tasks only: the guess for that task's assignee, falling back to the office's.
 `GET /projects/:id/estimate?agentId=` → just `{ task, goal, feature }`, the task one for that assignee.
 
 ## Decisions

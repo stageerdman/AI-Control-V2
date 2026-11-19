@@ -192,7 +192,14 @@ export type Timesheet = {
     /** Open work only: the guess for its assignee. Absent on older servers. */
     estimate?: Estimate | null;
   }[];
-  goals: { goalId: string; featureId: string | null; text: string; status: string; tasks: number; time: WorkTimes }[];
+  goals: {
+    goalId: string;
+    featureId: string | null;
+    text: string;
+    status: string;
+    tasks: number;
+    time: WorkTimes;
+  }[];
   features: { featureId: string; name: string; status: string; goals: number; time: WorkTimes }[];
   estimates: { task: Estimate | null; goal: Estimate | null; feature: Estimate | null };
 };

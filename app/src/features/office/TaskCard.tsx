@@ -6,8 +6,8 @@ import type { ChecklistItem } from '../../api';
 import { Hero } from '../../characters';
 import type { TimeTag as TimeTagView } from './estimates';
 import { SignoffStrip } from './SignoffStrip';
-import { TimeTag } from './TimeTag';
 import { type CardMark, type TaskCardView, taskCard, taskHover } from './state';
+import { TimeTag } from './TimeTag';
 
 type Props = {
   item: ChecklistItem;

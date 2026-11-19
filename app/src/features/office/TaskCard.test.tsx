@@ -55,6 +55,26 @@ describe('TaskCard', () => {
     expect(c.querySelector('.ob-raw')?.textContent).toBe(raw);
     expect(screen.getByRole('button', { name: 'Hide details' }).getAttribute('aria-expanded')).toBe('true');
   });
+  it('time tag: short word shown, full words for screen readers, tooltip; amber when running long', () => {
+    const time = {
+      text: '50m of ~30m',
+      spoken: '50m so far, usually about 30m, running long',
+      title: 'basis',
+      over: true,
+    };
+    const c = render(
+      <ul>
+        <TaskCard item={item({ workingNow: [pete] })} nameOf={nameOf} time={time} />
+      </ul>,
+    ).container;
+    const tag = c.querySelector('.ob-right .ob-time.over') as HTMLElement;
+    expect(tag.getAttribute('title')).toBe('basis');
+    expect(tag.querySelector('[aria-hidden]')?.textContent).toBe('50m of ~30m');
+    expect(tag.querySelector('.sr-only')?.textContent).toContain('running long');
+  });
+  it('no time tag without time', () => {
+    expect(card({ status: 'todo' }).querySelector('.ob-time')).toBeNull();
+  });
   it('a problem without details has no Details button', () => {
     card({ status: 'cancelled', problem: { message: 'Stopped.' } });
     expect(screen.queryByRole('button')).toBeNull();

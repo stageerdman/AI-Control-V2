@@ -8,10 +8,10 @@ import { Hero } from '../../characters';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
 import { type Feature, keys } from './api';
+import type { TimeTag as TimeTagView } from './estimates';
 import { type MainQuest, questBoard, type SideQuest } from './quests';
 import { SignedLine } from './SignoffStrip';
 import { taskCard } from './state';
-import type { TimeTag as TimeTagView } from './estimates';
 import { Mark, People, Problem, TaskCard } from './TaskCard';
 import { TimeTag } from './TimeTag';
 import { WorkflowChip } from './WorkflowChip';
@@ -38,7 +38,18 @@ type Props = {
 type Who = (id: string) => { name: string; look?: Look } | null;
 type Wf = { who?: Who; wid?: string; open?: (way: string) => void; times?: Map<string, TimeTagView> };
 
-export function QuestBoard({ pid, dir, goals, features, go, nameOf, who, defaultWorkflowId, now, times }: Props) {
+export function QuestBoard({
+  pid,
+  dir,
+  goals,
+  features,
+  go,
+  nameOf,
+  who,
+  defaultWorkflowId,
+  now,
+  times,
+}: Props) {
   const b = questBoard(goals, features, now);
   const wf: Wf = { who, wid: defaultWorkflowId, open: (way) => go('how', way), times };
   return (

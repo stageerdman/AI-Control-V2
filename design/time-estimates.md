@@ -26,17 +26,19 @@ sits, without opening anything new.
 
 - **Running long:** once agent time passes the top of the usual range, the tag turns sun-coloured. It's a
   quiet heads-up, not an alarm.
-- **Tooltip:** finished work shows "1h 20m of agent time, 3h start to finish". Guessed work shows "Usually
-  40m–2h, from 6 finished tasks by Pete".
-- **Guesses** are rounded: to 5 min under an hour, to 15 min above. "~1h 15m", not "~1h 13m".
+- **Tooltip:** finished work shows "1h 20m of agent time, 3h start to finish" (start to finish only when
+  it differs). Guessed work shows "Usually 40m–2h, from 6 finished tasks by Pete".
+- **Guesses** are rounded: whole minutes under 5, 5 min under an hour, 15 min above. "~1h 15m", not
+  "~1h 13m".
 - **Type:** 12.5px, weight 800, ink-soft, tabular numbers. It's the same voice as the card's status word,
   so there's no new type size.
 
 ## Where
 - **Task card** (whiteboard, quest trail, side quests): after the people, before the sign-offs. Members'
   parts show no tag of their own, because the team item's time already includes them.
-- **Features folder rows:** before the chevron. Shipped features show their time, ones in progress show
-  time so far, planned ones show the guess for a feature.
+- **Features folder rows:** before the chevron. Shipped features show their time; ones in progress show
+  "so far of ~usual". Not-started features show nothing: with real data that was the same "~25m" on 30
+  rows, which tells you nothing. The office-wide guess lives once, on the team sheet.
 - **How the team works** (team sheet), last section, **"How long work takes"**:
   - Up to three lines: "A task · usually ~1h 10m · 40m–2h · from 12".
   - "Latest done": the 5 most recently finished tasks, each with its face, title and time.

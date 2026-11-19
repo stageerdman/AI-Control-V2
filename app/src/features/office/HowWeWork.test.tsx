@@ -44,6 +44,12 @@ const api = {
   designCollaboration: vi.fn(),
   features: vi.fn(async () => []),
   progress: vi.fn(async () => null),
+  timesheet: vi.fn(async () => ({
+    tasks: [],
+    goals: [],
+    features: [],
+    estimates: { task: null, goal: null, feature: null },
+  })),
 };
 vi.mock('./api', async (orig) => ({
   ...(await orig<typeof import('./api')>()),
