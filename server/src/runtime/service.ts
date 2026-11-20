@@ -40,7 +40,8 @@ import { composePrompt } from './compose.ts';
 import { AGENT_SHELL, DEFAULT_CAPS, macToolsFor } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
-import { gitHead } from './git-head.ts';
+import { gitChanges, gitHead } from './git-head.ts';
+import { isWorkStep, type WorkEvidence } from '../domain/real-work.ts';
 import { afterLimit, afterNote, carriesOn, isLimit, type LimitState, limitBrief } from './limits.ts';
 import { isMacProject } from './mac-project.ts';
 import { answeredBrief, parkedHandle } from './parked.ts';
@@ -91,6 +92,10 @@ type Live = {
   mark: string;
   /** Reports filed in this run: new work for a read-only run cut off at a limit. */
   reports: number;
+  /** Real-work tool steps in this run, all sessions (domain/real-work.ts). */
+  workSteps: number;
+  /** The checkout's HEAD and reports filed when the run began: a different mark at the end = it changed. */
+  firstMark: string;
   cancelled?: boolean;
   /** The studio is closing: the run is left 'running' on its row so the restart recovers it like a crash. */
   closing?: boolean;
@@ -196,7 +201,8 @@ export function createRuntime(deps: RuntimeDeps) {
   const live = new Map<string, Live>();
   const waiters = new Map<string, Set<Waiter>>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
-  const finishedListeners = new Set<(run: Run) => void>();
+  /** `work`: what the run did, for honest task completion (domain/real-work.ts). */
+  const finishedListeners = new Set<(run: Run, work: WorkEvidence) => void>();
   const answeredListeners = new Set<(ask: Ask) => void>();
   let baseUrl: string | null = null;
   let studioToolsFor: StudioToolsFor | null = null;
@@ -314,7 +320,7 @@ export function createRuntime(deps: RuntimeDeps) {
   }
 
   /* ---------------------------------------------------------------- runs */
-  function finish(l: Live, outcome: RunOutcome) {
+  function finish(l: Live, outcome: RunOutcome, work: WorkEvidence) {
     const { run } = l;
     live.delete(run.id);
     l.untrack?.();
@@ -349,7 +355,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const ended = repo.get(run.id) as Run;
     for (const fn of finishedListeners) {
       try {
-        fn(ended);
+        fn(ended, work);
       } catch (e) {
         /* a listener never breaks the runtime, but its failure is never silent */
         console.error('[runtime] onFinished listener failed', {
@@ -393,6 +399,7 @@ export function createRuntime(deps: RuntimeDeps) {
   function onRunEvent(l: Live, e: RunEvent) {
     const { run } = l;
     recordEvent(l, e);
+    if (e.kind === 'activity' && isWorkStep(e.activity.kind)) l.workSteps++;
     if (e.kind === 'session') repo.setSession(run.id, e.sessionId);
     else if (e.kind === 'activity')
       emit(
@@ -525,7 +532,9 @@ export function createRuntime(deps: RuntimeDeps) {
       forgets: 0,
       limits: { sessions: 0, stalls: 0 },
       mark: '',
+      firstMark: '',
       reports: 0,
+      workSteps: 0,
       before: NOTHING_SPENT,
       context: 0,
       nudged: false,
@@ -645,6 +654,9 @@ export function createRuntime(deps: RuntimeDeps) {
     const headOf = deps.progressMark ?? gitHead;
     /** What "new work" is measured against: a new commit or a filed report (a desk note resets in nextSession). */
     const markNow = () => `${headOf(cwd) ?? ''}#${l.reports}`;
+    /** markNow plus the uncommitted files: a different one at the end = the run changed something. Only task
+        work (builds, research) is judged by it, so other runs skip the git calls. */
+    const workMark = () => (carriesOn(run.kind) && !big ? `${markNow()}#${gitChanges(cwd) ?? ''}` : '');
     /* a build or report cut off at a limit carries on by itself — the user never has to notice (runtime/limits.ts) */
     const carries = !big && carriesOn(run.kind);
     /** After a session ended: start the same run again (a forget, or a limit with progress) — or end it. */
@@ -725,7 +737,11 @@ export function createRuntime(deps: RuntimeDeps) {
             }
           }
           release();
-          finish(l, { ...o, ...addSpent(l.before, o) });
+          finish(
+            l,
+            { ...o, ...addSpent(l.before, o) },
+            { steps: l.workSteps, changed: workMark() !== l.firstMark, reportFiled: l.reports > 0 },
+          );
         });
     };
     l.untrack = deps.running?.add({
@@ -738,6 +754,7 @@ export function createRuntime(deps: RuntimeDeps) {
       cancel: () => stopLive(l),
     }).end;
     l.mark = markNow(); // before the session starts: its own commits are its progress
+    l.firstMark = workMark();
     /* a resumed session takes over the question its earlier run left open (or answered while nothing ran) */
     const adopted = prev ? repo.adoptAsks(prev.id, runId, prev.endedAt) : [];
     const waiting = adopted.find((a) => a.status === 'open');
@@ -1029,7 +1046,7 @@ export function createRuntime(deps: RuntimeDeps) {
       },
     },
     /** Called once per run after it ended and was recorded (dispatch marks checklist items). */
-    onFinished(fn: (run: Run) => void): () => void {
+    onFinished(fn: (run: Run, work: WorkEvidence) => void): () => void {
       finishedListeners.add(fn);
       return () => finishedListeners.delete(fn);
     },

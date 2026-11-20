@@ -28,6 +28,7 @@ import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
 import { isClosed } from '../domain/feature-stages.ts';
 import { BranchLabel } from '../domain/gates.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
+import { planOnlyBrief, type WorkEvidence, workVerdict } from '../domain/real-work.ts';
 import { drawingInWords } from '../domain/workflow-drawing.ts';
 import {
   branchLabels,
@@ -467,8 +468,11 @@ export function createDispatch(deps: {
   }
   /** The next message of a stopped session: pick up where it was (the original task is already in its context). */
   function carryOnTask(it: ChecklistItem): string {
+    const was = runOf(it.resumeRunId)?.status;
+    /* its run finished, yet the item is open: it only replied with a plan (afterBuild) */
+    if (was === 'succeeded') return planOnlyBrief(it.text);
     const why =
-      runOf(it.resumeRunId)?.status === 'cancelled'
+      was === 'cancelled'
         ? 'the user stopped you, and has now asked you to continue'
         : 'the studio restarted';
     return [
@@ -901,8 +905,9 @@ export function createDispatch(deps: {
     pump(it.projectId);
   }
 
-  /** A build (or rework) run ended. */
-  function afterBuild(it: ChecklistItem, run: Run) {
+  /** A build (or rework) run ended. Every task's build ends here: it counts as done only with real work
+      (domain/real-work.ts) — a plan-only reply carries on in the same session, then fails. */
+  function afterBuild(it: ChecklistItem, run: Run, did: WorkEvidence) {
     if (run.status !== 'succeeded') {
       stopLater(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
@@ -911,21 +916,29 @@ export function createDispatch(deps: {
       return;
     }
     const note = clip(run.result ?? '', 2000) || null;
-    if (it.report) {
-      const filed = !!deps.filedBy?.(run.id);
-      if (filed) accept(it, { note, buildRunId: run.id });
-      else {
-        stopLater(it, { status: 'failed', note: 'Finished without filing the report' });
-      }
+    const evidence = { ...did, reportFiled: did.reportFiled || !!deps.filedBy?.(run.id) };
+    const verdict = workVerdict(evidence, !!it.report, it.continues);
+    if (verdict.kind === 'carry-on') {
+      const resumeRunId = sessionOf(run.id) ? run.id : null;
+      settle(it, { status: 'todo', runId: null, resumeRunId, continues: verdict.round });
+      queueMicrotask(() => pump(it.projectId));
       return;
     }
-    const gate = it.gates[it.gateIndex];
+    if (verdict.kind === 'failed') {
+      stopLater(it, {
+        status: 'failed',
+        note: clip(note && !it.report ? `${verdict.note} Last reply: ${note}` : verdict.note, 2000),
+      });
+      return;
+    }
+    const built = { note, buildRunId: run.id, continues: 0 };
+    const gate = it.report ? undefined : it.gates[it.gateIndex];
     if (gate) {
-      settle(it, { status: 'todo', stage: 'review', note, buildRunId: run.id });
+      settle(it, { status: 'todo', stage: 'review', ...built });
       handoff(it, it.agentId, gate.reviewer, 'review', undefined, gate);
       return;
     }
-    accept(it, { note, buildRunId: run.id });
+    accept(it, built);
   }
 
   /** A review run ended: approve → next gate or done; changes → back to the builder (bounded). */
@@ -1169,7 +1182,7 @@ export function createDispatch(deps: {
   }
 
   /** The captain's integration run ended: one bounded rework round, or on through the gates like any build. */
-  function afterIntegrate(it: ChecklistItem, run: Run) {
+  function afterIntegrate(it: ChecklistItem, run: Run, did: WorkEvidence) {
     if (run.status !== 'succeeded') {
       stopLater(it, {
         status: run.status === 'cancelled' ? 'cancelled' : 'failed',
@@ -1236,17 +1249,19 @@ export function createDispatch(deps: {
     }
     /* integrated: from here on it is the captain's build (reviewer rework resumes this session) */
     work.setItem(it.id, { status: 'running', teamPhase: null });
-    afterBuild(work.item(it.id) as ChecklistItem, run);
+    /* the members' delivered parts are the team item's work, even when integrating needed no new step */
+    const delivered = latestParts(it).some((s) => s.status === 'done');
+    afterBuild(work.item(it.id) as ChecklistItem, run, { ...did, changed: did.changed || delivered });
   }
 
-  runtime.onFinished((run) => {
+  runtime.onFinished((run, did) => {
     const it = work.itemByRun(run.id);
     if (it?.status === 'running') {
       try {
         if (outlivedOwner(it, run.agentId)) restartForOwner(it);
         else if (it.stage === 'review') afterReview(it, run);
-        else if (it.teamPhase === 'integrate') afterIntegrate(it, run);
-        else afterBuild(it, run);
+        else if (it.teamPhase === 'integrate') afterIntegrate(it, run, did);
+        else afterBuild(it, run, did);
       } catch (e) {
         failOnError(it.id, 'wrap up its run')(e);
       }

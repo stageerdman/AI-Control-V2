@@ -3,11 +3,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createDispatch } from '../../src/crew/dispatch.ts';
 import { workRepo } from '../../src/db/work.ts';
+import { MAX_PLAN_ONLY } from '../../src/domain/real-work.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import { MAX_STALLS } from '../../src/runtime/limits.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
-import { type Answer, scriptedCrew } from './brain.ts';
+import { type Answer, scriptedCrew, WORK_STEP } from './brain.ts';
 
 /* Aurora: teams ship-it (captain a-semic) + polish (captain a-lint); specialists a-baron, a-query, a-merge */
 const PLAN = {
@@ -67,6 +68,7 @@ describe('dispatch: goal → checklist → runs', () => {
       return [
         { wait: 20 },
         { tokens: { input: 10, output: 5 } },
+        WORK_STEP,
         { result: `Did: ${spec.task.split('\n')[2]}` },
       ];
     });
@@ -169,7 +171,7 @@ describe('dispatch: goal → checklist → runs', () => {
 
   it('a failed run fails its item; its parallel partner still runs; later items are skipped; the goal ends failed', async () => {
     const s = studio({ dispatch: [PLAN] }, (spec) =>
-      spec.task.includes('/checkout') ? [{ fail: 'tests are red' }] : [{ result: 'ok' }],
+      spec.task.includes('/checkout') ? [{ fail: 'tests are red' }] : [WORK_STEP, { result: 'ok' }],
     );
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Ship', caps: { maxTurns: 8 } });
@@ -227,7 +229,8 @@ describe('dispatch: goal → checklist → runs', () => {
     const specs: RunSpec[] = [];
     const s = studio({ dispatch: [SOLO] }, (spec) => {
       specs.push(spec);
-      return specs.length === 1 ? [CAP] : [{ result: 'Deployed.' }];
+      /* the work happened before the cap: the fresh session's plain "Deployed." finishes it */
+      return specs.length === 1 ? [WORK_STEP, CAP] : [{ result: 'Deployed.' }];
     });
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
@@ -256,12 +259,46 @@ describe('dispatch: goal → checklist → runs', () => {
     );
   });
 
+  it('a plan-only reply keeps the task open: it carries on in the same session until real work happens', async () => {
+    const specs: RunSpec[] = [];
+    const s = studio({ dispatch: [SOLO] }, (spec) => {
+      specs.push(spec);
+      return specs.length === 1
+        ? [{ result: 'Plan: 1) build the Swift package 2) run its tests.' }]
+        : [{ activity: { kind: 'running', label: 'Running swift build' } }, { result: 'Built and tested.' }];
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
+    const g = await settled(h, r.body.id);
+    expect(g.status).toBe('done');
+    expect(g.items[0]).toMatchObject({ status: 'done', continues: 0, note: 'Built and tested.' });
+    expect(specs).toHaveLength(2);
+    expect(specs[1]?.resumeSessionId).toBe(`fake-${specs[0]?.runId}`);
+    expect(specs[1]?.task).toContain('did no work');
+  });
+
+  it('a task that only ever replies with plans never shows as done: it fails, saying why', async () => {
+    let runs = 0;
+    const s = studio({ dispatch: [SOLO] }, () => {
+      runs++;
+      return [{ activity: { kind: 'reading', label: 'Reading README.md' } }, { result: 'Here is my plan.' }];
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });
+    const g = await settled(h, r.body.id);
+    expect(g.status).toBe('failed');
+    expect(g.pct).toBe(0);
+    expect(runs).toBe(MAX_PLAN_ONLY + 1);
+    expect(g.items[0].status).toBe('failed');
+    expect(g.items[0].note).toMatch(/without doing the work.*Last reply: Here is my plan\./);
+  });
+
   it('a stopped goal continues: its items queue again and the started one resumes its session', async () => {
     const specs: RunSpec[] = [];
     let fail = true;
     const s = studio({ dispatch: [SOLO] }, (spec) => {
       specs.push(spec);
-      return fail ? [{ fail: 'boom' }] : [{ result: 'Deployed.' }];
+      return fail ? [{ fail: 'boom' }] : [WORK_STEP, { result: 'Deployed.' }];
     });
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Deploy' });

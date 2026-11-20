@@ -1,14 +1,22 @@
 /* A scripted crew for tests: FakeRunner answers by the contract a task announces
-   (queues per contract; repair asks pop the same queue). Agent runs (no contract) play `work`. */
+   (queues per contract; repair asks pop the same queue). Agent runs (no contract) play `work` — by default one
+   real-work step (an edit) and "Done.", so a build counts as done (domain/real-work.ts). */
 import { contractOf } from '../../src/crew/structured.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+
+/** One real-work step (a file edit): a scripted build that does work. */
+export const WORK_STEP: FakeStep = { activity: { kind: 'editing', label: 'Writing notes.md', target: 'notes.md' } };
 
 export type Answer = string | object | ((spec: RunSpec) => string | object | FakeStep[]);
 
 export function scriptedCrew(
   answers: Record<string, Answer[]>,
-  work: (spec: RunSpec) => FakeStep[] = () => [{ tokens: { input: 10, output: 5 } }, { result: 'Done.' }],
+  work: (spec: RunSpec) => FakeStep[] = () => [
+    { tokens: { input: 10, output: 5 } },
+    WORK_STEP,
+    { result: 'Done.' },
+  ],
 ) {
   const calls: RunSpec[] = [];
   const runner = fakeRunner((spec) => {
