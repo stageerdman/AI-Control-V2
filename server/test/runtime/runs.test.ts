@@ -261,6 +261,7 @@ describe('agent runs (FakeRunner end-to-end)', () => {
           'PORT', // G1: the run's port block
           'AI_STUDIO_PORTS',
           'AI_STUDIO_APP_PORT',
+          'AI_STUDIO_PROJECT_DIR', // the shell hook checks Mac build paths against it
         ].includes(k),
       ),
     ).toBe(true);

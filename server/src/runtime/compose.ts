@@ -2,6 +2,7 @@
    brain ▸ what the team does ▸ how the team codes ▸ its job on this team ▸ project rules.
    The project's CLAUDE.md is NOT pasted in: Claude Code reads it itself from cwd. */
 import type { EditScope } from '../domain/toolset.ts';
+import { OUTPUT_FLAGS } from './mac-build.ts';
 
 export type ComposeInput = {
   agent: { name: string; prompt: string; role: string };
@@ -17,6 +18,8 @@ export type ComposeInput = {
   edit?: EditScope;
   /** `NAME=value <command>` is approved (the setting-prefix hook runs). Default true. */
   settingsPrefix?: boolean;
+  /** A native Mac project: Swift / Xcode builds are approved too (mac-build.ts). */
+  macBuilds?: boolean;
   /** G1: this run's PORT, the project's app port and its spares. */
   ports?: { port: number; app: number; spares: readonly number[] } | null;
   /** AGENT MCP: the run has `room` + `call_agent` — say how to work with the others. */
@@ -55,6 +58,10 @@ function shellLine(cmds: readonly string[], settingsPrefix: boolean, port: numbe
   return `- In the shell, run one plain command at a time (no \`;\`, \`&&\`, pipes or redirects): ${list(cmds.map(code))} ${verb} pre-approved, anything else is refused.${prefix}`;
 }
 
+const flags = (tool: keyof typeof OUTPUT_FLAGS) =>
+  OUTPUT_FLAGS[tool].map(([f, dir]) => `${f} ${dir}`).join(' ');
+const MAC_BUILDS_LINE = `- This is a native Mac project, so these are pre-approved too, with every output inside this folder: \`swift build\` and \`swift test\` with \`${flags('swift')}\`; \`xcodebuild\` build or test with \`${flags('xcodebuild')}\`; ad-hoc \`codesign -s -\`; \`hdiutil create\` for a disk image in this folder. No keychains, certificates, archives or paths outside the project (no quotes either — write \`-destination platform=macOS\`).`;
+
 /* The instructions are shared word for word, so they may name a kin: the copy must read that as itself. */
 function kinLine(name: string, kin: readonly string[]): string {
   if (!kin.length) return '';
@@ -70,6 +77,7 @@ export function composePrompt({
   shell,
   edit,
   settingsPrefix,
+  macBuilds,
   access,
   ports,
   room,
@@ -131,6 +139,7 @@ export function composePrompt({
         '- Work only inside this project folder.',
         editLine(edit ?? 'any'),
         shellLine(cmds, settingsPrefix !== false, ports?.port ?? 3000),
+        ...(macBuilds ? [MAC_BUILDS_LINE] : []),
         ...(ports
           ? [
               `- Ports: your PORT is ${ports.port} (already in your environment; this project's spares are ${ports.spares.join(', ')} in AI_STUDIO_PORTS). ${ports.app} is the project's app port — the studio's "Run the app" uses it; don't bind it. Servers read their port from PORT. Stop any server you start before you finish.`,

@@ -30,13 +30,32 @@ brings back things you deleted.
 | `AI_STUDIO_CLAUDE_BIN` | first of `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`, `~/.claude/local/claude`, `~/.local/bin/claude` | Claude Code CLI for agent runs (absolute path; never a shell alias) |
 | `AI_STUDIO_MODEL` | `claude-opus-5-5` | model for agent runs |
 | `AI_STUDIO_AGENT_TURNS` · `AI_STUDIO_REVIEW_TURNS` · `AI_STUDIO_ORCHESTRATOR_TURNS` | 120 · 15 · 6 | turn caps per session, by kind of run (budgets: $10 · $5 · $2 API-equivalent size caps — the subscription is used, nothing is charged); a goal's own `caps` still win. A build that hits its cap or budget carries on in a fresh session of the same run while it keeps committing (`src/runtime/limits.ts`) |
-| `AI_STUDIO_AGENT_SHELL` | `dev` | shell commands agent runs may use, one plain command at a time: `dev` = `git ls cat pwd mkdir npm npx node` (building real apps: install, run tests); `safe` = B5's `git ls cat pwd`. G1: any of them may carry literal settings in front — `NAME=value [NAME2=value2] <cmd …>` (approved by a PreToolUse hook, `src/runtime/shell-hook.ts`; no `$`, backticks, `;`, `&`, `\|`, `<`, `>`, `( )`, `\\`; PATH / LD_… / DYLD_… / GIT_… / auth names refused). `git push` is denied in every shell |
+| `AI_STUDIO_AGENT_SHELL` | `dev` | shell commands agent runs may use, one plain command at a time: `dev` = `git ls cat pwd mkdir npm npx node` (building real apps: install, run tests); `safe` = B5's `git ls cat pwd`. G1: any of them may carry literal settings in front — `NAME=value [NAME2=value2] <cmd …>` (approved by a PreToolUse hook, `src/runtime/shell-hook.ts`; no `$`, backticks, `;`, `&`, `\|`, `<`, `>`, `( )`, `\\`; PATH / LD_… / DYLD_… / GIT_… / auth names refused). `git push` is denied in every shell. `dev` in a native Mac project also allows Swift / Xcode builds — see **Native Mac builds** below |
 | `AI_STUDIO_GH_BIN` | first of `/opt/homebrew/bin/gh`, `/usr/local/bin/gh`, `/usr/bin/gh` | GitHub CLI the studio runs for publishing, visibility and health (absolute path; tests and manual checks point it at a stub — never let a check create a real repo) |
 | `AI_STUDIO_RUNNER` | (CLI) | `fake` = the free scripted runner + fake crew brain (UI work, demos): the whole setup → work flow runs without Claude |
 
 **One backend per data dir** (F1c): the server takes `<AI_STUDIO_HOME>/server.lock` `{pid, port, startedAt}` before it opens the db; a
 second backend on the same data dir exits with a message naming the holder (its startup recovery would mark the first one's running work
 "interrupted"). A lock whose pid is gone is taken over.
+
+**Native Mac builds** (`src/runtime/mac-build.ts`, approved by the same PreToolUse hook). *When:* the `dev` shell, a run with the
+whole studio shell, and a **Package.swift or .xcodeproj** in the project folder (checked on every command, so a project that gains one
+mid-run qualifies from then on). Every other project keeps the rules above: there these commands are refused. *What:*
+
+| Command | Allowed | Must carry (output inside the project) |
+|---|---|---|
+| `swift` | `build`, `test` | `--cache-path .build/cache --config-path .build/config --security-path .build/security` (the build itself stays in `.build`; `--scratch-path` may move it, inside the project) |
+| `xcodebuild` | `build`, `test`, `build-for-testing`, `test-without-building` | `-derivedDataPath build/DerivedData -packageCachePath build/PackageCache` |
+| `codesign` | ad-hoc signing `-s -` (`-f`, `--deep`, `-o`, `-i`, `--entitlements`, `--timestamp=none`), `--verify`, `--display` | — |
+| `hdiutil` | `create` (`-volname -srcfolder -srcdir -format -fs -size -type -layout -megabytes -ov -quiet -verbose -nospotlight`) with one image path | — |
+
+*Refused:* anything mentioning a keychain; any signing identity but `-` (no certificates); `xcodebuild archive|install|installsrc|docbuild`,
+exports, `-allowProvisioningUpdates`, App Store auth keys, platform downloads; every other `swift` / `hdiutil` subcommand (`attach`,
+encryption, …); setting prefixes on these tools; and any path — flag value, `KEY=value` build setting, `-I/…` — that resolves outside the
+project folder (checked lexically; the command must also run from inside the folder). Literal arguments only: no quotes, `$`, `~`, globs,
+`#` or shell syntax (`-destination platform=macOS`). A refused command says why, with the missing flags written out. The run's brief lists
+the rules and the hook reads the project folder from `AI_STUDIO_PROJECT_DIR` (set for every run). Live check — a sample SwiftUI package
+(`test/fixtures/mac-sample`) built and tested through the hook: `AI_STUDIO_MAC_CHECK=1 npx vitest run test/runtime/mac-build.live.test.ts`.
 
 ## Layout
 

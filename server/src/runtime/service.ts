@@ -37,11 +37,12 @@ import type { AgentAccess } from '../secrets/projectAccess.ts';
 import { tracked } from '../usage/usage.ts';
 import { accessNotice, type Pickup } from './access-notice.ts';
 import { composePrompt } from './compose.ts';
-import { AGENT_SHELL, DEFAULT_CAPS } from './config.ts';
+import { AGENT_SHELL, DEFAULT_CAPS, macToolsFor } from './config.ts';
 import { autoAnswer } from './confirm.ts';
 import { runEnv } from './env.ts';
 import { gitHead } from './git-head.ts';
 import { afterLimit, afterNote, carriesOn, isLimit, type LimitState, limitBrief } from './limits.ts';
+import { isMacProject } from './mac-project.ts';
 import { answeredBrief, parkedHandle } from './parked.ts';
 import { runPermissions } from './permissions.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
@@ -558,8 +559,16 @@ export function createRuntime(deps: RuntimeDeps) {
 
     /* an agent with its own toolset gets exactly those tools; null = the full studio kit */
     const perms = !big && agent.tools ? runPermissions(agent.tools, deps.shell ?? AGENT_SHELL.dev) : null;
+    /* native Mac builds: the shell hook approves them (dev shell, full shell only); the brief says how */
+    const macBuilds =
+      !big &&
+      (perms ? perms.fullShell : true) &&
+      macToolsFor(deps.shell ?? AGENT_SHELL.dev).length > 0 &&
+      isMacProject(cwd);
     const envWith = (values: Record<string, string>) =>
       runEnv(deps.parentEnv ?? process.env, values, {
+        /* the shell hook checks Mac build paths against this folder */
+        AI_STUDIO_PROJECT_DIR: cwd,
         ...(ports
           ? {
               PORT: String(ports.port),
@@ -585,6 +594,7 @@ export function createRuntime(deps: RuntimeDeps) {
           : deps.shell
             ? { shell: deps.shell }
             : {}),
+        ...(macBuilds ? { macBuilds: true } : {}),
         ...(deps.accessFor ? { access: deps.accessFor(projectId) } : {}),
         ...(ports ? { ports: { port: ports.port, app: ports.block.app, spares: ports.block.spares } } : {}),
         room: bridge && studioToolsFor ? WORKING_WITH_OTHERS : null,

@@ -150,9 +150,16 @@ export const hookSettings = (shell: string | null, nudge: string | null) => ({
       : {}),
   },
 });
-/** The hook's command line: this node + shell-hook.ts + the allowed commands. */
-export const shellHookCommand = (hookScript: string, allowed: readonly string[], node = process.execPath) =>
-  [node, hookScript, allowed.join(',')].map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ');
+/** The hook's command line: this node + shell-hook.ts + the allowed commands (+ the Mac build tools, if any). */
+export const shellHookCommand = (
+  hookScript: string,
+  allowed: readonly string[],
+  node = process.execPath,
+  macTools: readonly string[] = [],
+) =>
+  [node, hookScript, allowed.join(','), ...(macTools.length ? [macTools.join(',')] : [])]
+    .map((a) => `'${a.replace(/'/g, `'\\''`)}'`)
+    .join(' ');
 
 /** Stop the CLI and everything it started (its group + children that made their own). */
 function stopAll(child: ChildProcess) {

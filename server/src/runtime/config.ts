@@ -95,3 +95,7 @@ export const AGENT_SHELL = {
 } as const;
 export const loadShell = (env: NodeJS.ProcessEnv = process.env): readonly string[] =>
   env.AI_STUDIO_AGENT_SHELL?.trim() === 'safe' ? AGENT_SHELL.safe : AGENT_SHELL.dev;
+/** Native Mac builds (runtime/mac-build.ts): the dev shell adds these in Mac projects only, approved by the shell hook. */
+export const MAC_BUILD_TOOLS = ['swift', 'xcodebuild', 'codesign', 'hdiutil'] as const;
+export const macToolsFor = (shell: readonly string[]): readonly string[] =>
+  shell === AGENT_SHELL.dev ? MAC_BUILD_TOOLS : [];

@@ -12,7 +12,7 @@ import { ghCli } from './github/github.ts';
 import { ghProbe, resolveGhBin } from './health/git-status.ts';
 import { listen } from './listen.ts';
 import { claudeCliRunner, shellAllowed, shellHookCommand } from './runtime/claude-cli.ts';
-import { loadRuntimeConfig, loadShell } from './runtime/config.ts';
+import { loadRuntimeConfig, loadShell, macToolsFor } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
 import { unavailableRunner } from './runtime/runner.ts';
 import { ASK_TOOL } from './runtime/stream.ts';
@@ -58,7 +58,13 @@ const runner =
           logDir: join(config.home, 'runs'),
           allowedTools: ['Read', 'Edit', 'Write', 'Glob', 'Grep', ...shellAllowed(shell), ASK_TOOL],
           /* G1: `NAME=value <allowed command>` (literal values) — approved by a PreToolUse hook */
-          shellHook: shellHookCommand(join(import.meta.dirname, 'runtime', 'shell-hook.ts'), shell),
+          /* + native Mac builds (swift, xcodebuild, ad-hoc codesign, hdiutil create) in Mac projects, dev shell only */
+          shellHook: shellHookCommand(
+            join(import.meta.dirname, 'runtime', 'shell-hook.ts'),
+            shell,
+            process.execPath,
+            macToolsFor(shell),
+          ),
           nudgeHook: shellHookCommand(join(import.meta.dirname, 'runtime', 'nudge-hook.ts'), []),
         })
       : unavailableRunner(rt.binError ?? 'Claude Code CLI not found');
