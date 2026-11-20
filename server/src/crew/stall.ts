@@ -32,7 +32,8 @@ export type Stall = {
 /** How much failing output an alert carries: the useful tail, not the whole log. */
 const MAX_LINES = 12;
 const MAX_CHARS = 1500;
-const SIGNAL = /error|fail|✗|×|expected|assert|exception|cannot|can't|couldn't|not found|denied|refused|stopped/i;
+const SIGNAL =
+  /error|fail|✗|×|expected|assert|exception|cannot|can't|couldn't|not found|denied|refused|stopped/i;
 
 /** Failing build or test output, trimmed to the useful part: its error lines (or else its last lines), clipped. */
 export function trimOutput(text: string): string {
@@ -116,7 +117,11 @@ export function goalStall(goal: Goal, maxSendBacks: number): Stall {
 }
 
 const label = ({ kind, reason }: { kind: StallKind; reason: string }) =>
-  kind === 'sent-back' ? `was ${lower(reason)}` : kind === 'stuck' ? `got stuck: ${reason}` : `failed: ${reason}`;
+  kind === 'sent-back'
+    ? `was ${lower(reason)}`
+    : kind === 'stuck'
+      ? `got stuck: ${reason}`
+      : `failed: ${reason}`;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** One message per stop. A task's stop that also stopped its goal is one alert: the task's, saying the goal
@@ -150,7 +155,9 @@ export function stallText(s: Stall, goalText: string, task: string | null): stri
   const d = s.done;
   const done = [
     d.finished.length ? `Finished: ${quoted(d.finished)}.` : 'Nothing is finished yet.',
-    d.merged.length ? `Merged into main: ${d.merged.map((m) => `“${m.task}” (${m.branch})`).join(', ')}.` : '',
+    d.merged.length
+      ? `Merged into main: ${d.merged.map((m) => `“${m.task}” (${m.branch})`).join(', ')}.`
+      : '',
     d.kept.length ? `Stopped work is kept on branch ${d.kept.join(', ')}.` : '',
   ].filter(Boolean);
   return [

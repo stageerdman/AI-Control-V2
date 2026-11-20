@@ -372,7 +372,11 @@ export function createDispatch(deps: {
         try {
           deps.onStalled?.(one, goal);
         } catch (e) {
-          console.error('[dispatch] stall alert failed', { goalId: one.goalId, itemId: one.itemId, error: e });
+          console.error('[dispatch] stall alert failed', {
+            goalId: one.goalId,
+            itemId: one.itemId,
+            error: e,
+          });
         }
       }
     });

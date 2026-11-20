@@ -39,10 +39,10 @@ export const isReview = (s: RunSpec) => s.task.startsWith('You are reviewing');
 export const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
 
 /** Aurora with a git folder; `work` scripts every run but the director's chat turns (played by `director`). */
-export function studio(work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[]) {
+export function studio(work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[], plan: object = PLAN) {
   const box: { h?: ReturnType<typeof testApp> } = {};
   const turns: FakeStep[][] = [];
-  const crew = scriptedCrew({ dispatch: [PLAN], help: [{ answer: 'On it.', say: 'on it' }] }, (s) =>
+  const crew = scriptedCrew({ dispatch: [plan], help: [{ answer: 'On it.', say: 'on it' }] }, (s) =>
     isChat(s) ? [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }] : work(box.h as never, s),
   );
   const h = testApp({ seed: true, runner: crew.runner });
