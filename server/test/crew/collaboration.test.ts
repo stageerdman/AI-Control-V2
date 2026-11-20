@@ -203,8 +203,10 @@ describe('collaboration: design + enforcement', () => {
 
   it('bounded: past maxSendBacks the item fails for the user, later items are skipped', async () => {
     const two = { ...ONE, items: [...ONE.items, { ...ONE.items[0], text: 'Then the filters' }] };
+    /* different notes each round: the same note twice would go to the director instead (review-loop-flow) */
+    const notes = ['The empty state crashes.', 'Filters ignore the date range.'];
     const s = studio({ dispatch: [two] }, (spec) =>
-      isReview(spec) ? changes('Still broken.') : [{ result: 'Built.' }],
+      isReview(spec) ? changes(notes.shift() ?? 'Still broken.') : [{ result: 'Built.' }],
     );
     h = s.h;
     useDesign(h, DESIGN); // maxSendBacks 1

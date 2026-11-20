@@ -12,7 +12,7 @@ import { testApp } from '../helpers.ts';
 import { scriptedCrew } from './brain.ts';
 
 export const [COLUMBO, BOB, LINT] = ['a-semic', 'a-baron', 'a-lint'];
-const CHECKED: Workflow = {
+export const CHECKED: Workflow = {
   id: 'checked',
   name: 'Checked',
   when: 'always',

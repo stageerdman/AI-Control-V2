@@ -62,6 +62,7 @@ import {
 } from './handover.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
+import { repeatedNote, repeatedNoteText } from './review-loop.ts';
 import { type Crew, validateWith } from './structured.ts';
 import {
   integrateTask,
@@ -983,6 +984,7 @@ export function createDispatch(deps: {
         ...(final ? { final: true } : {}),
       },
     });
+    if (stuckOnSameNote(it, gate, v.notes, { sendBacks, reviews })) return;
     if (final) {
       stopLater(it, {
         status: 'failed',
@@ -998,6 +1000,25 @@ export function createDispatch(deps: {
     }
     settle(it, { status: 'todo', stage: 'build', sendBacks, reviews, notes: v.notes });
     handoff(it, gate.reviewer, it.agentId, 'rework', v.notes, gate);
+  }
+
+  /** The reviewer repeats its last send-back to this builder: a third round would too, so the item goes back to
+      the director with both notes, waiting for a new owner on the same branch (src/crew/review-loop.ts).
+      → true when it did. A member's part or a captain's team phase stays with its team. */
+  function stuckOnSameNote(
+    it: ChecklistItem,
+    gate: ItemGate,
+    notes: string,
+    patch: Pick<ItemPatch, 'sendBacks' | 'reviews'>,
+  ): boolean {
+    if (it.parentId || it.teamPhase) return false;
+    const earlier = repeatedNote(it, gate, notes);
+    if (earlier === null) return false;
+    settle(it, { status: 'todo', stage: 'build', notes, ...patch });
+    const why = repeatedNoteText(name(gate.reviewer), name(it.agentId), earlier, notes);
+    const director = store.projects.require(it.projectId).orchestratorId;
+    handOver(it.id, { agentId: director, teamId: null }, clip(why, 2000));
+    return true;
   }
 
   /* ---------------------------------------------------------------- teams (F1c) */

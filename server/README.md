@@ -254,6 +254,9 @@ Their whiteboard shows such tasks as `[waiting for a new owner]`, with a `Why:` 
 **Can't do it** (`src/crew/cant-do-tool.ts`) — a builder that lacks a tool, access or permission calls `cant_do` (`lacks`, `reason`)
 from its own build: the item goes back to the orchestrator at once the same way (no review round, no resubmit), its note reads
 `<builder> can't do it — no <lack>: <reason>`, and the same line lands in the orchestrator's chat. Anywhere else it is refused.
+**Same note twice** (`src/crew/review-loop.ts`) — a reviewer whose send-back repeats (nearly word for word) its last one to the
+same builder stops the loop: no third round, the item goes back to the orchestrator the same way, its note holding both notes.
+Different notes keep going as normal (bounded by `maxSendBacks`). A member's part stays with its team.
 **Members** (`src/room/members.ts`): one list of who is on a project — the orchestrator (always, teams or not), team captains and
 members, specialists, Cast guests. The room, the whiteboard's owner roster and the review gates all read it, so anyone the room shows can
 be named on the board; the orchestrator may hold a task (it waits with them), the rest own work by the dispatch rules above.
