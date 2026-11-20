@@ -29,6 +29,7 @@ import { isClosed } from '../domain/feature-stages.ts';
 import { BranchLabel } from '../domain/gates.ts';
 import { heldForMain, mainFirst } from '../domain/quests.ts';
 import { planOnlyBrief, type WorkEvidence, workVerdict } from '../domain/real-work.ts';
+import { SKIPPED_NOTE, orderGate as taskOrderGate } from '../domain/task-order.ts';
 import { drawingInWords } from '../domain/workflow-drawing.ts';
 import {
   branchLabels,
@@ -585,16 +586,16 @@ export function createDispatch(deps: {
       .join('\n\n');
   }
 
-  /** Checklist order: an item waits for every item before its parallel group; if one of those didn't succeed, it's skipped. */
-  function orderGate(goal: Goal, it: ChecklistItem): 'go' | 'wait' | 'skip' {
-    const list = it.parentId ? work.children(it.parentId) : goal.items;
-    let start = it.position;
-    while (start > 0 && list[start]?.parallel) start--;
-    const before = list.slice(0, start);
-    /* a member's sub-task never skips: whatever a teammate didn't finish, the captain picks up when integrating */
-    if (it.parentId) return before.some((b) => b.status === 'todo' || b.status === 'running') ? 'wait' : 'go';
-    if (before.some((b) => b.status === 'failed' || b.status === 'cancelled')) return 'skip';
-    return before.every((b) => b.status === 'done') ? 'go' : 'wait';
+  /** Checklist order (domain/task-order.ts): an item waits for the items it depends on; if one didn't land, it's skipped. */
+  const orderGate = (goal: Goal, it: ChecklistItem) =>
+    it.parentId
+      ? taskOrderGate(work.children(it.parentId), it.position, true)
+      : taskOrderGate(goal.items, it.position);
+  /** Hold every fresh task whose dependency didn't land, at once — not only when its agent has a free seat. */
+  function skipBlocked(projectId: string) {
+    for (const it of work.projectItems(projectId, 'todo'))
+      if (fresh(it) && orderGate(work.goal(it.goalId) as Goal, it) === 'skip')
+        settle(it, { status: 'cancelled', note: SKIPPED_NOTE });
   }
   /** Never run yet (order rules apply); reviews and rework already passed them. */
   const fresh = (it: ChecklistItem) => it.stage === 'build' && !it.buildRunId;
@@ -678,13 +679,13 @@ export function createDispatch(deps: {
   /** Start queued items while the project has room: ≤ cap live, one per agent. An item is claimed
       (running) right away; its checkout and run follow (launch). Main quests go first (src/domain/quests.ts). */
   function pump(projectId: string) {
+    skipBlocked(projectId);
     /* a split team item waits on its members: it holds no seat */
     const running = work.projectItems(projectId, 'running').filter((i) => i.teamPhase !== 'members');
     let free = cap - running.length;
     const busy = new Set(running.map(holder));
     /* a team rebuild hands orphaned work back to the director: it waits there for a new owner */
     const director = store.projects.require(projectId).orchestratorId;
-    /* read fresh each time: a task skipped in this loop changes what the next one sees */
     const goalOf = (it: ChecklistItem) => work.goal(it.goalId) as Goal;
     const queue = work.projectItems(projectId, 'todo').map((it) => ({ it, goal: goalOf(it) }));
     const held = heldForMain(
@@ -706,14 +707,8 @@ export function createDispatch(deps: {
         continue;
       }
       const goal = goalOf(it);
-      if (fresh(it)) {
-        const gate = orderGate(goal, it);
-        if (gate === 'wait') continue;
-        if (gate === 'skip') {
-          settle(it, { status: 'cancelled', note: 'Skipped: an earlier item did not succeed' });
-          continue;
-        }
-      }
+      /* skipBlocked already held what can't start; anything else not 'go' still waits on a dependency */
+      if (fresh(it) && orderGate(goal, it) !== 'go') continue;
       work.setItem(it.id, { status: 'running', runId: null });
       busy.add(who);
       free--;

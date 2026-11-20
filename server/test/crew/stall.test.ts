@@ -9,6 +9,9 @@ const item = (over: Partial<ChecklistItem>): ChecklistItem =>
     id: 'i1',
     text: 'Build it',
     status: 'todo',
+    stage: 'build',
+    buildRunId: null,
+    parallel: false,
     note: null,
     notes: null,
     sendBacks: 0,
@@ -73,7 +76,8 @@ describe('goalStall and coalesce', () => {
 
   it('the goal’s alert names each failed task and what never started, and what is done', () => {
     const s = goalStall(g, 1);
-    expect(s).toMatchObject({ kind: 'goal-stopped', itemId: null, goalStopped: true, blocked: ['C'] });
+    expect(s).toMatchObject({ kind: 'goal-stopped', itemId: null, goalStopped: true });
+    expect(s.blocked).toEqual([{ task: 'C', waitsOn: ['B'] }]);
     expect(s.reason).toBe('“B” failed: boom');
     expect(s.done).toEqual({
       finished: ['A'],
@@ -85,7 +89,23 @@ describe('goalStall and coalesce', () => {
     const task = itemStall(g, b, 1);
     const out = coalesce([task, task, goalStall(g, 1)]);
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ itemId: 'b', kind: 'failed', goalStopped: true, blocked: ['C'] });
+    expect(out[0]).toMatchObject({ itemId: 'b', kind: 'failed', goalStopped: true });
+    expect(out[0]?.blocked).toEqual([{ task: 'C', waitsOn: ['B'] }]);
+  });
+  it('a task that stalls tells what waits on it, before dispatch even holds it', () => {
+    const waiting = item({ id: 'c', text: 'C' });
+    const s = itemStall(goal([a, b, waiting]), b, 1);
+    expect(s.blocked).toEqual([{ task: 'C', waitsOn: ['B'] }]);
+  });
+  it('a task stuck but still open (back with the orchestrator) is the missing dependency', () => {
+    const stuck = item({ id: 'b', text: 'B', status: 'todo', buildRunId: 'r1' });
+    const waiting = item({ id: 'c', text: 'C' });
+    const s = itemStall(goal([a, stuck, waiting]), stuck, 1, { kind: 'stuck', reason: 'same note twice' });
+    expect(s.blocked).toEqual([{ task: 'C', waitsOn: ['B'] }]);
+  });
+  it('a parallel partner does not depend on the stalled task', () => {
+    const partner = item({ id: 'c', text: 'C', parallel: true });
+    expect(itemStall(goal([a, b, partner]), b, 1).blocked).toEqual([]);
   });
   it('a goal stopping on its own stays its own alert', () => {
     expect(coalesce([goalStall(g, 1)]).map((s) => s.kind)).toEqual(['goal-stopped']);
@@ -104,7 +124,7 @@ describe('stallText', () => {
     expect(text).toContain('stall alert: The task “B” on the goal “The goal” failed.');
     expect(text).toContain('Why: boom');
     expect(text).toContain('The goal stopped with it.');
-    expect(text).toContain("Not started, because a task they depend on didn't finish: “C”.");
+    expect(text).toContain("On hold, because a task they depend on didn't finish: “C” (waits on “B”).");
     expect(text).toContain('Done so far: Finished: “A”. Merged into main: “A” (studio/a).');
     expect(text).toContain('Stopped work is kept on branch studio/b.');
   });

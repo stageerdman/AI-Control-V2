@@ -7,13 +7,10 @@ import type { FakeStep } from '../../src/runtime/fake.ts';
 import { turnCapError } from '../../src/runtime/limits.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import type { testApp } from '../helpers.ts';
-import { CHECKED, COLUMBO, commit, type Ev, isReview, LINT, studio, until } from './aurora-studio.ts';
+import { alerts, CHECKED, COLUMBO, commit, isReview, LINT, studio, until, verdict } from './aurora-studio.ts';
 
 type App = ReturnType<typeof testApp>;
 const ORCH = 'a-pixel';
-const verdict = (v: 'approve' | 'changes', notes: string): FakeStep[] => [
-  { result: JSON.stringify({ verdict: v, notes }) },
-];
 const APPROVE = verdict('approve', 'Good.');
 const itemText = (s: RunSpec) => /Your checklist item: (.*)/.exec(s.task)?.[1] ?? '';
 const LOG = [
@@ -28,10 +25,6 @@ function aurora(build: (s: RunSpec, n: number) => FakeStep[], verdicts: FakeStep
   let builds = 0;
   return studio((_h, s) => (isReview(s) ? (verdicts.shift() ?? APPROVE) : build(s, ++builds)), plan);
 }
-const alerts = (h: App) =>
-  (h.events.after('project', 'aurora') as Ev[])
-    .filter((e) => e.type === 'work.stalled')
-    .map((e) => e.payload);
 
 /** Start the goal; wait until it stops (or `stopped` says so) and nothing runs, then a moment more for repeats. */
 async function run(h: App, stopped: (g: Goal) => boolean = (g) => g.status !== 'running') {
@@ -167,12 +160,17 @@ describe('stall alerts reach the orchestrator', () => {
     expect(task).toMatchObject({ orchestratorId: ORCH, kind: 'failed', itemId: g.items[1]?.id });
     expect(String(task?.text)).toContain('Why: npm test: 2 failed — memories.test.ts');
     expect(String(task?.text)).toContain('Done so far: Finished: “Make the vault”.');
+    expect(String(task?.text)).toContain(
+      "On hold, because a task they depend on didn't finish: “Make the recall” (waits on “Make the memories”).",
+    );
     expect(goal).toMatchObject({ orchestratorId: ORCH, kind: 'goal-stopped' });
     expect(goal?.itemId).toBeUndefined();
     const text = String(goal?.text);
     expect(text).toContain('The goal “Build the Pensieve” stopped partway.');
     expect(text).toContain('Why: “Make the memories” failed: npm test: 2 failed — memories.test.ts');
-    expect(text).toContain("Not started, because a task they depend on didn't finish: “Make the recall”.");
+    expect(text).toContain(
+      "On hold, because a task they depend on didn't finish: “Make the recall” (waits on “Make the memories”).",
+    );
     expect(text).toContain('Finished: “Make the vault”, “Make the vial”.');
     expect(text).toMatch(/Merged into main: “Make the vault” \(\S+\), “Make the vial” \(\S+\)\./);
   }, 30_000);

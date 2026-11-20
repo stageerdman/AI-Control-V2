@@ -18,6 +18,7 @@ OPEN
 - [ ] Blueprint "Rebuild" / "Rebuild outdated" buttons — need a server endpoint (e.g. POST /projects/:id/claude-md/rebuild); the row says "Rebuild with the rebuild-claude-md routine" for now. (F2)
 - [ ] Health: GitHub visibility toggle (private ↔ public) — needs a server endpoint wrapping `gh repo edit --visibility`; status is shown read-only. (F2)
 - [ ] Access: "new" dot on cabinet entries added after a project was set up — needs a created-vs-granted signal from the server (e.g. grantSeenAt per project). (F2)
+- [ ] Flaky under full-suite load: worktrees-flow "a conflict goes back to the builder…" / "an unresolved conflict stops…" (5 ms vs 40 ms waits decide which item merges first), github.test "pushes main after every merge" (ENOTEMPTY on rmSync of the remote), and once stall-alerts-flow "a goal stops partway" (the parallel vial failed; not reproduced in 3 more runs). Each passes alone.
 
 RESOLVED
 --------

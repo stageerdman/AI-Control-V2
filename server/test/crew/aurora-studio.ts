@@ -72,6 +72,15 @@ export const commit = (s: RunSpec, file: string): FakeStep[] => {
   git(s.cwd, 'commit', '-q', '-m', file);
   return [{ result: `Built ${file}.` }];
 };
+/** A reviewer's reply with this verdict. */
+export const verdict = (v: 'approve' | 'changes', notes: string): FakeStep[] => [
+  { result: JSON.stringify({ verdict: v, notes }) },
+];
+/** The stall alerts Aurora's orchestrator got. */
+export const alerts = (h: ReturnType<typeof testApp>) =>
+  (h.events.after('project', 'aurora') as Ev[])
+    .filter((e) => e.type === 'work.stalled')
+    .map((e) => e.payload);
 export async function until<T>(read: () => T, ok: (v: T) => boolean, ms = 8000): Promise<T> {
   for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 10))) {
     const v = read();

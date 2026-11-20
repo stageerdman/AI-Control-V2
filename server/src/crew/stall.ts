@@ -3,6 +3,7 @@
    project's orchestrator hears it at once: why it stopped and what is already done, so they can pick the next step.
    A step limit that carries on in a fresh session is not a stall: nothing stopped. */
 import type { ChecklistItem, Goal } from '../db/work.ts';
+import { type Blocked, blockedBy, isSkipped } from '../domain/task-order.ts';
 import { isStuckStop } from '../runtime/limits.ts';
 
 export type StallKind = 'failed' | 'sent-back' | 'stuck' | 'goal-stopped';
@@ -24,8 +25,8 @@ export type Stall = {
   reason: string;
   /** The goal stopped with it (always, for 'goal-stopped'). */
   goalStopped: boolean;
-  /** Tasks that never started: a task they depend on didn't finish. */
-  blocked: string[];
+  /** Tasks on hold, each naming the task(s) it depends on that didn't finish. */
+  blocked: Blocked[];
   done: DoneSoFar;
 };
 
@@ -75,9 +76,14 @@ export function failedReason(it: ChecklistItem, maxSendBacks: number): { kind: S
   return { kind: 'failed', reason: note ? trimOutput(note) : 'It stopped without saying why.' };
 }
 
-/** Tasks skipped because an earlier one didn't succeed (dispatch's orderGate). */
-const blockedIn = (goal: Goal) =>
-  goal.items.filter((i) => i.status === 'cancelled' && /^Skipped: /.test(i.note ?? '')).map((i) => i.text);
+/** Never started: still waiting on its dependencies, or held by dispatch because one didn't land. */
+const notStarted = (i: ChecklistItem) =>
+  (i.status === 'todo' && i.stage === 'build' && !i.buildRunId) ||
+  (i.status === 'cancelled' && isSkipped(i.note));
+
+/** Tasks on hold because a task they depend on stalled (failed, or `also`: a task stuck but still open). */
+const blockedIn = (goal: Goal, also?: string) =>
+  blockedBy(goal.items, notStarted, (d) => d.status === 'failed' || d.id === also);
 
 /** A task stopped (failed, or `why` says how else it stalled). */
 export function itemStall(
@@ -94,7 +100,7 @@ export function itemStall(
     kind,
     reason,
     goalStopped: false,
-    blocked: [],
+    blocked: blockedIn(goal, it.id),
     done: doneSoFar(goal),
   };
 }
@@ -164,7 +170,9 @@ export function stallText(s: Stall, goalText: string, task: string | null): stri
     `AI Studio — stall alert: ${what} ${HEADLINE[s.kind]}.`,
     `Why: ${s.reason}`,
     task && s.goalStopped ? 'The goal stopped with it.' : '',
-    s.blocked.length ? `Not started, because a task they depend on didn't finish: ${quoted(s.blocked)}.` : '',
+    s.blocked.length
+      ? `On hold, because a task they depend on didn't finish: ${s.blocked.map((b) => `“${b.task}” (waits on ${quoted(b.waitsOn)})`).join(', ')}.`
+      : '',
     `Done so far: ${done.join(' ')}`,
     'Pick the next step: continue it, hand it to someone else, change the plan, or ask the user.',
   ]

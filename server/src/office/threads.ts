@@ -21,6 +21,7 @@ import { type Ask, INTERRUPTED, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
+import { dependsOn } from '../domain/task-order.ts';
 import { wayInWords } from '../domain/workflows.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
@@ -84,15 +85,12 @@ export function whyNoAnswer(run: Pick<Run, 'status' | 'error'>): string {
   return `I couldn’t finish that: ${clip(run.error ?? 'no answer', 2000)}`;
 }
 
-/** The step a todo item waits on (checklist order, as dispatch's orderGate): the first unfinished item before
-    its parallel group. */
+/** The step a todo item waits on (checklist order, domain/task-order.ts): the first unfinished one it depends on. */
 export function waitsFor<T extends { status: string; parallel: boolean }>(
   items: T[],
   index: number,
 ): T | null {
-  let start = index;
-  while (start > 0 && items[start]?.parallel) start--;
-  return items.slice(0, start).find((b) => b.status !== 'done') ?? null;
+  return dependsOn(items, index).find((b) => b.status !== 'done') ?? null;
 }
 
 /** The orchestrator's office-chat prompt: its brain, big-picture altitude, plain-words replies. */
