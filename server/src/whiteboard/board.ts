@@ -16,6 +16,7 @@ import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
 import { type BoardReader, boardNow, boardText, goalBlock } from './board-text.ts';
+import { linkedBrief } from './feature-route.ts';
 import { createHistory } from './history.ts';
 import { type Owner, type Roster, resolveOwner } from './owner.ts';
 
@@ -28,6 +29,8 @@ export type TaskInput = {
   brief?: string;
   parallel?: boolean;
   branches?: string[];
+  /** It only edits the Features list: it goes to the orchestrator, whoever `owner` names. */
+  featuresOnly?: boolean;
 };
 export type TaskEdit = {
   text?: string;
@@ -155,16 +158,28 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
 
   function newItem(projectId: string, t: TaskInput, w: Workflow, pick: PickOwner): NewItem {
     if (!t.text?.trim()) throw invalid('Every task needs "text".');
-    const owner = pick(t, w);
+    const directorId = store.projects.require(projectId).orchestratorId;
+    /* features-only work is the orchestrator's: they hold the feature tools */
+    const owner = t.featuresOnly ? { agentId: directorId, teamId: null } : pick(t, w);
+    const text = t.text.trim();
+    const brief = t.brief?.trim() || text;
     return {
       id: randomUUID(),
-      text: t.text.trim(),
-      brief: t.brief?.trim() || t.text.trim(),
+      text,
+      brief: linkedBrief({ text, brief }, features.list(projectId), owner.agentId === directorId),
       ...owner,
       parallel: t.parallel === true,
       gates: port.gatesOf(projectId, { ...owner, branches: t.branches }, w),
     };
   }
+
+  /** The reply's line for features-only tasks: they wait with the orchestrator, who does them. */
+  const keptNote = (tasks: readonly TaskInput[]) => {
+    const kept = tasks.filter((t) => t.featuresOnly).map((t) => `'${t.text.trim()}'`);
+    return kept.length
+      ? ` ${kept.join(', ')} only edit(s) the Features list, so it waits with you: make the change with your feature tools, then mark it done (edit_task, status done).`
+      : '';
+  };
 
   /** Running items block a change unless forced; forced, they are stopped first. → whom we stopped. */
   async function clearRunning(
@@ -282,7 +297,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       quest === 'side'
         ? 'Added as a side quest; it runs when it holds up no main quest.'
         : `Added to the whiteboard; the work starts in order.${serves}`;
-    return { goal, text: reply(projectId, [goal.id], lead) };
+    return { goal, text: reply(projectId, [goal.id], `${lead}${keptNote(a.tasks)}`) };
   }
 
   return {
@@ -318,7 +333,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
       return reply(
         projectId,
         [g.id],
-        `Added '${item.text}' for ${name(item.agentId)}.${skipWarning(g.id, item.id)}`,
+        `Added '${item.text}' for ${name(item.agentId)}.${keptNote([a])}${skipWarning(g.id, item.id)}`,
       );
     },
 
@@ -388,9 +403,15 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
         notes.push(
           `It is running: ${name(it.agentId)} keeps the brief they started with; the change counts from its next run.`,
         );
+      const text = e.text?.trim() || it.text;
+      const brief = linkedBrief(
+        { text, brief: e.brief?.trim() || it.brief },
+        features.list(projectId),
+        (owner?.agentId ?? it.agentId) === store.projects.require(projectId).orchestratorId,
+      );
       work.editItem(id, {
-        ...(e.text?.trim() ? { text: e.text.trim() } : {}),
-        ...(e.brief?.trim() ? { brief: e.brief.trim() } : {}),
+        ...(e.text?.trim() ? { text } : {}),
+        ...(brief !== it.brief ? { brief } : {}),
         ...(e.parallel !== undefined ? { parallel: e.parallel } : {}),
       });
       if (e.position !== undefined) work.moveItem(id, e.position - 1);

@@ -283,6 +283,10 @@ progress follows (shipped / total). Failed/cancelled goals leave the feature whe
 The director's `add_goal` links one too (`feature` id, `ships`). Working agents have the studio tool `feature`
 (office/agent-feature-tool.ts: their goal's feature, or one by id; read it, set `pct` / `status`, add a `line`); a running goal
 only ever raises the feature's pct, and one the agent shipped stays shipped.
+**Features-list tasks** (`src/whiteboard/feature-route.ts`): only the director holds the full feature tools, so a new task with
+`featuresOnly: true` (add_goal / add_task) is theirs whoever `owner` names — it waits with them (dispatch never starts it) and the
+reply tells them to do it and mark it done. Any other task that names features (by id, or by name as a whole phrase) and goes to
+someone else gets one line at the end of its brief listing those ids for their `feature` tool; handing it on with edit_task links it too.
 **Real-app prompts:** every build brief says "do not push" (the studio merges) and to record `run: <command>` in `.project` when the
 work sets up how the app starts.
 

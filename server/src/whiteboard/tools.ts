@@ -28,6 +28,7 @@ const task = (a: Args): TaskInput => ({
   ...(str(a, 'brief') ? { brief: str(a, 'brief') } : {}),
   parallel: bool(a, 'parallel') === true,
   ...(ids(a, 'branches') ? { branches: ids(a, 'branches') } : {}),
+  ...(bool(a, 'featuresOnly') ? { featuresOnly: true } : {}),
 });
 
 const TASK_PROPS = {
@@ -44,6 +45,15 @@ const TASK_PROPS = {
     items: { type: 'string' },
     description:
       'Only when the workflow has sign-offs on a branch ("when", see workflows): the labels that hold for this task, word for word ([] = none). Left out, every branched sign-off applies.',
+  },
+};
+/** A new task's fields: an edit hands a task to you by naming you as its owner instead. */
+const NEW_TASK_PROPS = {
+  ...TASK_PROPS,
+  featuresOnly: {
+    type: 'boolean',
+    description:
+      'true = the task only edits the Features list (add, rename, describe, move, shelve features): only you have those tools, so it waits with you whoever "owner" names — do it yourself, then mark it done. A task that also builds something stays with its owner; name the features it touches (by id) in its text or brief so they can update them.',
   },
 };
 const WORKFLOW_PROP = {
@@ -112,7 +122,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
           summary: { type: 'string', description: 'The plan in one sentence.' },
           tasks: {
             type: 'array',
-            items: { type: 'object', properties: TASK_PROPS, required: ['text', 'owner'] },
+            items: { type: 'object', properties: NEW_TASK_PROPS, required: ['text', 'owner'] },
           },
           feature: { type: 'string', description: 'The id of the feature this goal builds (optional).' },
           ships: {
@@ -152,7 +162,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
         type: 'object',
         properties: {
           goal: { type: 'string', description: 'The goal id.' },
-          ...TASK_PROPS,
+          ...NEW_TASK_PROPS,
           position: { type: 'number', description: '1 = first.' },
         },
         required: ['goal', 'text', 'owner'],
