@@ -48,8 +48,8 @@ export const OFFICE_OBJECTS: readonly OfficeObject[] = [
   {
     name: 'The room & calls',
     what: 'Who is on this work, who leads whom, and talking face to face.',
-    how: 'Anyone asks anyone (`call_agent`); `work: true` hands work over (on the whiteboard and the callee’s to-do list). The director asks from chat with `ask_person`. Every message is kept in the comms log.',
-    tools: [...all('room', 'call_agent', 'comms_log'), ...director('ask_person')],
+    how: 'Anyone asks anyone (`call_agent`); `work: true` hands work over (on the whiteboard and the callee’s to-do list); a builder lacking a tool, access or permission says so with `cant_do` and its item goes back to the director at once. The director asks from chat with `ask_person`. Every message is kept in the comms log.',
+    tools: [...all('room', 'call_agent', 'comms_log', 'cant_do'), ...director('ask_person')],
   },
   {
     name: 'Stop & tell',

@@ -250,7 +250,10 @@ run never goes to review); anything else is a fresh build for the new owner at o
 review history stay; the new owner's build task carries the handover note. Plain `work: true` stays side work: the caller keeps its item.
 **Declining** — to the orchestrator, `work: true` from inside one's own build counts as a handover too: the item goes back to them and
 waits (no run) until they give it an owner with `edit_task`; any other `work: true` to them parks a side quest of theirs the same way.
-Their whiteboard shows such tasks as `[waiting for a new owner]`.
+Their whiteboard shows such tasks as `[waiting for a new owner]`, with a `Why:` line (the item's note).
+**Can't do it** (`src/crew/cant-do-tool.ts`) — a builder that lacks a tool, access or permission calls `cant_do` (`lacks`, `reason`)
+from its own build: the item goes back to the orchestrator at once the same way (no review round, no resubmit), its note reads
+`<builder> can't do it — no <lack>: <reason>`, and the same line lands in the orchestrator's chat. Anywhere else it is refused.
 **Members** (`src/room/members.ts`): one list of who is on a project — the orchestrator (always, teams or not), team captains and
 members, specialists, Cast guests. The room, the whiteboard's owner roster and the review gates all read it, so anyone the room shows can
 be named on the board; the orchestrator may hold a task (it waits with them), the rest own work by the dispatch rules above.

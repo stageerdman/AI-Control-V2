@@ -42,5 +42,12 @@ export const handoverNote = (byName: string, request: string): string => `${HAND
 /** The note the new owner builds from, or '' when the item's note is something else (a result, a failure). */
 export const handoverLine = (note: string | null): string => (note?.startsWith(HANDED) ? note : '');
 
+/** What a builder may lack when it can't do its item (`cant_do`). */
+export const LACKS = ['tool', 'access', 'permission'] as const;
+export type Lack = (typeof LACKS)[number];
+/** The item's note when its builder can't do it: what the director reads on the whiteboard. */
+export const cantDoNote = (byName: string, lack: Lack, reason: string): string =>
+  `${byName} can't do it — no ${lack}: ${reason}`;
+
 /** A run whose agent no longer holds its item: its item changed hands while it ran (its result isn't theirs). */
 export const outlivedOwner = (it: ChecklistItem, runAgentId: string): boolean => holder(it) !== runAgentId;

@@ -72,6 +72,7 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
       'my_history',
       'feature',
       'propose_feature',
+      'cant_do',
       'send_mail',
       'mail_directory',
       'page_user',

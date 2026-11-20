@@ -43,6 +43,7 @@ describe('composePrompt', () => {
     expect(p).toContain('You are pre-approved for anything your tools allow in this project.');
     expect(p).toContain('Never ask the user for permission or confirmation');
     expect(p).toContain('Feature requests go in Features, never in issues.txt');
+    expect(p).toContain('Call `cant_do` at once with what is missing');
     expect(p).not.toContain('captain');
   });
 

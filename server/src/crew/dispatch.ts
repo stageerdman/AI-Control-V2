@@ -1296,6 +1296,24 @@ export function createDispatch(deps: {
     return mode;
   }
 
+  /** The caller's run builds this item of theirs right now (not a reviewer, a captain's split or a member's part):
+      it may hand that item on. → the item, or null. */
+  function ownBuild(runId: string, byId: string): ChecklistItem | null {
+    const it = work.itemByRun(runId);
+    if (!it || it.agentId !== byId || it.status !== 'running') return null;
+    return it.parentId || it.teamPhase || it.stage !== 'build' ? null : it;
+  }
+
+  /** Hand the item `runId` builds over to `toId` with this note → the item, or null when it isn't the caller's own
+      build. Stays the team's only when the new owner sits on that team. */
+  function handOverRun(runId: string, byId: string, toId: string, note: string): ChecklistItem | null {
+    const it = toId === byId ? null : ownBuild(runId, byId);
+    if (!it) return null;
+    const onTeam = !!it.teamId && !!store.teams.get(it.teamId)?.members.some((m) => m.agentId === toId);
+    handOver(it.id, { agentId: toId, teamId: onTeam ? it.teamId : null }, clip(note, 2000));
+    return work.item(it.id);
+  }
+
   const STOP_WAIT_MS = 60_000;
   /** The director's whiteboard tools (src/whiteboard) change the board through this port. */
   const board = {
@@ -1353,18 +1371,14 @@ export function createDispatch(deps: {
     /** `call_agent` with work: true from inside the caller's own build run of an item hands that item over to the
         callee (it follows them: owner, branch, reviews). → the item, or null when this isn't that case (a
         reviewer, a captain's split, a member's part, any other run: the work goes on as a task of its own). */
-    handOverFromRun(runId: string, byId: string, toId: string, request: string): ChecklistItem | null {
+    handOverFromRun: (runId: string, byId: string, toId: string, request: string): ChecklistItem | null =>
+      handOverRun(runId, byId, toId, handoverNote(name(byId), request)),
+    /** `cant_do`: the builder lacks what its item needs — the item goes straight back to the director with `note`
+        (why), waiting for a new owner; the run's result never goes to review. → the item, or null when the run
+        isn't the caller's own build. */
+    declineFromRun(runId: string, byId: string, note: string): ChecklistItem | null {
       const it = work.itemByRun(runId);
-      if (!it || toId === byId || it.agentId !== byId || it.status !== 'running') return null;
-      if (it.parentId || it.teamPhase || it.stage !== 'build') return null;
-      /* stays the team's only when the new owner sits on that team */
-      const onTeam = !!it.teamId && !!store.teams.get(it.teamId)?.members.some((m) => m.agentId === toId);
-      handOver(
-        it.id,
-        { agentId: toId, teamId: onTeam ? it.teamId : null },
-        clip(handoverNote(name(byId), request), 2000),
-      );
-      return work.item(it.id);
+      return it ? handOverRun(runId, byId, store.projects.require(it.projectId).orchestratorId, note) : null;
     },
     list: (projectId: string) => {
       store.projects.require(projectId);

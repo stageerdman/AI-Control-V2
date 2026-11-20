@@ -7,6 +7,7 @@ import { createPorts } from './apps/ports.ts';
 import { historyTools } from './chats/tools.ts';
 import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
+import { cantDoTool } from './crew/cant-do-tool.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
 import { createCreatorChat, hireTool, proposeTool } from './crew/creator-chat.ts';
@@ -577,6 +578,15 @@ export function buildApp({
     ...historyTools(db, { projectId, agentId, runId }),
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     proposeFeatureTool(features, { projectId, agentId }),
+    cantDoTool(
+      {
+        decline: dispatch.declineFromRun,
+        tell: (it, text) =>
+          threads.record(it.projectId, it.agentId, { sender: 'agent', text, goalId: it.goalId }),
+        name: agentName,
+      },
+      { agentId, runId },
+    ),
     ...mail.tools(projectId, agentId),
     pageTool(pager, projectId, agentId),
     ...todoTools(todos, agentName, projectId, agentId),

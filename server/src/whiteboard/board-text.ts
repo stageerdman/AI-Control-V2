@@ -21,8 +21,11 @@ export const waitsForOwner = (it: ChecklistItem, directorId: string): boolean =>
 
 function taskLine(it: ChecklistItem, r: BoardReader): string {
   const flags = [it.parallel ? 'parallel' : '', it.report ? 'report' : ''].filter(Boolean).join(', ');
-  const status = waitsForOwner(it, r.directorId) ? 'waiting for a new owner' : STATUS[it.status];
-  return `  ${it.position + 1}. [${status}] ${clip(it.text, 200)} — ${r.name(it.agentId)}${flags ? ` (${flags})` : ''}  id: ${it.id}`;
+  const waits = waitsForOwner(it, r.directorId);
+  const status = waits ? 'waiting for a new owner' : STATUS[it.status];
+  const line = `  ${it.position + 1}. [${status}] ${clip(it.text, 200)} — ${r.name(it.agentId)}${flags ? ` (${flags})` : ''}  id: ${it.id}`;
+  /* why it came back (a decline, or a builder who couldn't do it), so the next owner is picked knowingly */
+  return waits && it.note ? `${line}\n     Why: ${clip(it.note, 400)}` : line;
 }
 
 export function goalBlock(g: Goal, r: BoardReader): string {

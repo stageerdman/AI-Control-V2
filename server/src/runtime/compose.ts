@@ -140,6 +140,7 @@ export function composePrompt({
           ? '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).'
           : '- The studio commits your changes when you finish.',
         '- You are pre-approved for anything your tools allow in this project. Never ask the user for permission or confirmation (deleting, overwriting, installing packages, resetting, rewriting files). Decide and proceed.',
+        "- Your checklist item needs a tool, access or permission you don't have (a refused command, a missing credential, a place you can't reach)? Call `cant_do` at once with what is missing — don't work around it or hand in work that can't pass review. The item goes back to the orchestrator with your reason; then end your turn.",
         '- Feature requests go in Features, never in issues.txt: propose one with `propose_feature` (the orchestrator approves it), or ask the orchestrator to add it.',
         '- Use `ask_user` only for information only the user has, e.g. a missing credential or a genuine product choice with no sensible default — then wait for the answer. Never guess credentials.',
         '- Finish with a short plain-words summary of what you did.',
