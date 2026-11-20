@@ -17,8 +17,12 @@ import { testApp } from '../helpers.ts';
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
 type Call = { tool: string; args: Record<string, unknown> };
 
-/** A studio where the director's turns play `turns` (tool calls, then a plain reply); `help` plays `helper`. */
-function studio(helper: (spec: RunSpec) => FakeStep[] = fakeBrain) {
+/** A studio where the director's turns play `turns` (tool calls, then a plain reply); `help` plays `helper`,
+    whiteboard builds play `build`. */
+function studio(
+  helper: (spec: RunSpec) => FakeStep[] = fakeBrain,
+  build: (spec: RunSpec) => FakeStep[] = () => worked('Built.'),
+) {
   const calls: RunSpec[] = [];
   const turns: Call[][] = [];
   const h = testApp({
@@ -28,7 +32,7 @@ function studio(helper: (spec: RunSpec) => FakeStep[] = fakeBrain) {
       if (isChat(spec)) return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
       if (contractOf(spec.task)?.name === 'help') return helper(spec);
       if (contractOf(spec.task)) return fakeBrain(spec);
-      return worked('Built.');
+      return build(spec);
     }),
   });
   mkdirSync(join(h.config.sandbox, 'lumi'), { recursive: true });
@@ -130,6 +134,62 @@ describe('the director asks someone from chat', () => {
     const page = await h.app.inject({ method: 'GET', url: '/projects/lumi/how-to' });
     expect(page.headers['content-type']).toMatch(/text\/html/);
     expect(page.body).toMatch(/<code>ask_person<\/code><\/td><td>the director<\/td><td>1 — /);
+  });
+
+  it('`work: true` is a real task: it runs, stays open on a plan, closes only after real work', async () => {
+    /* SuperCut: the board brief was the call's "say how you will do it", so the build only replied with a plan
+       and the side quest showed done, 100% */
+    const builds: { brief: string; status?: string; continues?: number }[] = [];
+    const mineNow = () =>
+      workRepo(h.db)
+        .goals('lumi')
+        .flatMap((g) => g.items)
+        .find((i) => i.agentId === 'a-twinkle');
+    const s = studio(fakeBrain, (spec) => {
+      const it = mineNow();
+      builds.push({ brief: spec.task, status: it?.status, continues: it?.continues });
+      return builds.length === 1
+        ? [{ result: 'First I will run swift build and swift test, then file the verdict.' }]
+        : [{ activity: { kind: 'running', label: 'swift build' } }, { result: 'Green.' }];
+    });
+    h = s.h;
+    await s.turn('Have Twinkle run the Swift build check', {
+      tool: 'ask_person',
+      args: { to: 'Twinkle', question: 'Run the Swift build check: swift build and test.', work: true },
+    });
+    const task = mineNow();
+    expect(task?.text).toBe('Run the Swift build check: swift build and test.');
+    // the board brief is the work itself, never the call's framing
+    expect(task?.brief).not.toContain('how you will do it');
+    for (let i = 0; i < 200 && mineNow()?.status !== 'done'; i++)
+      await new Promise((ok) => setTimeout(ok, 20));
+    // it ran; the plan-only reply kept it open (running again, carrying on), and only the real work closed it
+    expect(builds.map(({ status, continues }) => ({ status, continues }))).toEqual([
+      { status: 'running', continues: 0 },
+      { status: 'running', continues: 1 },
+    ]);
+    expect(builds[0]?.brief).toContain('Run the Swift build check');
+    expect(builds[0]?.brief).not.toContain('how you will do it');
+    expect(builds[1]?.brief).toContain('did no work');
+    expect(mineNow()).toMatchObject({ status: 'done', note: 'Green.' });
+  });
+
+  it('a `work: true` task that only ever replies with a plan never shows as done', async () => {
+    const s = studio(fakeBrain, () => [{ result: 'Here is my plan.' }]);
+    h = s.h;
+    await s.turn('Have Twinkle run the Swift build check', {
+      tool: 'ask_person',
+      args: { to: 'Twinkle', question: 'Run the Swift build check.', work: true },
+    });
+    const mine = () =>
+      workRepo(h.db)
+        .goals('lumi')
+        .flatMap((g) => g.items)
+        .find((i) => i.agentId === 'a-twinkle');
+    for (let i = 0; i < 200 && mine()?.status !== 'failed'; i++)
+      await new Promise((ok) => setTimeout(ok, 20));
+    expect(mine()?.status).toBe('failed');
+    expect(mine()?.note).toMatch(/without doing the work/);
   });
 
   it('a call that fails comes back to the director in the same turn', async () => {

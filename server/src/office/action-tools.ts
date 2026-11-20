@@ -9,8 +9,9 @@ import { agentByName, seatOf } from './people.ts';
 
 export type ActionServices = LeaderServices & {
   work: WorkRepo;
-  /** The director asks someone (a room call from the director; `work` → also their task on the board) → their answer. */
-  ask: (projectId: string, directorId: string, to: string, request: string, work?: boolean) => Promise<string>;
+  /** The director asks someone (a room call from the director) → their answer. `work`: the work handed over, which
+      also goes on the board as their task — the work itself, never the call's "say how you will do it". */
+  ask: (projectId: string, directorId: string, to: string, request: string, work?: string) => Promise<string>;
   /** Continue a stopped goal where it was (dispatch.resume). */
   resumeGoal: (projectId: string, goalId: string) => Goal;
 };
@@ -36,7 +37,9 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
   function anyone(said: string) {
     const who = agentByName(store, said);
     if (who && who.id !== directorId && ASKABLE.has(who.kind)) return who;
-    throw invalid(`Nobody called ${said} is in the studio — use a name from the summary’s people or the Cast.`);
+    throw invalid(
+      `Nobody called ${said} is in the studio — use a name from the summary’s people or the Cast.`,
+    );
   }
 
   /** Someone on the project (a leader's reach: stop and tell). */
@@ -80,7 +83,11 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
     ].join('\n');
     const nick = them.nick || them.name.split(' ')[0];
     try {
-      const answer = clip((await s.ask(projectId, directorId, them.name, request, work)).trim(), 2000);
+      /* the board's task title is its brief's first line: the work comes first */
+      const handed = work
+        ? `${question}\n\n(Handed to you by ${director}, your orchestrator, for the user.)`
+        : undefined;
+      const answer = clip((await s.ask(projectId, directorId, them.name, request, handed)).trim(), 2000);
       return `${nick}’s answer, for you to act on (tell the user the outcome, not who said what): “${answer}”`;
     } catch (e) {
       throw new Error(`Couldn’t reach ${nick}: ${clip(message(e), 500)}`);

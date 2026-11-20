@@ -45,7 +45,16 @@ export type RoomCtx = {
   chain: readonly string[];
   runId?: string;
 };
-export type CallArgs = { agent: string; request: string; why?: string; work?: boolean; handover?: boolean };
+/** `task` (with `work`): the work itself as it goes on the whiteboard and to-do list, when `request` also frames
+    the call (e.g. "say how you will do it") — a framing that, as the task's brief, makes its build only reply. */
+export type CallArgs = {
+  agent: string;
+  request: string;
+  why?: string;
+  work?: boolean;
+  handover?: boolean;
+  task?: string;
+};
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const nick = (a: Pick<Agent, 'name' | 'nick'>) => a.nick || a.name;
@@ -347,7 +356,7 @@ export function createRoom(deps: {
     const handsOver = (args.handover || (args.work && toDirector)) && ctx.runId;
     const onBoard =
       args.work && project && deps.addWork
-        ? deps.addWork(project.id, caller.id, callee.id, request, {
+        ? deps.addWork(project.id, caller.id, callee.id, args.task?.trim() || request, {
             goalId: goalOf(ctx),
             ...(handsOver ? { handoverFrom: ctx.runId } : {}),
           })

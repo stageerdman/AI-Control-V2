@@ -476,15 +476,16 @@ export function buildApp({
       !!runtime.tell(projectId, agentId, from, text),
     /* "carry on": the director continues a stopped goal where it was */
     resumeGoal: (projectId: string, goalId: string) => dispatch.resume(projectId, goalId),
-    /* the director asks someone on the project: a call from the director (no approval; the office shows it) */
-    ask: (projectId: string, directorId: string, to: string, request: string, work?: boolean) =>
+    /* the director asks someone on the project: a call from the director (no approval; the office shows it).
+       `work`: the work it hands over, as it goes on the whiteboard (the call's framing stays out of the brief) */
+    ask: (projectId: string, directorId: string, to: string, request: string, work?: string) =>
       room.call(
         { scope: 'project', ownerId: projectId, agentId: directorId, chain: [] },
         {
           agent: to,
           request,
           why: work ? 'take on work for the user' : 'answer a question for the user',
-          work,
+          ...(work ? { work: true, task: work } : {}),
         },
       ),
   };
