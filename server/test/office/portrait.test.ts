@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { MAX_IMAGE_BYTES, sniff } from '../../src/office/portrait.ts';
+import { MAX_IMAGE_BYTES, sniff } from '../../src/office/image-types.ts';
 import { testApp } from '../helpers.ts';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
@@ -51,7 +51,7 @@ describe('the project picture', () => {
 
   it('refuses other types, lying headers, empty and too-large pictures; unknown project 404', async () => {
     h = testApp({ seed: true });
-    expect([415, 422]).toContain((await put(Buffer.from('<svg/>'), 'image/svg+xml')).statusCode);
+    expect((await put(Buffer.from('hello, not svg'), 'image/svg+xml')).statusCode).toBe(422);
     expect([415, 422]).toContain((await put(Buffer.from('hello'), 'text/plain')).statusCode);
     expect((await put(Buffer.from('not a png at all'))).statusCode).toBe(422);
     expect((await put(JPG, 'image/png')).statusCode).toBe(422); // header says png, bytes say jpeg

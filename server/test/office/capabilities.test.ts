@@ -8,6 +8,7 @@ import { actionTools } from '../../src/office/action-tools.ts';
 import { capabilityLines } from '../../src/office/capabilities.ts';
 import { directorAnswer } from '../../src/office/director-reply.ts';
 import { featureTools } from '../../src/office/feature-tools.ts';
+import { iconTool } from '../../src/office/icon-tool.ts';
 import { createMail } from '../../src/office/mail.ts';
 import { pagerTools } from '../../src/office/pager.ts';
 import { questionTools } from '../../src/office/question-tools.ts';
@@ -26,6 +27,7 @@ const pixel = { name: 'Pixel', role: 'Director', prompt: 'Steer.' };
 const allTools = () => [
   ...whiteboardTools({} as never, 'p', 'a-pixel'),
   ...featureTools({} as never, {} as never, 'p'),
+  iconTool({} as never, {} as never, 'p'),
   ...actionTools({} as never, 'p', 'a-pixel'),
   ...teamTools({} as never, 'p', 'a-pixel', { card: () => {} }),
   ...workflowTools({} as never, 'p', 'a-pixel'),

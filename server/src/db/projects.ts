@@ -30,7 +30,7 @@ type ProjectRecord = {
   github_connected: number;
   github_private: number;
   tile: string;
-  /** OFFICE: JSON {ext, v} of the picture in <data dir>/images; null = show the tile. */
+  /** OFFICE: JSON {ext, v, source?} of the picture in <data dir>/images; null = show the tile. */
   image: string | null;
   /** B8, before workflows: read only to carry it over (workflows[0]). */
   collaboration: string | null;
@@ -61,6 +61,9 @@ export type Project = {
   tile: Tile;
   /** OFFICE: the project's picture (GET /projects/:id/image?v=…, versioned for caches); null = show the tile. */
   imageUrl: string | null;
+  /** Where the picture comes from: a file in the project folder (relative path, re-copied when it changes),
+      'upload', or null (no picture). */
+  imageSource: string | null;
   teamIds: string[];
   /** Individual specialists (teams come first). */
   agentIds: string[];
@@ -176,13 +179,16 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
         }
       : { connected: false, private: true, published: false, url: null, visibility: null };
   };
-  const imageUrlOf = (r: ProjectRecord): string | null => {
-    if (!r.image) return null;
+  const imageOf = (r: ProjectRecord): { imageUrl: string | null; imageSource: string | null } => {
+    if (!r.image) return { imageUrl: null, imageSource: null };
     try {
-      const { v } = JSON.parse(r.image) as { v: string };
-      return `/projects/${encodeURIComponent(r.id)}/image?v=${encodeURIComponent(v)}`;
+      const { v, source } = JSON.parse(r.image) as { v: string; source?: { path: string } };
+      return {
+        imageUrl: `/projects/${encodeURIComponent(r.id)}/image?v=${encodeURIComponent(v)}`,
+        imageSource: source?.path ?? 'upload',
+      };
     } catch {
-      return null;
+      return { imageUrl: null, imageSource: null };
     }
   };
   const toProject = (r: ProjectRecord): Project => ({
@@ -195,7 +201,7 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     orchestratorId: r.orchestrator_id,
     github: githubOf(r.folder),
     tile: JSON.parse(r.tile) as Tile,
-    imageUrl: imageUrlOf(r),
+    ...imageOf(r),
     teamIds: links(r.id, 'teams'),
     agentIds: links(r.id, 'agents'),
     workflows: readWorkflows(r),

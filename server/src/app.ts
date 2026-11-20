@@ -42,6 +42,7 @@ import { createDirectorStop } from './office/director-stop.ts';
 import { featureTools } from './office/feature-tools.ts';
 import { createFeatures } from './office/features.ts';
 import { createGuests } from './office/guests.ts';
+import { iconTool } from './office/icon-tool.ts';
 import { createKinCopies } from './office/kin-copies.ts';
 import { leadTools } from './office/leader-tools.ts';
 import { createLifecycle } from './office/lifecycle.ts';
@@ -463,6 +464,8 @@ export function buildApp({
   const staffing = createStaffing({ store, events });
   /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board });
+  /* the office icon: uploaded, or linked to an icon file in the project folder (route + director tool) */
+  const portraits = createPortraits({ db, store, events, home: config.home, sandbox: config.sandbox });
   /* "stop Jony" / "stop everything" from the office chat */
   const stops = createDirectorStop({
     store,
@@ -513,6 +516,7 @@ export function buildApp({
         [
           ...whiteboardTools(board, projectId, directorId),
           ...featureTools(features, store, projectId),
+          iconTool(portraits, store, projectId),
           ...actionTools(actions, projectId, directorId),
           ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
           ...workflowTools(
@@ -654,7 +658,8 @@ export function buildApp({
   );
 
   app.register(healthRoutes({ config, db, build }));
-  for (const routes of [roleRoutes, projectRoutes, draftRoutes]) app.register(routes(store));
+  for (const routes of [roleRoutes, draftRoutes]) app.register(routes(store));
+  app.register(projectRoutes(store, portraits));
   const teamWays = createTeamWorkflows({ store, events });
   app.register(teamRoutes({ store, ways: teamWays }));
   app.register(trashRoutes({ store, teamWays }));
@@ -674,7 +679,7 @@ export function buildApp({
   app.register(timeRoutes({ store, clock }));
   app.register(performanceRoutes({ db, store }));
   app.register(timesheetRoutes({ db, store }));
-  app.register(portraitRoutes({ portraits: createPortraits({ db, store, events, home: config.home }) }));
+  app.register(portraitRoutes({ portraits }));
   app.register(githubRoutes({ github }));
   app.register(settingsRoutes({ github, autoApprove, hq, store }));
   app.register(mailRoutes({ mail }));

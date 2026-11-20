@@ -46,6 +46,12 @@ export const OFFICE_OBJECTS: readonly OfficeObject[] = [
     ],
   },
   {
+    name: 'Office icon',
+    what: 'The project’s picture on the office wall and its Projects card.',
+    how: 'The user uploads one; the director points it at the app’s icon file inside the project folder (a copy is kept and refreshed when the file changes) or clears it back to the tile.',
+    tools: director('office_icon'),
+  },
+  {
     name: 'The room & calls',
     what: 'Who is on this work, who leads whom, and talking face to face.',
     how: 'Anyone asks anyone (`call_agent`); `work: true` hands work over (on the whiteboard and the callee’s to-do list); a builder lacking a tool, access or permission says so with `cant_do` and its item goes back to the director at once. The director asks from chat with `ask_person`. Every message is kept in the comms log.',

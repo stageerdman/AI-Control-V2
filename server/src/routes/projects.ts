@@ -21,11 +21,21 @@ const fields = {
 const ProjectCreate = z.strictObject(fields);
 const ProjectPatch = z.strictObject({ ...fields, name: Name.optional() });
 
+/** `icons`: re-copies icons linked to a file that changed, so a read carries the fresh imageUrl. */
+type Icons = { refresh(id: string): void; refreshAll(): void };
+
 export const projectRoutes =
-  (store: Store): FastifyPluginAsync =>
+  (store: Store, icons?: Icons): FastifyPluginAsync =>
   async (app) => {
-    app.get('/projects', async () => store.projects.list());
-    app.get('/projects/:id', async (req) => store.projects.require(parse(IdParams, req.params).id));
+    app.get('/projects', async () => {
+      icons?.refreshAll();
+      return store.projects.list();
+    });
+    app.get('/projects/:id', async (req) => {
+      const { id } = parse(IdParams, req.params);
+      icons?.refresh(id);
+      return store.projects.require(id);
+    });
     app.post('/projects', async (req, reply) =>
       reply.status(201).send(store.tx(() => store.projects.create(parse(ProjectCreate, req.body)))),
     );
