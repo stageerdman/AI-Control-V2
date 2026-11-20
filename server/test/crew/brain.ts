@@ -6,7 +6,9 @@ import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 
 /** One real-work step (a file edit): a scripted build that does work. */
-export const WORK_STEP: FakeStep = { activity: { kind: 'editing', label: 'Writing notes.md', target: 'notes.md' } };
+export const WORK_STEP: FakeStep = {
+  activity: { kind: 'editing', label: 'Writing notes.md', target: 'notes.md' },
+};
 
 /** A build that does one real-work step, then replies `result`. */
 export const worked = (result: string): FakeStep[] => [WORK_STEP, { result }];

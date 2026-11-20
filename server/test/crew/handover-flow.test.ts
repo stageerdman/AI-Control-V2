@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { type ChecklistItem, workRepo } from '../../src/db/work.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import type { testApp } from '../helpers.ts';
-import { worked } from './brain.ts';
 import {
   BOB,
   COLUMBO,
@@ -20,6 +19,7 @@ import {
   studio,
   until,
 } from './aurora-studio.ts';
+import { worked } from './brain.ts';
 
 describe('handovers: the item, its branch and its reviews follow the new owner', () => {
   let h: ReturnType<typeof testApp>;

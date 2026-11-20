@@ -32,7 +32,10 @@ describe('real work', () => {
     expect(rounds.slice(0, MAX_PLAN_ONLY)).toEqual(
       Array.from({ length: MAX_PLAN_ONLY }, (_, n) => ({ kind: 'carry-on', round: n + 1 })),
     );
-    expect(rounds.at(-1)).toMatchObject({ kind: 'failed', note: expect.stringMatching(/without doing the work/) });
+    expect(rounds.at(-1)).toMatchObject({
+      kind: 'failed',
+      note: expect.stringMatching(/without doing the work/),
+    });
   });
 
   it('a report task needs its report, whatever else it did', () => {

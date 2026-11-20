@@ -120,7 +120,9 @@ describe('carry on after a limit', () => {
      mid-task never turns the task into a plan-only one */
   it('a step limit hit mid-task: the work before the cap counts, even when the last session only replies', async () => {
     const seen: WorkEvidence[] = [];
-    app((n) => (n === 1 ? [{ activity: { kind: 'running', label: 'npm test' } }, CAP] : [{ result: 'Done.' }]));
+    app((n) =>
+      n === 1 ? [{ activity: { kind: 'running', label: 'npm test' } }, CAP] : [{ result: 'Done.' }],
+    );
     h.runtime.onFinished((_, did) => seen.push(did));
     const run = await h.runtime.settled(build().id);
     expect(run.status).toBe('succeeded');

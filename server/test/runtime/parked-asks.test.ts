@@ -101,7 +101,7 @@ describe('open questions survive a reload and a restart', () => {
     h = boot(
       (s) => {
         specs.push(s);
-        return [{ result: 'carried on' }];
+        return worked('carried on');
       },
       dir?.dir,
       false,

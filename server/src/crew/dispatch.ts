@@ -920,8 +920,7 @@ export function createDispatch(deps: {
     const verdict = workVerdict(evidence, !!it.report, it.continues);
     if (verdict.kind === 'carry-on') {
       const resumeRunId = sessionOf(run.id) ? run.id : null;
-      settle(it, { status: 'todo', runId: null, resumeRunId, continues: verdict.round });
-      queueMicrotask(() => pump(it.projectId));
+      settle(it, { status: 'todo', runId: null, resumeRunId, continues: verdict.round }); // onFinished pumps it
       return;
     }
     if (verdict.kind === 'failed') {
