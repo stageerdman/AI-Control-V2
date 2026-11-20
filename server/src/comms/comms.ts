@@ -17,7 +17,8 @@ export type CommKind =
   | 'desk-note' // an agent's note to its future self before it forgets
   | 'brief' // the user's brief to an agent they brought in
   | 'page' // the director pages the user about a report-in (to 'user'; refs.seen once the office is visited)
-  | 'note'; // the director keeps a report-in to itself
+  | 'note' // the director keeps a report-in to itself
+  | 'alert'; // the studio tells the orchestrator that work stalled (src/crew/stall.ts)
 export type CommScope = 'project' | 'draft' | 'studio';
 export type Comm = {
   id: number;

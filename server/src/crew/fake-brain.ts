@@ -250,9 +250,9 @@ export function fakeBrain(spec: RunSpec): FakeStep[] {
     /* AGENT MCP: an approver always says yes; a helper answers with a costume */
     case 'allow-call':
       return answer({ allow: true, reply: 'Yes — go ahead.' });
-    /* DIRECTOR POWERS: a finished step → a chat line; a finished goal or a failed step → a page */
+    /* DIRECTOR POWERS: a finished step → a chat line; a finished goal or a stall → a page */
     case 'report-in': {
-      const failed = t.includes(' FAILED.');
+      const failed = t.includes('stall alert:');
       const whole = t.includes('every step is done now');
       return answer({
         tell: failed || whole ? 'page' : 'chat',

@@ -1,5 +1,6 @@
-/* Report-in (DIRECTOR POWERS): when a whiteboard step finishes or fails, its owner tells the director (a `deliver`
-   handoff to the director — the office walks it over, the comms log keeps it), and the director decides, in one crew
+/* Report-in (DIRECTOR POWERS): when a whiteboard step finishes, its owner tells the director (a `deliver` handoff to
+   the director — the office walks it over, the comms log keeps it); when work stalls, the studio's stall alert
+   (src/office/stall-alerts.ts, once per stop) reaches them the same way. The director decides, in one crew
    call (`report-in`), what the user hears:
      - "page"  → a line in the director's chat AND a page on the pager (comms kind 'page' until the office is visited);
      - "chat"  → a line in the director's chat;
@@ -21,6 +22,8 @@ export const ReportInSchema = z.strictObject({
   tell: z.enum(['page', 'chat', 'keep']),
   say: z.string().trim().min(1).max(600),
 });
+/** A finished step (`stall` null), or a stall alert's text (`itemId` null: the goal as a whole). */
+type Trigger = { goalId: string; itemId: string | null; stall: string | null };
 const json = (v: unknown) => JSON.stringify(v);
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -38,25 +41,26 @@ export function createReportIn(deps: {
   const queue = new Map<string, Promise<void>>();
   const name = (id: string) => store.agents.get(id)?.name ?? id;
 
-  async function report(projectId: string, itemId: string) {
-    const it = work.item(itemId);
+  async function report(projectId: string, t: Trigger) {
+    const it = t.itemId ? work.item(t.itemId) : null;
     const p = store.projects.get(projectId);
     const director = p ? store.agents.get(p.orchestratorId) : null;
-    if (!it || !p || !director || (it.status !== 'done' && it.status !== 'failed')) return;
-    const goal = work.goal(it.goalId);
+    if (!p || !director || (t.itemId && !it) || (!t.stall && it?.status !== 'done')) return;
+    const goal = work.goal(it?.goalId ?? t.goalId);
     if (!goal) return;
-    /* the owner tells the director: the office shows them walking it over; comms keeps it */
-    events.append('project', projectId, {
-      type: 'handoff',
-      payload: {
-        itemId: it.id,
-        goalId: it.goalId,
-        from: it.agentId,
-        to: director.id,
-        kind: 'deliver',
-        ...(it.note ? { note: clip(it.note, 600) } : {}),
-      },
-    });
+    /* the owner tells the director: the office shows them walking it over; comms keeps it (a stall: the studio did) */
+    if (it && !t.stall)
+      events.append('project', projectId, {
+        type: 'handoff',
+        payload: {
+          itemId: it.id,
+          goalId: it.goalId,
+          from: it.agentId,
+          to: director.id,
+          kind: 'deliver',
+          ...(it.note ? { note: clip(it.note, 600) } : {}),
+        },
+      });
     const items = goal.items;
     const goalDone = items.every((i) => i.status === 'done');
     /* the next step is usually briefed already (dispatch starts it as this one settles) */
@@ -79,8 +83,12 @@ export function createReportIn(deps: {
       track: { scope: 'project', ownerId: projectId, agentId: director.id, kind: 'thinking' },
       systemPrompt: orchestratorChatPrompt(director, p.name),
       task: [
-        `${name(it.agentId)} reports in: the step ${json(it.text)} ${it.status === 'done' ? 'is done' : 'FAILED'}.`,
-        `What they say: ${json(clip(it.note ?? '(nothing)', 1500))}`,
+        ...(t.stall
+          ? [t.stall]
+          : [
+              `${name(it?.agentId ?? '')} reports in: the step ${json(it?.text)} is done.`,
+              `What they say: ${json(clip(it?.note ?? '(nothing)', 1500))}`,
+            ]),
         `The goal: ${json(clip(goal.text, 300))} — ${goalDone ? 'every step is done now' : `${goal.pct}% done`}.`,
         `Whiteboard now: ${json(items.map((i) => ({ step: clip(i.text, 120), owner: name(i.agentId), status: i.status })))}`,
         next.length ? `Working now / up next (briefed automatically): ${json(next)}` : '',
@@ -103,14 +111,14 @@ export function createReportIn(deps: {
         from: director.id,
         to: director.id,
         text: value.say,
-        refs: { itemId: it.id, goalId: it.goalId },
+        refs: { itemId: it?.id ?? null, goalId: goal.id },
       });
       return;
     }
     const line = deps.threads.record(projectId, director.id, {
       sender: 'agent',
       text: value.say,
-      goalId: it.goalId,
+      goalId: goal.id,
     });
     if (value.tell === 'page')
       deps.comms.record({
@@ -120,22 +128,32 @@ export function createReportIn(deps: {
         from: director.id,
         to: 'user',
         text: value.say,
-        refs: { itemId: it.id, goalId: it.goalId, messageId: line.id },
+        refs: { itemId: it?.id ?? null, goalId: goal.id, messageId: line.id },
       });
   }
 
+  /** What reports in: a finished step (once), or a stall alert (src/office/stall-alerts.ts — already once per stop). */
+  function triggerOf(type: string, payload: unknown): Trigger | null {
+    if (type === 'work.stalled') {
+      const p = payload as { goalId: string; itemId?: string; text: string };
+      return { goalId: p.goalId, itemId: p.itemId ?? null, stall: p.text };
+    }
+    if (type !== 'checklist.item') return null;
+    const p = payload as { itemId: string; goalId?: string; status?: string; parentId?: string };
+    if (p.parentId || p.status !== 'done' || seen.has(p.itemId)) return null;
+    seen.add(p.itemId);
+    return { goalId: p.goalId ?? '', itemId: p.itemId, stall: null };
+  }
+
   const stop = events.bus.subscribeAll((e) => {
-    if (e.scope !== 'project' || e.type !== 'checklist.item') return;
-    const p = e.payload as { itemId: string; status?: string; parentId?: string };
-    if (p.parentId || (p.status !== 'done' && p.status !== 'failed')) return;
-    const k = `${p.itemId}:${p.status}`;
-    if (seen.has(k)) return;
-    seen.add(k);
+    if (e.scope !== 'project') return;
+    const t = triggerOf(e.type, e.payload);
+    if (!t) return;
     /* after the event that triggered it (dispatch finishes settling first), one report at a time per project */
     const prev = queue.get(e.scopeId) ?? Promise.resolve();
     const next = prev
       .then(() => new Promise<void>((ok) => setImmediate(ok)))
-      .then(() => report(e.scopeId, p.itemId))
+      .then(() => report(e.scopeId, t))
       .catch(() => {
         /* a report-in that can't be decided never breaks the work: the whiteboard already shows it */
       });

@@ -222,6 +222,15 @@ export const EVENT_SCHEMAS = {
     sendBacks: count,
     final: z.boolean().optional(),
   }),
+  /** Work stalled (a task failed, was sent back too often or got stuck; or its goal stopped partway): the
+      orchestrator was told why and what is done (`text`, src/crew/stall.ts). itemId absent = the goal as a whole. */
+  'work.stalled': z.strictObject({
+    goalId: id,
+    itemId: id.optional(),
+    orchestratorId: id,
+    kind: z.enum(['failed', 'sent-back', 'stuck', 'goal-stopped']),
+    text: text(4000),
+  }),
   /** An accepted item's branch was merged back into the project's main branch (git worktrees). */
   'item.merged': z.strictObject({
     itemId: id,

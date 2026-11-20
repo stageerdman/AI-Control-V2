@@ -55,6 +55,7 @@ import { createPrinciples } from './office/principles.ts';
 import { questionTools } from './office/question-tools.ts';
 import { createRebuilds } from './office/rebuild-service.ts';
 import { createReportIn } from './office/report-in.ts';
+import { createStallAlerts } from './office/stall-alerts.ts';
 import { createStaffing } from './office/staffing.ts';
 import { teamTools } from './office/team-tools.ts';
 import { createThreads } from './office/threads.ts';
@@ -404,6 +405,12 @@ export function buildApp({
       const text = settledLine(goal, agentName);
       if (orch && text) threadsRef?.record(goal.projectId, orch, { sender: 'agent', text, goalId: goal.id });
     },
+    onStalled: createStallAlerts({
+      store,
+      events,
+      comms,
+      tell: (projectId, agentId, from, text) => !!runtime.tell(projectId, agentId, from, text),
+    }),
   });
   dispatch.recover();
   /* RUNNING: stop one agent completely, or everything in a project (its queue first, so nothing new starts) */

@@ -65,6 +65,7 @@ import {
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
 import { repeatedNote, repeatedNoteText } from './review-loop.ts';
+import { coalesce, goalStall, itemStall, type Stall, type StallKind } from './stall.ts';
 import { type Crew, validateWith } from './structured.ts';
 import {
   integrateTask,
@@ -242,6 +243,8 @@ export function createDispatch(deps: {
   onPlanned?: (e: { projectId: string; goalText: string; goal: Goal | null; error?: string }) => void;
   /** A goal settled (done, failed or cancelled): the office thread may say so (src/crew/settled.ts). */
   onSettled?: (goal: Goal) => void;
+  /** Work stalled (src/crew/stall.ts): the orchestrator hears why and what's done — once per stop. */
+  onStalled?: (stall: Stall, goal: Goal) => void;
   /** The features folder (F1c): goals link to a feature, which ships when the goal lands. Absent → no linking. */
   features?: Features;
   /** A filed report (F3): later items of the goal get what an earlier report item found. Absent → title only. */
@@ -346,7 +349,40 @@ export function createDispatch(deps: {
     const { lead, crew = [] } = g.workflow ?? {};
     /* no cleanup: a lead's powers come from running goals, so they end here by themselves */
     if (lead) emit(g.projectId, { type: 'workflow.ended', payload: { goalId: g.id, lead, crew, status } });
+    if (status === 'failed') stalled(goalStall({ ...g, status }, workflowOf(g).maxSendBacks));
     deps.onSettled?.({ ...g, status });
+  }
+
+  /** Stalls raised in one moment, per goal: a task's failure that also stops its goal is one alert, not two. */
+  const pendingStalls = new Map<string, Stall[]>();
+  function stalled(s: Stall) {
+    const batch = pendingStalls.get(s.goalId);
+    if (batch) {
+      batch.push(s);
+      return;
+    }
+    pendingStalls.set(s.goalId, [s]);
+    /* after the settle chain this stop started (skipping the tasks behind it, settling the goal) has run */
+    setImmediate(() => {
+      const all = pendingStalls.get(s.goalId) ?? [];
+      pendingStalls.delete(s.goalId);
+      const goal = work.goal(s.goalId);
+      if (!goal) return;
+      for (const one of coalesce(all)) {
+        try {
+          deps.onStalled?.(one, goal);
+        } catch (e) {
+          console.error('[dispatch] stall alert failed', { goalId: one.goalId, itemId: one.itemId, error: e });
+        }
+      }
+    });
+  }
+  /** A whiteboard task stalled (`why`: how, when it isn't a plain failure). Members' parts stay with their captain. */
+  function itemStalled(itemId: string, why?: { kind: StallKind; reason: string }) {
+    const it = work.item(itemId);
+    const goal = it && !it.parentId ? work.goal(it.goalId) : null;
+    if (!it || !goal) return;
+    stalled(itemStall(goal, it, workflowOf(goal).maxSendBacks, why));
   }
 
   /** The goal's feature follows it (F1c): its % while the goal runs; shipped once the goal landed whole and no
@@ -827,8 +863,10 @@ export function createDispatch(deps: {
 
   /** Write an item change, tell the office, settle the goal. */
   function settle(it: ChecklistItem, patch: ItemPatch) {
+    const wasFailed = work.item(it.id)?.status === 'failed';
     work.setItem(it.id, patch);
     announce(work.item(it.id) as ChecklistItem);
+    if (patch.status === 'failed' && !wasFailed) itemStalled(it.id);
     if (it.parentId && patch.status !== 'todo' && patch.status !== 'running') teamCheck(it.parentId);
     refreshGoal(it.goalId);
   }
@@ -1031,6 +1069,7 @@ export function createDispatch(deps: {
     const why = repeatedNoteText(name(gate.reviewer), name(it.agentId), earlier, notes);
     const director = store.projects.require(it.projectId).orchestratorId;
     handOver(it.id, { agentId: director, teamId: null }, clip(why, 2000));
+    itemStalled(it.id, { kind: 'stuck', reason: why });
     return true;
   }
 

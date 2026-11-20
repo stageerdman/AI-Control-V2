@@ -18,6 +18,10 @@ export const turnCapError = (cap: number) => `Stopped: reached the turn cap (${c
 
 export const isLimit = (error: string | undefined): boolean => !!error && LIMIT.test(error);
 
+const STUCK = /^Stopped: (no new work .* It may be stuck\.|used all \d+ fresh sessions)/;
+/** A run afterLimit gave up on (stuck, or every fresh session used) — a stall, unlike a limit it carried on from. */
+export const isStuckStop = (error: string | null | undefined): boolean => !!error && STUCK.test(error.trim());
+
 /** Builds and research (report items) carry on at a limit; reviews, chats and big-picture runs end as before. */
 export const carriesOn = (kind: string | null | undefined): boolean =>
   kind === 'building' || kind === 'research';
