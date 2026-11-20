@@ -11,6 +11,7 @@ import { workRepo } from '../../src/db/work.ts';
 import { waitsFor } from '../../src/office/threads.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+import { worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
@@ -27,7 +28,7 @@ function studio(helper: (spec: RunSpec) => FakeStep[] = fakeBrain) {
       if (isChat(spec)) return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
       if (contractOf(spec.task)?.name === 'help') return helper(spec);
       if (contractOf(spec.task)) return fakeBrain(spec);
-      return [{ result: 'Built.' }];
+      return worked('Built.');
     }),
   });
   mkdirSync(join(h.config.sandbox, 'lumi'), { recursive: true });

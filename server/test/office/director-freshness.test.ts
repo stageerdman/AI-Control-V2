@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ROTATE_AFTER_TURNS } from '../../src/office/threads.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
-import { scriptedCrew } from '../crew/brain.ts';
+import { scriptedCrew, worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const CHAT = 'Studio summary right now: ';
@@ -27,8 +27,8 @@ describe('director chat freshness', () => {
       isChat(s)
         ? [{ result: chatReply(s) }]
         : opts.slowWork?.test(s.task)
-          ? [{ wait: 400 }, { result: 'Done.' }]
-          : [{ result: 'Done.' }],
+          ? [{ wait: 400 }, ...worked('Done.')]
+          : worked('Done.'),
     );
     h = testApp({ seed: true, runner: crew.runner });
     mkdirSync(join(h.config.sandbox, 'aurora'));

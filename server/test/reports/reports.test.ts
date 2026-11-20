@@ -7,6 +7,7 @@ import { fakeBrain } from '../../src/crew/fake-brain.ts';
 import { cliArgs } from '../../src/runtime/claude-cli.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+import { worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const SERVER = join(import.meta.dirname, '../../src/mcp/ask-server.ts');
@@ -302,7 +303,7 @@ describe('reports', () => {
       seen.push(s);
       if (s.task.startsWith('AI Studio contract: dispatch')) return [{ result: JSON.stringify(plan) }];
       if (s.task.includes('file_report tool')) return [{ report: REPORT }, { result: 'Filed.' }];
-      return [{ result: 'Built it.' }];
+      return worked('Built it.');
     });
     const g = await h.call('POST', '/projects/aurora/work', {
       goal: 'Pick a payment provider, then build it',

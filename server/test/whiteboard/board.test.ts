@@ -7,7 +7,7 @@ import { getChatMessages } from '../../src/db/chats.ts';
 import { type Goal, workRepo } from '../../src/db/work.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
-import { scriptedCrew } from '../crew/brain.ts';
+import { scriptedCrew, worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
@@ -30,7 +30,7 @@ describe('the director edits the whiteboard', () => {
     const turns: FakeStep[][] = [];
     const crew = scriptedCrew({}, (s) => {
       if (isChat(s)) return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
-      return s.task.includes(SLOW) ? [{ wait: 10_000 }, { result: 'never' }] : [{ result: 'Done.' }];
+      return s.task.includes(SLOW) ? [{ wait: 10_000 }, { result: 'never' }] : worked('Done.');
     });
     h = testApp({ seed: true, runner: crew.runner });
     mkdirSync(join(h.config.sandbox, 'aurora'));
@@ -104,7 +104,7 @@ describe('the director edits the whiteboard', () => {
   it('shows each change live, logs who made it, and puts removals and clean-ups back', async () => {
     const turns: FakeStep[][] = [];
     const crew = scriptedCrew({}, (s) =>
-      isChat(s) ? [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }] : [{ result: 'Done.' }],
+      isChat(s) ? [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }] : worked('Done.'),
     );
     h = testApp({ seed: true, runner: crew.runner });
     mkdirSync(join(h.config.sandbox, 'aurora'));

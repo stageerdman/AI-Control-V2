@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { type ChecklistItem, workRepo } from '../../src/db/work.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import type { testApp } from '../helpers.ts';
+import { worked } from './brain.ts';
 import {
   BOB,
   COLUMBO,
@@ -175,11 +176,11 @@ describe('handovers: the item, its branch and its reviews follow the new owner',
               tool: 'call_agent',
               args: { agent: 'Baron', request: 'Back up the memories too.', why: 'back up', work: true },
             },
-            { result: 'Built it.' },
+            ...worked('Built it.'),
           ]
         : isReview(spec)
           ? [{ result: '{"verdict":"approve","notes":"Good."}' }]
-          : [{ result: 'Done.' }],
+          : worked('Done.'),
     );
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });

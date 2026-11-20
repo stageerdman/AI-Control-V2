@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
-import { scriptedCrew } from './brain.ts';
+import { scriptedCrew, worked } from './brain.ts';
 
 const ID = {
   GIT_AUTHOR_NAME: 't',
@@ -145,7 +145,7 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
         items: [item('Edit shared A', 'a-semic', 'ship-it'), item('Edit shared B', 'a-lint', 'polish', true)],
       },
       (spec) => {
-        if (spec.task.includes("can't merge back yet")) return [{ result: 'I could not.' }];
+        if (spec.task.includes("can't merge back yet")) return worked('I could not.');
         const who = itemText(spec).endsWith('A') ? 'A' : 'B';
         writeFileSync(join(spec.cwd, 'shared.txt'), `${who}\n`);
         return [{ wait: who === 'A' ? 5 : 40 }, { result: `edited ${who}` }];

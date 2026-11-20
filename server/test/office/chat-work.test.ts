@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { contractOf } from '../../src/crew/structured.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
+import { worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 type Item = { agentId: string; text: string; brief: string; status: string };
@@ -21,7 +22,7 @@ function studio(answer: string) {
       if (contractOf(spec.task)?.name === 'agent-chat-reply') return [{ result: answer }];
       if (contractOf(spec.task)) return [{ result: '{"verdict":"approve","notes":""}' }];
       if (runs++ > 0) briefs.push(spec.task);
-      return [{ result: runs === 1 ? 'hello.txt is in place.' : 'Added the footer.' }];
+      return worked(runs === 1 ? 'hello.txt is in place.' : 'Added the footer.');
     }),
   });
   mkdirSync(join(h.config.sandbox, 'aurora'));

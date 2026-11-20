@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { STOPPED_BY_YOU, STUDIO_CLOSED } from '../../src/runtime/service.ts';
-import { scriptedCrew } from '../crew/brain.ts';
+import { scriptedCrew, worked } from '../crew/brain.ts';
 import { tempDir, testApp } from '../helpers.ts';
 
 type H = ReturnType<typeof testApp>;
@@ -142,7 +142,7 @@ describe('stopped agents keep their history and can continue', () => {
           { summary: 'One step.', items: [{ text: 'Step one', assignee: 'a-baron', brief: 'One.' }] },
         ],
       },
-      (spec) => (spec.resumeSessionId ? [{ result: 'Finished it.' }] : LONG),
+      (spec) => (spec.resumeSessionId ? worked('Finished it.') : LONG),
     );
     h = testApp({ seed: true, at: dir.dir, runner: crew.runner });
     mkdirSync(join(h.config.sandbox, 'aurora'));

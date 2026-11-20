@@ -7,7 +7,7 @@ import { CollaborationSchema, fromCollaboration } from '../../src/domain/workflo
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
-import { type Answer, scriptedCrew } from './brain.ts';
+import { type Answer, scriptedCrew, worked } from './brain.ts';
 
 /* Aurora: ship-it (captain a-semic; a-pete, a-scar) + polish (captain a-lint; a-doc, a-twinkle); specialists a-baron, a-query, a-merge */
 const ONE = {
@@ -108,7 +108,7 @@ describe('collaboration: design + enforcement', () => {
 
   it('build → review → done: the gate is snapshotted on the item, handoff + review.approved events', async () => {
     const s = studio({ dispatch: [ONE] }, (spec) =>
-      isReview(spec) ? approve('Tidy.') : [{ result: 'Built it.' }],
+      isReview(spec) ? approve('Tidy.') : worked('Built it.'),
     );
     h = s.h;
     useDesign(h, DESIGN);
@@ -157,7 +157,7 @@ describe('collaboration: design + enforcement', () => {
     let reviews = 0;
     const s = studio({ dispatch: [ONE] }, (spec) => {
       if (isReview(spec)) return ++reviews === 1 ? changes('The empty state crashes.') : approve();
-      return [{ result: spec.task.includes('sent it back') ? 'Fixed the empty state.' : 'Built it.' }];
+      return worked(spec.task.includes('sent it back') ? 'Fixed the empty state.' : 'Built it.');
     });
     h = s.h;
     useDesign(h, DESIGN);
@@ -206,7 +206,7 @@ describe('collaboration: design + enforcement', () => {
     /* different notes each round: the same note twice would go to the director instead (review-loop-flow) */
     const notes = ['The empty state crashes.', 'Filters ignore the date range.'];
     const s = studio({ dispatch: [two] }, (spec) =>
-      isReview(spec) ? changes(notes.shift() ?? 'Still broken.') : [{ result: 'Built.' }],
+      isReview(spec) ? changes(notes.shift() ?? 'Still broken.') : worked('Built.'),
     );
     h = s.h;
     useDesign(h, DESIGN); // maxSendBacks 1
@@ -228,7 +228,7 @@ describe('collaboration: design + enforcement', () => {
       summary: 's',
       items: [{ text: 'UI', assignee: 'a-pete', teamId: 'ship-it', brief: 'b' }],
     };
-    const s = studio({ dispatch: [member] }, (spec) => (isReview(spec) ? approve() : [{ result: 'ok' }]));
+    const s = studio({ dispatch: [member] }, (spec) => (isReview(spec) ? approve() : worked('ok')));
     h = s.h;
     useDesign(h, { ...DESIGN, orchestratorTalksTo: 'everyone' });
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'UI' });

@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { didRealWork, type WorkEvidence } from '../../src/domain/real-work.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import { MAX_STALLS, turnCapError } from '../../src/runtime/limits.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -113,6 +114,27 @@ describe('carry on after a limit', () => {
     const run = await h.runtime.settled(r.id);
     expect(run).toMatchObject({ status: 'succeeded', result: 'Done.' });
     expect(specs).toHaveLength(4);
+  });
+
+  /* honest completion (domain/real-work.ts): the work a run did counts across its sessions, so a step limit hit
+     mid-task never turns the task into a plan-only one */
+  it('a step limit hit mid-task: the work before the cap counts, even when the last session only replies', async () => {
+    const seen: WorkEvidence[] = [];
+    app((n) => (n === 1 ? [{ activity: { kind: 'running', label: 'npm test' } }, CAP] : [{ result: 'Done.' }]));
+    h.runtime.onFinished((_, did) => seen.push(did));
+    const run = await h.runtime.settled(build().id);
+    expect(run.status).toBe('succeeded');
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.steps).toBe(1);
+    expect(didRealWork(seen[0] as WorkEvidence)).toBe(true);
+  });
+
+  it('a run that only replies brings no work evidence', async () => {
+    const seen: WorkEvidence[] = [];
+    app(() => [{ activity: { kind: 'reading', label: 'README.md' } }, { result: 'Here is my plan.' }]);
+    h.runtime.onFinished((_, did) => seen.push(did));
+    await h.runtime.settled(build().id);
+    expect(seen).toEqual([{ steps: 0, changed: false, reportFiled: false }]);
   });
 
   it('a run that is not a build is never carried on', async () => {

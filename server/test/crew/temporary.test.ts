@@ -13,7 +13,7 @@ import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { crewSlot } from '../../src/whiteboard/board.ts';
 import { testApp } from '../helpers.ts';
-import { scriptedCrew } from './brain.ts';
+import { scriptedCrew, worked } from './brain.ts';
 
 const led = (status: string, lead = 'a-baron', crew = ['a-pete']) => ({ status, workflow: { lead, crew } });
 
@@ -75,7 +75,7 @@ describe('temporary command, live in the studio', () => {
         if (c?.name === 'help') return [{ result: '{"answer":"On it.","say":"on it"}' }];
         if (c) return fakeBrain(spec);
         if (isReview(spec)) return [{ result: '{"verdict":"approve","notes":"Good."}' }];
-        return [...work(nameOf(spec), spec), { result: 'Built.' }];
+        return [...work(nameOf(spec), spec), ...worked('Built.')];
       }),
     });
     mkdirSync(join(h.config.sandbox, 'aurora'));

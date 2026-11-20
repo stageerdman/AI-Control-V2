@@ -7,7 +7,7 @@ import { getChatMessages } from '../../src/db/chats.ts';
 import { workRepo } from '../../src/db/work.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
-import { scriptedCrew } from '../crew/brain.ts';
+import { scriptedCrew, worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
@@ -41,7 +41,7 @@ describe('main quests and side quests', () => {
       /* a brief also lists earlier tasks: only its own item line names the task */
       const own = /Your checklist item: (.*)/.exec(s.task)?.[1] ?? s.task.slice(0, 40);
       started.push(TASKS.find((t) => own === `${HOLD} ${t}`) ?? own);
-      return [{ wait: 300 }, { result: 'Done.' }];
+      return [{ wait: 300 }, ...worked('Done.')];
     });
     h = testApp({ seed: true, runner: crew.runner });
     mkdirSync(join(h.config.sandbox, 'aurora'));

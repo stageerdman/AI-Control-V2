@@ -23,6 +23,7 @@ import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { type BoardPort, createBoard } from '../../src/whiteboard/board.ts';
 import { testApp } from '../helpers.ts';
+import { worked } from './brain.ts';
 
 const gate = (reviewer: string, kind: ItemGate['kind'] = 'review'): ItemGate => ({
   reviewer,
@@ -237,7 +238,7 @@ describe('a temporary crew ends, and its way of working is kept', () => {
         if (isChat(spec)) return [...(turns.shift() ?? []), { result: 'Done.' }];
         if (contractOf(spec.task)) return fakeBrain(spec);
         if (isReview(spec)) return [{ result: '{"verdict":"approve","notes":"Good."}' }];
-        return [{ result: 'Built.' }];
+        return worked('Built.');
       }),
     });
     mkdirSync(join(h.config.sandbox, 'aurora'));

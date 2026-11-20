@@ -9,6 +9,7 @@ import { getChatMessages } from '../../src/db/chats.ts';
 import type { Feature } from '../../src/db/features.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+import { WORK_STEP } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
@@ -25,7 +26,7 @@ async function studio(build: FakeStep[], ships?: boolean) {
       if (isChat(spec)) return director.shift() ?? [{ result: 'Hm.' }];
       if (contractOf(spec.task)) return [{ result: '{"verdict":"approve","notes":""}' }];
       if (isBuild(spec)) briefs.push(spec.task);
-      return isBuild(spec) ? build : [{ result: 'Looks good.' }];
+      return isBuild(spec) ? [WORK_STEP, ...build] : [{ result: 'Looks good.' }];
     }),
   });
   mkdirSync(join(h.config.sandbox, 'aurora'));

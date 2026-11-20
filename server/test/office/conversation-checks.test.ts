@@ -21,6 +21,7 @@ import { getChatMessages } from '../../src/db/chats.ts';
 import { workRepo } from '../../src/db/work.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+import { worked } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
 
 const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
@@ -32,7 +33,7 @@ function agentWork(spec: RunSpec): FakeStep[] {
   if (spec.task === 'long') return [{ wait: 10_000 }, { result: 'never' }];
   if (spec.task === 'paint the logo')
     return [{ ask: 'Blue or green?', options: ['Blue', 'Green'] }, { result: 'Painted it.' }];
-  return [{ result: 'Built.' }];
+  return worked('Built.');
 }
 
 /** Lumi (Twinkle and Professor Prompt, director Pixel) with a folder; the director's turns play the scripted tool

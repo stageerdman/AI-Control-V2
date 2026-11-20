@@ -10,7 +10,7 @@ import { featuresRepo } from '../../src/db/features.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
-import { type Answer, scriptedCrew } from './brain.ts';
+import { type Answer, scriptedCrew, WORK_STEP } from './brain.ts';
 
 /* Aurora: ship-it (captain a-semic; a-pete, a-scar) + polish (captain a-lint; a-doc, a-twinkle) */
 const ID = {
@@ -53,7 +53,8 @@ const isReview = (s: RunSpec) => s.task.startsWith('You are reviewing');
 const subtask = (s: RunSpec) => /Your sub-task: (.*)/.exec(s.task)?.[1] ?? '';
 
 function studio(answers: Record<string, Answer[]>, work: (s: RunSpec) => FakeStep[]) {
-  const crew = scriptedCrew(answers, work);
+  /* every build here does real work (domain/real-work.ts); reviews only answer */
+  const crew = scriptedCrew(answers, (spec) => (isReview(spec) ? work(spec) : [WORK_STEP, ...work(spec)]));
   const h = testApp({ seed: true, runner: crew.runner });
   const repo = join(h.config.sandbox, 'aurora');
   mkdirSync(repo);

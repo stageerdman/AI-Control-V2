@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { workRepo } from '../../src/db/work.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
+import { worked } from '../crew/brain.ts';
 import { tempDir, testApp } from '../helpers.ts';
 
 type H = ReturnType<typeof testApp>;
@@ -135,7 +136,7 @@ describe('open questions survive a reload and a restart', () => {
     h = boot(
       (s) => {
         specs.push(s);
-        return [{ result: 'carried on' }];
+        return worked('carried on');
       },
       dir?.dir,
       false,
