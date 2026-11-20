@@ -54,8 +54,11 @@ exports, `-allowProvisioningUpdates`, App Store auth keys, platform downloads; e
 encryption, …); setting prefixes on these tools; and any path — flag value, `KEY=value` build setting, `-I/…` — that resolves outside the
 project folder (checked lexically; the command must also run from inside the folder). Literal arguments only: no quotes, `$`, `~`, globs,
 `#` or shell syntax (`-destination platform=macOS`). A refused command says why, with the missing flags written out. The run's brief lists
-the rules and the hook reads the project folder from `AI_STUDIO_PROJECT_DIR` (set for every run). Live check — a sample SwiftUI package
-(`test/fixtures/mac-sample`) built and tested through the hook: `AI_STUDIO_MAC_CHECK=1 npx vitest run test/runtime/mac-build.live.test.ts`.
+the rules and the hook reads the project folder from `AI_STUDIO_PROJECT_DIR` (set for every run). Live check, `npm run check:mac`: a
+sample SwiftUI package (`test/fixtures/mac-sample`) is built and tested through the hook, and SwiftPM's and Xcode's default folders
+(`~/Library/Caches/org.swift.swiftpm`, `~/Library/org.swift.swiftpm`, `~/.swiftpm`, `~/Library/Developer/Xcode/DerivedData`) must be
+unchanged afterwards (`test/runtime/folder-snapshot.ts`; compared by content, as SwiftPM re-creates its identical `~/.swiftpm/security`
+link on every run). Without macOS or a Swift toolchain it skips and says why; plain `npm test` skips it.
 
 ## Layout
 
