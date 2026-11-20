@@ -751,6 +751,11 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX feature_proposals_by_project ON feature_proposals(project_id, created_at);
   `,
+  /* 48 — a task's features: the ids of the existing features its text or brief named when it was created (JSON
+     list), so its builder's `feature` tool knows them. The goal's own feature (feature_id) stays the hand-set link. */
+  `
+  ALTER TABLE checklist_items ADD COLUMN feature_ids TEXT NOT NULL DEFAULT '[]';
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

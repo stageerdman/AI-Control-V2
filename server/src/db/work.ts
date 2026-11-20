@@ -35,6 +35,8 @@ export type ChecklistItem = {
   report: boolean;
   /** The report this item's run filed (the whiteboard links to it). */
   reportId: string | null;
+  /** The existing features its text or brief named when it was created (linked by themselves, in list order). */
+  featureIds: string[];
   status: ItemStatus;
   /** The current (or last) run: the builder's, or the reviewer's during a review. */
   runId: string | null;
@@ -114,6 +116,7 @@ export type NewItem = Pick<ChecklistItem, 'id' | 'text' | 'brief' | 'agentId' | 
   parallel?: boolean;
   report?: boolean;
   gates?: ItemGate[];
+  featureIds?: string[];
 };
 export type ItemEdit = Partial<
   Pick<ChecklistItem, 'text' | 'brief' | 'agentId' | 'teamId' | 'parallel' | 'gates'>
@@ -135,6 +138,7 @@ const toItem = (r: Row): ChecklistItem => ({
   parallel: r.parallel === 1,
   report: r.report === 1,
   reportId: (r.report_id as string | null) ?? null,
+  featureIds: parseList<string>(r.feature_ids),
   status: r.status as ItemStatus,
   runId: (r.run_id as string) ?? null,
   note: (r.note as string) ?? null,
@@ -219,8 +223,8 @@ export function workRepo(db: Db) {
   function insertItems(goalId: string, projectId: string, start: number, list: NewItem[]) {
     const t = now();
     const ins = db.prepare(
-      `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
+      `INSERT INTO checklist_items (id, goal_id, project_id, position, text, brief, agent_id, team_id, parallel, report, gates, feature_ids, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'todo', ?, ?)`,
     );
     list.forEach((i, n) => {
       ins.run(
@@ -235,6 +239,7 @@ export function workRepo(db: Db) {
         i.parallel ? 1 : 0,
         i.report ? 1 : 0,
         JSON.stringify(i.gates ?? []),
+        JSON.stringify(i.featureIds ?? []),
         t,
         t,
       );

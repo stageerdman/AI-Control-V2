@@ -16,7 +16,7 @@ import { conflict, invalid } from '../errors.ts';
 import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
 import { type BoardReader, boardNow, boardText, goalBlock } from './board-text.ts';
-import { linkedBrief } from './feature-route.ts';
+import { linkedBrief, taskFeatures } from './feature-route.ts';
 import { createHistory } from './history.ts';
 import { type Owner, type Roster, resolveOwner } from './owner.ts';
 
@@ -163,10 +163,12 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     const owner = t.featuresOnly ? { agentId: directorId, teamId: null } : pick(t, w);
     const text = t.text.trim();
     const brief = t.brief?.trim() || text;
+    const all = features.list(projectId);
     return {
       id: randomUUID(),
       text,
-      brief: linkedBrief({ text, brief }, features.list(projectId), owner.agentId === directorId),
+      brief: linkedBrief({ text, brief }, all, owner.agentId === directorId),
+      featureIds: taskFeatures({ text, brief }, all).map((f) => f.id),
       ...owner,
       parallel: t.parallel === true,
       gates: port.gatesOf(projectId, { ...owner, branches: t.branches }, w),

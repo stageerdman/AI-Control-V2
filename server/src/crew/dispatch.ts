@@ -50,6 +50,7 @@ import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
+import { taskFeatures } from '../whiteboard/feature-route.ts';
 import { holder } from '../whiteboard/people.ts';
 import {
   dropSessions,
@@ -1570,6 +1571,7 @@ export function createDispatch(deps: {
         }
         const { workflow, toSeat } = resolveWorkflow(store, projectId, value.workflow);
         for (const id of toSeat) seatForWork(store, projectId, id, text);
+        const known = deps.features?.repo.list(projectId) ?? [];
         const goal = store.tx(() =>
           work.insertGoal(
             {
@@ -1589,6 +1591,7 @@ export function createDispatch(deps: {
                 ...item,
                 parallel: i.parallel === true,
                 report: i.report === true,
+                featureIds: taskFeatures(i, known).map((f) => f.id),
                 /* report items ask for knowledge, not change: no review gates */
                 gates: i.report ? [] : gatesOf(projectId, { ...item, branches: i.branches }, workflow),
               };

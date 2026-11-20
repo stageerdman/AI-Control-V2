@@ -287,6 +287,9 @@ only ever raises the feature's pct, and one the agent shipped stays shipped.
 `featuresOnly: true` (add_goal / add_task) is theirs whoever `owner` names — it waits with them (dispatch never starts it) and the
 reply tells them to do it and mark it done. Any other task that names features (by id, or by name as a whole phrase) and goes to
 someone else gets one line at the end of its brief listing those ids for their `feature` tool; handing it on with edit_task links it too.
+**Auto-linked tasks:** every new task (add_goal / add_task / a planned goal) stores the ids of the existing features its text or
+brief names (`checklist_items.feature_ids`; names under 4 characters never count). The goal's hand-set `feature` is left as it
+is and wins: the builder's `feature` tool with no id reads the goal's feature, else the task's one linked feature (several → name one).
 **Real-app prompts:** every build brief says "do not push" (the studio merges) and to record `run: <command>` in `.project` when the
 work sets up how the app starts.
 

@@ -23,13 +23,21 @@ const view = (f: Feature) =>
   [summary(f), f.description ? `Description:\n${f.description}` : ''].filter(Boolean).join('\n');
 
 export function agentFeatureTool(deps: { features: Features; work: WorkRepo }, me: Caller): BridgeTool {
-  /** The feature this run's whiteboard goal serves (null: not on the whiteboard, or no feature). */
-  const goalFeature = () => {
+  /** The features this run's work is linked to: its goal's hand-set feature, else the ones its task named. */
+  const linkedFeatures = (): string[] => {
     const item = deps.work.itemByRun(me.runId);
-    return (item && deps.work.goal(item.goalId)?.featureId) ?? null;
+    if (!item) return [];
+    const goalFeature = deps.work.goal(item.goalId)?.featureId;
+    return goalFeature ? [goalFeature] : item.featureIds;
   };
   const featureId = (said: unknown) => {
-    const id = (typeof said === 'string' && said.trim()) || goalFeature();
+    if (typeof said === 'string' && said.trim()) return said.trim();
+    const linked = linkedFeatures();
+    if (linked.length > 1)
+      throw invalid(
+        `Your task is linked to several features (${linked.join(', ')}) — name one by its id in "feature".`,
+      );
+    const [id] = linked;
     if (!id)
       throw invalid(
         'Your work is not linked to a feature — look one up with "find" (part of its name) or "list", then name it by its id in "feature".',
@@ -60,7 +68,11 @@ export function agentFeatureTool(deps: { features: Features; work: WorkRepo }, m
     inputSchema: {
       type: 'object',
       properties: {
-        feature: { type: 'string', description: 'A feature id; leave out for the one your goal serves.' },
+        feature: {
+          type: 'string',
+          description:
+            'A feature id; leave out for the one your work is linked to (its goal’s, or the one your task names).',
+        },
         list: { type: 'boolean', description: 'true = list every feature (id, name, status).' },
         find: {
           type: 'string',

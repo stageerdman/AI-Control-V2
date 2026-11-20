@@ -8,10 +8,18 @@ const literal = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const mentions = (words: string, phrase: string) =>
   new RegExp(`(^|[^\\p{L}\\p{N}-])${literal(phrase)}($|[^\\p{L}\\p{N}-])`, 'iu').test(words);
 
-/** The features `words` name, by id or by name, in list order. */
+/* a shorter name ("UI", "API") turns up in ordinary sentences, so it never counts as naming the feature */
+const MIN_NAME = 4;
+const clearName = (name: string) => name.trim().length >= MIN_NAME;
+
+/** The features `words` name, by id or by a name long enough to be clear, in list order. */
 export function featuresNamed(words: string, all: readonly NamedFeature[]): NamedFeature[] {
-  return all.filter((f) => mentions(words, f.id) || (f.name.trim() && mentions(words, f.name.trim())));
+  return all.filter((f) => mentions(words, f.id) || (clearName(f.name) && mentions(words, f.name.trim())));
 }
+
+/** The features a task names in its text or brief: the ones it is linked to when created. */
+export const taskFeatures = (t: { text: string; brief: string }, all: readonly NamedFeature[]) =>
+  featuresNamed(`${t.text}\n${t.brief}`, all);
 
 /** The line a mixed task's brief gains: which features it names, and how to change them. */
 export const featureLinkLine = (named: readonly NamedFeature[]) =>
@@ -25,7 +33,7 @@ export function linkedBrief(
   toDirector: boolean,
 ): string {
   const { brief } = t;
-  const named = featuresNamed(`${t.text}\n${brief}`, all);
+  const named = taskFeatures(t, all);
   const line = featureLinkLine(named);
   if (toDirector || !named.length || brief.includes(line)) return brief;
   return `${brief}\n\n${line}`;
