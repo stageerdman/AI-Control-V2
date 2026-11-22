@@ -130,6 +130,11 @@ export function ProjectAccessPanel({ projectId, projectName }: { projectId: stri
                     {x.name}
                   </b>
                   {x.serves && <div className="sv">{x.serves}</div>}
+                  {x.folder && (
+                    <div className="vl">
+                      Folder · read and write: <code>{x.folder}</code>
+                    </div>
+                  )}
                   {expanded ? (
                     <ul className="pa-all" id={listId}>
                       {line.all.map((f) => (

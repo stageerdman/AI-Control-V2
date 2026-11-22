@@ -6,6 +6,7 @@ import { clearQueryCache } from '../../api/query';
 import { Sheet, Toaster } from '../../ui';
 import type { Access, AccessField, ProjectAccess } from './api';
 import {
+  blocker,
   flipsOffSavedSecret,
   metaOf,
   planSave,
@@ -40,6 +41,7 @@ const access = (over: Partial<Access> = {}): Access => ({
   instructions: '',
   fields: [field()],
   projectIds: [],
+  folder: null,
   createdAt: now,
   updatedAt: now,
   ...over,
@@ -179,6 +181,11 @@ describe('marks, masks and lines', () => {
 });
 
 describe('the editor model', () => {
+  it('a folder access saves with no field; any other needs one', () => {
+    const m = metaOf(access());
+    expect(blocker(m, [])).toBe('An access needs at least one field.');
+    expect(blocker(m, [], '/Users/me/Library/x')).toBeNull();
+  });
   it('templates set labels and the secret flags correctly', () => {
     const pick = (id: Parameters<typeof templateRows>[0]) => templateRows(id).map((r) => [r.label, r.secret]);
     expect(pick('api')).toEqual([['API key', true]]);
@@ -467,6 +474,20 @@ describe('ProjectAccessPanel (the safe)', () => {
     newCount: +isNew,
     accesses: [{ ...access({ fields: [field({ hasValue: true, last4: 'abcd' })] }), granted, isNew }],
     ...over,
+  });
+
+  it('a folder access shows its folder, read and write, with no env vars', async () => {
+    const vault = access({
+      id: 'a-vault',
+      name: 'Pensieve app data',
+      fields: [],
+      folder: '/Users/me/Library/x',
+    });
+    api.project.mockResolvedValue(view({ accesses: [{ ...vault, granted: false, isNew: false }] }));
+    render(<ProjectAccessPanel projectId="aurora" projectName="Aurora" />);
+    await screen.findByRole('switch', { name: 'Grant Pensieve app data to Aurora' });
+    expect(screen.getByText('/Users/me/Library/x')).toBeTruthy();
+    expect(screen.getByText(/Folder · read and write/)).toBeTruthy();
   });
 
   it('grants a whole access (auto-save) and syncs, names only', async () => {

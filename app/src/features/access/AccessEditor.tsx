@@ -137,7 +137,7 @@ function Body({ access, title, onClose }: { access?: Access; title: string; onCl
     focusNext.current = prev ? `[data-row="${prev.key}"] .ae-x` : '.ae-add';
   };
 
-  const why = blocker(meta, rows);
+  const why = blocker(meta, rows, access?.folder ?? null);
   const note = removalNote(access, rows);
 
   async function submit(e: FormEvent) {

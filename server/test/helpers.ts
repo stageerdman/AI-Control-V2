@@ -43,6 +43,8 @@ export function testApp(
     gitEnv?: Record<string, string>;
     /** Restart tests: run in this folder with a file db there; close() keeps both for the next boot. */
     at?: string;
+    /** Folder accesses: the user's home folder (`~`) — a temp dir, never the real one. */
+    userHome?: string;
   } = {},
 ) {
   const t = opts.at ? { dir: opts.at, cleanup: () => {} } : tempDir();
@@ -67,6 +69,7 @@ export function testApp(
     ...(opts.maxConcurrent === undefined ? {} : { maxConcurrent: opts.maxConcurrent }),
     ...(opts.ghRun === undefined ? {} : { ghRun: opts.ghRun }),
     ...(opts.gitEnv ? { gitEnv: opts.gitEnv } : {}),
+    ...(opts.userHome ? { userHome: opts.userHome } : {}),
     onRuntime: (rt) => {
       runtime = rt;
     },

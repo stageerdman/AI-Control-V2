@@ -102,6 +102,11 @@ function AccessRow({
           )}
         </div>
         {a.serves && <div className="serves">{a.serves}</div>}
+        {a.folder && (
+          <div className="serves">
+            Folder · read and write: <code>{a.folder}</code>
+          </div>
+        )}
         <div className="afford">
           <span className="used">
             {meta.fields && <>{meta.fields} · </>}
@@ -126,20 +131,22 @@ function AccessRow({
         </div>
         {open && (
           <div className="expand" id={detailsId}>
-            <ul className="fieldlist" aria-label={`${a.name} fields`}>
-              {a.fields.map((f) => {
-                const s = fieldShown(f);
-                return (
-                  <li key={f.id}>
-                    <span className="fl">{f.label}</span>
-                    <code className="fe">{f.envVar}</code>
-                    <span className={`fv ${s.kind}`} title={s.full}>
-                      {s.text}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            {a.fields.length > 0 && (
+              <ul className="fieldlist" aria-label={`${a.name} fields`}>
+                {a.fields.map((f) => {
+                  const s = fieldShown(f);
+                  return (
+                    <li key={f.id}>
+                      <span className="fl">{f.label}</span>
+                      <code className="fe">{f.envVar}</code>
+                      <span className={`fv ${s.kind}`} title={s.full}>
+                        {s.text}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             {a.instructions && (
               <>
                 <b>Instructions:</b> {a.instructions}

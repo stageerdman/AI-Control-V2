@@ -41,7 +41,9 @@ export type ComposeInput = {
 type AccessLine = NonNullable<ComposeInput['access']>[number];
 
 function accessLine(a: AccessLine): string {
-  const how = a.instructions.trim() ? ` How: ${a.instructions.trim().replace(/\s+/g, ' ').slice(0, 300)}` : '';
+  const how = a.instructions.trim()
+    ? ` How: ${a.instructions.trim().replace(/\s+/g, ' ').slice(0, 300)}`
+    : '';
   const what = a.folder
     ? `the folder \`${a.folder}\`, read and write: your file tools and shell may use it (and nothing else outside this project). Before you change anything in it, back it up with \`backup_folder\``
     : a.fields.map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`).join(', ');

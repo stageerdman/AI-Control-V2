@@ -126,10 +126,10 @@ export const metaOf = (a?: Access): Meta => ({
   instructions: a?.instructions ?? '',
 });
 
-/** Why Save can't go yet (null = it can). */
-export function blocker(meta: Meta, rows: Row[]): string | null {
+/** Why Save can't go yet (null = it can). A folder access shares its folder, so it may have no field. */
+export function blocker(meta: Meta, rows: Row[], folder: string | null = null): string | null {
   if (!meta.name.trim()) return 'Give the access a name.';
-  if (!rows.length) return 'An access needs at least one field.';
+  if (!rows.length && !folder) return 'An access needs at least one field.';
   if (rows.some((r) => !r.label.trim())) return 'Every field needs a label.';
   return null;
 }

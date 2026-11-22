@@ -103,7 +103,12 @@ describe('accessNotice', () => {
       { label: 'Secret key', envVar: 'STRIPE_SECRET_KEY', hasValue: true },
       { label: 'Account', envVar: 'STRIPE_ACCOUNT', hasValue: false },
     ],
+    folder: null,
   };
+  it('a shared folder names its path, read and write', () => {
+    const vault = { name: 'Vault', serves: '', instructions: '', fields: [], folder: '/Users/me/Library/x' };
+    expect(accessNotice(vault, 'restart', true)).toContain('read and write: `/Users/me/Library/x`');
+  });
   it('names the access and its env vars, and marks fields with no value yet', () => {
     const live = accessNotice(stripe, 'live', true);
     expect(live).toContain('a new access (Stripe) was shared with you');

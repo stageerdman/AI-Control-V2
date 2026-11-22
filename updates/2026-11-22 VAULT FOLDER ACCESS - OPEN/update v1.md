@@ -43,7 +43,32 @@ folder, which is the same lock. Pensieve looks like a Tauri app (npm/vitest,
 `src-tauri/tauri.conf.json`. The fix **reads it from the project's own files** when the
 access is granted. Nothing is hard-coded.
 
-## Phase 2: the fix (next item)
+## Phase 2: the fix (built)
+
+What shipped, and where it differs from the plan below:
+
+- **Folder access** = an access with a `folder` (migration 49, `accesses.folder`, unique). Read and write
+  only, as the brief asked; the read-only mode is left out until someone needs it. It may have no fields.
+- **Guard** `secrets/folderAccess.ts`: `checkFolder` on save (absolute; not Application Support or any
+  folder above it; not overlapping the studio's data dir, sandbox or global secrets: 422), `liveFolder` on
+  each run start (real path after symlinks, same rules, missing = not passed).
+- **Runs**: `projectAccess.foldersFor` → `service.ts addDirsNow()` → `--add-dir`, read again for every fresh
+  session. A folder shared mid-run is a 'restart' notice (it joins only when a session starts).
+- **Backups**: the studio tool `backup_folder` copies a path inside a shared folder (symlinks followed;
+  outside or nothing shared is refused) to `<data>/backups/<project>/<stamp>-<name>`. It replaces the plan's
+  "backup inside the project", because that would put app data into the project's git.
+- **Bundle id** `secrets/bundleId.ts`: Tauri v2/v1 `identifier`, then Xcode `PRODUCT_BUNDLE_IDENTIFIER`
+  (test targets and `$(…)` left out). No Info.plist step: Tauri and Xcode cover it. None or several → 409
+  naming the files.
+- **Entry**: `POST /projects/:id/app-data-access` adds `<Name> app data` for
+  `~/Library/Application Support/<bundle id>`, not granted; calling it again returns the existing one
+  (201 / 200). The user shares it in the project's safe.
+- **UI**: the cabinet row and the safe show "Folder · read and write: <path>"; the editor saves a folder
+  access with no fields.
+- **Tests**: `server/test/secrets/folder-access.test.ts` (guard, bundle id, backups inside/outside/before
+  shared, the endpoint, `--add-dir` only after the grant), `app/src/features/access/access.test.tsx`.
+
+### The plan as written
 
 One key for both locks: **a granted folder becomes an extra working folder of the run (`--add-dir`).**
 

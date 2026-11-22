@@ -203,7 +203,17 @@ export function accessesRepo(db: Db) {
       db.prepare(
         `INSERT INTO accesses (id, name, serves, docs_url, instructions, folder, position, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, info.name, info.serves ?? '', info.docsUrl ?? null, info.instructions ?? '', folder, pos, t, t);
+      ).run(
+        id,
+        info.name,
+        info.serves ?? '',
+        info.docsUrl ?? null,
+        info.instructions ?? '',
+        folder,
+        pos,
+        t,
+        t,
+      );
       for (const f of fields) insertField(id, f.field, f.value);
       return repo.require(id);
     },

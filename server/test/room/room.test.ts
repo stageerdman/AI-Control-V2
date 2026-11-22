@@ -231,6 +231,7 @@ describe('calls inside a project', () => {
       'my_todos',
       'add_todo',
       'done_todo',
+      'backup_folder',
       'forget',
     ]);
     expect(agentRun?.systemPrompt).toContain('## Your memory');

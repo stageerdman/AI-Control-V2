@@ -38,7 +38,17 @@ const FieldCreate = z.strictObject({
   secret: z.boolean().optional(),
   value: Value.optional(),
 });
-const AccessCreate = z.strictObject({ ...accessInfo, fields: z.array(FieldCreate).min(1).max(20) });
+/* a folder access shares its folder, so it needs no field; any other access needs at least one */
+const AccessCreate = z
+  .strictObject({
+    ...accessInfo,
+    folder: z.string().trim().min(1).max(1024).optional(),
+    fields: z.array(FieldCreate).max(20),
+  })
+  .refine((a) => a.folder !== undefined || a.fields.length > 0, {
+    message: 'An access needs at least one field',
+    path: ['fields'],
+  });
 const AccessPatch = z.strictObject({ ...accessInfo, name: Name.optional() });
 const FieldPatch = z.strictObject({
   label: Label.optional(),
@@ -98,4 +108,9 @@ export const accessesRoutes =
     });
     app.post('/projects/:id/access/sync', async (req) => access.sync(parse(IdParams, req.params).id));
     app.post('/projects/:id/access/seen', async (req) => access.markSeen(parse(IdParams, req.params).id));
+    /* the project's Mac app data folder, as a cabinet entry not yet shared — safe to call again */
+    app.post('/projects/:id/app-data-access', async (req, reply) => {
+      const { access: entry, created } = access.addAppDataFolder(parse(IdParams, req.params).id);
+      return reply.status(created ? 201 : 200).send(entry);
+    });
   };

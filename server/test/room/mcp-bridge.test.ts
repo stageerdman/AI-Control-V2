@@ -79,6 +79,7 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
       'my_todos',
       'add_todo',
       'done_todo',
+      'backup_folder',
       'forget',
     ]);
     const room = (await rpc(3, 'tools/call', { name: 'room', arguments: {} })).result as {

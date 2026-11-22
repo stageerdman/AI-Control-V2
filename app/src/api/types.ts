@@ -302,8 +302,10 @@ export type Access = {
   serves: string;
   docsUrl: string | null;
   instructions: string;
-  /** ≥ 1, in order. */
+  /** In order: ≥ 1, except a folder access, which may have none. */
   fields: AccessField[];
+  /** A folder access: the folder it shares, read and write (outside every project). */
+  folder: string | null;
   /** Granted to. */
   projectIds: string[];
   createdAt: string;
