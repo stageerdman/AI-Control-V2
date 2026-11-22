@@ -94,6 +94,8 @@ type Live = {
   reports: number;
   /** Real-work tool steps in this run, all sessions (domain/real-work.ts). */
   workSteps: number;
+  /** It answered and waits for commands it left running in the background (runtime/background.ts). */
+  waiting?: boolean;
   /** The checkout's HEAD and reports filed when the run began: a different mark at the end = it changed. */
   firstMark: string;
   cancelled?: boolean;
@@ -402,6 +404,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const { run } = l;
     recordEvent(l, e);
     if (e.kind === 'activity' && isWorkStep(e.activity.kind)) l.workSteps++;
+    if (e.kind === 'activity') l.waiting = e.activity.kind === 'waiting';
     if (e.kind === 'session') repo.setSession(run.id, e.sessionId);
     else if (e.kind === 'activity')
       emit(
@@ -959,6 +962,8 @@ export function createRuntime(deps: RuntimeDeps) {
       return repo.list(projectId);
     },
     get: requireRun,
+    /** The run answered and waits for its background commands to end (the board says so). */
+    waitingOn: (runId: string): boolean => !!live.get(runId)?.waiting,
     cancel(projectId: string, runId: string): Run {
       const r = requireRun(projectId, runId);
       const l = live.get(runId);

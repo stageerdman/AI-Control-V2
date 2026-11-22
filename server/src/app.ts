@@ -474,7 +474,7 @@ export function buildApp({
   /* the director staffs the project from chat (existing Cast agents only); Rearrange brings people back */
   const staffing = createStaffing({ store, events });
   /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
-  const board = createBoard({ db, store, port: dispatch.board });
+  const board = createBoard({ db, store, port: dispatch.board, waitingOn: runtime.waitingOn });
   /* the office icon: uploaded, or linked to an icon file in the project folder (route + director tool) */
   const portraits = createPortraits({ db, store, events, home: config.home, sandbox: config.sandbox });
   /* "stop Jony" / "stop everything" from the office chat */

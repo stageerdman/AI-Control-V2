@@ -13,16 +13,29 @@ const STATUS: Record<ChecklistItem['status'], string> = {
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** Who reads the board: names, the project's usual workflow (a goal under another one says which), and the
-    director — a queued task of theirs was handed back to them and never starts until it has a new owner. */
-export type BoardReader = { name: (id: string) => string; usualId: string; directorId: string };
+    director — a queued task of theirs was handed back to them and never starts until it has a new owner.
+    `waitingOn`: the run answered and waits for its background tests (runtime/background.ts). */
+export type BoardReader = {
+  name: (id: string) => string;
+  usualId: string;
+  directorId: string;
+  waitingOn?: (runId: string) => boolean;
+};
 
 export const waitsForOwner = (it: ChecklistItem, directorId: string): boolean =>
   it.status === 'todo' && it.agentId === directorId;
 
+const statusOf = (it: ChecklistItem, r: BoardReader, waits: boolean): string => {
+  if (waits) return 'waiting for a new owner';
+  if (it.status === 'running' && it.runId && r.waitingOn?.(it.runId))
+    return 'waiting for its background tests to finish';
+  return STATUS[it.status];
+};
+
 function taskLine(it: ChecklistItem, r: BoardReader): string {
   const flags = [it.parallel ? 'parallel' : '', it.report ? 'report' : ''].filter(Boolean).join(', ');
   const waits = waitsForOwner(it, r.directorId);
-  const status = waits ? 'waiting for a new owner' : STATUS[it.status];
+  const status = statusOf(it, r, waits);
   const line = `  ${it.position + 1}. [${status}] ${clip(it.text, 200)} — ${r.name(it.agentId)}${flags ? ` (${flags})` : ''}  id: ${it.id}`;
   /* why it came back (a decline, or a builder who couldn't do it), so the next owner is picked knowingly */
   return waits && it.note ? `${line}\n     Why: ${clip(it.note, 400)}` : line;

@@ -4,6 +4,7 @@
    (tool results), and one final `result` (status, totals, cost). Unknown lines are
    ignored, so new CLI message types never break a run. */
 import { redactSecrets } from '../events/redact.ts';
+import type { BackgroundTask } from './background.ts';
 import type { Activity, RunEvent, RunOutcome } from './runner.ts';
 
 export const ASK_TOOL = 'mcp__studio__ask_user';
@@ -122,6 +123,8 @@ type Line = {
   errors?: string[];
   /** Why the CLI produced this result: `task-notification` = its own background-task notice, not the task. */
   origin?: { kind?: string };
+  /** `background_tasks_changed`: the commands still running in the background ([] = none). */
+  tasks?: { task_id?: string; description?: string }[];
 };
 
 /** One parser per run. feed() a stdout line → events; outcome() once the stream ends. */
@@ -134,6 +137,12 @@ export function createStreamParser(secretValues: readonly string[] = []) {
   /** Turns and tokens of background-task notices that came before the answer. */
   let extra = { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
   let cost: number | undefined;
+  /** Commands still running in the background, as the CLI last listed them. */
+  let background: BackgroundTask[] = [];
+  /** Answers so far: the task's, then one per wake (awaitWake). */
+  let answers = 0;
+  /** The run waits for its background commands: the next result is the agent's answer after it woke. */
+  let waking = false;
   /* per-message usage (last line wins): the fallback when a run is stopped before its result line */
   const perMessage = new Map<string, Usage>();
   const streamed = () => {
@@ -154,6 +163,16 @@ export function createStreamParser(secretValues: readonly string[] = []) {
     sessionId: () => sessionId,
     /** True once the `result` message arrived (its keys aren't ordered — never sniff the raw line). */
     finished: () => final !== undefined,
+    /** Results taken as the answer so far (grows once more after each wake). */
+    answers: () => answers,
+    /** The answer's words (its result, else the last text). */
+    answerText: () => final?.result ?? lastText,
+    background: (): readonly BackgroundTask[] => background,
+    /** The run stays open for its background commands: the CLI's next result (it wakes the model when one
+        ends) replaces the answer instead of being a notice. */
+    awaitWake: () => {
+      waking = true;
+    },
     feed(raw: string): RunEvent[] {
       let m: Line;
       try {
@@ -195,6 +214,8 @@ export function createStreamParser(secretValues: readonly string[] = []) {
           }
         }
       }
+      if (m.type === 'system' && m.subtype === 'background_tasks_changed' && Array.isArray(m.tasks))
+        background = m.tasks.map((t) => ({ id: t.task_id ?? '', description: scrub(t.description ?? '') }));
       if (m.type === 'result') {
         const u = m.usage ?? {};
         const add = (to: RunOutcome['usage']) => ({
@@ -208,6 +229,23 @@ export function createStreamParser(secretValues: readonly string[] = []) {
            task-notification`) — AFTER the task's answer (a background `npm start` stopped: "the test server stopped…")
            or, on --resume, BEFORE it (the last session's killed shell: an empty 0-turn result). Neither is the answer:
            it only adds turns, tokens and cost. A second plain result after a successful answer is treated the same. */
+        const ok = m.subtype === 'success' && !m.is_error;
+        if (waking && final) {
+          /* the agent woke when its background command ended: this is its answer now, the turns add up */
+          waking = false;
+          answers++;
+          const { error: _was, ...prev } = final;
+          final = {
+            ...prev,
+            status: ok ? 'succeeded' : 'failed',
+            turns: (final.turns ?? 0) + (m.num_turns ?? 0),
+            usage: add(final.usage),
+            ...(m.result ? { result: scrub(m.result) } : {}),
+            ...(ok ? {} : { error: scrub(m.errors?.join('; ') || m.subtype || 'error') }),
+            ...(cost === undefined ? {} : { costUsd: cost }),
+          };
+          return out;
+        }
         const notice = m.origin?.kind === 'task-notification' || final?.status === 'succeeded';
         if (notice) {
           extra = { turns: extra.turns + (m.num_turns ?? 0), usage: add(extra.usage) };
@@ -220,7 +258,7 @@ export function createStreamParser(secretValues: readonly string[] = []) {
             };
           return out;
         }
-        const ok = m.subtype === 'success' && !m.is_error;
+        answers++;
         final = {
           status: ok ? 'succeeded' : 'failed',
           turns: (m.num_turns ?? turns) + extra.turns,

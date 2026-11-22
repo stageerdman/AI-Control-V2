@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { claudeCliRunner } from '../../src/runtime/claude-cli.ts';
+import { isStuckStop } from '../../src/runtime/limits.ts';
 import type { RunEvent, RunSpec } from '../../src/runtime/runner.ts';
 import { tempDir } from '../helpers.ts';
 
@@ -37,6 +38,23 @@ function go() {
     fs.writeFileSync(out + '.pids', JSON.stringify([process.pid, kid.pid]));
     process.stdout.write(fs.readFileSync(process.env.FAKE_FIXTURE, 'utf8'));
     process.stdin.on('end', () => process.exit(0));
+  } else if (mode === 'background') {
+    // Sea GPS: e2e tests left running in the background, an answer that says so; FAKE_WAKE_MS → they end, it wakes
+    const line = (o) => process.stdout.write(JSON.stringify({ session_id: 's1', ...o }) + '\\n');
+    const result = (text, extra) => line({ type: 'result', subtype: 'success', is_error: false, num_turns: 3, result: text, total_cost_usd: 0.1, usage: { input_tokens: 10, output_tokens: 5 }, ...extra });
+    const kid = spawn('/bin/sleep', ['1000'], { stdio: 'ignore' });
+    fs.writeFileSync(out + '.pids', JSON.stringify([process.pid, kid.pid]));
+    line({ type: 'system', subtype: 'background_tasks_changed', tasks: [{ task_id: 'b1', description: 'npm run e2e' }] });
+    line({ type: 'assistant', message: { id: 'a1', content: [{ type: 'text', text: process.env.FAKE_SAY }] } });
+    result(process.env.FAKE_SAY);
+    if (process.env.FAKE_WAKE_MS) setTimeout(() => {
+      kid.kill();
+      line({ type: 'system', subtype: 'background_tasks_changed', tasks: [] });
+      line({ type: 'assistant', message: { id: 'a2', content: [{ type: 'text', text: 'All 42 e2e tests pass. Committed.' }] } });
+      result('All 42 e2e tests pass. Committed.', { num_turns: 2, total_cost_usd: 0.3, origin: { kind: 'task-notification' } });
+      process.exit(0);
+    }, Number(process.env.FAKE_WAKE_MS));
+    setInterval(() => {}, 1000);
   } else if (mode === 'chatty') {
     let i = 0;
     setInterval(() => process.stdout.write(JSON.stringify({ type: 'assistant', message: { id: 'm' + (i++), content: [{ type: 'text', text: 'hi' }] } }) + '\\n'), 5);
@@ -91,11 +109,12 @@ describe('ClaudeCliRunner', () => {
     askBridge: { url: 'http://127.0.0.1:9/internal/runs/x/asks', token: 'tok' },
     ...extra,
   });
-  const run = (s: RunSpec, logDir?: string) => {
+  const run = (s: RunSpec, logDir?: string, backgroundWaitMs = 5000) => {
     const events: RunEvent[] = [];
     const h = claudeCliRunner({
       bin,
       afterResultMs: 200,
+      backgroundWaitMs,
       askServer: '/srv/ask-server.ts',
       node: '/usr/local/bin/node',
       ...(logDir ? { logDir } : {}),
@@ -187,6 +206,58 @@ describe('ClaudeCliRunner', () => {
     const pids = JSON.parse(readFileSync(`${out}.pids`, 'utf8')) as number[];
     await new Promise((r) => setTimeout(r, 100));
     for (const pid of pids) expect(alive(pid)).toBe(false);
+  });
+
+  describe('an answer that waits for its background tests (Sea GPS)', () => {
+    const STILL_RUNNING = "The full e2e is still running; I'll pick up again when it finishes.";
+    const bg = (say: string, wakeMs?: number) =>
+      spec('background', {
+        env: {
+          ...spec('background').env,
+          FAKE_SAY: say,
+          ...(wakeMs ? { FAKE_WAKE_MS: String(wakeMs) } : {}),
+        },
+      });
+
+    it('stays open past the linger grace, shows as waiting, and the woken answer is the outcome', async () => {
+      const { h, events } = run(bg(STILL_RUNNING, 600));
+      const o = await h.done;
+      expect(o.status).toBe('succeeded');
+      expect(o.result).toBe('All 42 e2e tests pass. Committed.');
+      expect(o.turns).toBe(5);
+      expect(o.costUsd).toBe(0.3);
+      expect(events).toContainEqual({
+        kind: 'activity',
+        status: 'waiting',
+        activity: {
+          kind: 'waiting',
+          label: 'Waiting for its background tests to finish',
+          detail: 'npm run e2e',
+        },
+      });
+    });
+
+    it('tests that never finish: stopped after the wait limit with a stall Pixel hears, nothing left running', async () => {
+      const { h } = run(bg(STILL_RUNNING), undefined, 500);
+      const o = await h.done;
+      expect(o.status).toBe('failed');
+      expect(o.error).toBe(
+        'Stopped: waited 1 second for its background command (npm run e2e) to finish; they never did.',
+      );
+      expect(isStuckStop(o.error)).toBe(true);
+      const pids = JSON.parse(readFileSync(`${out}.pids`, 'utf8')) as number[];
+      await new Promise((r) => setTimeout(r, 100));
+      for (const pid of pids) expect(alive(pid)).toBe(false);
+    });
+
+    it('a server left running with no word of waiting is still stopped after the grace (F3)', async () => {
+      const { h } = run(bg('Done: the app is up and the tests pass.', 3000));
+      const started = Date.now();
+      const o = await h.done;
+      expect(Date.now() - started).toBeLessThan(2500);
+      expect(o.status).toBe('succeeded');
+      expect(o.result).toBe('Done: the app is up and the tests pass.');
+    });
   });
 
   it('a command the CLI left running when it exited is swept (never an invisible leftover); the handle has a pid', async () => {

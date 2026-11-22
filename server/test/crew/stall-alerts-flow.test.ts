@@ -3,6 +3,7 @@
    what is already done. A step limit the studio carries on from is not a stall. */
 import { afterEach, describe, expect, it } from 'vitest';
 import { type Goal, workRepo } from '../../src/db/work.ts';
+import { backgroundTimeoutError } from '../../src/runtime/background.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import { turnCapError } from '../../src/runtime/limits.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -102,6 +103,21 @@ describe('stall alerts reach the orchestrator', () => {
     expect(text).toContain('stopped as stuck.');
     expect(text).toContain('Why: A limit was hit: Stopped: no new work (a commit, a report or a desk note)');
     expect(text).toContain('Done so far: Nothing is finished yet.');
+  }, 30_000);
+
+  it('Sea GPS: background tests that never finish stop the task once, as stuck, telling Pixel why', async () => {
+    const waited = backgroundTimeoutError(45 * 60_000, [{ id: 'b1', description: 'npm run e2e' }]);
+    const s = aurora(() => [{ fail: waited }]);
+    h = s.h;
+    const g = await run(h);
+    expect(g.status).toBe('failed');
+    expect(g.items[0]?.sendBacks).toBe(0); // never sent to review on a "still running" answer
+    const [a, ...more] = alerts(h);
+    expect(more).toEqual([]);
+    expect(a).toMatchObject({ orchestratorId: ORCH, kind: 'stuck' });
+    expect(String(a?.text)).toContain(
+      'Why: A limit was hit: Stopped: waited 45 minutes for its background command (npm run e2e) to finish; they never did.',
+    );
   }, 30_000);
 
   it('stops as stuck on the same review note twice: the alert has both notes; the goal waits for a new owner', async () => {

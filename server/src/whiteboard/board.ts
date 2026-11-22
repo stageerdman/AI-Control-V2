@@ -83,7 +83,13 @@ export function crewSlot(
   return at;
 }
 
-export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
+/** `waitingOn`: a run that answered and waits for its background tests (runtime.waitingOn). */
+export function createBoard(deps: {
+  db: Db;
+  store: Store;
+  port: BoardPort;
+  waitingOn?: (runId: string) => boolean;
+}) {
   const { store, port } = deps;
   const work = workRepo(deps.db);
   const features = featuresRepo(deps.db);
@@ -94,6 +100,7 @@ export function createBoard(deps: { db: Db; store: Store; port: BoardPort }) {
     name,
     usualId: usualId(projectId),
     directorId: store.projects.require(projectId).orchestratorId,
+    ...(deps.waitingOn ? { waitingOn: deps.waitingOn } : {}),
   });
 
   /** Who may own work under workflow `w`. `direct`: the user picked the person themselves, so any team
