@@ -33,8 +33,17 @@ wrangler, `tauri:build`), which the dev shell already allows, and native Mac bui
 The only thing blocking them was `git push`.
 
 ## Status
-- [ ] Phase 1
-- [ ] Phase 2
-- [ ] Phase 3
-- [ ] Phase 4
-- [ ] Phase 5
+- [x] Phase 1 — git-guard.ts + 55 unit tests.
+- [x] Phase 2 — hook runs the guard first; prefix deny patterns as backstop; agent runs get gh's credential
+  helper and `GIT_TERMINAL_PROMPT=0` (github/credential.ts `agentGitEnv`), and `SSH_AUTH_SOCK` for ssh origins.
+- [x] Phase 3 — "Do not push" gone from dispatch.ts / team.ts; PUSH_LINE in compose.ts.
+- [x] Phase 4 — `npm run check:push` passed with a real agent: pushed with no prompt, force push to master refused.
+- [x] Phase 5 — full suite 1160 passed; merged into master; Sea GPS mailed.
+
+## Decisions
+- The hook is the real guard; `--disallowed-tools` patterns are only a prefix backstop for plain
+  `--force`/`-f`/`--delete` forms.
+- `.` is allowed as a push target, so an agent can fast-forward a local branch (e.g. into master).
+- Not airtight against deliberate tricks (e.g. `git subtree push`); a GitHub branch protection rule on `main`
+  is the server-side guard if one is ever needed.
+- The new rules apply to runs started after the studio restarts on the new master.
