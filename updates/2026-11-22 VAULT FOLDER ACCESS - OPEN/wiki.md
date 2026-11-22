@@ -8,6 +8,8 @@
   (forget / carry-on) reads the grants again.
 - **Backups live in the studio's data dir**, not the project, so app data never lands in git. Agents get the
   path back and pass it on to the user.
+- **The studio offers app data folders on start**, never by a request by hand: a Mac app project's folder shows
+  in the vault, not shared, and the user only flips its switch.
 - **The bundle id comes from the project's own files** (Tauri config, then Xcode). Never guess it.
 - **Sandboxed Mac apps** keep their data in `~/Library/Containers/<id>/…`, not Application Support. Check the
   real path before you grant one.

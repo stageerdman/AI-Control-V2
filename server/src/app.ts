@@ -254,6 +254,10 @@ export function buildApp({
       }
     },
   });
+  /* Mac app projects find their data folder in the cabinet, ready to share: no request by hand */
+  const offered = access.offerAppDataFolders();
+  if (offered.added.length) app.log.info({ projectIds: offered.added }, '[access] app data folders offered');
+  for (const f of offered.failed) app.log.error(f, "[access] couldn't offer a project's app data folder");
   const reports = createReports({ db, store, events, secretValues: secretValuesOf(secrets) });
   /* every project owns a stable port block: its app's port + spares for agents' own servers */
   const ports = createPorts(db);

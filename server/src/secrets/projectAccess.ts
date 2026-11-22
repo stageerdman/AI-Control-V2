@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Store } from '../db/store.ts';
-import { conflict } from '../errors.ts';
+import { AppError, conflict } from '../errors.ts';
 import { resolveInSandbox, SandboxError } from '../fs/sandbox.ts';
 import { bundleIdOf } from './bundleId.ts';
 import type { Access, Cabinet } from './cabinet.ts';
@@ -217,6 +217,24 @@ export function projectAccess(
         fields: [],
       });
       return { access, created: true };
+    },
+
+    /** On start: every Mac app project (one bundle id in its files) gets its data folder in the cabinet, not
+        granted — so the user only flips the switch. A project that isn't a Mac app (409) is simply skipped. */
+    offerAppDataFolders(): { added: string[]; failed: { projectId: string; error: string }[] } {
+      const added: string[] = [];
+      const failed: { projectId: string; error: string }[] = [];
+      if (!deps.folders) return { added, failed };
+      for (const p of store.projects.list()) {
+        if (!p.folder) continue;
+        try {
+          if (svc.addAppDataFolder(p.id).created) added.push(p.id);
+        } catch (e) {
+          if (!(e instanceof AppError && e.status === 409))
+            failed.push({ projectId: p.id, error: (e as Error).message });
+        }
+      }
+      return { added, failed };
     },
 
     /** One access as an agent is told about it (no values); null when it is gone. */

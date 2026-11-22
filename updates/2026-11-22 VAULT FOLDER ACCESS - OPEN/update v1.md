@@ -63,6 +63,11 @@ What shipped, and where it differs from the plan below:
 - **Entry**: `POST /projects/:id/app-data-access` adds `<Name> app data` for
   `~/Library/Application Support/<bundle id>`, not granted; calling it again returns the existing one
   (201 / 200). The user shares it in the project's safe.
+- **No step by hand (fix after review).** Nothing in the app called that endpoint, so the Pensieve folder
+  only appeared if someone sent the request by hand. Now the studio offers it itself on every start
+  (`projectAccess.offerAppDataFolders`, called in `app.ts`): each project with exactly one bundle id gets its
+  `<Name> app data` entry, not shared. Projects that aren't Mac apps (409) are skipped; anything else is logged
+  with the project id. The user's only step: flip the switch beside it in Pensieve's safe.
 - **UI**: the cabinet row and the safe show "Folder · read and write: <path>"; the editor saves a folder
   access with no fields.
 - **Tests**: `server/test/secrets/folder-access.test.ts` (guard, bundle id, backups inside/outside/before

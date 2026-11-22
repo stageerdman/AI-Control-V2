@@ -191,7 +191,7 @@ describe('the app data access, end to end', () => {
     expect(spec.addDirs).toEqual([realpathSync(appData)]);
     expect(spec.systemPrompt).toContain(appData);
     expect(spec.systemPrompt).toContain('backup_folder');
-    const args = cliArgs(spec, {});
+    const args = cliArgs(spec, { askServer: '/a.ts' });
     expect(args[args.indexOf('--add-dir') + 1]).toBe(realpathSync(appData));
   });
 
@@ -200,6 +200,31 @@ describe('the app data access, end to end', () => {
     const r = await h.call('POST', '/projects/aurora/app-data-access');
     expect(r.status).toBe(409);
     expect(JSON.stringify(r.body)).toContain('src-tauri/tauri.conf.json');
+  });
+
+  it('on start, a Mac app project finds its data folder in the vault, not shared, with no request by hand', async () => {
+    const at = tempDir();
+    const boot = () => testApp({ seed: true, at: at.dir, userHome: join(home.dir, 'me') });
+    try {
+      const first = boot();
+      const project = join(first.config.sandbox, 'aurora');
+      mkdirSync(join(project, 'src-tauri'), { recursive: true });
+      writeFileSync(
+        join(project, 'src-tauri', 'tauri.conf.json'),
+        JSON.stringify({ identifier: 'com.example.pensieve' }),
+      );
+      first.store.projects.update('aurora', { folder: 'aurora' });
+      await first.close();
+      for (let i = 0; i < 2; i++) {
+        const again = boot();
+        const vault = (await again.call('GET', '/accesses')).body;
+        expect(vault).toMatchObject([{ folder: appData, projectIds: [], fields: [] }]);
+        expect((await again.call('GET', '/projects/aurora/access')).body.accesses[0].granted).toBe(false);
+        await again.close();
+      }
+    } finally {
+      at.cleanup();
+    }
   });
 
   it('POST /accesses takes a folder without fields, and refuses a field-less access without one', async () => {
