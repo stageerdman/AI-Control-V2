@@ -1,7 +1,9 @@
 /* Prompt composer (pure). What an agent is told, most personal first:
-   brain ▸ what the team does ▸ how the team codes ▸ its job on this team ▸ project rules.
+   brain ▸ what the team does ▸ how the team codes ▸ its job on this team ▸ project rules ▸ … ▸ how to work
+   here ▸ the studio-wide GitHub working principles (every run, every project).
    The project's CLAUDE.md is NOT pasted in: Claude Code reads it itself from cwd. */
 import type { EditScope } from '../domain/toolset.ts';
+import { GITHUB_PRINCIPLES_SECTION } from './github-principles.ts';
 import { OUTPUT_FLAGS } from './mac-build.ts';
 
 export type ComposeInput = {
@@ -74,9 +76,14 @@ function shellLine(cmds: readonly string[], settingsPrefix: boolean, port: numbe
 const flags = (tool: keyof typeof OUTPUT_FLAGS) =>
   OUTPUT_FLAGS[tool].map(([f, dir]) => `${f} ${dir}`).join(' ');
 const MAC_BUILDS_LINE = `- This is a native Mac project, so these are pre-approved too, with every output inside this folder: \`swift build\` and \`swift test\` with \`${flags('swift')}\`; \`xcodebuild\` build or test with \`${flags('xcodebuild')}\`; ad-hoc \`codesign -s -\`; \`hdiutil create\` for a disk image in this folder. No keychains, certificates, archives or paths outside the project (no quotes either — write \`-destination platform=macOS\`).`;
-/** AGENTS PUSH: the user's rule — push, rebuild and deploy without anyone's approval; the limits are git-guard.ts's. */
-const PUSH_LINE =
-  "- You may `git push` to this project's `origin` (branches, main, tags) and rebuild and deploy with the project's own scripts (`npm run …`, `npx …`) whenever the work needs it — no approval needed; run the tests first. Refused: force pushes or history rewrites (`--force`, `-f`, `+refspec`), any other remote or repo, deleting remote branches, and changing remotes or git aliases.";
+/** AGENTS PUSH: only a run with the shell hook (git-guard.ts) may push; any other run's push is refused (NO_PUSH). */
+function gitLine(cmds: readonly string[], hooked: boolean): string {
+  if (!cmds.includes('git')) return '- The studio commits your changes when you finish.';
+  const commit = '- Commit your work with git when it is done, following the GitHub working principles below.';
+  return hooked
+    ? `${commit} You may \`git push\` to this project's \`origin\` (branches, main, tags) and rebuild and deploy with \`npm run …\` / \`npx …\`; the studio refuses force pushes, other remotes, remote deletes and changing remotes or git aliases.`
+    : `${commit} Your toolset can't \`git push\`: your work reaches \`origin\` when it is merged.`;
+}
 
 /* The instructions are shared word for word, so they may name a kin: the copy must read that as itself. */
 function kinLine(name: string, kin: readonly string[]): string {
@@ -153,10 +160,7 @@ export function composePrompt({
               `- Ports: your PORT is ${ports.port} (already in your environment; this project's spares are ${ports.spares.join(', ')} in AI_STUDIO_PORTS). ${ports.app} is the project's app port — the studio's "Run the app" uses it; don't bind it. Servers read their port from PORT. Stop any server you start before you finish.`,
             ]
           : []),
-        cmds.includes('git')
-          ? '- Commit your work with git when it is done (keep secrets like .env and dependency folders like node_modules out of git).'
-          : '- The studio commits your changes when you finish.',
-        ...(cmds.includes('git') && settingsPrefix !== false ? [PUSH_LINE] : []),
+        gitLine(cmds, settingsPrefix !== false),
         '- You are pre-approved for anything your tools allow in this project. Never ask the user for permission or confirmation (deleting, overwriting, installing packages, resetting, rewriting files). Decide and proceed.',
         "- Your checklist item needs a tool, access or permission you don't have (a refused command, a missing credential, a place you can't reach)? Call `cant_do` at once with what is missing — don't work around it or hand in work that can't pass review. The item goes back to the orchestrator with your reason; then end your turn.",
         '- Feature requests go in Features, never in issues.txt: propose one with `propose_feature` (the orchestrator approves it), or ask the orchestrator to add it.',
@@ -164,6 +168,7 @@ export function composePrompt({
         '- Finish with a short plain-words summary of what you did.',
       ].join('\n'),
     ),
+    GITHUB_PRINCIPLES_SECTION,
   ]
     .filter(Boolean)
     .join('\n\n')

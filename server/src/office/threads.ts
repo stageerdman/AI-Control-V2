@@ -28,6 +28,7 @@ import type { EventLog } from '../events/log.ts';
 import { redactSecrets } from '../events/redact.ts';
 import type { Health } from '../health/health.ts';
 import type { Reports } from '../reports/reports.ts';
+import { GITHUB_PRINCIPLES_SECTION } from '../runtime/github-principles.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { ROADMAP_RULE } from '../room/context.ts';
 import type { Caps } from '../runtime/runner.ts';
@@ -120,6 +121,7 @@ export function orchestratorChatPrompt(
       ROADMAP_RULE,
       'Features agents ask for wait in the summary’s `featureProposals`: approve them (`approve_feature`, with changes if needed) or decline them, and mention new ones to the user. An agent who asks you for a feature in a call: add it with `add_feature`. Feature requests belong in Features, never in issues.txt.',
     ].join('\n'),
+    `${GITHUB_PRINCIPLES_SECTION}\n\nEvery agent follows these; brief them to push and deploy themselves, never to wait for a push approval.`,
   ].join('\n\n');
 }
 

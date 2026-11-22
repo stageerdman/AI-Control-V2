@@ -39,6 +39,9 @@ The only thing blocking them was `git push`.
 - [x] Phase 3 — "Do not push" gone from dispatch.ts / team.ts; PUSH_LINE in compose.ts.
 - [x] Phase 4 — `npm run check:push` passed with a real agent: pushed with no prompt, force push to master refused.
 - [x] Phase 5 — full suite 1160 passed; merged into master; Sea GPS mailed.
+- [x] GitHub working principles — one studio-wide set (runtime/github-principles.ts) in every agent's prompt,
+  whatever its toolset, and in the orchestrator's; replaces PUSH_LINE. No push approvals (the user's rule).
+  test/runtime/github-principles.test.ts checks every seeded agent's run; full suite 1165 passed.
 
 ## Decisions
 - The hook is the real guard; `--disallowed-tools` patterns are only a prefix backstop for plain
