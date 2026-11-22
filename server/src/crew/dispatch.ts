@@ -742,6 +742,8 @@ export function createDispatch(deps: {
   /** Items between being picked and their run starting (checkout being made, captain splitting): stopped and
       queued again meanwhile, they wait for this launch to end — a second one would make the checkout twice. */
   const preparing = new Set<string>();
+  /** Of those, the ones queued again meanwhile (requeue): they start as soon as their launch ends. */
+  const requeuedWhilePreparing = new Set<string>();
   async function launch(itemId: string) {
     preparing.add(itemId);
     try {
@@ -749,8 +751,7 @@ export function createDispatch(deps: {
     } finally {
       preparing.delete(itemId);
     }
-    const it = work.item(itemId);
-    if (it?.status === 'todo') pump(it.projectId);
+    if (requeuedWhilePreparing.delete(itemId)) pump((work.item(itemId) as ChecklistItem).projectId);
   }
 
   /** The item's checkout (its own worktree on first start; null = the project folder), then its run. */
@@ -913,6 +914,7 @@ export function createDispatch(deps: {
   /** Queue a stopped item again (requeue.ts). */
   const requeue = (it: ChecklistItem) => {
     stoppedWork.delete(it.goalId); // continued: it settles on its own again
+    if (preparing.has(it.id)) requeuedWhilePreparing.add(it.id);
     work.setItem(it.id, requeuePatch(ending(it), hasSession));
   };
 

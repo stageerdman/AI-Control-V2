@@ -11,3 +11,12 @@
 - **The timeout text must start with `Stopped: waited ... for its background command`.** `limits.ts` STUCK
   matches it, so the stall reaches Pixel as "stuck".
 - **Tune it with `CliOptions.backgroundWaitMs`** (default 45 min). Tests use a few hundred ms.
+- **Requeue only through `requeuePatch`** (crew/requeue.ts, via dispatch `requeue()`). Failed in review or merge
+  goes back to the builder with counts reset. Re-running the reviewer fails it again at once.
+- **A carry-on must restate the brief.** The session holds the brief it started with; edits only reach the
+  agent through `carryOnTask`'s "Your brief now" line.
+- **`stopped` ≠ `cancelled`.** stop_work (`cancelAll`) → `stopped`, resumable; a hand cancel → `cancelled`. Use
+  `resumable(status)`, never `=== 'failed'`.
+- **Never write a status read before an `await`.** Between picking an item and its run starting, it can be
+  stopped and queued again; write the status read now (`recordWorkspace`) and let `preparing` / `closing`
+  hold the item until the checkout is made or put away.
