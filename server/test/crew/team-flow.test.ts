@@ -10,7 +10,7 @@ import { featuresRepo } from '../../src/db/features.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
-import { type Answer, scriptedCrew, WORK_STEP } from './brain.ts';
+import { type Answer, conflictOrder, scriptedCrew, WORK_STEP } from './brain.ts';
 
 /* Aurora: ship-it (captain a-semic; a-pete, a-scar) + polish (captain a-lint; a-doc, a-twinkle) */
 const ID = {
@@ -237,6 +237,8 @@ describe('captains delegate (F1c)', () => {
   });
 
   it('members touching the same file: the second one fixes the merge in its checkout, then it lands', async () => {
+    /* the UI part is delivered into the team branch first; the tests part is the one that conflicts */
+    const order = conflictOrder(() => types(h, 'handoff').some((p) => p.kind === 'deliver'));
     const s = studio({ dispatch: [ONE], 'team-split': [SPLIT] }, (spec) => {
       if (isIntegrate(spec)) return [{ result: 'Integrated.' }];
       if (spec.task.includes("can't merge back yet")) {
@@ -248,7 +250,7 @@ describe('captains delegate (F1c)', () => {
       }
       const ui = subtask(spec) === 'Search UI';
       writeFileSync(join(spec.cwd, 'shared.txt'), ui ? 'UI\n' : 'tests\n');
-      return [{ wait: ui ? 5 : 40 }, { result: 'edited' }];
+      return ui ? order.first('edited') : order.second('edited');
     });
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });

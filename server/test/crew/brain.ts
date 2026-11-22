@@ -13,6 +13,20 @@ export const WORK_STEP: FakeStep = {
 /** A build that does one real-work step, then replies `result`. */
 export const worked = (result: string): FakeStep[] => [WORK_STEP, { result }];
 
+/** Two parallel builds that edit the same file; the second's merge is the one that conflicts, however busy the
+    machine: the first ends only once the second has started (its checkout branched off before the first
+    landed), the second only once `landed()` says the first's edit is in. */
+export function conflictOrder(landed: () => boolean) {
+  let secondStarted = false;
+  return {
+    first: (result: string): FakeStep[] => [{ until: () => secondStarted }, { result }],
+    second: (result: string): FakeStep[] => {
+      secondStarted = true;
+      return [{ until: landed }, { result }];
+    },
+  };
+}
+
 export type Answer = string | object | ((spec: RunSpec) => string | object | FakeStep[]);
 
 export function scriptedCrew(

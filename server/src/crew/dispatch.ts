@@ -61,6 +61,7 @@ import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { taskFeatures } from '../whiteboard/feature-route.ts';
 import { holder } from '../whiteboard/people.ts';
+import { createBackground } from './background.ts';
 import {
   dropSessions,
   freshBuild,
@@ -264,6 +265,10 @@ export function createDispatch(deps: {
   const { store, events, crew, runtime } = deps;
   const cap = deps.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
   const work = workRepo(deps.db);
+  /* checkouts, merges and alerts in flight: shutdown waits for them before the database closes */
+  const background = createBackground();
+  /** The studio is closing: nothing new starts; what was queued or half-launched resumes on the next boot. */
+  let closed = false;
   const planning = new Set<string>();
   /** Split team items whose goal was cancelled: they stop once their members' sub-tasks have. */
   const stopping = new Set<string>();
@@ -376,7 +381,7 @@ export function createDispatch(deps: {
     }
     pendingStalls.set(s.goalId, [s]);
     /* after the settle chain this stop started (skipping the tasks behind it, settling the goal) has run */
-    setImmediate(() => {
+    background.soon(() => {
       const all = pendingStalls.get(s.goalId) ?? [];
       pendingStalls.delete(s.goalId);
       const goal = work.goal(s.goalId);
@@ -702,6 +707,7 @@ export function createDispatch(deps: {
   /** Start queued items while the project has room: ≤ cap live, one per agent. An item is claimed
       (running) right away; its checkout and run follow (launch). Main quests go first (src/domain/quests.ts). */
   function pump(projectId: string) {
+    if (closed) return;
     skipBlocked(projectId);
     /* a split team item waits on its members: it holds no seat */
     const running = work.projectItems(projectId, 'running').filter((i) => i.teamPhase !== 'members');
@@ -793,6 +799,8 @@ export function createDispatch(deps: {
       await shelve(it);
       return;
     }
+    /* claimed with no run yet: the next boot's recover() queues it again */
+    if (closed) return;
     const goal = work.goal(it.goalId) as Goal;
     const { caps, ...spec } = runFor(it, goal);
     let run: { id: string };
@@ -861,8 +869,9 @@ export function createDispatch(deps: {
   };
   /** stop() in the background, failing its item if putting the checkout away throws. */
   const stopLater = (it: ChecklistItem, patch: Parameters<typeof stop>[1]) =>
-    void stop(it, patch).catch(failOnError(it.id, 'put its checkout away'));
-  const startItem = (itemId: string) => void launch(itemId).catch(failOnError(itemId, 'start it'));
+    void background.track(stop(it, patch).catch(failOnError(it.id, 'put its checkout away')));
+  const startItem = (itemId: string) =>
+    void background.track(launch(itemId).catch(failOnError(itemId, 'start it')));
 
   /** Merges back one at a time per project (one main working tree). `fn` never rejects (it fails its item). */
   const merging = new Map<string, Promise<void>>();
@@ -983,7 +992,7 @@ export function createDispatch(deps: {
     const wt = deps.worktrees;
     work.setItem(it.id, { ...patch, status: 'running' }); // stays on the board while it merges
     const failed = failOnError(it.id, `merge it back (its work is on branch ${ws.branch})`);
-    void serial(it.projectId, () => mergeBack(it, ws, wt).catch(failed));
+    void background.track(serial(it.projectId, () => mergeBack(it, ws, wt).catch(failed)));
   }
 
   /** Merge an accepted item's branch: done, back to its builder on a conflict, or failed with the work kept. */
@@ -1400,7 +1409,8 @@ export function createDispatch(deps: {
         /* queued, or its checkout is still being made (launch notices and puts it away) */
         work.setItem(it.id, { status: 'cancelled' });
         announce(work.item(it.id) as ChecklistItem);
-        if (it.status === 'todo') void shelve(it).catch(failOnError(it.id, 'put its checkout away'));
+        if (it.status === 'todo')
+          void background.track(shelve(it).catch(failOnError(it.id, 'put its checkout away')));
       } else if (it.status === 'running' && it.runId) {
         try {
           runtime.cancel(projectId, it.runId);
@@ -1817,14 +1827,15 @@ export function createDispatch(deps: {
         }
       }
       /* after the app has finished starting */
-      setImmediate(() => {
-        for (const projectId of projects)
-          try {
-            pump(projectId);
-          } catch {
-            /* the studio is closing again */
-          }
+      background.soon(() => {
+        for (const projectId of projects) pump(projectId);
       });
+    },
+    /** Shutdown: start nothing new and wait for the checkouts, merges and alerts in flight. Call it before
+        the runtime shuts down (so no run starts after) and before the database closes. */
+    close(): Promise<void> {
+      closed = true;
+      return background.drain();
     },
     /** Tests: let queued work drain. */
     idle: (projectId: string) =>

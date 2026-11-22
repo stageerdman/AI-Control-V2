@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
-import { scriptedCrew, worked } from './brain.ts';
+import { conflictOrder, scriptedCrew, worked } from './brain.ts';
 
 const ID = {
   GIT_AUTHOR_NAME: 't',
@@ -60,6 +60,16 @@ async function settled(h: ReturnType<typeof testApp>, goalId: string) {
 }
 const itemText = (s: RunSpec) => /Your checklist item: (.*)/.exec(s.task)?.[1] ?? '';
 
+/** A and B both edit shared.txt; B's merge is the one that conflicts (A is on main first). */
+function bothEditShared(repo: () => string) {
+  const order = conflictOrder(() => readFileSync(join(repo(), 'shared.txt'), 'utf8') === 'A\n');
+  return (spec: RunSpec): FakeStep[] => {
+    const who = itemText(spec).endsWith('A') ? 'A' : 'B';
+    writeFileSync(join(spec.cwd, 'shared.txt'), `${who}\n`);
+    return who === 'A' ? order.first('edited A') : order.second('edited B');
+  };
+}
+
 describe('worktrees: parallel items, merge back, conflicts', () => {
   let h: ReturnType<typeof testApp>;
   afterEach(() => h.close());
@@ -107,6 +117,7 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
   });
 
   it('a conflict goes back to the builder to merge main in their checkout, then lands', async () => {
+    const edit = bothEditShared(() => s.repo);
     const s = studio(
       {
         summary: 's',
@@ -120,9 +131,7 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
           git(spec.cwd, 'commit', '-q', '--no-edit');
           return [{ result: 'Merged main, kept both.' }];
         }
-        const who = itemText(spec).endsWith('A') ? 'A' : 'B';
-        writeFileSync(join(spec.cwd, 'shared.txt'), `${who}\n`);
-        return [{ wait: who === 'A' ? 5 : 40 }, { result: `edited ${who}` }];
+        return edit(spec);
       },
     );
     h = s.h;
@@ -139,17 +148,13 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
   });
 
   it('an unresolved conflict stops after the retries: failed, work kept on its branch, main untouched', async () => {
+    const edit = bothEditShared(() => s.repo);
     const s = studio(
       {
         summary: 's',
         items: [item('Edit shared A', 'a-semic', 'ship-it'), item('Edit shared B', 'a-lint', 'polish', true)],
       },
-      (spec) => {
-        if (spec.task.includes("can't merge back yet")) return worked('I could not.');
-        const who = itemText(spec).endsWith('A') ? 'A' : 'B';
-        writeFileSync(join(spec.cwd, 'shared.txt'), `${who}\n`);
-        return [{ wait: who === 'A' ? 5 : 40 }, { result: `edited ${who}` }];
-      },
+      (spec) => (spec.task.includes("can't merge back yet") ? worked('I could not.') : edit(spec)),
     );
     h = s.h;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Both edit' });

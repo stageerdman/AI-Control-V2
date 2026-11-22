@@ -12,6 +12,8 @@ export type FakeStep =
   /** Call a studio tool (call_agent, create_agent…); its answer (or refusal) is a text line, like a tool result. */
   | { tool: string; args: Record<string, unknown> }
   | { wait: number }
+  /** Wait until this holds (checked every few ms): orders runs by what happened, never by how long it took. */
+  | { until: () => boolean }
   | { fail: string }
   | { result: string };
 
@@ -100,6 +102,7 @@ export function fakeRunner(script: (spec: RunSpec) => FakeStep[] = () => DEFAULT
               io.emit({ kind: 'text', text: `${step.tool} refused: ${(e as Error).message}` });
             }
           } else if ('wait' in step) await sleep(step.wait);
+          else if ('until' in step) while (!cancelled && !step.until()) await sleep(5);
           else if ('fail' in step) return end({ status: 'failed', error: step.fail });
           else if ('result' in step) return end({ status: 'succeeded', result: step.result });
           await sleep(0);

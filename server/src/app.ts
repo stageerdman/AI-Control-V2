@@ -654,7 +654,10 @@ export function buildApp({
     github.stop();
     installer?.stop();
     for (const res of open) res.end();
-    await Promise.all([runtime.shutdown(), apps.stopAll()]);
+    /* dispatch first, so no run starts after the runtime's stop; again after, for what the runs' ends
+       started (a merge back) — the database closes only once all of it has landed */
+    await Promise.all([dispatch.close(), runtime.shutdown(), apps.stopAll()]);
+    await dispatch.close();
   });
 
   app.setErrorHandler((err, _req, reply) => {
