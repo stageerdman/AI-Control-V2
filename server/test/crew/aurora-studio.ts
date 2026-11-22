@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { getChatMessages } from '../../src/db/chats.ts';
 import type { Workflow } from '../../src/domain/workflows.ts';
 import type { FakeStep } from '../../src/runtime/fake.ts';
-import type { RunSpec } from '../../src/runtime/runner.ts';
+import type { Runner, RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
 import { scriptedCrew } from './brain.ts';
 
@@ -38,14 +38,19 @@ export type Ev = { type: string; payload: Record<string, unknown> };
 export const isReview = (s: RunSpec) => s.task.startsWith('You are reviewing');
 export const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
 
-/** Aurora with a git folder; `work` scripts every run but the director's chat turns (played by `director`). */
-export function studio(work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[], plan: object = PLAN) {
+/** Aurora with a git folder; `work` scripts every run but the director's chat turns (played by `director`).
+    `runner`: wraps the scripted one (a test that sends some runs through the real CLI runner). */
+export function studio(
+  work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[],
+  plan: object = PLAN,
+  runner: (scripted: Runner) => Runner = (r) => r,
+) {
   const box: { h?: ReturnType<typeof testApp> } = {};
   const turns: FakeStep[][] = [];
   const crew = scriptedCrew({ dispatch: [plan], help: [{ answer: 'On it.', say: 'on it' }] }, (s) =>
     isChat(s) ? [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }] : work(box.h as never, s),
   );
-  const h = testApp({ seed: true, runner: crew.runner });
+  const h = testApp({ seed: true, runner: runner(crew.runner) });
   box.h = h;
   const repo = join(h.config.sandbox, 'aurora');
   mkdirSync(repo);
