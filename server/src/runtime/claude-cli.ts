@@ -9,6 +9,12 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { redactSecrets } from '../events/redact.ts';
 import { stopTree } from '../running/processes.ts';
+import {
+  BACKGROUND_WAIT_MS,
+  backgroundTimeoutError,
+  waitingActivity,
+  waitsForBackground,
+} from './background.ts';
 import { AGENT_SHELL } from './config.ts';
 import { turnCapError } from './limits.ts';
 import type { RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
@@ -52,6 +58,8 @@ export type CliOptions = {
   nudgeHook?: string;
   /** How long the CLI may linger after its answer before its process group is stopped (tests shorten it). */
   afterResultMs?: number;
+  /** How long a run whose answer waits on its background commands stays open for them (background.ts). */
+  backgroundWaitMs?: number;
 };
 
 export function cliArgs(
@@ -171,6 +179,43 @@ function sweepLeftovers(child: ChildProcess) {
   if (child.pid !== undefined) stopTree(child.pid, KILL_GRACE_MS);
 }
 
+type StopReason = { status: 'cancelled' | 'failed'; error?: string };
+
+/** What happens after each answer. One task per run, so stdin closes and the CLI normally exits. If the answer
+    says the agent waits for commands it left running in the background, the run stays open (the CLI wakes the
+    model when they end) for up to backgroundWaitMs; otherwise a CLI that lingers is stopped after afterResultMs. */
+function afterAnswerTimers(
+  child: ChildProcess,
+  parser: ReturnType<typeof createStreamParser>,
+  io: RunIO,
+  opts: Pick<CliOptions, 'afterResultMs' | 'backgroundWaitMs'>,
+  stop: (reason: StopReason) => void,
+) {
+  let seen = 0;
+  let timer: NodeJS.Timeout | undefined;
+  const clear = () => clearTimeout(timer);
+  const later = (ms: number, then: () => void) => {
+    clear();
+    timer = setTimeout(then, ms);
+    timer.unref();
+  };
+  return {
+    clear,
+    check() {
+      if (parser.answers() === seen) return;
+      seen = parser.answers();
+      if (child.stdin && !child.stdin.writableEnded) child.stdin.end(); // one task per run: let it exit
+      const tasks = parser.background();
+      if (!tasks.length || !waitsForBackground(parser.answerText()))
+        return later(opts.afterResultMs ?? AFTER_RESULT_MS, () => stopAll(child));
+      parser.awaitWake();
+      io.emit({ kind: 'activity', status: 'waiting', activity: waitingActivity(tasks) });
+      const ms = opts.backgroundWaitMs ?? BACKGROUND_WAIT_MS;
+      later(ms, () => stop({ status: 'failed', error: backgroundTimeoutError(ms, parser.background()) }));
+    },
+  };
+}
+
 export function claudeCliRunner(opts: CliOptions): Runner {
   return {
     name: 'claude-cli',
@@ -184,9 +229,9 @@ export function claudeCliRunner(opts: CliOptions): Runner {
       });
       const logFile = opts.logDir ? join(opts.logDir, `${spec.runId}.jsonl`) : null;
       if (opts.logDir) mkdirSync(opts.logDir, { recursive: true });
-      let stopReason: { status: 'cancelled' | 'failed'; error?: string } | null = null;
+      let stopReason: StopReason | null = null;
       let stderr = '';
-      const stop = (reason: NonNullable<typeof stopReason>) => {
+      const stop = (reason: StopReason) => {
         if (stopReason) return;
         stopReason = reason;
         stopAll(child);
@@ -200,15 +245,12 @@ export function claudeCliRunner(opts: CliOptions): Runner {
       child.stderr.on('data', (d: string) => {
         stderr = (stderr + d).slice(-4000);
       });
+      const afterAnswer = afterAnswerTimers(child, parser, io, opts, stop);
       const lines = createInterface({ input: child.stdout });
       lines.on('line', (line) => {
         if (logFile) appendFileSync(logFile, `${redactSecrets(line, spec.secretValues).value}\n`);
         for (const e of parser.feed(line)) io.emit(e);
-        if (parser.finished() && !child.stdin.writableEnded) {
-          child.stdin.end(); // one task per run: let it exit
-          /* still here: it waits on a leftover background command */
-          setTimeout(() => stopAll(child), opts.afterResultMs ?? AFTER_RESULT_MS).unref();
-        }
+        afterAnswer.check();
         if (parser.turns() > spec.caps.maxTurns)
           stop({ status: 'failed', error: turnCapError(spec.caps.maxTurns) });
       });
@@ -218,6 +260,7 @@ export function claudeCliRunner(opts: CliOptions): Runner {
           stopReason ??= { status: 'failed', error: `Could not start Claude Code: ${err.message}` };
         });
         child.on('close', (code, signal) => {
+          afterAnswer.clear();
           sweepLeftovers(child);
           const fallback = `Claude Code exited (${signal ?? `code ${code}`})${stderr.trim() ? `: ${redactSecrets(stderr.trim(), spec.secretValues).value.slice(-500)}` : ''}`;
           const o = parser.outcome(fallback);
