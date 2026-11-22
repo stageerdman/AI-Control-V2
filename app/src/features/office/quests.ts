@@ -3,7 +3,7 @@
    and side quests (one pinned card per goal). Pure: no React, no fetching. */
 import type { ChecklistItem, Goal } from '../../api';
 import type { Feature } from './api';
-import { boardTasks, nowFeatures } from './state';
+import { boardTasks, nowFeatures, resumable } from './state';
 
 export type MainQuest = {
   /** The banner: the feature's name, else the goal's text (a main goal with no feature). */
@@ -70,7 +70,8 @@ export function sideItem(g: Goal): ChecklistItem | null {
   const it = g.items;
   if (g.status === 'done') return it.filter((i) => i.status === 'done').at(-1) ?? it.at(-1) ?? null;
   if (g.status === 'failed') return it.find((i) => i.status === 'failed') ?? it.at(-1) ?? null;
-  if (g.status === 'cancelled') return it.find((i) => i.status === 'cancelled') ?? it.at(-1) ?? null;
+  if (g.status === 'cancelled' || g.status === 'stopped')
+    return it.find((i) => i.status === 'cancelled') ?? it.at(-1) ?? null;
   return it.find((i) => i.status === 'running') ?? it.find((i) => i.status === 'todo') ?? it[0] ?? null;
 }
 
@@ -98,7 +99,7 @@ export function questBoard(goals: Goal[], features: Feature[], now = new Date())
   const others = nowFeatures(features).filter((f) => f.id !== main?.featureId);
   const sides = goals.filter(isSide);
   /* open first (stuck, then running), then the ones done; the server sends newest first */
-  const rank = (g: Goal) => (g.status === 'failed' ? 0 : g.status === 'running' ? 1 : 2);
+  const rank = (g: Goal) => (resumable(g) ? 0 : g.status === 'running' ? 1 : 2);
   const ordered = sides.slice().sort((a, b) => rank(a) - rank(b));
   /* finished ones stay pinned for the hour they finished in; older done ones fold, older dropped ones go */
   const ended = (g: Goal) => g.status === 'done' || g.status === 'cancelled';

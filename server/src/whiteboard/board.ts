@@ -375,8 +375,10 @@ export function createBoard(deps: {
       });
       let lead = switched ? '' : 'Goal updated.';
       if (e.status === 'running') {
+        /* a stopped goal's running item is still stopping: reopen queues it too (a live run it leaves alone) */
         for (const it of g.items)
-          if (it.status === 'failed' || it.status === 'cancelled') port.reopen(it.id, false);
+          if (it.status === 'failed' || it.status === 'cancelled' || it.status === 'running')
+            port.reopen(it.id, false);
         work.setGoalStatus(id, 'running');
         lead = 'Goal running again: its unfinished tasks are queued.';
       } else if (e.status) {
@@ -492,8 +494,8 @@ export function createBoard(deps: {
         a.which === 'finished'
           ? ['done']
           : a.which === 'stopped'
-            ? ['failed', 'cancelled']
-            : ['done', 'failed', 'cancelled', 'running'];
+            ? ['failed', 'stopped', 'cancelled']
+            : ['done', 'failed', 'stopped', 'cancelled', 'running'];
       const before = a.olderThanDays ? Date.now() - a.olderThanDays * DAY_MS : Infinity;
       const goals = work
         .goals(projectId)

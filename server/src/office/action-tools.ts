@@ -1,7 +1,7 @@
 /* The director's action tools: ask someone, continue stopped goals, and a leader's stop/tell (leader-tools.ts). Thin adapters
    over the services the studio already has (room.call, dispatch.resume, the stopper, runtime.tell). They run during the director's
    turn, so it reads what really happened — an answer, or why not — before it writes its reply. */
-import type { Goal, WorkRepo } from '../db/work.ts';
+import { type Goal, resumable, type WorkRepo } from '../db/work.ts';
 import { invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { type LeaderServices, leaderTools } from './leader-tools.ts';
@@ -98,7 +98,7 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
   function resumeGoals(a: Args): string {
     const picks = [...new Set(list(a, 'goals').map(Number))].filter((n) => Number.isInteger(n) && n >= 1);
     if (!picks.length) throw invalid('"goals" is required: the `n` of each stopped goal to continue.');
-    const stopped = work.goals(projectId).filter((g) => g.status === 'failed');
+    const stopped = work.goals(projectId).filter((g) => resumable(g.status));
     return picks
       .map((n) => {
         const g = stopped[n - 1];

@@ -47,7 +47,7 @@ const ASKED: readonly string[] = ['task', 'call', 'chat'] satisfies Asked[];
 const askedOf = (v: unknown): Asked => (ASKED.includes(v as string) ? (v as Asked) : 'task');
 
 function outcomeOf(status: unknown, ended: boolean): Outcome {
-  if (status === 'failed' || status === 'cancelled') return 'stopped';
+  if (status === 'failed' || status === 'stopped' || status === 'cancelled') return 'stopped';
   if (status === 'running' || (status == null && !ended)) return 'live';
   return 'done';
 }

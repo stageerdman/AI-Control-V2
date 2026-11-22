@@ -192,7 +192,7 @@ function carryOn(store: Store, agentId: string, blocked: string[], deps: Restore
       if (!back.ok) lost.push(`Work '${it.id}': ${back.error}`);
     }
     if (it.status !== 'todo' && !runIsLive(store, it.runId)) {
-      const hasSession = !!(it.runId && runsRepo(store.db).get(it.runId)?.sessionId);
+      const hasSession = (runId: string | null) => !!(runId && runsRepo(store.db).get(runId)?.sessionId);
       work.setItem(it.id, requeuePatch(it, hasSession));
     }
     if (goal.status !== 'running') work.setGoalStatus(goal.id, 'running');

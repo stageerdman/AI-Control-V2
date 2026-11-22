@@ -23,7 +23,14 @@ import type { Db } from '../db/connection.ts';
 import type { Feature } from '../db/features.ts';
 import type { Run } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
-import { type ChecklistItem, type Goal, type GoalStatus, type ItemPatch, workRepo } from '../db/work.ts';
+import {
+  type ChecklistItem,
+  type Goal,
+  type GoalStatus,
+  type ItemPatch,
+  resumable,
+  workRepo,
+} from '../db/work.ts';
 import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
 import { isClosed } from '../domain/feature-stages.ts';
 import { BranchLabel } from '../domain/gates.ts';
@@ -328,6 +335,8 @@ export function createDispatch(deps: {
     };
   }
 
+  /** Goals halted with stop_work (cancelAll): they settle as `stopped` once their runs have ended. */
+  const stoppedWork = new Set<string>();
   /** Settle a goal once nothing is left to run; progress follows every change. */
   function refreshGoal(goalId: string) {
     const g = work.goal(goalId);
@@ -339,11 +348,14 @@ export function createDispatch(deps: {
       featureFollows(g, null);
       return;
     }
+    const halted = stoppedWork.delete(g.id);
     const status: GoalStatus = g.items.every((i) => i.status === 'done')
       ? 'done'
-      : g.items.some((i) => i.status === 'failed')
-        ? 'failed'
-        : 'cancelled';
+      : halted
+        ? 'stopped'
+        : g.items.some((i) => i.status === 'failed')
+          ? 'failed'
+          : 'cancelled';
     work.setGoalStatus(g.id, status);
     emit(g.projectId, { type: 'goal.changed', payload: { goalId: g.id, status } });
     featureFollows(g, status);
@@ -507,23 +519,33 @@ export function createDispatch(deps: {
       .filter(Boolean)
       .join('\n\n');
   }
-  /** The next message of a stopped session: pick up where it was (the original task is already in its context). */
+  /** The next message of a stopped session: pick up where it was. Its context holds the brief it started with,
+      which may have been edited since: the brief now is always restated (Sea GPS: a restart kept the old one). */
   function carryOnTask(it: ChecklistItem): string {
     const was = runOf(it.resumeRunId)?.status;
     /* its run finished, yet the item is open: it only replied with a plan (afterBuild) */
-    if (was === 'succeeded') return planOnlyBrief(it.text);
-    const why =
-      was === 'cancelled'
-        ? 'the user stopped you, and has now asked you to continue'
-        : 'the studio restarted';
+    if (was === 'succeeded' && it.continues > 0) return planOnlyBrief(it.text);
     return [
-      `You were stopped partway through your checklist item "${it.text}" (${why}). Your session and your files are as you left them.`,
+      `${carryOnWhy(it.text, was)} Your session and your files are as you left them.`,
+      `Your brief now (follow this one, it may have changed): ${it.brief}`,
+      it.notes ? `The last review notes on it: ${clip(it.notes, 1500)}` : '',
       it.workspace
         ? `Check where you are (\`git status\`, \`git log --oneline ${it.workspace.main}..HEAD\`), commit what's done, then carry on and finish it. Work in small steps and commit as you go.`
         : 'Check where you are, then carry on and finish it. Work in small steps.',
       'When you are done, reply with a short plain-words summary of what you did.',
-    ].join('\n\n');
+    ]
+      .filter(Boolean)
+      .join('\n\n');
   }
+  /** Why a session is asked to carry on, by how its last run ended. */
+  const carryOnWhy = (text: string, was: string | undefined) =>
+    was === 'succeeded'
+      ? `Your work on your checklist item "${text}" didn't get through, and you have been asked to try again.`
+      : was === 'cancelled'
+        ? `You were stopped partway through your checklist item "${text}" (the user stopped you, and has now asked you to continue).`
+        : was === 'failed'
+          ? `Your last run on your checklist item "${text}" ended before it finished, and you have been asked to try again.`
+          : `You were stopped partway through your checklist item "${text}" (the studio restarted).`;
   /** A run's status and session (null: no such run). */
   const runOf = (runId: string | null) =>
     runId
@@ -533,6 +555,7 @@ export function createDispatch(deps: {
       : null;
   /** The run's session, if it has one to resume. */
   const sessionOf = (runId: string | null): string | null => runOf(runId)?.session_id ?? null;
+  const hasSession = (runId: string | null) => !!sessionOf(runId);
 
   /** What the goal's earlier items finished — F3 live: "build on what the report recommends" while the build run
       never saw the report (it lives in the Reports tray, not the folder). Done items only; a report's summary + excerpt. */
@@ -699,7 +722,7 @@ export function createDispatch(deps: {
       const quest = queued.quest;
       if (free <= 0) break;
       const who = holder(it);
-      if (busy.has(who) || it.agentId === director) continue;
+      if (busy.has(who) || it.agentId === director || closing.has(it.id)) continue;
       if (quest === 'side' && held.has(who)) continue;
       /* the agent is busy with a run started by hand (or a chat turn): leave the item queued */
       if (runtime.busy(projectId, who)) {
@@ -836,14 +859,43 @@ export function createDispatch(deps: {
     let note = patch.note === undefined ? it.note : patch.note;
     if (ws && deps.worktrees) {
       work.setItem(it.id, { ...patch, status: 'running' }); // still on the board while it's put away
-      const { kept } = await deps.worktrees.close(repoOf(it.projectId), ws, { deleteBranch: true });
-      if (kept) note = clip(`${note ? `${note} — ` : ''}work kept on branch ${ws.branch}`, 2000);
-      settle(work.item(it.id) as ChecklistItem, { ...patch, note });
+      closing.set(it.id, patch.status);
+      let kept: boolean;
+      try {
+        ({ kept } = await deps.worktrees.close(repoOf(it.projectId), ws, { deleteBranch: true }));
+      } finally {
+        closing.delete(it.id);
+      }
+      const cur = work.item(it.id);
+      /* queued again while its checkout was put away (reopen): the restart stands, the old end doesn't */
+      if (cur && cur.status !== 'running') {
+        refreshGoal(it.goalId);
+      } else {
+        if (kept) note = clip(`${note ? `${note} — ` : ''}work kept on branch ${ws.branch}`, 2000);
+        settle(cur ?? it, { ...patch, note });
+      }
       pump(it.projectId);
       return;
     }
     settle(it, patch);
   }
+  /** Items whose checkout is being put away as they stop: reopen may queue them, pump starts them after. */
+  const closing = new Map<string, 'failed' | 'cancelled'>();
+  /** The item as it ends: a stopping one counts with the status it is stopping as. */
+  const ending = (it: ChecklistItem): ChecklistItem => {
+    const as = it.status === 'running' ? closing.get(it.id) : undefined;
+    return as ? { ...it, status: as } : it;
+  };
+  /** May be queued again: stopped, or still stopping (its checkout being put away). */
+  const reopenable = (it: ChecklistItem) => {
+    const s = ending(it).status;
+    return s === 'failed' || s === 'cancelled';
+  };
+  /** Queue a stopped item again (requeue.ts). */
+  const requeue = (it: ChecklistItem) => {
+    stoppedWork.delete(it.goalId); // continued: it settles on its own again
+    work.setItem(it.id, requeuePatch(ending(it), hasSession));
+  };
 
   /** Put a stopped item's checkout away: its work is committed on its branch (kept unless empty/merged). */
   async function shelve(it: ChecklistItem): Promise<void> {
@@ -1417,11 +1469,12 @@ export function createDispatch(deps: {
     },
     handOver,
     /** Queue a finished or stopped item again: it carries on in its own session when it had one, or
-        (`fresh`: done work redone) starts its build over. */
+        (`fresh`: done work redone) starts its build over. A live run is left alone. */
     reopen(itemId: string, fresh: boolean) {
       const it = work.item(itemId);
       if (!it) return;
-      work.setItem(it.id, fresh ? { ...freshBuild(), note: null } : requeuePatch(it, !!sessionOf(it.runId)));
+      if (fresh) work.setItem(it.id, { ...freshBuild(), note: null });
+      else if (reopenable(it)) requeue(it);
     },
     /** The board changed under these goals: tell the screen, settle them and start what may start. */
     changed(projectId: string, goalIds: string[]) {
@@ -1664,16 +1717,18 @@ export function createDispatch(deps: {
       }
     },
 
-    /** Stop a goal: queued items are cancelled, live runs stopped (their items follow when they end). */
-    cancel(projectId: string, goalId: string): Goal {
+    /** Stop a goal: queued items are cancelled, live runs stopped (their items follow when they end).
+        `stopped` (stop_work): it then waits to be continued instead of settling as cancelled. */
+    cancel(projectId: string, goalId: string, as: 'cancelled' | 'stopped' = 'cancelled'): Goal {
       const g = this.get(projectId, goalId);
-      if (g.status === 'failed') {
+      if (resumable(g.status)) {
         /* a stopped goal is dropped off the board (its kept branches stay) */
         work.setGoalStatus(goalId, 'cancelled');
         emit(projectId, { type: 'goal.changed', payload: { goalId, status: 'cancelled' } });
         return work.goal(goalId) as Goal;
       }
       if (g.status !== 'running') throw conflict(`This goal is already ${g.status}`);
+      if (as === 'stopped') stoppedWork.add(goalId);
       halt(projectId, g.items);
       refreshGoal(goalId);
       return work.goal(goalId) as Goal;
@@ -1685,7 +1740,7 @@ export function createDispatch(deps: {
       return work
         .goals(projectId)
         .filter((g) => g.status === 'running')
-        .map((g) => this.cancel(projectId, g.id));
+        .map((g) => this.cancel(projectId, g.id, 'stopped'));
     },
 
     /** Continue a stopped goal (failed, or cancelled by the user): its unfinished items queue again in order.
@@ -1694,8 +1749,8 @@ export function createDispatch(deps: {
       const g = this.get(projectId, goalId);
       if (g.status === 'running' || g.status === 'done') throw conflict(`This goal is already ${g.status}`);
       for (const it of g.items) {
-        if (it.status !== 'failed' && it.status !== 'cancelled') continue;
-        work.setItem(it.id, requeuePatch(it, !!sessionOf(it.runId)));
+        if (!reopenable(it)) continue;
+        requeue(it);
         announce(work.item(it.id) as ChecklistItem);
       }
       work.setGoalStatus(goalId, 'running');

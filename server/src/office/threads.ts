@@ -20,7 +20,7 @@ import type { Project } from '../db/projects.ts';
 import { type Ask, INTERRUPTED, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
-import { workRepo } from '../db/work.ts';
+import { resumable, workRepo } from '../db/work.ts';
 import { dependsOn } from '../domain/task-order.ts';
 import { wayInWords } from '../domain/workflows.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
@@ -303,8 +303,8 @@ export function createThreads(deps: {
     const name = (id: string) => store.agents.get(id)?.name ?? store.teams.get(id)?.name ?? id;
     const all = work.goals(p.id);
     const active = all.filter((g) => g.status === 'running');
-    const stopped = all.filter((g) => g.status === 'failed');
-    const finished = all.filter((g) => g.status !== 'running' && g.status !== 'failed').slice(0, 3);
+    const stopped = all.filter((g) => resumable(g.status));
+    const finished = all.filter((g) => g.status !== 'running' && !resumable(g.status)).slice(0, 3);
     const health = deps.health.latest(p.id);
     /* name + role, and `reporter` when the role files reports (only reporters may take research) */
     const person = (id: string) => {

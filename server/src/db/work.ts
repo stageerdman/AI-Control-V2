@@ -6,7 +6,10 @@ import type { Workspace } from '../git/worktrees.ts';
 import type { Db } from './connection.ts';
 import { now } from './util.ts';
 
-export type GoalStatus = 'running' | 'done' | 'failed' | 'cancelled';
+/** `stopped`: halted with stop_work, waiting to be continued; `cancelled`: dropped off the board. */
+export type GoalStatus = 'running' | 'done' | 'failed' | 'stopped' | 'cancelled';
+/** A goal that ended unfinished and waits to be continued (the director's `stopped` list, resume_goal). */
+export const resumable = (s: GoalStatus): boolean => s === 'failed' || s === 'stopped';
 export type ItemStatus = 'todo' | 'running' | 'done' | 'failed' | 'cancelled';
 /** build → review(s) → (merge) → done. `merge` = the builder fixes a merge conflict. */
 export type ItemStage = 'build' | 'review' | 'merge';

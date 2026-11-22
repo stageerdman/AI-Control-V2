@@ -131,7 +131,7 @@ export const EVENT_SCHEMAS = {
   /** The whiteboard: a goal the orchestrator broke into checklist items (B6 dispatch). */
   'goal.changed': z.strictObject({
     goalId: id,
-    status: z.enum(['running', 'done', 'failed', 'cancelled']),
+    status: z.enum(['running', 'done', 'failed', 'stopped', 'cancelled']),
     text: text(2000).optional(),
     summary: text(1000).optional(),
     quest: z.enum(QUESTS).optional(),
@@ -187,7 +187,7 @@ export const EVENT_SCHEMAS = {
     goalId: id,
     lead: id,
     crew: z.array(id).max(4),
-    status: z.enum(['done', 'failed', 'cancelled']),
+    status: z.enum(['done', 'failed', 'stopped', 'cancelled']),
   }),
   /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
       (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). F1c, inside a team:

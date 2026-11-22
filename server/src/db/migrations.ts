@@ -776,20 +776,50 @@ export const MIGRATIONS: readonly string[] = [
   DELETE FROM accesses WHERE id IN (SELECT id FROM auto_app_data);
   DROP TABLE auto_app_data;
   `,
+  /* 51 — a goal halted with stop_work is 'stopped' (waits to be continued), no longer 'cancelled' (dropped).
+     SQLite can't change a CHECK in place: the table is rebuilt (migrate runs with foreign keys off, so its
+     checklist items stay). */
+  `
+  CREATE TABLE goals_new (
+    id         TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    text       TEXT NOT NULL,
+    summary    TEXT NOT NULL DEFAULT '',
+    status     TEXT NOT NULL CHECK (status IN ('running', 'done', 'failed', 'stopped', 'cancelled')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    caps       TEXT,
+    feature_id TEXT,
+    ships      INTEGER NOT NULL DEFAULT 1,
+    quest      TEXT NOT NULL DEFAULT 'main' CHECK (quest IN ('main', 'side')),
+    workflow   TEXT
+  );
+  INSERT INTO goals_new (id, project_id, text, summary, status, created_at, updated_at, caps, feature_id, ships, quest, workflow)
+    SELECT id, project_id, text, summary, status, created_at, updated_at, caps, feature_id, ships, quest, workflow FROM goals;
+  DROP TABLE goals;
+  ALTER TABLE goals_new RENAME TO goals;
+  `,
 ];
 
+/** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */
 export function migrate(db: DatabaseSync): number {
   const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-  for (let v = current; v < MIGRATIONS.length; v++) {
-    db.exec('BEGIN');
-    try {
-      db.exec(MIGRATIONS[v] as string);
-      db.exec(`PRAGMA user_version = ${v + 1}`);
-      db.exec('COMMIT');
-    } catch (e) {
-      db.exec('ROLLBACK');
-      throw e;
+  const fk = (db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }).foreign_keys;
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    for (let v = current; v < MIGRATIONS.length; v++) {
+      db.exec('BEGIN');
+      try {
+        db.exec(MIGRATIONS[v] as string);
+        db.exec(`PRAGMA user_version = ${v + 1}`);
+        db.exec('COMMIT');
+      } catch (e) {
+        db.exec('ROLLBACK');
+        throw e;
+      }
     }
+  } finally {
+    db.exec(`PRAGMA foreign_keys = ${fk ? 'ON' : 'OFF'}`);
   }
   return MIGRATIONS.length;
 }

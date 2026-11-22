@@ -565,7 +565,8 @@ export type Goal = {
   projectId: string;
   text: string;
   summary: string;
-  status: 'running' | 'done' | 'failed' | 'cancelled';
+  /** stopped: halted with stop_work, waits to be continued; cancelled: dropped. */
+  status: 'running' | 'done' | 'failed' | 'stopped' | 'cancelled';
   items: ChecklistItem[];
   /** done / total, 0–100. */
   pct: number;
@@ -737,7 +738,7 @@ export type EventPayloads = {
     goalId: string;
     lead: string;
     crew: string[];
-    status: 'done' | 'failed' | 'cancelled';
+    status: 'done' | 'failed' | 'stopped' | 'cancelled';
   };
   'checklist.item': {
     itemId: string;
