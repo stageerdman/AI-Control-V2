@@ -133,11 +133,12 @@ describe('e2e: the Swift build check finishes honestly', () => {
     });
     await h.runtime.settled(r.body.runId);
 
-    // the handover landed on the whiteboard as Twinkle's task, with the work itself as its brief — and not done
+    // the handover landed on the whiteboard as Twinkle's task, with the work itself as its brief. Its status is
+    // not read here: the task runs alongside the chat's wrap-up and may already be done. "Never instantly done"
+    // is proven by expectHonestFinish (running in all three sessions, done once, at the end).
     const landed = twinkles();
     expect(landed?.text).toBe('Run the Swift build check: swift build and swift test.');
     expect(landed?.brief).not.toContain('how you will do it');
-    expect(landed?.status).not.toBe('done');
 
     await until(() => twinkles()?.status === 'done');
     expect(check.seen[0]?.spec.task).toContain('Run the Swift build check');
