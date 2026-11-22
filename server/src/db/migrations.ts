@@ -756,6 +756,12 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE checklist_items ADD COLUMN feature_ids TEXT NOT NULL DEFAULT '[]';
   `,
+  /* 49 — folder accesses: an access may be a folder outside every project (a Mac app's data folder), read and
+     write. Granted, it becomes an extra working folder of the project's runs. NULL = an access of fields only. */
+  `
+  ALTER TABLE accesses ADD COLUMN folder TEXT;
+  CREATE UNIQUE INDEX accesses_by_folder ON accesses(folder) WHERE folder IS NOT NULL;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

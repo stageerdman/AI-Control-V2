@@ -158,6 +158,8 @@ export type RuntimeDeps = {
   envFor: (projectId: string) => Record<string, string>;
   /** What each granted access provides, by label + env var (no values) — named in the agent's prompt (G1). */
   accessFor?: (projectId: string) => AgentAccess[];
+  /** Granted folder accesses that exist (real paths): each session's extra working folders (`--add-dir`). */
+  foldersFor?: (projectId: string) => string[];
   /** LIVE ACCESS: an access shared while agents work — what it is (no values), and writing the project's granted
       values into a working folder's .env (throws when it can't → the agent is told to restart). */
   liveAccess?: {
@@ -610,6 +612,11 @@ export function createRuntime(deps: RuntimeDeps) {
         memory: forgetTool ? YOUR_MEMORY : null,
         principles,
       });
+    /* the toolkit + the granted folders, read again for each fresh session (a folder shared mid-run included) */
+    const addDirsNow = (): Pick<RunSpec, 'addDirs'> => {
+      const dirs = [...(toolkit ? [toolkit.dir] : []), ...(big ? [] : (deps.foldersFor?.(projectId) ?? []))];
+      return dirs.length ? { addDirs: dirs } : {};
+    };
     const spec: RunSpec = {
       runId,
       cwd,
@@ -621,7 +628,7 @@ export function createRuntime(deps: RuntimeDeps) {
       secretValues: secrets,
       ...(big ? { tools: [] } : {}),
       ...(perms ? { tools: perms.tools, allowedTools: perms.allowedTools, fullShell: perms.fullShell } : {}),
-      ...(toolkit ? { addDirs: [toolkit.dir] } : {}),
+      ...addDirsNow(),
       ...(reporter || perms?.web ? { web: true } : {}),
       ...(resumeSessionId ? { resumeSessionId } : {}),
       ...(bridge
@@ -713,7 +720,7 @@ export function createRuntime(deps: RuntimeDeps) {
               },
             });
             try {
-              const { resumeSessionId: _old, ...fresh } = spec;
+              const { resumeSessionId: _old, addDirs: _dirs, ...fresh } = spec;
               record(run, secrets, 'system', next.line ?? next.brief, { kind: next.kind });
               l.mark = markNow();
               /* LIVE ACCESS: a fresh session gets what is granted now — access shared mid-run included */
@@ -723,6 +730,7 @@ export function createRuntime(deps: RuntimeDeps) {
                 runner.start(
                   {
                     ...fresh,
+                    ...addDirsNow(),
                     systemPrompt: promptNow(),
                     env: envWith(now),
                     task: next.brief,
@@ -886,7 +894,8 @@ export function createRuntime(deps: RuntimeDeps) {
     const granted = deps.envFor(projectId);
     return working.map((l) => {
       scrubAlso(l, granted);
-      const how = pickup(l, shared.writeInto);
+      /* a folder joins a session only when it starts (--add-dir) */
+      const how: Pickup = access.folder ? 'restart' : pickup(l, shared.writeInto);
       const note = accessNotice(access, how, !!deps.desk);
       l.notes.push(note);
       record(l.run, l.secrets, 'system', note, { kind: 'access', accessId, pickup: how });

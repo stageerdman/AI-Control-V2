@@ -8,8 +8,9 @@
 import type { AccessInfo, AccessMeta, FieldMeta, ValueInfo } from '../db/accesses.ts';
 import type { Store } from '../db/store.ts';
 import { slugify } from '../domain/ids.ts';
-import { invalid } from '../errors.ts';
+import { invalid, notFound } from '../errors.ts';
 import { ENV_KEY } from './dotenv.ts';
+import { checkFolder, type FolderGuard } from './folderAccess.ts';
 import type { SecretStore } from './secretStore.ts';
 
 /** Shorter values show nothing: 4 of 11 characters is too much of a secret. */
@@ -32,7 +33,8 @@ export type AccessField = Omit<FieldMeta, 'createdAt'> & {
 };
 export type Access = Omit<AccessMeta, 'fields'> & { fields: AccessField[] };
 export type FieldCreate = { label: string; envVar?: string; secret?: boolean; value?: string };
-export type AccessCreate = AccessInfo & { fields: FieldCreate[] };
+/** `folder`: a folder access (read and write), checked by the folder guard; its fields may be empty. */
+export type AccessCreate = AccessInfo & { fields: FieldCreate[]; folder?: string };
 export type FieldPatch = { label?: string; envVar?: string; secret?: boolean };
 export type AccessDeleted = {
   deleted: { kind: 'access'; id: string };
@@ -76,7 +78,7 @@ const checkEnvVar = (envVar: string) => {
 export function cabinet(
   store: Store,
   secrets: SecretStore,
-  opts: { notify?: (n: AccessNotice) => void } = {},
+  opts: { notify?: (n: AccessNotice) => void; folders?: FolderGuard } = {},
 ) {
   const repo = store.accesses;
   const notify = (accessId: string, change: AccessNotice['change'], projectIds: string[]) => {
@@ -91,7 +93,8 @@ export function cabinet(
     }),
   });
   const asCredential = (a: AccessMeta): Credential => {
-    const f = a.fields[0] as FieldMeta;
+    const f = a.fields[0];
+    if (!f) throw notFound('Credential', a.id);
     return {
       id: a.id,
       name: a.name,
@@ -120,8 +123,14 @@ export function cabinet(
     }
   };
 
+  const guardedFolder = (folder: string) => {
+    if (!opts.folders) throw invalid('This cabinet takes no folder accesses', { folder });
+    return checkFolder(folder, opts.folders);
+  };
+
   function create(input: AccessCreate, idPrefix = 'a'): AccessMeta {
-    const { fields, ...info } = input;
+    const { fields, folder, ...rest } = input;
+    const info = folder === undefined ? rest : { ...rest, folder: guardedFolder(folder) };
     const planned = fields.map((f) => {
       const envVar = f.envVar ?? toEnvVar(`${info.name} ${f.label}`);
       checkEnvVar(envVar);
@@ -268,7 +277,12 @@ export function cabinet(
 
     /* ------------------------------------------------ B3 Key Cabinet (/credentials) */
     credentials: {
-      list: () => repo.list().map(asCredential),
+      /* a folder access without fields has no key to read it through */
+      list: () =>
+        repo
+          .list()
+          .filter((a) => a.fields.length)
+          .map(asCredential),
       get: (id: string) => asCredential(repo.require(id)),
       create: ({ envVar, value, ...info }: CredentialCreate): Credential =>
         asCredential(

@@ -7,8 +7,10 @@ import { join } from 'node:path';
 import type { Store } from '../db/store.ts';
 import { conflict } from '../errors.ts';
 import { resolveInSandbox, SandboxError } from '../fs/sandbox.ts';
+import { bundleIdOf } from './bundleId.ts';
 import type { Access, Cabinet } from './cabinet.ts';
 import { type EnvLine, formatLine, parseEnv, serializeEnv } from './dotenv.ts';
+import { appDataFolder, checkFolder, type FolderGuard, liveFolder } from './folderAccess.ts';
 import { readEnvFile, type SecretStore, writeFileAtomic } from './secretStore.ts';
 
 export const BLOCK_BEGIN = '# >>> AI Studio access (managed: rewritten on every sync) >>>';
@@ -48,6 +50,8 @@ export type AgentAccess = {
   name: string;
   serves: string;
   instructions: string;
+  /** A folder access: the folder it shares, read and write. */
+  folder: string | null;
   fields: { label: string; envVar: string; hasValue: boolean }[];
 };
 export type SyncResult = {
@@ -88,7 +92,12 @@ export function projectAccess(
   store: Store,
   secrets: SecretStore,
   sandbox: string,
-  deps: { cabinet: Cabinet; notify?: (projectId: string, accessId: string, granted: boolean) => void },
+  deps: {
+    cabinet: Cabinet;
+    notify?: (projectId: string, accessId: string, granted: boolean) => void;
+    /** Folder accesses: the same guard the cabinet saves them with. Absent = no folder ever reaches a run. */
+    folders?: FolderGuard;
+  },
 ) {
   const projectDir = (projectId: string) => {
     const p = store.projects.require(projectId);
@@ -182,6 +191,34 @@ export function projectAccess(
     /** For agents' prompts: what each granted access provides, by label and env var. No values. */
     agentAccess: (projectId: string): AgentAccess[] => granted(projectId).map(agentView),
 
+    /** For the agent runtime: the real paths of the granted folders that exist — each run's extra working folders. */
+    foldersFor: (projectId: string): string[] => {
+      const guard = deps.folders;
+      if (!guard) return [];
+      return granted(projectId).flatMap((a) => {
+        const real = a.folder ? liveFolder(a.folder, guard) : null;
+        return real ? [real] : [];
+      });
+    },
+
+    /** Put this project's Mac app data folder (`~/Library/Application Support/<its bundle id>`) in the cabinet,
+        not granted: the user shares it. Safe to repeat — an existing entry comes back as it is. */
+    addAppDataFolder(projectId: string): { access: Access; created: boolean } {
+      if (!deps.folders) throw conflict('This studio takes no folder accesses');
+      const name = store.projects.require(projectId).name;
+      const folder = appDataFolder(deps.folders.userHome, bundleIdOf(projectDir(projectId).dir));
+      const existing = store.accesses.byFolder(checkFolder(folder, deps.folders));
+      if (existing) return { access: deps.cabinet.get(existing.id), created: false };
+      const access = deps.cabinet.create({
+        name: `${name} app data`,
+        serves: `The ${name} Mac app's data folder (read and write)`,
+        instructions: 'Quit the app before changing its data. Back up what you change first.',
+        folder,
+        fields: [],
+      });
+      return { access, created: true };
+    },
+
     /** One access as an agent is told about it (no values); null when it is gone. */
     agentAccessOf: (accessId: string): AgentAccess | null => {
       const a = store.accesses.list().find((x) => x.id === accessId);
@@ -226,5 +263,6 @@ const agentView = (a: Access): AgentAccess => ({
   name: a.name,
   serves: a.serves,
   instructions: a.instructions,
+  folder: a.folder,
   fields: a.fields.map((f) => ({ label: f.label, envVar: f.envVar, hasValue: f.hasValue })),
 });

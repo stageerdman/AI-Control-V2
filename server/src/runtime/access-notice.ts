@@ -3,6 +3,7 @@
    update's wiki), so the studio writes the access into the .env of the agent's working folder:
    - 'live': that worked — the access is usable now, from .env;
    - 'restart': it couldn't — restart the session (forget) to have it in the environment.
+   A shared folder is always 'restart': it joins a session's working folders only when the session starts.
    Names, labels and env vars only — never a value. */
 import type { AgentAccess } from '../secrets/projectAccess.ts';
 
@@ -11,8 +12,13 @@ export type Pickup = 'live' | 'restart';
 const fieldsOf = (a: AgentAccess) =>
   a.fields.map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`).join(', ');
 
+const headOf = (a: AgentAccess) =>
+  a.folder
+    ? `AI Studio — a folder (${a.name}) was shared with you, read and write: \`${a.folder}\`.`
+    : `AI Studio — a new access (${a.name}) was shared with you: ${fieldsOf(a)}.`;
+
 export function accessNotice(a: AgentAccess, how: Pickup, canForget: boolean): string {
-  const head = `AI Studio — a new access (${a.name}) was shared with you: ${fieldsOf(a)}.`;
+  const head = headOf(a);
   if (how === 'live')
     return [
       head,

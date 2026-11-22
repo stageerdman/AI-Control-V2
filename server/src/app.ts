@@ -1,5 +1,6 @@
 /* Fastify factory. Everything the app needs is injected, so tests can build an
    app on an in-memory db and a temp sandbox and drive it with inject(). */
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { createAppRunner } from './apps/app-runner.ts';
@@ -117,6 +118,8 @@ import { createRecapper } from './runtime/recap.ts';
 import type { Runner } from './runtime/runner.ts';
 import { createRuntime, type Runtime } from './runtime/service.ts';
 import { cabinet } from './secrets/cabinet.ts';
+import type { FolderGuard } from './secrets/folderAccess.ts';
+import { backupTool } from './secrets/folderBackup.ts';
 import { projectAccess } from './secrets/projectAccess.ts';
 import { fileSecretStore, type SecretStore } from './secrets/secretStore.ts';
 import {
@@ -174,6 +177,8 @@ export type AppDeps = {
     running: string;
     installed: () => InstalledBuild | null;
   } | null;
+  /** The user's home folder: where Mac apps keep their data (folder accesses). Default: os.homedir(). */
+  userHome?: string;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -204,8 +209,11 @@ export function buildApp({
   caps = loadCaps(),
   shell = AGENT_SHELL.dev,
   selfInstall = null,
+  userHome = homedir(),
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
+  /* folder accesses never overlap the studio's own folders (its data, the projects, the global secrets) */
+  const folders: FolderGuard = { userHome, protect: [config.home, config.sandbox, config.controlHome] };
   registerCors(app);
   /* SSE responses are hijacked: end them on shutdown so close() never hangs */
   const open: OpenStreams = new Set();
@@ -222,12 +230,14 @@ export function buildApp({
     }
   };
   const theCabinet = cabinet(store, secrets, {
+    folders,
     notify: (n) => {
       for (const p of n.projectIds) accessNote(p, n.accessId, n.change);
     },
   });
   const access = projectAccess(store, secrets, config.sandbox, {
     cabinet: theCabinet,
+    folders,
     notify: (p, a, granted) => {
       accessNote(p, a, granted ? 'granted' : 'revoked');
       /* LIVE ACCESS: agents already working here get it now (grants arrive over HTTP, after the runtime exists) */
@@ -270,6 +280,7 @@ export function buildApp({
     sandbox: config.sandbox,
     envFor: access.envFor,
     accessFor: access.agentAccess,
+    foldersFor: access.foldersFor,
     liveAccess: { about: access.agentAccessOf, writeInto: access.syncDir },
     ports,
     toolkitsRoot: join(config.home, 'toolkits'),
@@ -602,6 +613,10 @@ export function buildApp({
     ...mail.tools(projectId, agentId),
     pageTool(pager, projectId, agentId),
     ...todoTools(todos, agentName, projectId, agentId),
+    backupTool({
+      foldersFor: () => access.foldersFor(projectId),
+      backupsDir: join(config.home, 'backups', projectId),
+    }),
     /* a team captain stops and tells their own team, a temporary lead their crew (the director: the whole project) */
     ...leadTools(actions, projectId, agentId, actions.work.goals(projectId)),
     ...(hq.get() === projectId

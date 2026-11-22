@@ -12,6 +12,7 @@ type AccessRecord = {
   serves: string;
   docs_url: string | null;
   instructions: string;
+  folder: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -47,6 +48,8 @@ export type AccessMeta = {
   serves: string;
   docsUrl: string | null;
   instructions: string;
+  /** A folder access: the absolute folder it shares (read and write); null = fields only. */
+  folder: string | null;
   fields: FieldMeta[];
   /** Projects this access is granted to. */
   projectIds: string[];
@@ -95,6 +98,7 @@ export function accessesRepo(db: Db) {
     serves: r.serves,
     docsUrl: r.docs_url,
     instructions: r.instructions,
+    folder: r.folder,
     fields: fieldsOf(r.id),
     projectIds: projectIds(r.id),
     createdAt: r.created_at,
@@ -168,9 +172,25 @@ export function accessesRepo(db: Db) {
     allFields: (): FieldMeta[] =>
       rows<FieldRecord>(db.prepare('SELECT * FROM access_fields ORDER BY rowid').all()).map(toField),
 
-    /** An access with its fields (each with what the cabinet knows of its value). */
-    create(info: AccessInfo, fields: { field: FieldInput; value: ValueInfo }[], idPrefix = 'a'): AccessMeta {
-      if (!fields.length) throw invalid('An access needs at least one field');
+    /** The folder access that shares `folder`, or null. */
+    byFolder(folder: string): AccessMeta | null {
+      const r = row<AccessRecord>(db.prepare('SELECT * FROM accesses WHERE folder = ?').get(folder));
+      return r ? toAccess(r) : null;
+    },
+
+    /** An access with its fields (each with what the cabinet knows of its value); a folder access may have none. */
+    create(
+      info: AccessInfo & { folder?: string | null },
+      fields: { field: FieldInput; value: ValueInfo }[],
+      idPrefix = 'a',
+    ): AccessMeta {
+      const folder = info.folder ?? null;
+      if (!fields.length && !folder) throw invalid('An access needs at least one field');
+      const owner = folder ? repo.byFolder(folder) : null;
+      if (owner)
+        throw conflict(`The folder ${folder} is already in the cabinet as '${owner.name}'`, {
+          existingId: owner.id,
+        });
       const envs = fields.map((f) => f.field.envVar);
       if (new Set(envs).size !== envs.length)
         throw invalid('Two fields use the same env var', { envVars: envs });
@@ -181,9 +201,9 @@ export function accessesRepo(db: Db) {
       ).p;
       const t = now();
       db.prepare(
-        `INSERT INTO accesses (id, name, serves, docs_url, instructions, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, info.name, info.serves ?? '', info.docsUrl ?? null, info.instructions ?? '', pos, t, t);
+        `INSERT INTO accesses (id, name, serves, docs_url, instructions, folder, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(id, info.name, info.serves ?? '', info.docsUrl ?? null, info.instructions ?? '', folder, pos, t, t);
       for (const f of fields) insertField(id, f.field, f.value);
       return repo.require(id);
     },
@@ -234,7 +254,7 @@ export function accessesRepo(db: Db) {
 
     removeField(accessId: string, fieldId: string): void {
       repo.field(accessId, fieldId);
-      if (fieldsOf(accessId).length <= 1)
+      if (fieldsOf(accessId).length <= 1 && !requireRecord(accessId).folder)
         throw conflict('An access keeps at least one field — delete the access instead', { fieldId });
       db.prepare('DELETE FROM access_fields WHERE id = ?').run(fieldId);
       touch(accessId);
