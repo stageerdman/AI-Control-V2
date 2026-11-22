@@ -191,6 +191,26 @@ describe('migrations', () => {
     db.close();
   });
 
+  it("51: goals may be 'stopped'; rebuilding the table keeps the goals and their checklist items", () => {
+    const db = new DatabaseSync(':memory:');
+    for (const sql of MIGRATIONS.slice(0, 50)) db.exec(sql);
+    db.exec('PRAGMA user_version = 50');
+    db.exec(`INSERT INTO agents (id, kind, name, look, position, created_at, updated_at)
+             VALUES ('o', 'orchestrator', 'O', '{}', 0, '', '')`);
+    db.exec(`INSERT INTO projects (id, name, status, orchestrator_id, tile, position, created_at, updated_at)
+             VALUES ('p', 'P', 'idle', 'o', '{}', 0, '', '')`);
+    const work = workRepo(db as never);
+    work.insertGoal({ id: 'g1', projectId: 'p', text: 't', summary: 's' }, [
+      { id: 'i1', text: 'Step', brief: 'b', agentId: 'o', teamId: null },
+    ]);
+    expect(() => work.setGoalStatus('g1', 'stopped')).toThrow(/CHECK/);
+    migrate(db);
+    work.setGoalStatus('g1', 'stopped');
+    expect(work.goal('g1')).toMatchObject({ status: 'stopped', items: [{ id: 'i1', text: 'Step' }] });
+    expect((db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number }).foreign_keys).toBe(1);
+    db.close();
+  });
+
   it('45: a database that stored thinking power drops it and keeps the rows', () => {
     const db = new DatabaseSync(':memory:');
     const dropped = MIGRATIONS.findIndex((sql) => sql.includes('DROP COLUMN thinking'));

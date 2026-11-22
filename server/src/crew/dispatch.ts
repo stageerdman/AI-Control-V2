@@ -53,7 +53,7 @@ import {
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
-import type { Worktrees } from '../git/worktrees.ts';
+import type { Workspace, Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
@@ -722,7 +722,7 @@ export function createDispatch(deps: {
       const quest = queued.quest;
       if (free <= 0) break;
       const who = holder(it);
-      if (busy.has(who) || it.agentId === director || closing.has(it.id)) continue;
+      if (busy.has(who) || it.agentId === director || closing.has(it.id) || preparing.has(it.id)) continue;
       if (quest === 'side' && held.has(who)) continue;
       /* the agent is busy with a run started by hand (or a chat turn): leave the item queued */
       if (runtime.busy(projectId, who)) {
@@ -739,14 +739,27 @@ export function createDispatch(deps: {
     }
   }
 
-  /** The item's checkout (its own worktree on first start; null = the project folder), then its run. */
+  /** Items between being picked and their run starting (checkout being made, captain splitting): stopped and
+      queued again meanwhile, they wait for this launch to end — a second one would make the checkout twice. */
+  const preparing = new Set<string>();
   async function launch(itemId: string) {
+    preparing.add(itemId);
+    try {
+      await prepareAndStart(itemId);
+    } finally {
+      preparing.delete(itemId);
+    }
+    const it = work.item(itemId);
+    if (it?.status === 'todo') pump(it.projectId);
+  }
+
+  /** The item's checkout (its own worktree on first start; null = the project folder), then its run. */
+  async function prepareAndStart(itemId: string): Promise<void> {
     let it = work.item(itemId) as ChecklistItem;
     try {
       /* carrying on (after a restart, or a stopped goal continued): its checkout again, where it was */
       if (it.workspace && deps.worktrees && !existsSync(it.workspace.cwd)) {
-        const ws = await deps.worktrees.ensure(repoOf(it.projectId), it.workspace);
-        work.setItem(it.id, { status: it.status, workspace: ws });
+        recordWorkspace(it.id, await deps.worktrees.ensure(repoOf(it.projectId), it.workspace));
       }
       if (!it.workspace && deps.worktrees && it.stage === 'build') {
         /* a member's sub-task branches off its team item's branch (and merges back into it) */
@@ -758,7 +771,7 @@ export function createDispatch(deps: {
           it.text,
           parentWs ? { branch: parentWs.branch } : undefined,
         );
-        if (ws) work.setItem(it.id, { status: it.status, workspace: ws });
+        if (ws) recordWorkspace(it.id, ws);
       }
     } catch (e) {
       settle(it, { status: 'failed', note: clip(`Couldn't make a checkout: ${(e as Error).message}`, 2000) });
@@ -802,8 +815,7 @@ export function createDispatch(deps: {
            question it left open closes, since the fresh run never reads its answer */
         work.setItem(it.id, { status: 'running', resumeRunId: null });
         runtime.withdrawAsks(it.resumeRunId);
-        startItem(it.id);
-        return;
+        return prepareAndStart(it.id);
       }
       await stop(it, { status: 'failed', note: clip(msg, 2000) });
       pump(it.projectId);
@@ -812,6 +824,13 @@ export function createDispatch(deps: {
     work.setItem(it.id, { status: 'running', runId: run.id, resumeRunId: null });
     announce(work.item(it.id) as ChecklistItem);
   }
+
+  /** The checkout made for an item, with its status as it is NOW: it may have been stopped while the checkout
+      was made, and writing the status read before would start it again. */
+  const recordWorkspace = (itemId: string, ws: Workspace) => {
+    const cur = work.item(itemId);
+    if (cur) work.setItem(itemId, { status: cur.status, workspace: ws });
+  };
 
   const repoOf = (projectId: string) =>
     resolveInSandbox(deps.sandbox ?? '', store.projects.require(projectId).folder ?? '');
@@ -897,13 +916,21 @@ export function createDispatch(deps: {
     work.setItem(it.id, requeuePatch(ending(it), hasSession));
   };
 
-  /** Put a stopped item's checkout away: its work is committed on its branch (kept unless empty/merged). */
+  /** Put a stopped item's checkout away: its work is committed on its branch (kept unless empty/merged).
+      Queued again meanwhile, it waits (pump skips `closing`) and starts once the checkout is away. */
   async function shelve(it: ChecklistItem): Promise<void> {
     const ws = it.workspace;
     if (!ws || !deps.worktrees) return;
-    const { kept } = await deps.worktrees.close(repoOf(it.projectId), ws, { deleteBranch: true });
-    if (kept) {
-      const cur = work.item(it.id) as ChecklistItem;
+    closing.set(it.id, 'cancelled');
+    let kept: boolean;
+    try {
+      ({ kept } = await deps.worktrees.close(repoOf(it.projectId), ws, { deleteBranch: true }));
+    } finally {
+      closing.delete(it.id);
+    }
+    const cur = work.item(it.id) as ChecklistItem;
+    if (cur.status === 'todo') pump(it.projectId);
+    else if (kept) {
       work.setItem(it.id, {
         status: cur.status,
         note: clip(`${cur.note ? `${cur.note} — ` : ''}work kept on branch ${ws.branch}`, 2000),
