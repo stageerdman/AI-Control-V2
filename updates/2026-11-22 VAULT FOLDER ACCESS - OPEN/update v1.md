@@ -1,5 +1,8 @@
 # Vault folder access — update v1
 
+> **Superseded in part by `update v2.md`:** the app's own data folder no longer goes through the vault
+> (no entry, no switch, no on-start offer, no `POST /projects/:id/app-data-access`). The rest stands.
+
 **Goal:** Pensieve agents can read and write the Pensieve Mac app's data folder
 (`~/Library/Application Support/<bundle id>/`: the vault with `raw/<id>.json`
 batch records and the processed outputs) once the user grants it in the Access Vault.

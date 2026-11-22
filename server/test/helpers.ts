@@ -69,7 +69,8 @@ export function testApp(
     ...(opts.maxConcurrent === undefined ? {} : { maxConcurrent: opts.maxConcurrent }),
     ...(opts.ghRun === undefined ? {} : { ghRun: opts.ghRun }),
     ...(opts.gitEnv ? { gitEnv: opts.gitEnv } : {}),
-    ...(opts.userHome ? { userHome: opts.userHome } : {}),
+    /* runs look for their app's data folder by themselves: never in the real home */
+    userHome: opts.userHome ?? join(t.dir, 'home'),
     onRuntime: (rt) => {
       runtime = rt;
     },

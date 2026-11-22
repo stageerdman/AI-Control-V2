@@ -762,6 +762,20 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE accesses ADD COLUMN folder TEXT;
   CREATE UNIQUE INDEX accesses_by_folder ON accesses(folder) WHERE folder IS NOT NULL;
   `,
+  /* 50 — an app's own data folder leaves the vault: its project's agents get it with no grant. Drop the
+     '<Name> app data' entries the studio added by itself (recognised by the exact text it wrote, no fields);
+     folder accesses the user made by hand stay. */
+  `
+  CREATE TEMP TABLE auto_app_data AS
+    SELECT id FROM accesses
+    WHERE folder IS NOT NULL
+      AND serves LIKE 'The % Mac app''s data folder (read and write)'
+      AND instructions = 'Quit the app before changing its data. Back up what you change first.'
+      AND NOT EXISTS (SELECT 1 FROM access_fields f WHERE f.access_id = accesses.id);
+  DELETE FROM access_grants WHERE access_id IN (SELECT id FROM auto_app_data);
+  DELETE FROM accesses WHERE id IN (SELECT id FROM auto_app_data);
+  DROP TABLE auto_app_data;
+  `,
 ];
 
 export function migrate(db: DatabaseSync): number {

@@ -5,12 +5,12 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Store } from '../db/store.ts';
-import { AppError, conflict } from '../errors.ts';
+import { conflict } from '../errors.ts';
 import { resolveInSandbox, SandboxError } from '../fs/sandbox.ts';
-import { bundleIdOf } from './bundleId.ts';
 import type { Access, Cabinet } from './cabinet.ts';
 import { type EnvLine, formatLine, parseEnv, serializeEnv } from './dotenv.ts';
-import { appDataFolder, checkFolder, type FolderGuard, liveFolder } from './folderAccess.ts';
+import { type FolderGuard, liveFolder } from './folderAccess.ts';
+import { ownAppDataFolder } from './ownAppData.ts';
 import { readEnvFile, type SecretStore, writeFileAtomic } from './secretStore.ts';
 
 export const BLOCK_BEGIN = '# >>> AI Studio access (managed: rewritten on every sync) >>>';
@@ -116,6 +116,23 @@ export function projectAccess(
     return { dir, folder: p.folder };
   };
 
+  /** The project's own Mac app data folder as an agent is told it, or null (not a Mac app, no folder yet). */
+  const ownAppData = (projectId: string): AgentAccess | null => {
+    const p = store.projects.require(projectId);
+    if (!deps.folders || !p.folder) return null;
+    const dir = resolveInSandbox(sandbox, p.folder);
+    if (!existsSync(dir)) return null;
+    const folder = ownAppDataFolder(dir, deps.folders);
+    if (!folder) return null;
+    return {
+      name: `${p.name} app data`,
+      serves: `The ${p.name} Mac app's own data folder`,
+      instructions: 'Quit the app before changing its data.',
+      folder,
+      fields: [],
+    };
+  };
+
   const granted = (projectId: string) => {
     const ids = new Set(store.accesses.grantedIds(projectId));
     return store.accesses.list().filter((a) => ids.has(a.id));
@@ -188,53 +205,23 @@ export function projectAccess(
     /** For the agent runtime (B5): the env a run in this project may see. Never send over HTTP. */
     envFor: (projectId: string): Record<string, string> => grantedEnv(projectId).env,
 
-    /** For agents' prompts: what each granted access provides, by label and env var. No values. */
-    agentAccess: (projectId: string): AgentAccess[] => granted(projectId).map(agentView),
+    /** For agents' prompts: what each granted access provides, by label and env var — and the app's own data
+        folder, which needs no grant. No values. */
+    agentAccess: (projectId: string): AgentAccess[] => {
+      const own = ownAppData(projectId);
+      const shared = granted(projectId).filter((a) => a.folder !== own?.folder);
+      return [...(own ? [own] : []), ...shared.map(agentView)];
+    },
 
-    /** For the agent runtime: the real paths of the granted folders that exist — each run's extra working folders. */
+    /** For the agent runtime: the app's own data folder plus the granted folders, real paths of those that
+        exist — each run's extra working folders (and what `backup_folder` may copy from). */
     foldersFor: (projectId: string): string[] => {
       const guard = deps.folders;
       if (!guard) return [];
-      return granted(projectId).flatMap((a) => {
-        const real = a.folder ? liveFolder(a.folder, guard) : null;
-        return real ? [real] : [];
-      });
-    },
-
-    /** Put this project's Mac app data folder (`~/Library/Application Support/<its bundle id>`) in the cabinet,
-        not granted: the user shares it. Safe to repeat — an existing entry comes back as it is. */
-    addAppDataFolder(projectId: string): { access: Access; created: boolean } {
-      if (!deps.folders) throw conflict('This studio takes no folder accesses');
-      const name = store.projects.require(projectId).name;
-      const folder = appDataFolder(deps.folders.userHome, bundleIdOf(projectDir(projectId).dir));
-      const existing = store.accesses.byFolder(checkFolder(folder, deps.folders));
-      if (existing) return { access: deps.cabinet.get(existing.id), created: false };
-      const access = deps.cabinet.create({
-        name: `${name} app data`,
-        serves: `The ${name} Mac app's data folder (read and write)`,
-        instructions: 'Quit the app before changing its data. Back up what you change first.',
-        folder,
-        fields: [],
-      });
-      return { access, created: true };
-    },
-
-    /** On start: every Mac app project (one bundle id in its files) gets its data folder in the cabinet, not
-        granted — so the user only flips the switch. A project that isn't a Mac app (409) is simply skipped. */
-    offerAppDataFolders(): { added: string[]; failed: { projectId: string; error: string }[] } {
-      const added: string[] = [];
-      const failed: { projectId: string; error: string }[] = [];
-      if (!deps.folders) return { added, failed };
-      for (const p of store.projects.list()) {
-        if (!p.folder) continue;
-        try {
-          if (svc.addAppDataFolder(p.id).created) added.push(p.id);
-        } catch (e) {
-          if (!(e instanceof AppError && e.status === 409))
-            failed.push({ projectId: p.id, error: (e as Error).message });
-        }
-      }
-      return { added, failed };
+      const own = ownAppData(projectId)?.folder;
+      const vault = granted(projectId).flatMap((a) => (a.folder ? [a.folder] : []));
+      const live = [...(own ? [own] : []), ...vault].flatMap((f) => liveFolder(f, guard) ?? []);
+      return [...new Set(live)];
     },
 
     /** One access as an agent is told about it (no values); null when it is gone. */

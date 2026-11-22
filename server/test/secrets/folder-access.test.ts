@@ -1,10 +1,12 @@
-/* Folder accesses: a Mac app's data folder in the cabinet, shared with a project by the user. Only once it is
-   granted does it reach a run (`--add-dir`, real path); the guard refuses folders too broad or overlapping the
-   studio; backups copy only from inside a shared folder (symlinks followed); the app's bundle id is read from its
-   project files. */
+/* Folders outside the project: a Mac app project's own data folder reaches every run by itself (`--add-dir`,
+   real path, no vault entry); other folders join only once shared from the vault. The guard refuses folders too
+   broad or overlapping the studio; backups copy only from inside a shared folder (symlinks followed); the app's
+   bundle id is read from its project files. */
 import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { MIGRATIONS, migrate } from '../../src/db/migrations.ts';
 import { cliArgs } from '../../src/runtime/claude-cli.ts';
 import { fakeRunner } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
@@ -133,11 +135,16 @@ describe('backups', () => {
   });
 });
 
-describe('the app data access, end to end', () => {
+describe("a Mac app project's own data folder, end to end", () => {
   let h: ReturnType<typeof testApp>;
   let seen: RunSpec[];
   let appData: string;
   let home: ReturnType<typeof tempDir>;
+  const tauri = (identifier: string) =>
+    writeFileSync(
+      join(h.config.sandbox, 'aurora', 'src-tauri', 'tauri.conf.json'),
+      JSON.stringify({ identifier }),
+    );
   beforeEach(() => {
     seen = [];
     home = tempDir();
@@ -149,12 +156,8 @@ describe('the app data access, end to end', () => {
         return [{ result: 'ok' }];
       }),
     });
-    const project = join(h.config.sandbox, 'aurora');
-    mkdirSync(join(project, 'src-tauri'), { recursive: true });
-    writeFileSync(
-      join(project, 'src-tauri', 'tauri.conf.json'),
-      JSON.stringify({ identifier: 'com.example.pensieve' }),
-    );
+    mkdirSync(join(h.config.sandbox, 'aurora', 'src-tauri'), { recursive: true });
+    tauri('com.example.pensieve');
     h.store.projects.update('aurora', { folder: 'aurora' });
     appData = join(home.dir, 'me', 'Library', 'Application Support', 'com.example.pensieve');
     mkdirSync(appData, { recursive: true });
@@ -173,58 +176,35 @@ describe('the app data access, end to end', () => {
     return seen.at(-1) as RunSpec;
   };
 
-  it('creates the entry once, not shared; a second call returns it', async () => {
-    const first = await h.call('POST', '/projects/aurora/app-data-access');
-    expect(first.status).toBe(201);
-    expect(first.body).toMatchObject({ folder: appData, projectIds: [], fields: [] });
-    const again = await h.call('POST', '/projects/aurora/app-data-access');
-    expect(again.status).toBe(200);
-    expect(again.body.id).toBe(first.body.id);
-    expect((await h.call('GET', '/accesses')).body).toHaveLength(1);
-  });
-
-  it('reaches a run only once shared: --add-dir with its real path, and the prompt names it', async () => {
-    const { body } = await h.call('POST', '/projects/aurora/app-data-access');
-    expect((await run()).addDirs).toBeUndefined();
-    expect((await h.call('PUT', `/projects/aurora/access/${body.id}`)).status).toBe(200);
+  it('reaches every run with no vault entry and no grant: --add-dir with its real path, named in the prompt', async () => {
     const spec = await run();
     expect(spec.addDirs).toEqual([realpathSync(appData)]);
     expect(spec.systemPrompt).toContain(appData);
     expect(spec.systemPrompt).toContain('backup_folder');
     const args = cliArgs(spec, { askServer: '/a.ts' });
     expect(args[args.indexOf('--add-dir') + 1]).toBe(realpathSync(appData));
+    expect((await h.call('GET', '/accesses')).body).toEqual([]);
   });
 
-  it('no bundle id: a 409 naming the files checked', async () => {
+  it('nothing for a project that is not a Mac app, a folder the app has not made yet, or an odd bundle id', async () => {
+    tauri('com.example.unborn');
+    expect((await run()).addDirs).toBeUndefined();
+    tauri('../../..');
+    expect((await run()).addDirs).toBeUndefined();
     writeFileSync(join(h.config.sandbox, 'aurora', 'src-tauri', 'tauri.conf.json'), '{}');
-    const r = await h.call('POST', '/projects/aurora/app-data-access');
-    expect(r.status).toBe(409);
-    expect(JSON.stringify(r.body)).toContain('src-tauri/tauri.conf.json');
+    const spec = await run();
+    expect(spec.addDirs).toBeUndefined();
+    expect(spec.systemPrompt).not.toContain('app data');
   });
 
-  it('on start, a Mac app project finds its data folder in the vault, not shared, with no request by hand', async () => {
-    const at = tempDir();
-    const boot = () => testApp({ seed: true, at: at.dir, userHome: join(home.dir, 'me') });
-    try {
-      const first = boot();
-      const project = join(first.config.sandbox, 'aurora');
-      mkdirSync(join(project, 'src-tauri'), { recursive: true });
-      writeFileSync(
-        join(project, 'src-tauri', 'tauri.conf.json'),
-        JSON.stringify({ identifier: 'com.example.pensieve' }),
-      );
-      first.store.projects.update('aurora', { folder: 'aurora' });
-      await first.close();
-      for (let i = 0; i < 2; i++) {
-        const again = boot();
-        const vault = (await again.call('GET', '/accesses')).body;
-        expect(vault).toMatchObject([{ folder: appData, projectIds: [], fields: [] }]);
-        expect((await again.call('GET', '/projects/aurora/access')).body.accesses[0].granted).toBe(false);
-        await again.close();
-      }
-    } finally {
-      at.cleanup();
-    }
+  it('the old route is gone; a folder shared by hand in the vault still joins, once', async () => {
+    expect((await h.call('POST', '/projects/aurora/app-data-access')).status).toBe(404);
+    const other = join(home.dir, 'me', 'Library', 'Application Support', 'com.example.other');
+    mkdirSync(other);
+    const same = await h.call('POST', '/accesses', { name: 'Same', folder: appData, fields: [] });
+    const extra = await h.call('POST', '/accesses', { name: 'Other', folder: other, fields: [] });
+    for (const a of [same, extra]) await h.call('PUT', `/projects/aurora/access/${a.body.id}`);
+    expect((await run()).addDirs).toEqual([realpathSync(appData), realpathSync(other)]);
   });
 
   it('POST /accesses takes a folder without fields, and refuses a field-less access without one', async () => {
@@ -232,5 +212,26 @@ describe('the app data access, end to end', () => {
     expect(ok.status).toBe(201);
     expect((await h.call('POST', '/accesses', { name: 'Empty', fields: [] })).status).toBe(422);
     expect((await h.call('POST', '/accesses', { name: 'Root', folder: '/', fields: [] })).status).toBe(422);
+  });
+});
+
+describe('migration 50: the auto-added app data entries leave the vault', () => {
+  it("drops v1's entries and their grants, keeps folders the user added by hand", () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec('PRAGMA foreign_keys = ON');
+    for (const sql of MIGRATIONS.slice(0, 49)) db.exec(sql);
+    db.exec('PRAGMA user_version = 49');
+    db.exec(
+      `INSERT INTO agents (id, kind, name, look, position, created_at, updated_at) VALUES ('o', 'orchestrator', 'O', '{}', 0, '', '');
+       INSERT INTO projects (id, name, status, orchestrator_id, tile, position, created_at, updated_at) VALUES ('p', 'Pensieve', 'live', 'o', '{}', 0, '', '');
+       INSERT INTO accesses (id, name, serves, instructions, folder, position, created_at, updated_at) VALUES
+         ('auto', 'Pensieve app data', 'The Pensieve Mac app''s data folder (read and write)',
+          'Quit the app before changing its data. Back up what you change first.', '/x/com.p', 0, '', ''),
+         ('hand', 'Photos', 'My photos', '', '/x/photos', 1, '', '');
+       INSERT INTO access_grants (project_id, access_id, granted_at) VALUES ('p', 'auto', ''), ('p', 'hand', '');`,
+    );
+    migrate(db);
+    expect(db.prepare('SELECT id FROM accesses').all()).toEqual([{ id: 'hand' }]);
+    expect(db.prepare('SELECT access_id FROM access_grants').all()).toEqual([{ access_id: 'hand' }]);
   });
 });

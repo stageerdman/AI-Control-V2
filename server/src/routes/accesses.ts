@@ -108,9 +108,4 @@ export const accessesRoutes =
     });
     app.post('/projects/:id/access/sync', async (req) => access.sync(parse(IdParams, req.params).id));
     app.post('/projects/:id/access/seen', async (req) => access.markSeen(parse(IdParams, req.params).id));
-    /* the project's Mac app data folder, as a cabinet entry not yet shared — safe to call again */
-    app.post('/projects/:id/app-data-access', async (req, reply) => {
-      const { access: entry, created } = access.addAppDataFolder(parse(IdParams, req.params).id);
-      return reply.status(created ? 201 : 200).send(entry);
-    });
   };
