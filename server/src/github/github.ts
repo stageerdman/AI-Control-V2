@@ -1,5 +1,5 @@
-/* GitHub (G1): the studio — never an agent — creates a project's repo with `gh`, sets `origin`, pushes,
-   flips visibility, and pushes again after every merge to main.
+/* GitHub (G1): the studio creates a project's repo with `gh`, sets `origin`, pushes, flips visibility, and pushes
+   again after every merge to main. Agents push to that origin themselves too (AGENTS PUSH: git-guard.ts).
 
    - By default the Project Setter creates the repo when it sets a project up (private, named after the folder);
      an adopted folder that already has an origin keeps it. Off per draft (`github: false`) or studio-wide
@@ -22,6 +22,7 @@ import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
 import { githubRepo, safeRemoteUrl } from '../health/git-status.ts';
 import { head, isRepo } from '../setter/git.ts';
+import { GH_HELPER_KEY, ghHelper } from './credential.ts';
 
 const execFileP = promisify(execFile);
 export type Visibility = 'public' | 'private';
@@ -152,9 +153,7 @@ export function createGithub(deps: {
   ): Promise<{ ok: true; commit: string | null } | { ok: false; note: string }> {
     const branch = await branchOf(dir);
     try {
-      const helper = deps.ghBin
-        ? ['-c', `credential.https://github.com.helper=!${deps.ghBin} auth git-credential`]
-        : [];
+      const helper = deps.ghBin ? ['-c', `${GH_HELPER_KEY}=${ghHelper(deps.ghBin)}`] : [];
       await git(dir, [...helper, 'push', '-u', 'origin', branch], 60_000);
       return { ok: true, commit: head(dir) };
     } catch (e) {

@@ -225,7 +225,7 @@ export function memberTask(o: {
       ? `Teammates build the other parts at the same time, in their own checkouts — their work is NOT in yours yet. Stay within your part and code against what their briefs promise (files, function names, data shapes); ${captain} fits the parts together afterwards. Don't ask the user about a teammate's part — if a detail is missing, make the simplest reasonable choice and say it in your summary.\n${others.map((s) => `• ${o.name(s.agentId)}: ${s.text} — brief: ${clip(s.brief, 1500)}`).join('\n')}`
       : '',
     sub.workspace
-      ? `You work in your own checkout on branch ${sub.workspace.branch} (from the team's branch ${sub.workspace.main}): commit your work there (plain \`git add\` / \`git commit\`) — ${captain} merges it into the team's branch. Do not push.`
+      ? `You work in your own checkout on branch ${sub.workspace.branch} (from the team's branch ${sub.workspace.main}): commit your work there (plain \`git add\` / \`git commit\`) — ${captain} merges it into the team's branch.`
       : '',
     reviewers.length
       ? `When you are done, your part goes to ${reviewers.join(', then ')} for sign-off before ${captain} gets it — commit it.`
@@ -261,7 +261,7 @@ export function integrateTask(o: {
     ws
       ? `They are merged into this checkout (branch ${ws.branch}). See the work with \`git log ${ws.base.slice(0, 12)}..HEAD\` and \`git diff ${ws.base.slice(0, 12)}..HEAD\`.`
       : '',
-    'Now integrate: make sure the parts fit together and the item does what the brief asks — run it or its tests when there is a way to. Fix small gaps yourself (and any part that did not finish), then commit (plain `git add` / `git commit`; do not push).',
+    'Now integrate: make sure the parts fit together and the item does what the brief asks — run it or its tests when there is a way to. Fix small gaps yourself (and any part that did not finish), then commit (plain `git add` / `git commit`).',
     o.reviewers.length ? `After you, it goes to ${o.reviewers.join(', then ')} for review.` : '',
     'If the project has an app to start and no `run:` line in `.project` yet, add one (e.g. `run: npm run dev`).',
     o.canSendBack

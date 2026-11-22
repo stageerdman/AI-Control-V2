@@ -5,7 +5,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ghCli } from '../../src/github/github.ts';
-import { cliArgs } from '../../src/runtime/claude-cli.ts';
+import { cliArgs, PUSH_BACKSTOP } from '../../src/runtime/claude-cli.ts';
 import { tempDir, testApp } from '../helpers.ts';
 import { stubGh } from './stub-gh.ts';
 
@@ -247,7 +247,22 @@ describe('GitHub', () => {
     expect(git(dir, 'remote', 'get-url', 'origin')).toBe('git@github.com:someone/old-repo.git');
   });
 
-  it('agents never push: every run with a shell denies git push', () => {
+  it('agent runs push through the hook (force and deletes stay denied); a shell without the hook never pushes', () => {
+    const hooked = cliArgs(
+      {
+        runId: 'r',
+        cwd: '/x',
+        systemPrompt: '',
+        task: '',
+        model: 'm',
+        caps: { maxTurns: 1, maxBudgetUsd: 1 },
+        env: {},
+        secretValues: [],
+      },
+      { askServer: '/a.ts', shellHook: 'HOOK' },
+    );
+    expect(hooked[hooked.indexOf('--disallowed-tools') + 1]).toBe(PUSH_BACKSTOP.join(','));
+    expect(PUSH_BACKSTOP).toContain('Bash(git push --force*)');
     const args = cliArgs(
       {
         runId: 'r',

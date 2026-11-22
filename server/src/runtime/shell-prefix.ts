@@ -3,7 +3,7 @@
    PreToolUse hook (shell-hook.ts) runs this check and approves exactly these — everything else keeps the normal rules.
    Pure. Literal values only: no `$`, backticks, `$(`, `;`, `&`, `|`, `<`, `>`, newlines, parentheses or backslashes
    anywhere in the command; names that would change how commands are found or run (PATH, LD_… and DYLD_…, GIT_…, auth
-   overrides…) are refused, and so is `git push` (agents never push). */
+   overrides…) are refused. Git's push limits are the git guard's (git-guard.ts), which the hook runs first. */
 
 export type PrefixCheck =
   /** Not a setting-prefixed command: the normal permission rules decide. */
@@ -63,7 +63,5 @@ export function checkPrefixed(raw: string, allowed: readonly string[]): PrefixCh
     };
   if (/['"]/.test(program) || !allowed.includes(program))
     return { kind: 'deny', reason: `'${program}' isn't an allowed command (${allowed.join(', ')})` };
-  if (program === 'git' && words[1] === 'push')
-    return { kind: 'deny', reason: 'Agents never push — the studio pushes after it merges your work' };
   return { kind: 'allow', names, command: rest };
 }

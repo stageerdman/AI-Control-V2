@@ -43,7 +43,6 @@ describe('setting-prefixed commands', () => {
     ['GIT_SSH_COMMAND=sh git fetch', /GIT_SSH_COMMAND can't be set/],
     ['ANTHROPIC_API_KEY=x node a.js', /can't be set/],
     ['npm_config_script_shell=sh npm test', /can't be set/],
-    ['CI=1 git push origin main', /never push/],
   ])('refuses %s', (cmd, why) => {
     const r = checkPrefixed(cmd, dev);
     expect(r.kind).toBe('deny');
@@ -99,6 +98,13 @@ describe('setting-prefixed commands', () => {
     });
     expect(JSON.parse(run(bash('PORT=$X node a.js'))).hookSpecificOutput.permissionDecision).toBe('deny');
     expect(run(bash('npm test'))).toBe('');
+    /* AGENTS PUSH: a normal push is left to the allow-list (git is allowed); a force push is refused */
+    expect(run(bash('git push origin main'))).toBe('');
+    expect(run(bash('CI=1 git push origin main')).includes('"allow"')).toBe(true);
+    expect(JSON.parse(run(bash('git push --force origin master'))).hookSpecificOutput).toMatchObject({
+      permissionDecision: 'deny',
+      permissionDecisionReason: expect.stringMatching(/Force pushes/),
+    });
     expect(run({ tool_name: 'Read', tool_input: { file_path: '/x' } })).toBe('');
     expect(
       execFileSync(process.execPath, [hook, dev.join(',')], { input: 'not json', encoding: 'utf8' }),

@@ -509,7 +509,7 @@ export function createDispatch(deps: {
           : `You do this item for ${team.name}. Do the work yourself in this run; note anything for your teammates in issues.txt.`
         : '',
       it.workspace
-        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`) — it merges into ${it.workspace.main} once accepted. Do not push. Other items may be running in parallel in their own checkouts.`
+        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`) — it merges into ${it.workspace.main} once accepted. If the brief asks you to ship it (push, deploy, a live check), push and deploy yourself. Other items may be running in parallel in their own checkouts.`
         : '',
       it.report
         ? ''

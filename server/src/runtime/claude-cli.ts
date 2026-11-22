@@ -34,8 +34,19 @@ export const DEFAULT_ALLOWED = [
   ...shellAllowed(AGENT_SHELL.dev),
   ASK_TOOL,
 ];
-/** Agents never push (G1: projects have a GitHub origin now) — deny rules beat any allow. The studio pushes. */
-export const DENIED = ['Bash(git push)', 'Bash(git push *)'];
+/** AGENTS PUSH: a run with the shell hook pushes to its own origin; the hook's git guard (git-guard.ts) holds the
+    limits. These deny rules (they beat any allow) are a backstop for the plain force/delete forms if the hook
+    can't run. */
+export const PUSH_BACKSTOP = [
+  'Bash(git push --force*)',
+  'Bash(git push -f*)',
+  'Bash(git push --mirror*)',
+  'Bash(git push --delete*)',
+  'Bash(git push -d*)',
+  'Bash(git push --prune*)',
+];
+/** A run with a shell but no hook (crew and review runs with their own tools) can't push at all. */
+export const NO_PUSH = ['Bash(git push)', 'Bash(git push *)'];
 /** Reporter runs research the web (read-only). */
 export const WEB_TOOLS = ['WebSearch', 'WebFetch'];
 const KILL_GRACE_MS = 3000;
@@ -105,6 +116,9 @@ export function cliArgs(
         ...studio,
       ]
     : [...(opts.allowedTools ?? DEFAULT_ALLOWED), ...report, ...web, ...studio];
+  const shell =
+    tools.includes('Bash') && opts.shellHook && (!spec.tools || spec.fullShell) ? opts.shellHook : null;
+  const nudge = opts.nudgeHook && spec.env.AI_STUDIO_NUDGE_URL ? opts.nudgeHook : null;
   return [
     '-p',
     '--output-format',
@@ -120,13 +134,8 @@ export function cliArgs(
     '--tools',
     tools.join(','), // '' disables every built-in tool
     ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
-    ...(tools.includes('Bash') ? ['--disallowed-tools', DENIED.join(',')] : []),
-    ...(() => {
-      const shell =
-        tools.includes('Bash') && opts.shellHook && (!spec.tools || spec.fullShell) ? opts.shellHook : null;
-      const nudge = opts.nudgeHook && spec.env.AI_STUDIO_NUDGE_URL ? opts.nudgeHook : null;
-      return shell || nudge ? ['--settings', JSON.stringify(hookSettings(shell, nudge))] : [];
-    })(),
+    ...(tools.includes('Bash') ? ['--disallowed-tools', (shell ? PUSH_BACKSTOP : NO_PUSH).join(',')] : []),
+    ...(shell || nudge ? ['--settings', JSON.stringify(hookSettings(shell, nudge))] : []),
     '--permission-mode',
     'dontAsk',
     '--permission-prompts',

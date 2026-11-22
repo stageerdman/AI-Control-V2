@@ -171,6 +171,8 @@ export type RuntimeDeps = {
   /** G1: the project's port block — each agent run gets a spare as PORT (+ AI_STUDIO_PORTS) and a line in its brief. */
   ports?: Ports;
   parentEnv?: NodeJS.ProcessEnv;
+  /** AGENTS PUSH: env for the agent's own git (github.com login through gh, no prompts — github/credential.ts). */
+  gitEnv?: Record<string, string>;
   /** Reporter runs get file_report (absent → nobody files). */
   reports?: ReportDesk;
   /** Where toolsmiths keep their toolkits (<data dir>/toolkits); absent → no toolkits. */
@@ -581,6 +583,7 @@ export function createRuntime(deps: RuntimeDeps) {
       isMacProject(cwd);
     const envWith = (values: Record<string, string>) =>
       runEnv(deps.parentEnv ?? process.env, values, {
+        ...deps.gitEnv,
         /* the shell hook checks Mac build paths against this folder */
         AI_STUDIO_PROJECT_DIR: cwd,
         ...(ports

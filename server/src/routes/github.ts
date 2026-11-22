@@ -1,5 +1,5 @@
 /* GitHub (G1): publish a project (the user's button), the public/private switch, and the studio-wide
-   status. The studio runs gh; agents never push. (GET/PATCH /settings: routes/settings.ts.) */
+   status. The studio runs gh; agents push to their own origin (git-guard.ts). (GET/PATCH /settings: routes/settings.ts.) */
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { parse } from '../errors.ts';

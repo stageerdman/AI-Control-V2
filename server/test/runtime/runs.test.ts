@@ -256,6 +256,8 @@ describe('agent runs (FakeRunner end-to-end)', () => {
           'LC_ALL',
           'LC_CTYPE',
           '__CF_USER_TEXT_ENCODING',
+          'SSH_AUTH_SOCK', // AGENTS PUSH: ssh origins push through the user's ssh agent
+          'GIT_TERMINAL_PROMPT', // AGENTS PUSH: a push never waits on a prompt
           'PATH',
           'STRIPE_KEY',
           'PORT', // G1: the run's port block

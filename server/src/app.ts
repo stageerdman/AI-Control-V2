@@ -29,6 +29,7 @@ import { AppError, parse } from './errors.ts';
 import { createBus } from './events/bus.ts';
 import { type EventLog, eventLog } from './events/log.ts';
 import { worktrees } from './git/worktrees.ts';
+import { agentGitEnv } from './github/credential.ts';
 import { createGithub, type GhRun } from './github/github.ts';
 import type { GhProbe } from './health/git-status.ts';
 import { createHealth } from './health/health.ts';
@@ -287,6 +288,7 @@ export function buildApp({
     worktreesRoot: join(config.home, 'worktrees'),
     defaultCaps: caps.agent,
     shell,
+    gitEnv: agentGitEnv(ghBin),
     autoApprove: autoApprove.get,
     /* reporter runs get file_report; its input is checked here (422 lists what's wrong) */
     reports: {
@@ -430,7 +432,7 @@ export function buildApp({
   /* status (live → needs → idle) and overall progress follow the event log on their own */
   const lifecycle = createLifecycle({ db, store, events });
   lifecycle.recover();
-  /* GitHub: setup creates the repo by default, the user publishes / flips visibility, merges push (never agents) */
+  /* GitHub: setup creates the repo by default, the user publishes / flips visibility, merges push (agents may push too) */
   const github = createGithub({
     db,
     store,

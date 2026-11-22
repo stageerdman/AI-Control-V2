@@ -14,6 +14,8 @@ const PASS_THROUGH = [
   'LC_ALL',
   'LC_CTYPE',
   '__CF_USER_TEXT_ENCODING',
+  /* AGENTS PUSH: a project whose origin is ssh (git@github.com:…) pushes through the user's ssh agent */
+  'SSH_AUTH_SOCK',
 ];
 const BASE_PATH = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 /** Never handed to the CLI: they'd switch its auth/provider away from the user's login. */
