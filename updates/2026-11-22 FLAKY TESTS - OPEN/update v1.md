@@ -22,4 +22,15 @@ passes 20 runs in a row.
    Update issues.txt, wiki.md, commit, merge into master.
 
 ## Status
-- Phase 1: in progress.
+All four phases done. Found and fixed:
+
+| Flake | Root cause | Fix |
+|---|---|---|
+| guests.test "database is not open" | dispatch's fire-and-forget work (pump, runtime.start) still ran after `app.close()` closed the db | `crew/background.ts` tracks it; `dispatch.close()` stops new work and waits; preClose closes dispatch around `runtime.shutdown` |
+| worktrees-flow / team-flow conflict tests | `wait: 5` vs `wait: 40` decided which item merged first; load swapped them | fake runner `{ until }` step + `conflictOrder()`: one item merges first by event |
+| github.test ENOTEMPTY | background `git gc` / maintenance wrote into the temp remote while `rmSync` removed it | `test/setup.ts` turns off git auto-housekeeping |
+| team-flow, worktrees-flow, mac-build timeouts | ~1 s alone, >5 s at load 25–36 on 8 cores (other agents' suites) | `testTimeout` / `hookTimeout` 30 s in `vitest.config.ts` |
+| swift-build-check case 2 "expected 'done' not to be 'done'" | read the handed-over task's live status after the chat settled; the task runs alongside and could already be done | dropped the read; `expectHonestFinish` already proves it was never done early |
+| stall-alerts-flow "a goal stops partway" | not reproduced in 25+ full runs and 7 file loops | none needed |
+
+Proof: guests.test 20/20 in a row; swift-build-check 20/20; full suite 10/10 in a row (see the final run).

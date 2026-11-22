@@ -10,7 +10,6 @@ OPEN
 - [ ] Fresh data dirs still seed the 9 prototype demo projects (Aurora Storefront…). Removed from the user's real data 2026-11-14; seed.ts should stop creating them (tests depend on them — move to a test fixture).
 - [ ] Agents can't see a page in a real browser — they verify with tests + scripted requests. (F3)
 - [ ] Agent shell refuses env-prefixed commands (`PORT=… npm start`); agents work around it. (F3)
-- [ ] One server test failed once at the start of F3 and never again in ~12 full runs — not pinned down. (F3)
 - [ ] Orchestrator chat can repeat an older idea from earlier in its thread. (F3)
 - [ ] Pager for a reviewer's final send-back is unit-tested only (fake runner always approves). (F2)
 - [ ] Global secrets store (~/.ai-control/.env) is empty — real API keys (Anthropic, ElevenLabs, Deepgram, …) need to be added, then synced into this project's .env.
@@ -18,10 +17,11 @@ OPEN
 - [ ] Blueprint "Rebuild" / "Rebuild outdated" buttons — need a server endpoint (e.g. POST /projects/:id/claude-md/rebuild); the row says "Rebuild with the rebuild-claude-md routine" for now. (F2)
 - [ ] Health: GitHub visibility toggle (private ↔ public) — needs a server endpoint wrapping `gh repo edit --visibility`; status is shown read-only. (F2)
 - [ ] Access: "new" dot on cabinet entries added after a project was set up — needs a created-vs-granted signal from the server (e.g. grantSeenAt per project). (F2)
-- [ ] Flaky under full-suite load: worktrees-flow "a conflict goes back to the builder…" / "an unresolved conflict stops…" (5 ms vs 40 ms waits decide which item merges first), github.test "pushes main after every merge" (ENOTEMPTY on rmSync of the remote), and once stall-alerts-flow "a goal stops partway" (the parallel vial failed; not reproduced in 3 more runs). Each passes alone.
+- [ ] github.ts pushAfterMerge swallows push errors with `.catch(() => {})` — should log with context. (FLAKY TESTS)
 
 RESOLVED
 --------
 - APP UI + BACKEND updates: whole app built on the real backend, real-AI end-to-end verified (F1–F3, 2026-11-14).
 - Stack locked: Tauri + React/Tailwind app, Node/Fastify/sqlite backend, Claude Code CLI runner.
 - Deleting an orchestrator now says its projects move to another (F2).
+- Flaky server tests on busy full runs (guests "database is not open", conflict-order races, github ENOTEMPTY, load timeouts, swift-build-check live-status read, the unpinned F3 one) fixed at the root; full suite 10/10, guests 20/20 (FLAKY TESTS, 2026-11-22).
