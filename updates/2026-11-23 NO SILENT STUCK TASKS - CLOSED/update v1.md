@@ -65,10 +65,16 @@ Tasks never get stuck quietly. Six parts:
 
 ## Status
 
-- [x] Phase 1  - [x] Phase 2  - [x] Phase 3  - [ ] Phase 4  - [ ] Phase 5
+- [x] Phase 1  - [x] Phase 2  - [x] Phase 3  - [x] Phase 4  - [x] Phase 5
 - Phase 1: `runtime.notesFor/clearNotes`, routes in `routes/runs.ts`; dispatch `voidNotes` on requeue, handover, fresh
   reopen; carry-on brief line `STALE_NOTES`. Tests: `test/runtime/notes.test.ts`, `test/crew/restart-flow.test.ts`.
 - Phase 2: `worktrees.retire`, `dispatch.restartFresh` (caller then calls `board.changed`), route in `routes/crew.ts`,
   `edit_task fresh: true`. Sub-tasks and split team items are refused. Test: `test/crew/restart-fresh-flow.test.ts`.
 - Phase 3: reviews keep `head`; `emptyTries` + `MAX_EMPTY_TRIES` in `review-loop.ts`; `dispatch.loopGoesNowhere`
   (was `stuckOnSameNote`). Workflows cap `maxSendBacks` at 3, so the flow uses 3. Tests: `review-loop(.flow).test.ts`.
+- Phase 4: `src/crew/preflight.ts` (pure `preflightProblems`, I/O `gatherFacts`; also go.mod → go). The `origin`
+  check was dropped: an offline laptop would block every build. Dispatch `cantBuild` runs before a fresh build's
+  first run (or a captain's split) in its checkout; `freshStart` is shared with `delegable`. On by default in the app
+  (`AppDeps.preflight`; tests may stub it). Tests: `test/crew/preflight(.flow).test.ts`.
+- Phase 5: master already kept handoffs open; `handover-flow.test.ts` now locks in "old run fails after handing over
+  → Bob still builds it, item and goal done".

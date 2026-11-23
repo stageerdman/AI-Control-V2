@@ -47,6 +47,8 @@ export function testApp(
     userHome?: string;
     /** Ready to Test: what "open the built app" does (default: nothing — tests never launch real apps). */
     openApp?: (app: string) => Promise<void>;
+    /** Builder preflight stub (default: the real check). */
+    preflight?: (cwd: string) => Promise<string[]>;
   } = {},
 ) {
   const t = opts.at ? { dir: opts.at, cleanup: () => {} } : tempDir();
@@ -71,6 +73,7 @@ export function testApp(
     ...(opts.maxConcurrent === undefined ? {} : { maxConcurrent: opts.maxConcurrent }),
     ...(opts.ghRun === undefined ? {} : { ghRun: opts.ghRun }),
     ...(opts.gitEnv ? { gitEnv: opts.gitEnv } : {}),
+    ...(opts.preflight ? { preflight: opts.preflight } : {}),
     /* runs look for their app's data folder by themselves: never in the real home */
     userHome: opts.userHome ?? join(t.dir, 'home'),
     openApp: opts.openApp ?? (async () => {}),

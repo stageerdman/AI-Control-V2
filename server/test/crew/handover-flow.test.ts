@@ -81,6 +81,35 @@ describe('handovers: the item, its branch and its reviews follow the new owner',
     expect(handoffs.slice(at + 1)).toContain(`review:${BOB}→${LINT}`);
   }, 20_000);
 
+  /* No Silent Stuck Tasks: a handoff stays open until it is delivered — the old owner's run failing after it
+     handed the item on never closes it or the goal; the new owner still builds it. */
+  it('handed over mid-run, then the old run fails: the item stays open with Bob and gets done', async () => {
+    let bobBuilt = false;
+    const s = studio((app, spec) => {
+      if (isReview(spec)) return [{ result: '{"verdict":"approve","notes":"Good."}' }];
+      if (isRunOf(app, spec, COLUMBO))
+        return [
+          {
+            tool: 'call_agent',
+            args: { agent: 'Baron', request: 'Take the Pensieve.', why: 'hand over', handover: true },
+          },
+          { fail: 'Columbo crashed after handing it on' },
+        ];
+      bobBuilt = true;
+      return commit(spec, 'pensieve.txt');
+    });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
+    const work = workRepo(h.db);
+    const it = await until(
+      () => work.item(r.body.items[0].id) as ChecklistItem,
+      (i) => i.status === 'done' || i.status === 'failed',
+    );
+    expect(it, it.note ?? '').toMatchObject({ status: 'done', agentId: BOB });
+    expect(bobBuilt).toBe(true);
+    expect(work.goal(r.body.id)?.status).toBe('done');
+  }, 20_000);
+
   /* Regression (the real Pensieve bug): after the handover the reviewer kept sending the item back to Columbo,
      whose branch had nothing on it. Every review must see Bob's commits, and the send-back must reach Bob. */
   it('Pensieve send-back: Lint asks for changes on Bob’s branch, Bob reworks in his own session, never Columbo', async () => {

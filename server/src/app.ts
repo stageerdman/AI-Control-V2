@@ -16,6 +16,7 @@ import { createCreator } from './crew/creator.ts';
 import { createCreatorChat, hireTool, proposeTool } from './crew/creator-chat.ts';
 import { createDispatch, planReply } from './crew/dispatch.ts';
 import { fakeBrain } from './crew/fake-brain.ts';
+import { preflight as builderPreflight } from './crew/preflight.ts';
 import { settledLine } from './crew/settled.ts';
 import { createSetupChat } from './crew/setup-chat.ts';
 import { createCrew } from './crew/structured.ts';
@@ -186,6 +187,8 @@ export type AppDeps = {
   openApp?: (app: string) => Promise<void>;
   /** Where Tauri apps are built (default: the shared Cargo target). */
   cargoTarget?: string;
+  /** Builder preflight: a fresh build's checkout problems (default: src/crew/preflight.ts; tests pass a stub). */
+  preflight?: (cwd: string) => Promise<string[]>;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -219,6 +222,7 @@ export function buildApp({
   userHome = homedir(),
   openApp = openWithMac,
   cargoTarget = sharedCargoTarget(),
+  preflight = builderPreflight,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   /* folder accesses never overlap the studio's own folders (its data, the projects, the global secrets) */
@@ -410,6 +414,7 @@ export function buildApp({
     worktrees: worktrees(join(config.home, 'worktrees')),
     sandbox: config.sandbox,
     reviewCaps: caps.review,
+    preflight,
     onPlanned: ({ projectId, goalText, goal, error }) => {
       const orch = store.projects.get(projectId)?.orchestratorId;
       if (!orch || !threadsRef) return;

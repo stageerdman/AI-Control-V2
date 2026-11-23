@@ -269,6 +269,8 @@ export function createDispatch(deps: {
     projectId: string,
     reportId: string,
   ) => { title: string; summary: string; body: string } | null;
+  /** Can a fresh build work in this checkout (src/crew/preflight.ts)? → its problems. Absent → no check. */
+  preflight?: (cwd: string) => Promise<string[]>;
 }) {
   const { store, events, crew, runtime } = deps;
   const cap = deps.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
@@ -798,6 +800,8 @@ export function createDispatch(deps: {
       return;
     }
     it = work.item(itemId) as ChecklistItem;
+    if (it.status === 'running' && (await cantBuild(it))) return;
+    it = work.item(itemId) as ChecklistItem;
     if (it.status === 'running' && delegable(it)) {
       const mode = await split(it);
       it = work.item(itemId) as ChecklistItem;
@@ -852,6 +856,34 @@ export function createDispatch(deps: {
     const cur = work.item(itemId);
     if (cur) work.setItem(itemId, { status: cur.status, workspace: ws });
   };
+
+  /** Builder preflight: a fresh build whose checkout can't be built or tested goes back to the director with why
+      (a stall alert, as when a review loop goes nowhere) and no run starts. → true when it did. */
+  async function cantBuild(it: ChecklistItem): Promise<boolean> {
+    if (!deps.preflight || !it.workspace || !freshStart(it)) return false;
+    const problems = await deps
+      .preflight(it.workspace.cwd)
+      .catch((e: Error) => [`Couldn't check the checkout: ${e.message}`]);
+    if (!problems.length || work.item(it.id)?.status !== 'running') return false;
+    const why = clip(
+      `${name(it.agentId)} can't start "${it.text}" in ${it.workspace.cwd}:\n${problems.map((p) => `- ${p}`).join('\n')}`,
+      2000,
+    );
+    settle(it, { status: 'todo' });
+    handOver(it.id, { agentId: store.projects.require(it.projectId).orchestratorId, teamId: null }, why);
+    itemStalled(it.id, { kind: 'stuck', reason: why });
+    return true;
+  }
+  /** The first build of an item: no earlier session, send-back or carry-on; not a member's part or a report. */
+  const freshStart = (it: ChecklistItem) =>
+    it.stage === 'build' &&
+    !it.parentId &&
+    !it.report &&
+    !it.teamPlan &&
+    !it.buildRunId &&
+    !it.resumeRunId &&
+    it.sendBacks === 0 &&
+    it.continues === 0;
 
   const repoOf = (projectId: string) =>
     resolveInSandbox(deps.sandbox ?? '', store.projects.require(projectId).folder ?? '');
@@ -1196,9 +1228,7 @@ export function createDispatch(deps: {
 
   /** A fresh item for a team's captain, in its own checkout, on a team with someone to delegate to. */
   function delegable(it: ChecklistItem): boolean {
-    if (it.parentId || it.report || !it.teamId || !it.workspace || it.teamPlan) return false;
-    if (it.stage !== 'build' || it.buildRunId || it.sendBacks > 0 || it.resumeRunId || it.continues > 0)
-      return false;
+    if (!it.teamId || !it.workspace || !freshStart(it)) return false;
     const team = store.teams.get(it.teamId);
     return !!team && team.captainId === it.agentId && team.members.length > 1;
   }

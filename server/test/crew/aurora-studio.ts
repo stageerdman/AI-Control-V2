@@ -44,13 +44,14 @@ export function studio(
   work: (h: ReturnType<typeof testApp>, s: RunSpec) => FakeStep[],
   plan: object = PLAN,
   runner: (scripted: Runner) => Runner = (r) => r,
+  app: { preflight?: (cwd: string) => Promise<string[]> } = {},
 ) {
   const box: { h?: ReturnType<typeof testApp> } = {};
   const turns: FakeStep[][] = [];
   const crew = scriptedCrew({ dispatch: [plan], help: [{ answer: 'On it.', say: 'on it' }] }, (s) =>
     isChat(s) ? [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }] : work(box.h as never, s),
   );
-  const h = testApp({ seed: true, runner: runner(crew.runner) });
+  const h = testApp({ seed: true, runner: runner(crew.runner), ...app });
   box.h = h;
   const repo = join(h.config.sandbox, 'aurora');
   mkdirSync(repo);
