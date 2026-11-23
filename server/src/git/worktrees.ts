@@ -8,59 +8,32 @@
    metadata lives in the project's own `.git/worktrees/` as usual.
 
    Never lose work: before a checkout is removed, everything in it is committed on its branch; a branch is
-   deleted only after it was merged (`git branch -d` refuses otherwise); failed or conflicted work stays
-   on its branch. Local git only — no remotes, no network. */
-import { execFile } from 'node:child_process';
+   deleted only after it landed (`git branch -d` refuses otherwise); failed or clashing work stays on its
+   branch. Landing itself (land.ts) never merges in the project folder. Local git only — no remotes. */
 import { chmodSync, copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { promisify } from 'node:util';
 import { slugify } from '../domain/ids.ts';
 import { identityEnv } from '../setter/git.ts';
+import { type LandResult, land, type TestStep } from './land.ts';
+import { excludeNeverCommit, git, reason, tryGit } from './run-git.ts';
 
-const exec = promisify(execFile);
-const ENV = { GIT_TERMINAL_PROMPT: '0', GIT_EDITOR: 'true', GIT_MERGE_AUTOEDIT: 'no' };
-
-async function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): Promise<string> {
-  const { stdout } = await exec('git', args, {
-    cwd,
-    env: { ...process.env, ...ENV, ...env },
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  return stdout.trim();
-}
-const tryGit = async (cwd: string, args: string[]) => {
-  try {
-    return await git(cwd, args);
-  } catch {
-    return null;
-  }
-};
-/** Left out of the safety-net commit: secrets and folders an install recreates. */
-const NEVER_COMMIT = [
-  '**/.env',
-  '**/.env.*',
-  '**/node_modules/**',
-  '**/.venv/**',
-  '**/__pycache__/**',
-  '**/.DS_Store',
-];
-const reason = (e: unknown) =>
-  ((e as { stderr?: string }).stderr || (e as Error).message || 'git failed').trim().slice(0, 1000);
-
-/** One item's checkout. `main` = the branch it merges back into; `base` = the commit it started from. */
+/** One item's checkout. `main` = the branch it lands on; `base` = the commit it started from. */
 export type Workspace = { cwd: string; branch: string; base: string; main: string };
-export type MergeResult =
-  | { ok: true; commit: string | null }
-  | { ok: false; conflict: true; files: string[]; reason: string }
-  | { ok: false; conflict: false; reason: string };
+
+/** The project's main branch: `main` or `master` when it has one, else the branch its folder has out — never
+    merely whatever happens to be checked out when a task starts (Always Merged). */
+export async function mainBranch(repo: string): Promise<string> {
+  for (const b of ['main', 'master'])
+    if ((await tryGit(repo, ['rev-parse', '--verify', '-q', `refs/heads/${b}`])) !== null) return b;
+  return git(repo, ['symbolic-ref', '--short', 'HEAD']);
+}
 
 export function worktrees(root: string) {
   /** Commit everything the run left in the checkout (its own branch) — never secrets or regenerable
       dependency folders, even when the project's .gitignore forgets them. Returns the sha, or null when clean. */
   async function commitAll(ws: Workspace, message: string): Promise<string | null> {
     if (!existsSync(ws.cwd)) return null;
-    await git(ws.cwd, ['add', '-A', '--', '.', ...NEVER_COMMIT.map((p) => `:(exclude,glob)${p}`)]);
+    await git(ws.cwd, ['add', '-A', '--', '.', ...excludeNeverCommit()]);
     if ((await tryGit(ws.cwd, ['diff', '--cached', '--quiet'])) !== null) return null; // nothing staged
     await git(ws.cwd, ['commit', '-q', '--no-verify', '-m', message], identityEnv(ws.cwd));
     return git(ws.cwd, ['rev-parse', 'HEAD']);
@@ -87,8 +60,8 @@ export function worktrees(root: string) {
       from?: { branch: string },
     ): Promise<Workspace | null> {
       if (!(await this.usable(repo))) return null;
-      const main = from?.branch ?? ((await git(repo, ['symbolic-ref', '--short', 'HEAD'])) as string);
-      const base = await git(repo, ['rev-parse', from ? `refs/heads/${from.branch}` : 'HEAD']);
+      const main = from?.branch ?? (await mainBranch(repo));
+      const base = await git(repo, ['rev-parse', `refs/heads/${main}`]);
       const short = itemId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
       const name = `${slugify(label, 'item').slice(0, 40)}-${short}`;
       const branch = `studio/${name}`;
@@ -111,7 +84,7 @@ export function worktrees(root: string) {
       const has = (await tryGit(repo, ['rev-parse', '--verify', '-q', `refs/heads/${ws.branch}`])) !== null;
       /* the branch it merged into may be gone (a team item that already landed): fall back to the project's own */
       const mainOk = (await tryGit(repo, ['rev-parse', '--verify', '-q', `refs/heads/${ws.main}`])) !== null;
-      const main = mainOk ? ws.main : await git(repo, ['symbolic-ref', '--short', 'HEAD']);
+      const main = mainOk ? ws.main : await mainBranch(repo);
       mkdirSync(dirname(ws.cwd), { recursive: true, mode: 0o700 });
       let base = ws.base;
       if (has) await git(repo, ['worktree', 'add', '-q', ws.cwd, ws.branch]);
@@ -128,54 +101,15 @@ export function worktrees(root: string) {
 
     commitAll,
 
-    /** Commit what's left, then merge the branch into main in the project folder: fast-forward when possible,
-        else a merge commit. On a conflict the merge is aborted (main untouched) and the files are listed. */
-    async merge(repo: string, ws: Workspace, message: string): Promise<MergeResult> {
+    /** Commit what's left, then land the branch on main (land.ts): main is merged in and tested in the checkout,
+        and main only ever fast-forwards. A clash or failing tests leave main untouched. */
+    async land(ws: Workspace, message: string, test?: TestStep): Promise<LandResult> {
       try {
         await commitAll(ws, message);
       } catch (e) {
-        return {
-          ok: false,
-          conflict: false,
-          reason: `Couldn't commit the work on ${ws.branch}: ${reason(e)}`,
-        };
+        return { ok: false, kind: 'error', reason: `Couldn't commit the work on ${ws.branch}: ${reason(e)}` };
       }
-      const on = await tryGit(repo, ['symbolic-ref', '-q', '--short', 'HEAD']);
-      if (on !== ws.main)
-        return {
-          ok: false,
-          conflict: false,
-          reason: `The project folder is on '${on ?? 'a detached HEAD'}', not '${ws.main}' — switch back to merge ${ws.branch}`,
-        };
-      const ahead = Number(await git(repo, ['rev-list', '--count', `${ws.main}..${ws.branch}`]));
-      if (ahead === 0) return { ok: true, commit: null };
-      try {
-        await git(repo, ['merge', '-q', '--ff-only', ws.branch]);
-        return { ok: true, commit: await git(repo, ['rev-parse', 'HEAD']) };
-      } catch {
-        /* main moved on (another item merged first): a real merge */
-      }
-      try {
-        await git(repo, ['merge', '-q', '--no-ff', '--no-edit', '-m', message, ws.branch], identityEnv(repo));
-        return { ok: true, commit: await git(repo, ['rev-parse', 'HEAD']) };
-      } catch (e) {
-        const files = ((await tryGit(repo, ['diff', '--name-only', '--diff-filter=U'])) ?? '')
-          .split('\n')
-          .filter(Boolean);
-        await tryGit(repo, ['merge', '--abort']);
-        return files.length
-          ? {
-              ok: false,
-              conflict: true,
-              files,
-              reason: `Merging ${ws.branch} into ${ws.main} conflicts in ${files.join(', ')}`,
-            }
-          : {
-              ok: false,
-              conflict: false,
-              reason: `Couldn't merge ${ws.branch} into ${ws.main}: ${reason(e)}`,
-            };
-      }
+      return land(ws, test);
     },
 
     /** Remove the checkout. Everything is committed first; the branch is deleted only when merged

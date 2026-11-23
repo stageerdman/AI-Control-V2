@@ -799,6 +799,11 @@ export const MIGRATIONS: readonly string[] = [
   DROP TABLE goals;
   ALTER TABLE goals_new RENAME TO goals;
   `,
+  /* 52 — Always Merged: the commit main moved to when the task landed, so whoever tells the user reads the fact
+     ("merged as abc1234"), not the builder's note written before review and merge. NULL = not landed. */
+  `
+  ALTER TABLE checklist_items ADD COLUMN merged_commit TEXT;
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */

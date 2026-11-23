@@ -1493,7 +1493,7 @@ export function createDispatch(deps: {
   /** A run outlived its item's owner (the item changed hands while it ran): the new owner builds it fresh in
       the same checkout — the run's result never goes to review as the new owner's work. */
   function restartForOwner(it: ChecklistItem) {
-    settle(it, freshBuild());
+    settle(it, freshBuild(it.stage));
   }
 
   /** Hand an item to a new owner: done work changes hands as it is; open work gets the new owner's fresh build on
@@ -1512,7 +1512,7 @@ export function createDispatch(deps: {
     store.tx(() => {
       work.editItem(it.id, mode === 'keep' ? to : { ...to, gates });
       /* the old owner's summary goes too: reviewers read the note as the current owner's */
-      if (mode === 'now') work.setItem(it.id, { ...freshBuild(), note: note ?? null });
+      if (mode === 'now') work.setItem(it.id, { ...freshBuild(it.stage), note: note ?? null });
       if (mode === 'later') work.setItem(it.id, { status: 'running', ...dropSessions, note: note ?? null });
     });
     const cur = work.item(it.id) as ChecklistItem;

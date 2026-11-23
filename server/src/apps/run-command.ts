@@ -14,11 +14,20 @@ const readFile = (abs: string): string | null => {
   }
 };
 
-/** `run: npm run dev` from `.project` (quotes trimmed), null when absent. */
-export function readRunLine(text: string): string | null {
-  const m = /^run:[ \t]*(.+?)[ \t]*$/m.exec(text);
+/** A `<key>: <command>` line from `.project` (quotes trimmed), null when absent. */
+function readCommandLine(text: string, key: 'run' | 'test'): string | null {
+  const m = new RegExp(`^${key}:[ \\t]*(.+?)[ \\t]*$`, 'm').exec(text);
   const v = m?.[1]?.replace(/^(["'])(.*)\1$/, '$2').trim();
   return v ? v : null;
+}
+/** `run: npm run dev` from `.project`, null when absent. */
+export const readRunLine = (text: string): string | null => readCommandLine(text, 'run');
+
+/** `test: npm test` from the folder's `.project`: what must pass before work lands (Always Merged). Never
+    guessed: no line, no test step. */
+export function testCommandOf(folder: string): string | null {
+  const marker = readFile(join(folder, '.project'));
+  return marker ? readCommandLine(marker, 'test') : null;
 }
 
 export function runCommandOf(folder: string): RunCommand | null {

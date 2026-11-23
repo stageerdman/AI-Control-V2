@@ -58,8 +58,10 @@ export type ChecklistItem = {
   buildRunId: string | null;
   /** Its own git checkout + branch (null: it works in the project folder — not a git repo yet). */
   workspace: Workspace | null;
-  /** Merge conflicts the builder was asked to fix. */
+  /** Landing problems (a clash, failing tests) the builder was asked to fix. */
   mergeTries: number;
+  /** The commit its landing moved main to (null: not landed, or nothing new to land). */
+  mergedCommit: string | null;
   /** A stopped run (turn cap, restart) whose session the next run carries on from (null = start as usual). */
   resumeRunId: string | null;
   /** How often it carried on after reaching its turn cap. */
@@ -89,6 +91,7 @@ export type ItemPatch = {
   buildRunId?: string | null;
   workspace?: Workspace | null;
   mergeTries?: number;
+  mergedCommit?: string | null;
   resumeRunId?: string | null;
   continues?: number;
   teamPhase?: TeamPhase | null;
@@ -156,6 +159,7 @@ const toItem = (r: Row): ChecklistItem => ({
   buildRunId: (r.build_run_id as string | null) ?? null,
   workspace: r.workspace ? (JSON.parse(r.workspace as string) as Workspace) : null,
   mergeTries: (r.merge_tries as number) ?? 0,
+  mergedCommit: (r.merged_commit as string | null) ?? null,
   resumeRunId: (r.resume_run_id as string | null) ?? null,
   continues: (r.continues as number) ?? 0,
   parentId: (r.parent_id as string | null) ?? null,
@@ -453,8 +457,8 @@ export function workRepo(db: Db) {
         (patch[k] === undefined ? cur[k] : patch[k]) as ChecklistItem[K];
       db.prepare(
         `UPDATE checklist_items SET status = ?, run_id = ?, note = ?, stage = ?, gate_index = ?, send_backs = ?, notes = ?,
-           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, resume_run_id = ?, continues = ?, team_phase = ?, team_rounds = ?, team_plan = ?,
-           updated_at = ? WHERE id = ?`,
+           reviews = ?, build_run_id = ?, workspace = ?, merge_tries = ?, merged_commit = ?, resume_run_id = ?, continues = ?, team_phase = ?, team_rounds = ?,
+           team_plan = ?, updated_at = ? WHERE id = ?`,
       ).run(
         patch.status,
         pick('runId'),
@@ -467,6 +471,7 @@ export function workRepo(db: Db) {
         pick('buildRunId'),
         pick('workspace') ? JSON.stringify(pick('workspace')) : null,
         pick('mergeTries'),
+        pick('mergedCommit'),
         pick('resumeRunId'),
         pick('continues'),
         pick('teamPhase'),

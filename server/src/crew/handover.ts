@@ -2,7 +2,7 @@
    The item keeps its checkout (its branch, with whatever was committed) and its review history; everything that
    ties it to the old owner's sessions goes, so the new owner builds in their own session and every later review
    looks at the new owner's work on that branch. */
-import type { ChecklistItem, ItemPatch } from '../db/work.ts';
+import type { ChecklistItem, ItemPatch, ItemStage } from '../db/work.ts';
 import { holder } from '../whiteboard/people.ts';
 
 /** How a handover lands, by the item's status:
@@ -23,18 +23,23 @@ export const dropSessions = {
   continues: 0,
 } satisfies Omit<ItemPatch, 'status'>;
 
-/** A fresh build for the new owner in the same checkout: back to the first gate, no send-backs or merge tries. */
-export const freshBuild = (): ItemPatch => ({
-  status: 'todo',
-  runId: null,
-  ...dropSessions,
-  stage: 'build',
-  gateIndex: 0,
-  sendBacks: 0,
-  notes: null,
-  mergeTries: 0,
-  teamPhase: null,
-});
+/** A fresh build for the new owner in the same checkout: back to the first gate, no send-backs or merge tries.
+    Accepted work that couldn't land (stage `merge`) stays accepted: the new owner's first task is landing it —
+    the clash or failing tests in its notes — in the same checkout, with no new review round (Always Merged). */
+export const freshBuild = (stage: ItemStage = 'build'): ItemPatch =>
+  stage === 'merge'
+    ? { status: 'todo', runId: null, ...dropSessions, stage: 'merge', mergeTries: 0, teamPhase: null }
+    : {
+        status: 'todo',
+        runId: null,
+        ...dropSessions,
+        stage: 'build',
+        gateIndex: 0,
+        sendBacks: 0,
+        notes: null,
+        mergeTries: 0,
+        teamPhase: null,
+      };
 
 const HANDED = 'Handed over by ';
 /** The item's note when a builder hands it on: what the new owner reads in their build task. */

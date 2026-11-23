@@ -190,7 +190,8 @@ export const EVENT_SCHEMAS = {
     status: z.enum(['done', 'failed', 'stopped', 'cancelled']),
   }),
   /** Work changes hands (the office's paper/envelope passing): builder → reviewer (review), reviewer → builder
-      (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix). F1c, inside a team:
+      (rework, with the notes), or back to the builder to fix a merge conflict (merge-fix) or tests that fail with
+      main merged in (test-fix). F1c, inside a team:
       captain → member (delegate: a sub-task; rework: the captain's notes), member → captain (deliver: merged into
       the team's branch). On team handoffs itemId is the sub-task and parentId the team item. Handover: the item
       itself changes owner (its branch and reviews follow the new owner). */
@@ -200,7 +201,7 @@ export const EVENT_SCHEMAS = {
     parentId: id.optional(),
     from: id,
     to: id,
-    kind: z.enum(['review', 'rework', 'merge-fix', 'delegate', 'deliver', 'handover']),
+    kind: z.enum(['review', 'rework', 'merge-fix', 'test-fix', 'delegate', 'deliver', 'handover']),
     gate: z.enum(GATE_KINDS).optional(),
     note: text().optional(),
   }),
@@ -228,7 +229,7 @@ export const EVENT_SCHEMAS = {
     goalId: id,
     itemId: id.optional(),
     orchestratorId: id,
-    kind: z.enum(['failed', 'sent-back', 'stuck', 'goal-stopped']),
+    kind: z.enum(['failed', 'sent-back', 'stuck', 'goal-stopped', 'unlanded']),
     text: text(4000),
   }),
   /** An accepted item's branch was merged back into the project's main branch (git worktrees). */

@@ -780,7 +780,7 @@ export type EventPayloads = {
     goalId: string;
     from: string;
     to: string;
-    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver' | 'handover';
+    kind: 'review' | 'rework' | 'merge-fix' | 'test-fix' | 'delegate' | 'deliver' | 'handover';
     gate?: number;
     note?: string;
     /** Team handoffs: `itemId` is the sub-task, this is its team item. */

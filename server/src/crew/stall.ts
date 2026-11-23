@@ -6,7 +6,9 @@ import type { ChecklistItem, Goal } from '../db/work.ts';
 import { type Blocked, blockedBy, isSkipped } from '../domain/task-order.ts';
 import { isStuckStop } from '../runtime/limits.ts';
 
-export type StallKind = 'failed' | 'sent-back' | 'stuck' | 'goal-stopped';
+/** `unlanded`: accepted work its builder couldn't land on main (a clash or failing tests, tries used up) — it
+    waits for a new owner, never for the user (Always Merged). */
+export type StallKind = 'failed' | 'sent-back' | 'stuck' | 'goal-stopped' | 'unlanded';
 export type DoneSoFar = {
   /** Tasks of the goal that are done. */
   finished: string[];
@@ -152,6 +154,17 @@ const HEADLINE: Record<StallKind, string> = {
   'sent-back': 'was sent back the maximum number of times',
   stuck: 'stopped as stuck',
   'goal-stopped': 'stopped partway',
+  unlanded: "was accepted but couldn't land on main yet",
+};
+/** What the orchestrator does next. A landing problem is the studio's to solve: someone fixes it, never the user. */
+const PICK = 'Pick the next step: continue it, hand it to someone else, change the plan, or ask the user.';
+const NEXT_STEP: Record<StallKind, string> = {
+  failed: PICK,
+  'sent-back': PICK,
+  stuck: PICK,
+  'goal-stopped': PICK,
+  unlanded:
+    'Reassign it: give it a new owner with edit_task — they fix it in the same checkout and the studio lands it. This is not for the user.',
 };
 const quoted = (xs: string[]) => xs.map((t) => `“${t}”`).join(', ');
 
@@ -174,7 +187,7 @@ export function stallText(s: Stall, goalText: string, task: string | null): stri
       ? `On hold, because a task they depend on didn't finish: ${s.blocked.map((b) => `“${b.task}” (waits on ${quoted(b.waitsOn)})`).join(', ')}.`
       : '',
     `Done so far: ${done.join(' ')}`,
-    'Pick the next step: continue it, hand it to someone else, change the plan, or ask the user.',
+    NEXT_STEP[s.kind],
   ]
     .filter(Boolean)
     .join('\n');
