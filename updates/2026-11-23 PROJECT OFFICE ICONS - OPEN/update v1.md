@@ -14,6 +14,8 @@ icon file from the project folder, or clear it back to the colour tile.
   cards and list (`LogoTile`), the mail sheet. **Not yet:** the Pager rows, the Ports board, the Blueprint list.
 - **Change it in the app, half done.** Clicking the portrait opens "Picture and name" (`PortraitSheet.tsx`):
   upload a picture and reset to the tile worked. **Missing:** picking the app's own icon file.
+- Landed on master while this step ran (1c3e2a1): an upload the browser can't name (an `.icns` as octet-stream)
+  is read by its bytes; the app API's `linkImage` and `Project.imageSource`. This step builds on it.
 - An unfinished side branch (`studio/show-the-project-icon-on-the-office-and-0e5968d0`, commit 7b414c3) held the
   icon finder and the missing views; it was never merged.
 
