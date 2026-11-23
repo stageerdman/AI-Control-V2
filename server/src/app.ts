@@ -4,7 +4,9 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { createAppRunner } from './apps/app-runner.ts';
-import { createPorts } from './apps/ports.ts';
+import { sharedCargoTarget } from './apps/built-app.ts';
+import { createPorts, listening } from './apps/ports.ts';
+import { createProjectStarter, openWithMac } from './apps/start-project.ts';
 import { historyTools } from './chats/tools.ts';
 import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
@@ -180,6 +182,10 @@ export type AppDeps = {
   } | null;
   /** The user's home folder: where Mac apps keep their data (folder accesses). Default: os.homedir(). */
   userHome?: string;
+  /** Ready to Test: how a built desktop app is opened (default macOS `open`; tests pass a stub). */
+  openApp?: (app: string) => Promise<void>;
+  /** Where Tauri apps are built (default: the shared Cargo target). */
+  cargoTarget?: string;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -211,6 +217,8 @@ export function buildApp({
   shell = AGENT_SHELL.dev,
   selfInstall = null,
   userHome = homedir(),
+  openApp = openWithMac,
+  cargoTarget = sharedCargoTarget(),
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   /* folder accesses never overlap the studio's own folders (its data, the projects, the global secrets) */
@@ -639,6 +647,8 @@ export function buildApp({
     ports,
     running,
   });
+  /* the Start button: open the newest built desktop app, or start the website and give its localhost link */
+  const starter = createProjectStarter({ apps, cargoTarget, listening, openApp });
   /* the ask_user MCP server calls back here; learn our own address once listening */
   app.addHook('onListen', async () => {
     const a = app.server.address();
@@ -737,7 +747,7 @@ export function buildApp({
     }),
   );
   app.register(projectHealthRoutes({ health, apps, github }));
-  app.register(appRoutes({ apps }));
+  app.register(appRoutes({ apps, starter }));
   app.register(runningRoutes({ running, stopper, store }));
   app.register(portRoutes({ store, ports, apps, db }));
   app.register(collaborationRoutes({ collaboration, workflows }));

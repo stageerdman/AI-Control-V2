@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "check:mac": "AI_STUDIO_MAC_CHECK=1 vitest run test/runtime/mac-build.live.test.ts",
     "check:push": "AI_STUDIO_PUSH_CHECK=1 vitest run test/runtime/push.live.test.ts",
+    "check:start": "AI_STUDIO_START_CHECK=1 vitest run test/apps/start.live.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write ."

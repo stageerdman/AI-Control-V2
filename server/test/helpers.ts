@@ -45,6 +45,8 @@ export function testApp(
     at?: string;
     /** Folder accesses: the user's home folder (`~`) — a temp dir, never the real one. */
     userHome?: string;
+    /** Ready to Test: what "open the built app" does (default: nothing — tests never launch real apps). */
+    openApp?: (app: string) => Promise<void>;
   } = {},
 ) {
   const t = opts.at ? { dir: opts.at, cleanup: () => {} } : tempDir();
@@ -71,6 +73,8 @@ export function testApp(
     ...(opts.gitEnv ? { gitEnv: opts.gitEnv } : {}),
     /* runs look for their app's data folder by themselves: never in the real home */
     userHome: opts.userHome ?? join(t.dir, 'home'),
+    openApp: opts.openApp ?? (async () => {}),
+    cargoTarget: join(t.dir, 'cargo-target'),
     onRuntime: (rt) => {
       runtime = rt;
     },
