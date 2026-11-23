@@ -3,8 +3,20 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { mergedLine } from '../../src/office/report-in.ts';
 import { scriptedCrew } from '../crew/brain.ts';
 import { testApp } from '../helpers.ts';
+
+describe('mergedLine (Always Merged)', () => {
+  it('a landed step says it is merged and that branch or review talk is out of date', () => {
+    const line = mergedLine({ mergedCommit: 'abc1234def5678' });
+    expect(line).toContain('It is merged into main (commit abc1234).');
+    expect(line).toMatch(/branches, pushing or waiting for review or a merge is out of date/);
+  });
+  it('nothing landed: no line', () => {
+    expect(mergedLine({ mergedCommit: null })).toBe('');
+  });
+});
 
 describe('report-in', () => {
   let h: ReturnType<typeof testApp>;

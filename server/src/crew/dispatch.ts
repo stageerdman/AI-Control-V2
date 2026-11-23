@@ -54,6 +54,7 @@ import {
 import { AppError, conflict, notFound } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
+import type { TestStep } from '../git/land.ts';
 import type { Workspace, Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import { seatForWork } from '../office/people.ts';
@@ -254,6 +255,8 @@ export function createDispatch(deps: {
   reviewCaps?: Partial<Caps>;
   /** Item checkouts (git worktrees); absent → every item works in the project folder. */
   worktrees?: Worktrees;
+  /** The project's tests for a landing (its `test:` line, on a port of the project's). Absent → no tests. */
+  landingTest?: (projectId: string, itemId: string) => TestStep;
   /** The sandbox root (project folders resolve inside it) — needed with `worktrees`. */
   sandbox?: string;
   /** The orchestrator planned a goal (or failed to): the office thread records it (src/office/threads.ts). */
@@ -519,11 +522,11 @@ export function createDispatch(deps: {
           : `You do this item for ${team.name}. Do the work yourself in this run; note anything for your teammates in issues.txt.`
         : '',
       it.workspace
-        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`) — it merges into ${it.workspace.main} once accepted. If the brief asks you to ship it (push, deploy, a live check), push and deploy yourself. Other items may be running in parallel in their own checkouts.`
+        ? `You work in your own checkout on branch ${it.workspace.branch}: commit your work there (plain \`git add\` / \`git commit\`). Once it is accepted the studio merges ${it.workspace.main} in, runs the project's tests (the \`test:\` line in \`.project\`) and lands it on ${it.workspace.main} for you — nobody reviews or merges it by hand, so never write that it waits for a review, a merge or a push. If the brief asks you to ship it (push, deploy, a live check), push and deploy yourself. Other items may be running in parallel in their own checkouts.`
         : '',
       it.report
         ? ''
-        : 'If your work sets up or changes how the app starts, record it in `.project` as one line `run: <command>` (e.g. `run: npm run dev`) so the studio can start it. A server reads its port from the PORT environment variable (default 3000) — the studio gives each project its own.',
+        : 'If your work sets up or changes how the app starts, record it in `.project` as one line `run: <command>` (e.g. `run: npm run dev`) so the studio can start it. A server reads its port from the PORT environment variable (default 3000) — the studio gives each project its own. Likewise, if the project has tests, record how to run them as one line `test: <command>` (e.g. `test: npm test`): the studio runs it before your work lands.',
       reviewers.length
         ? `When you are done, your work goes to ${reviewers.join(', then ')} for review — keep it focused on the brief and commit it.`
         : '',
@@ -597,12 +600,15 @@ export function createDispatch(deps: {
       'Fix what they asked for in this run, commit it, then reply with a short summary of what you changed.',
     ].join('\n\n');
 
-  const mergeFixTask = (it: ChecklistItem) =>
-    [
-      `Your work on "${it.text}" was accepted, but it can't merge back yet: ${it.notes ?? 'a merge conflict'}.`,
-      `Someone else's work landed on ${it.workspace?.main ?? 'main'} first. In this checkout, run \`git merge ${it.workspace?.main ?? 'main'}\`, resolve the conflicts so both pieces of work keep doing what they should, and commit the merge.`,
-      'Then reply with a short summary of how you resolved it.',
+  /** Accepted work that couldn't land (a clash with main, or failing tests): its builder lands it themselves. */
+  const mergeFixTask = (it: ChecklistItem) => {
+    const main = it.workspace?.main ?? 'main';
+    return [
+      `Your work on "${it.text}" was accepted, but it can't land on ${main} yet:\n${it.notes ?? 'it clashes with other work'}`,
+      `In this checkout, run \`git merge ${main}\` and resolve any conflicts so both pieces of work keep doing what they should, make the project's tests pass, and commit. The studio then lands it on ${main} by itself — no review round, nothing for anyone to merge.`,
+      'Then reply with a short summary of what you fixed.',
     ].join('\n\n');
+  };
 
   function reviewTask(it: ChecklistItem, goal: Goal, gate: ItemGate): string {
     const builder = name(it.agentId);
@@ -1011,7 +1017,7 @@ export function createDispatch(deps: {
     it: ChecklistItem,
     from: string,
     to: string,
-    kind: 'review' | 'rework' | 'merge-fix' | 'delegate' | 'deliver' | 'handover',
+    kind: 'review' | 'rework' | 'merge-fix' | 'test-fix' | 'delegate' | 'deliver' | 'handover',
     note?: string,
     gate?: ItemGate,
   ) =>
@@ -1029,8 +1035,9 @@ export function createDispatch(deps: {
       },
     });
 
-  /** Accepted (built, every gate approved): merge its branch back, then done. A conflict goes back to the
-      builder to resolve in its checkout (≤ MAX_MERGE_TRIES), anything else fails with the work kept on its branch. */
+  /** Accepted (built, every gate approved): land it on main (Always Merged, src/git/land.ts), then done. A clash
+      or failing tests go back to the builder to fix in its checkout (≤ MAX_MERGE_TRIES); after that the item
+      waits with the director for a new owner — never on the user. */
   function accept(it: ChecklistItem, patch: Omit<ItemPatch, 'status'> = {}) {
     const ws = it.workspace;
     if (!ws || !deps.worktrees) {
@@ -1038,46 +1045,65 @@ export function createDispatch(deps: {
       return;
     }
     const wt = deps.worktrees;
-    work.setItem(it.id, { ...patch, status: 'running' }); // stays on the board while it merges
-    const failed = failOnError(it.id, `merge it back (its work is on branch ${ws.branch})`);
+    work.setItem(it.id, { ...patch, status: 'running' }); // stays on the board while it lands
+    const failed = failOnError(it.id, `land it on ${ws.main} (its work is on branch ${ws.branch})`);
     void background.track(serial(it.projectId, () => mergeBack(it, ws, wt).catch(failed)));
   }
 
-  /** Merge an accepted item's branch: done, back to its builder on a conflict, or failed with the work kept. */
-  async function mergeBack(it: ChecklistItem, ws: NonNullable<ChecklistItem['workspace']>, wt: Worktrees) {
-    /* a member's part merges into its team item's checkout; everything else into the project folder (main) */
+  /** Land an accepted item's branch: done, back to its builder to fix, or on to the director. */
+  async function mergeBack(it: ChecklistItem, ws: Workspace, wt: Worktrees) {
+    /* a member's part lands on its team item's branch; everything else on the project's main */
     const parent = it.parentId ? work.item(it.parentId) : null;
     const repo = parent?.workspace?.cwd ?? repoOf(it.projectId);
-    const r = await wt.merge(repo, ws, clip(`AI Studio: ${it.text} (${name(it.agentId)})`, 200));
+    const test = parent ? undefined : deps.landingTest?.(it.projectId, it.id);
+    const r = await wt.land(ws, clip(`AI Studio: ${it.text} (${name(it.agentId)})`, 200), test);
     const cur = work.item(it.id) as ChecklistItem;
-    if (r.ok && parent) {
-      await wt.close(repo, ws, { deleteBranch: true });
-      handoff(cur, cur.agentId, parent.agentId, 'deliver', clip(cur.note ?? '', 600) || undefined);
-      settle(cur, { status: 'done' });
-    } else if (r.ok) {
-      await wt.close(repo, ws, { deleteBranch: true });
-      settle(cur, { status: 'done' });
-      emit(it.projectId, {
-        type: 'item.merged',
-        payload: {
-          itemId: it.id,
-          goalId: it.goalId,
-          branch: ws.branch,
-          ...(r.commit ? { commit: r.commit } : {}),
-        },
-      });
-    } else if (r.conflict && cur.mergeTries < MAX_MERGE_TRIES) {
+    if (r.ok) await landed(cur, parent, repo, ws, wt, r.commit);
+    else if (r.kind !== 'error' && cur.mergeTries < MAX_MERGE_TRIES) {
       settle(cur, { status: 'todo', stage: 'merge', mergeTries: cur.mergeTries + 1, notes: r.reason });
-      handoff(cur, cur.agentId, cur.agentId, 'merge-fix', r.reason);
-    } else {
-      /* put the checkout away first, so the goal settles with the branch named */
-      const { kept } = await wt.close(repo, ws, { deleteBranch: true });
-      settle(cur, {
-        status: 'failed',
-        note: clip(`${r.reason}${kept ? ` — work kept on branch ${ws.branch}` : ''}`, 2000),
-      });
-    }
+      handoff(cur, cur.agentId, cur.agentId, r.kind === 'tests' ? 'test-fix' : 'merge-fix', r.reason);
+    } else if (parent) await partUnlanded(cur, repo, ws, wt, r.reason);
+    else unlanded(cur, r.reason);
     pump(it.projectId);
+  }
+
+  async function landed(
+    it: ChecklistItem,
+    parent: ChecklistItem | null,
+    repo: string,
+    ws: Workspace,
+    wt: Worktrees,
+    commit: string | null,
+  ) {
+    await wt.close(repo, ws, { deleteBranch: true });
+    if (parent) {
+      handoff(it, it.agentId, parent.agentId, 'deliver', clip(it.note ?? '', 600) || undefined);
+      settle(it, { status: 'done' });
+      return;
+    }
+    settle(it, { status: 'done', ...(commit ? { mergedCommit: commit } : {}) });
+    emit(it.projectId, {
+      type: 'item.merged',
+      payload: { itemId: it.id, goalId: it.goalId, branch: ws.branch, ...(commit ? { commit } : {}) },
+    });
+  }
+
+  /** A member's part that can't land on its team branch fails, its work kept on its branch (the captain's call). */
+  async function partUnlanded(it: ChecklistItem, repo: string, ws: Workspace, wt: Worktrees, reason: string) {
+    const { kept } = await wt.close(repo, ws, { deleteBranch: true });
+    settle(it, {
+      status: 'failed',
+      note: clip(`${reason}${kept ? ` — work kept on branch ${ws.branch}` : ''}`, 2000),
+    });
+  }
+
+  /** The builder couldn't land it: the item waits with the director for a new owner, checkout and branch kept. */
+  function unlanded(it: ChecklistItem, reason: string) {
+    const why = clip(`${name(it.agentId)} couldn't land it: ${reason}`, 2000);
+    settle(it, { status: 'todo', stage: 'merge', notes: reason });
+    const director = store.projects.require(it.projectId).orchestratorId;
+    handOver(it.id, { agentId: director, teamId: null }, why);
+    itemStalled(it.id, { kind: 'unlanded', reason: why });
   }
 
   /** A build (or rework) run ended. Every task's build ends here: it counts as done only with real work

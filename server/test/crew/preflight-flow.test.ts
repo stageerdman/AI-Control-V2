@@ -39,7 +39,12 @@ describe('builder preflight', () => {
     expect(back.note).toContain("package.json needs npm, but it isn't on PATH.");
     expect(checked).toEqual([back.workspace?.cwd]);
     expect(builds).toBe(0);
-    expect(alerts(h)).toContainEqual(
+    /* the alert goes out just after the handover settles (background.soon) */
+    const sent = await until(
+      () => alerts(h),
+      (a) => a.length > 0,
+    );
+    expect(sent).toContainEqual(
       expect.objectContaining({ kind: 'stuck', itemId: id, text: expect.stringContaining('needs npm') }),
     );
   }, 20_000);

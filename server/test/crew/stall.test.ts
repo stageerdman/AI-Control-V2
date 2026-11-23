@@ -132,4 +132,14 @@ describe('stallText', () => {
     const g = goal([item({ status: 'failed', note: 'x' })]);
     expect(stallText(goalStall(g, 1), 'The goal', null)).toContain('Done so far: Nothing is finished yet.');
   });
+  it('work that could not land is for a new owner, never the user', () => {
+    const g = goal([item({ id: 'b', text: 'B', status: 'todo' })]);
+    const why = { kind: 'unlanded' as const, reason: "Lint couldn't land it: conflicts in a.ts" };
+    const text = stallText(itemStall(g, g.items[0] as ChecklistItem, 1, why), 'The goal', 'B');
+    expect(text).toContain("The task “B” on the goal “The goal” was accepted but couldn't land on main yet.");
+    expect(text).toContain("Why: Lint couldn't land it: conflicts in a.ts");
+    expect(text).toContain('Reassign it: give it a new owner with edit_task');
+    expect(text).toContain('This is not for the user.');
+    expect(text).not.toContain('ask the user');
+  });
 });

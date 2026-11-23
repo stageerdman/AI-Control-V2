@@ -181,5 +181,23 @@ Also run once on HQ.
 ## Status
 
 - Phase 0 (design + spike): done.
-- Phases 1–5: not started. Phase 1 is the smallest and removes every "say the word"
-  seen so far, so it goes first.
+- Checked on master before building (11-23): only phase 0 existed; `merge()` still merged
+  in the project folder, refused when it was on another branch, and ended clashes as `failed`.
+- Phases 1–4: done (11-23).
+  - `server/src/git/land.ts` `land(ws, test?)`: main merged into the checkout, `test:`
+    line run there, main fast-forwarded (`merge --ff-only` where it is checked out, guarded
+    `update-ref` where it isn't); unsaved edits the landing touches saved first. Shared git
+    helpers in `git/run-git.ts`. `worktrees.merge()` is gone → `wt.land()`; `mainBranch()`
+    picks `main`/`master`.
+  - `.project` `test:` line (`apps/run-command.ts` `testCommandOf`), run by
+    `apps/test-run.ts` `testStep` on a project spare port, 10 min, last 60 lines.
+  - `dispatch.ts` `mergeBack`: landed → done + `mergedCommit` (migration 52) + `item.merged`;
+    clash/tests → builder (`merge-fix` / `test-fix`, ≤ `MAX_MERGE_TRIES`); after that →
+    back to the director, stage `merge`, stall kind `unlanded` ("Reassign it … not for the
+    user"). A member's part that can't land on its team branch still fails (captain's call).
+  - Report-in adds "It is merged into main (commit …) — branch/review talk is out of date";
+    the orchestrator prompt and builder prompt say the studio lands it, never ask the user.
+  - `plain-problem.ts`: folder-branch message removed; clash reads "Its changes clash with
+    other work."
+- Phase 5 (live check on a sandbox project): not run yet — covered by the flow tests
+  (`worktrees.test.ts`, `worktrees-flow.test.ts`, `team-flow.test.ts`).

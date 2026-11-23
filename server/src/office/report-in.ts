@@ -27,6 +27,13 @@ type Trigger = { goalId: string; itemId: string | null; stall: string | null };
 const json = (v: unknown) => JSON.stringify(v);
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+/** Always Merged: a step the studio landed says so, so the director never relays a builder's stale "it still
+    needs merging" to the user. '' when it didn't land (no checkout, or nothing new). */
+export const mergedLine = (it: { mergedCommit: string | null }): string =>
+  it.mergedCommit
+    ? `It is merged into main (commit ${it.mergedCommit.slice(0, 7)}). Anything their note says about branches, pushing or waiting for review or a merge is out of date — never pass it on.`
+    : '';
+
 export function createReportIn(deps: {
   db: Db;
   store: Store;
@@ -88,6 +95,7 @@ export function createReportIn(deps: {
           : [
               `${name(it?.agentId ?? '')} reports in: the step ${json(it?.text)} is done.`,
               `What they say: ${json(clip(it?.note ?? '(nothing)', 1500))}`,
+              it ? mergedLine(it) : '',
             ]),
         `The goal: ${json(clip(goal.text, 300))} — ${goalDone ? 'every step is done now' : `${goal.pct}% done`}.`,
         `Whiteboard now: ${json(items.map((i) => ({ step: clip(i.text, 120), owner: name(i.agentId), status: i.status })))}`,

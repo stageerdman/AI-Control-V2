@@ -55,7 +55,9 @@ export function testStep(port: () => { port: number; release: () => void }, time
     try {
       const r = await runTests(cwd, command, { port: held.port, ...(timeoutMs ? { timeoutMs } : {}) });
       if (r.ok) return { ok: true };
-      const why = r.timedOut ? `timed out after ${Math.round((timeoutMs ?? TEST_TIMEOUT_MS) / 60000)} min` : 'fails';
+      const why = r.timedOut
+        ? `timed out after ${Math.round((timeoutMs ?? TEST_TIMEOUT_MS) / 60000)} min`
+        : 'fails';
       return { ok: false, reason: `main plus this work: \`${command}\` ${why}:\n${r.tail || '(no output)'}` };
     } finally {
       held.release();

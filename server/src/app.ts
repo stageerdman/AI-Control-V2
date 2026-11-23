@@ -7,6 +7,7 @@ import { createAppRunner } from './apps/app-runner.ts';
 import { sharedCargoTarget } from './apps/built-app.ts';
 import { createPorts, listening } from './apps/ports.ts';
 import { createProjectStarter, openWithMac } from './apps/start-project.ts';
+import { testStep } from './apps/test-run.ts';
 import { historyTools } from './chats/tools.ts';
 import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
@@ -412,6 +413,12 @@ export function buildApp({
       }
     },
     worktrees: worktrees(join(config.home, 'worktrees')),
+    /* a landing's tests hold one of the project's spare ports, like a run */
+    landingTest: (projectId, itemId) =>
+      testStep(() => {
+        const holder = `landing:${itemId}`;
+        return { port: ports.take(projectId, holder).port, release: () => ports.release(holder) };
+      }),
     sandbox: config.sandbox,
     reviewCaps: caps.review,
     preflight,

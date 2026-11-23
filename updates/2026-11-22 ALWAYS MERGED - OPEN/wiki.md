@@ -13,5 +13,10 @@
   checked out: its files would suddenly look like unsaved edits.
 - **Unfinished ≠ finished.** Work left on branches by failed or cancelled tasks is not a
   merge problem. Landing it unreviewed would break the "accepted only" rule.
+- **Stall alerts go out a tick later** (`background.soon` in dispatch). A test that polls
+  for an item's new owner and then reads `work.stalled` at once races it; poll for the
+  alert too (`until(() => alerts(h), …)`).
+- **`npm run format` checks the whole server** (`biome check --write .` plus your paths):
+  revert what it touched outside your change before committing.
 - Spike: `spike/merge-spike.mjs` (temp repos only). `git merge-tree --write-tree` works
   (git 2.54), but we don't need it.

@@ -241,7 +241,7 @@ describe('captains delegate (F1c)', () => {
     const order = conflictOrder(() => types(h, 'handoff').some((p) => p.kind === 'deliver'));
     const s = studio({ dispatch: [ONE], 'team-split': [SPLIT] }, (spec) => {
       if (isIntegrate(spec)) return [{ result: 'Integrated.' }];
-      if (spec.task.includes("can't merge back yet")) {
+      if (spec.task.includes("can't land on")) {
         tryGit(spec.cwd, 'merge', /git merge (\S+)`/.exec(spec.task)?.[1] ?? 'x');
         writeFileSync(join(spec.cwd, 'shared.txt'), 'UI and tests\n');
         git(spec.cwd, 'add', 'shared.txt');

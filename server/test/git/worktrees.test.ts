@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { SAVED_MESSAGE } from '../../src/git/land.ts';
 import { worktrees } from '../../src/git/worktrees.ts';
 import { tempDir } from '../helpers.ts';
 
@@ -44,7 +45,7 @@ describe('worktrees (temp git repos)', () => {
     expect(await wt.usable(repo)).toBe(false);
   });
 
-  it('open → work → merge fast-forwards into main → close deletes the merged branch and the checkout', async () => {
+  it('open → work → land fast-forwards main → close deletes the merged branch and the checkout', async () => {
     const ws = await wt.open(repo, 'proj', 'item-1234abcd', 'Build the page');
     expect(ws).toMatchObject({ branch: 'studio/build-the-page-item1234', main: 'main' });
     expect(ws?.cwd.startsWith(join(t.dir, 'home', 'worktrees', 'proj'))).toBe(true);
@@ -55,7 +56,7 @@ describe('worktrees (temp git repos)', () => {
     writeFileSync(join(ws.cwd, '.env'), 'KEY=secret\n');
     mkdirSync(join(ws.cwd, 'node_modules', 'x'), { recursive: true });
     writeFileSync(join(ws.cwd, 'node_modules', 'x', 'i.js'), '1');
-    const r = await wt.merge(repo, ws, 'AI Studio: Build the page');
+    const r = await wt.land(ws, 'AI Studio: Build the page');
     expect(r).toMatchObject({ ok: true, commit: expect.any(String) });
     expect(readFileSync(join(repo, 'page.html'), 'utf8')).toBe('<h1>hi</h1>\n');
     expect(git(repo, 'ls-files')).toBe('a.txt\npage.html');
@@ -75,49 +76,84 @@ describe('worktrees (temp git repos)', () => {
     expect(readFileSync(join(ws.cwd, '.env'), 'utf8')).toBe('KEY=v\n');
     expect((statSync(join(ws.cwd, '.env')).mode & 0o777).toString(8)).toBe('600');
     writeFileSync(join(ws.cwd, 'x.txt'), 'x\n');
-    await wt.merge(repo, ws, 'E');
+    await wt.land(ws, 'E');
     expect(git(repo, 'ls-files')).not.toContain('.env');
   });
 
-  it('two items in parallel: the second merges with a merge commit; nothing to merge is fine', async () => {
+  it('two items in parallel: the second merges main in its own checkout, then main fast-forwards; nothing new is fine', async () => {
     const a = await wt.open(repo, 'proj', 'aaaaaaaa1', 'A');
     const b = await wt.open(repo, 'proj', 'bbbbbbbb1', 'B');
     const c = await wt.open(repo, 'proj', 'cccccccc1', 'C');
     if (!a || !b || !c) throw new Error('no ws');
     writeFileSync(join(a.cwd, 'a2.txt'), 'a\n');
     writeFileSync(join(b.cwd, 'b.txt'), 'b\n');
-    expect((await wt.merge(repo, a, 'A')).ok).toBe(true);
-    const rb = await wt.merge(repo, b, 'B');
-    expect(rb.ok).toBe(true);
-    expect(git(repo, 'log', '--format=%s', '-1')).toBe('B'); // the merge commit
+    expect((await wt.land(a, 'A')).ok).toBe(true);
+    const rb = await wt.land(b, 'B');
+    expect(rb).toEqual({ ok: true, commit: git(b.cwd, 'rev-parse', 'HEAD') });
+    expect(git(repo, 'log', '--format=%s', '-1')).toBe(`Merge main into ${b.branch}`);
     expect(git(repo, 'rev-list', '--count', 'HEAD')).toBe('4'); // init, A, B work, merge
-    expect(await wt.merge(repo, c, 'C')).toEqual({ ok: true, commit: null });
+    expect(git(repo, 'status', '--porcelain')).toBe('');
+    expect(await wt.land(c, 'C')).toEqual({ ok: true, commit: null });
   });
 
-  it('a conflict is aborted (main untouched), files listed; close keeps the unmerged branch with the work', async () => {
+  it('a clash is aborted in the checkout (main untouched), files listed; close keeps the branch with the work', async () => {
     const a = await wt.open(repo, 'proj', 'aaaaaaaa2', 'A');
     const b = await wt.open(repo, 'proj', 'bbbbbbbb2', 'B');
     if (!a || !b) throw new Error('no ws');
     writeFileSync(join(a.cwd, 'a.txt'), 'from A\n');
     writeFileSync(join(b.cwd, 'a.txt'), 'from B\n');
-    expect((await wt.merge(repo, a, 'A')).ok).toBe(true);
+    expect((await wt.land(a, 'A')).ok).toBe(true);
     const head = git(repo, 'rev-parse', 'HEAD');
-    const r = await wt.merge(repo, b, 'B');
-    expect(r).toMatchObject({ ok: false, conflict: true, files: ['a.txt'] });
+    const r = await wt.land(b, 'B');
+    expect(r).toMatchObject({ ok: false, kind: 'conflict', files: ['a.txt'] });
     expect(git(repo, 'rev-parse', 'HEAD')).toBe(head);
-    expect(git(repo, 'status', '--porcelain')).toBe('');
+    expect(git(b.cwd, 'status', '--porcelain')).toBe(''); // the merge was aborted there
     expect(readFileSync(join(repo, 'a.txt'), 'utf8')).toBe('from A\n');
     await wt.close(repo, b, { deleteBranch: true });
     expect(git(repo, 'show', `${b.branch}:a.txt`)).toBe('from B'); // never lose work
   });
 
-  it('refuses when the project folder is on another branch', async () => {
+  it('the project folder on another branch: main still moves (checked out nowhere), the folder is untouched', async () => {
     const a = await wt.open(repo, 'proj', 'aaaaaaaa3', 'A');
     if (!a) throw new Error('no ws');
     git(repo, 'checkout', '-q', '-b', 'other');
-    const r = await wt.merge(repo, a, 'A');
-    expect(r).toMatchObject({ ok: false, conflict: false });
-    expect((r as { reason: string }).reason).toMatch(/on 'other', not 'main'/);
+    writeFileSync(join(a.cwd, 'n.txt'), 'n\n');
+    const r = await wt.land(a, 'A');
+    expect(r).toMatchObject({ ok: true });
+    expect(git(repo, 'rev-parse', 'main')).toBe(git(a.cwd, 'rev-parse', 'HEAD'));
+    expect(git(repo, 'branch', '--show-current')).toBe('other');
+    expect(existsSync(join(repo, 'n.txt'))).toBe(false);
+  });
+
+  it("unsaved edits in the project folder the landing touches are saved as main's own commit first", async () => {
+    const a = await wt.open(repo, 'proj', 'aaaaaaaa4', 'A');
+    if (!a) throw new Error('no ws');
+    writeFileSync(join(a.cwd, 'b.txt'), 'from A\n');
+    writeFileSync(join(repo, 'b.txt'), 'the user, unsaved\n'); // untracked, and the landing adds it
+    writeFileSync(join(repo, 'a.txt'), 'edited, not touched by A\n');
+    const r = await wt.land(a, 'A');
+    /* the user's edit is on main as its own commit; A's clash with it comes back to A, main keeps the edit */
+    expect(git(repo, 'log', '--format=%s', '-1')).toBe(SAVED_MESSAGE);
+    expect(r).toMatchObject({ ok: false, kind: 'conflict', files: ['b.txt'] });
+    expect(readFileSync(join(repo, 'b.txt'), 'utf8')).toBe('the user, unsaved\n');
+    expect(git(repo, 'status', '--porcelain')).toBe('M a.txt'); // an edit the landing doesn't touch stays as it was
+  });
+
+  it('failing tests leave main untouched; passing tests let it land', async () => {
+    const a = await wt.open(repo, 'proj', 'aaaaaaaa5', 'A');
+    if (!a) throw new Error('no ws');
+    writeFileSync(join(a.cwd, 'n.txt'), 'n\n');
+    const head = git(repo, 'rev-parse', 'HEAD');
+    const seen: string[] = [];
+    const failing = await wt.land(a, 'A', async (cwd) => {
+      seen.push(cwd);
+      return { ok: false, reason: 'npm test fails' };
+    });
+    expect(failing).toEqual({ ok: false, kind: 'tests', reason: 'npm test fails' });
+    expect(seen).toEqual([a.cwd]); // tested in the checkout, never the user's folder
+    expect(git(repo, 'rev-parse', 'HEAD')).toBe(head);
+    expect(await wt.land(a, 'A', async () => ({ ok: true }))).toMatchObject({ ok: true });
+    expect(existsSync(join(repo, 'n.txt'))).toBe(true);
   });
 
   it('ensure re-makes a put-away checkout on its kept branch (or a fresh one), at the same place', async () => {

@@ -33,15 +33,8 @@ describe('plainProblem: why a task stopped, in everyday words', () => {
       'Could not start Claude Code: spawn claude ENOENT',
       "Couldn't start the agent. Is Claude Code installed?",
     ],
-    [
-      'Merging item-1 into main conflicts in a.ts, b.ts',
-      "Its changes clash with other work, so they couldn't be merged.",
-    ],
-    [
-      "The project folder is on 'dev', not 'main' — switch back to merge x",
-      "The project folder is on another branch, so the work couldn't be merged.",
-    ],
-    ["Couldn't merge item-1 into main: fatal", "Couldn't merge the work back."],
+    ['Merging main into studio/x conflicts in a.ts, b.ts', 'Its changes clash with other work.'],
+    ["Couldn't merge main into studio/x: fatal", "Couldn't land the work."],
     ['API Error: 529 overloaded_error', 'The AI service was busy. Try again in a bit.'],
     ['rate_limit_error: 429', 'Hit the usage limit. Try again later.'],
     ['Claude Code exited (code 1): boom', 'The agent stopped unexpectedly.'],

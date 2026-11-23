@@ -27,15 +27,8 @@ const RULES: { test: RegExp; message: string }[] = [
   { test: /^Finished without filing the report/, message: 'Finished without filing its report.' },
   { test: /^Couldn't make a checkout/, message: "Couldn't set up its own copy of the project." },
   { test: /^Could not start Claude Code/, message: "Couldn't start the agent. Is Claude Code installed?" },
-  {
-    test: /^Merging .+ conflicts in/,
-    message: "Its changes clash with other work, so they couldn't be merged.",
-  },
-  {
-    test: /^The project folder is on '/,
-    message: "The project folder is on another branch, so the work couldn't be merged.",
-  },
-  { test: /^Couldn't (commit|merge) /, message: "Couldn't merge the work back." },
+  { test: /^Merging .+ conflicts in/, message: 'Its changes clash with other work.' },
+  { test: /^Couldn't (commit|merge) /, message: "Couldn't land the work." },
   { test: /overloaded|\b529\b/i, message: 'The AI service was busy. Try again in a bit.' },
   { test: /rate[_ ]?limit|usage limit|\b429\b/i, message: 'Hit the usage limit. Try again later.' },
   { test: /^Claude Code exited/, message: 'The agent stopped unexpectedly.' },

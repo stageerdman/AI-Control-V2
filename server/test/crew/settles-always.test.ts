@@ -42,11 +42,10 @@ describe('finished work always settles its item', () => {
     const crew = scriptedCrew(
       { dispatch: [{ summary: 's', items: [{ text: 'Deploy notes', assignee: 'a-baron', brief: 'b' }] }] },
       (spec) => {
-        /* while it works, its branch disappears: the merge's git call throws */
+        /* while it works, main disappears: the landing's git call throws */
         writeFileSync(join(spec.cwd, 'notes.txt'), 'hi\n');
-        const branch = git(spec.cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
-        git(spec.cwd, 'checkout', '-q', '--detach');
-        git(repo, 'branch', '-D', branch);
+        git(repo, 'checkout', '-q', '-b', 'other');
+        git(repo, 'branch', '-D', 'main');
         return [{ result: 'done' }];
       },
     );
@@ -64,10 +63,10 @@ describe('finished work always settles its item', () => {
     expect(g.status).toBe('failed');
     expect(g.items[0].status).toBe('failed');
     expect(g.items[0].note).toMatch(
-      /^Couldn't merge it back \(its work is on branch studio\/deploy-notes-.*\): /,
+      /^Couldn't land it on main \(its work is on branch studio\/deploy-notes-.*\): /,
     );
     expect(logged).toHaveBeenCalledWith(
-      `[dispatch] couldn't merge it back (its work is on branch ${g.items[0].workspace.branch})`,
+      `[dispatch] couldn't land it on main (its work is on branch ${g.items[0].workspace.branch})`,
       expect.objectContaining({ projectId: 'aurora', itemId: g.items[0].id }),
     );
   });

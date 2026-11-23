@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FakeStep } from '../../src/runtime/fake.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import { testApp } from '../helpers.ts';
+import { until } from './aurora-studio.ts';
 import { conflictOrder, scriptedCrew, worked } from './brain.ts';
 
 const ID = {
@@ -57,6 +58,16 @@ async function settled(h: ReturnType<typeof testApp>, goalId: string) {
     await new Promise((r) => setTimeout(r, 10));
   }
   throw new Error('goal never settled');
+}
+/** Poll until the goal's item `n` matches. */
+type Item = { id: string; agentId: string; note: string; workspace: { cwd: string } };
+async function itemWith(h: ReturnType<typeof testApp>, goalId: string, n: number, ok: (i: Item) => boolean) {
+  for (let i = 0; i < 600; i++) {
+    const it = (await h.call('GET', `/projects/aurora/work/${goalId}`)).body.items[n] as Item | undefined;
+    if (it && ok(it)) return it;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw new Error('item never got there');
 }
 const itemText = (s: RunSpec) => /Your checklist item: (.*)/.exec(s.task)?.[1] ?? '';
 
@@ -111,6 +122,10 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
     });
     const merged = h.events.after('project', 'aurora').filter((e) => e.type === 'item.merged');
     expect(merged).toHaveLength(2);
+    // the landed commit stays on the item: report-in tells the director it is merged (Always Merged)
+    expect(g.items.map((i: { mergedCommit: string | null }) => i.mergedCommit).sort()).toEqual(
+      merged.map((e) => (e.payload as { commit: string }).commit).sort(),
+    );
     // the brief tells the builder about its branch
     const runs = (await h.call('GET', '/projects/aurora/runs')).body as { task: string }[];
     expect(runs[0]?.task).toMatch(/You work in your own checkout on branch studio\//);
@@ -124,7 +139,7 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
         items: [item('Edit shared A', 'a-semic', 'ship-it'), item('Edit shared B', 'a-lint', 'polish', true)],
       },
       (spec) => {
-        if (spec.task.includes("can't merge back yet")) {
+        if (spec.task.includes("can't land on main yet")) {
           tryGit(spec.cwd, 'merge', 'main'); // conflicts
           writeFileSync(join(spec.cwd, 'shared.txt'), 'A and B\n');
           git(spec.cwd, 'add', 'shared.txt');
@@ -147,24 +162,30 @@ describe('worktrees: parallel items, merge back, conflicts', () => {
     expect((fix?.payload as { note?: string } | undefined)?.note).toMatch(/conflicts in shared\.txt/);
   });
 
-  it('an unresolved conflict stops after the retries: failed, work kept on its branch, main untouched', async () => {
+  it('an unresolved conflict after the retries waits with the director (never the user): checkout kept, main untouched', async () => {
     const edit = bothEditShared(() => s.repo);
     const s = studio(
       {
         summary: 's',
         items: [item('Edit shared A', 'a-semic', 'ship-it'), item('Edit shared B', 'a-lint', 'polish', true)],
       },
-      (spec) => (spec.task.includes("can't merge back yet") ? worked('I could not.') : edit(spec)),
+      (spec) => (spec.task.includes("can't land on main yet") ? worked('I could not.') : edit(spec)),
     );
     h = s.h;
+    const director = h.store.projects.require('aurora').orchestratorId;
     const r = await h.call('POST', '/projects/aurora/work', { goal: 'Both edit' });
-    const g = await settled(h, r.body.id);
-    expect(g.status).toBe('failed');
-    expect(g.items[1]).toMatchObject({ status: 'failed', mergeTries: 2 });
-    expect(g.items[1].note).toMatch(/conflicts in shared\.txt — work kept on branch studio\/edit-shared-b-/);
+    const b = await itemWith(h, r.body.id, 1, (i) => i.agentId === director);
+    expect(b).toMatchObject({ status: 'todo', stage: 'merge', mergeTries: 0 });
+    expect(b.note).toMatch(
+      /^Sir Lint-a-lot couldn't land it: Merging main into studio\/edit-shared-b-.* conflicts in shared\.txt/,
+    );
     expect(readFileSync(join(s.repo, 'shared.txt'), 'utf8')).toBe('A\n');
-    expect(git(s.repo, 'show', `${g.items[1].workspace.branch}:shared.txt`)).toBe('B');
-    expect(existsSync(g.items[1].workspace.cwd)).toBe(false);
+    expect(git(b.workspace.cwd, 'show', 'HEAD:shared.txt')).toBe('B'); // the checkout stays for the new owner
+    const stall = await until(
+      () => h.events.after('project', 'aurora').find((e) => e.type === 'work.stalled'),
+      (e) => !!e,
+    );
+    expect(stall?.payload).toMatchObject({ itemId: b.id, kind: 'unlanded' });
   });
 
   it('reviews happen in the builder’s checkout; a failed build keeps its work on the branch', async () => {
