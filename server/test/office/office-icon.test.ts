@@ -68,6 +68,17 @@ describe('the office icon', () => {
     expect((await image()).rawPayload.equals(big)).toBe(true);
   });
 
+  it('upload as octet-stream (a browser can’t name an .icns): the bytes decide', async () => {
+    withFolder();
+    const big = png(5, 5, 5);
+    const i = await upload(icns(['ic10', big]), 'application/octet-stream');
+    expect(i.statusCode).toBe(200);
+    expect((await image()).rawPayload.equals(big)).toBe(true);
+    expect((await upload(SVG, 'application/octet-stream')).statusCode).toBe(200);
+    expect((await image()).headers['content-type']).toBe('image/svg+xml');
+    expect((await upload(Buffer.from('%PDF-1.4'), 'application/octet-stream')).statusCode).toBe(422);
+  });
+
   it('path inside the folder: copied to the data dir, the project names its source', async () => {
     const root = withFolder({ 'Assets/AppIcon.png': png(1, 2) });
     const r = await link('Assets/AppIcon.png');

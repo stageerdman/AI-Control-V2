@@ -58,15 +58,17 @@ export async function request<T>(
 ): Promise<T> {
   const doFetch = opts.fetch ?? fetch;
   let res: Response;
-  /* a Blob goes as raw bytes with its own type (the project's picture); everything else is JSON */
+  /* a Blob goes as raw bytes with its own type (the project's picture; an unnamed one, like an .icns, as
+     octet-stream so the server reads its bytes); everything else is JSON */
   const raw = typeof Blob !== 'undefined' && body instanceof Blob;
+  const type = raw ? body.type || 'application/octet-stream' : 'application/json';
   try {
     res = await doFetch(`${base}${path}`, {
       method,
       headers:
         body === undefined
           ? { accept: 'application/json' }
-          : { 'content-type': raw ? body.type : 'application/json', accept: 'application/json' },
+          : { 'content-type': type, accept: 'application/json' },
       body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
       signal: opts.signal,
     });

@@ -96,6 +96,8 @@ export const studio = {
     update: (id: string, body: ProjectPatch) => http.patch<Project>(`/projects/${e(id)}`, body),
     /** The project's picture (raw bytes; the app's only — never the project folder) / back to the tile. */
     setImage: (id: string, image: Blob) => http.put<Project>(`/projects/${e(id)}/image`, image),
+    /** Use an icon file inside the project folder (relative to it); a copy is kept and refreshed when it changes. */
+    linkImage: (id: string, path: string) => http.put<Project>(`/projects/${e(id)}/image/source`, { path }),
     clearImage: (id: string) => http.del<Project>(`/projects/${e(id)}/image`),
     remove: (id: string) => http.del<void>(`/projects/${e(id)}`),
     scaffold: (id: string) => http.get<ScaffoldReport>(`/projects/${e(id)}/scaffold`),

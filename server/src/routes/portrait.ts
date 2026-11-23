@@ -1,10 +1,10 @@
 /* The project's picture (OFFICE icon). PUT /image = upload raw bytes (Content-Type image/png|jpeg|webp|gif|svg+xml|
-   x-icns); PUT /image/source {path} = use an icon file inside the project folder; DELETE = back to the tile;
+   x-icns, or octet-stream when the browser can't name it); PUT /image/source {path} = use an icon file inside the project folder; DELETE = back to the tile;
    GET = the bytes. A copy is always kept in the data dir, never written into the project folder. */
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { parse } from '../errors.ts';
-import { MAX_SOURCE_BYTES, UPLOAD_TYPES } from '../office/image-types.ts';
+import { declaredType, MAX_SOURCE_BYTES, UPLOAD_TYPES } from '../office/image-types.ts';
 import type { Portraits } from '../office/portrait.ts';
 import { IdParams } from './schemas.ts';
 
@@ -22,10 +22,7 @@ export const portraitRoutes =
     app.put('/projects/:id/image', async (req) => {
       const { id } = parse(IdParams, req.params);
       const body = req.body instanceof Buffer ? req.body : Buffer.alloc(0);
-      const declared = String(req.headers['content-type'] ?? '')
-        .split(';')[0]
-        ?.trim();
-      return portraits.put(id, body, declared);
+      return portraits.put(id, body, declaredType(req.headers['content-type']));
     });
     app.put('/projects/:id/image/source', async (req) =>
       portraits.link(parse(IdParams, req.params).id, parse(LinkBody, req.body).path),

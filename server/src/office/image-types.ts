@@ -18,8 +18,16 @@ export const IMAGE_TYPES = {
 export type ImageType = keyof typeof IMAGE_TYPES;
 export const ICNS = 'image/x-icns';
 type SourceType = ImageType | typeof ICNS;
+/** What a browser sends for a file it can't name (an .icns, often): the bytes alone decide. */
+const UNTYPED = 'application/octet-stream';
 /** Content types an upload may declare. */
-export const UPLOAD_TYPES = [...Object.keys(IMAGE_TYPES), ICNS, 'image/icns'];
+export const UPLOAD_TYPES = [...Object.keys(IMAGE_TYPES), ICNS, 'image/icns', UNTYPED];
+
+/** The image type a Content-Type header claims, or undefined when it claims none. */
+export function declaredType(header: string | undefined): string | undefined {
+  const t = header?.split(';')[0]?.trim().toLowerCase();
+  return t && t !== UNTYPED ? t : undefined;
+}
 
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const startsWith = (b: Uint8Array, at: number, magic: readonly number[]) =>

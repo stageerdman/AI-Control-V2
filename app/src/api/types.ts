@@ -145,6 +145,8 @@ export type Project = {
   tile: Tile;
   /** OFFICE: the project's picture (a server path, versioned); null/absent = show the tile. */
   imageUrl?: string | null;
+  /** Where the picture came from: 'upload', a file path inside the project folder, or null (the tile). */
+  imageSource?: string | null;
   teamIds: string[];
   /** Specialists (teams come first). */
   agentIds: string[];
