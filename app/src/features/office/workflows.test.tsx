@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChecklistItem, Goal, Signoff } from '../../api';
+import { type ChecklistItem, type Goal, type Signoff, studio } from '../../api';
 import { QuestBoard } from './QuestBoard';
 import { SignoffStrip } from './SignoffStrip';
 import { TaskCard } from './TaskCard';
 import { WorkflowChip } from './WorkflowChip';
+
+vi.spyOn(studio.projects, 'notes').mockResolvedValue([]);
 
 const NOW = new Date('2026-11-17T15:30:00');
 const look = { hat: 'none', tool: 'none', body: 'hero', antenna: 'none', face: 'none', hue: 'teal' } as never;

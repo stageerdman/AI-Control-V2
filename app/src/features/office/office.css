@@ -242,7 +242,12 @@
 .ob-tasks{display:flex;flex-direction:column;gap:12px}
 /* task card (TaskCard.tsx · design/whiteboard-task-card.md): mark · title · people, then problem / parts */
 .ob-task{display:grid;grid-template-columns:18px minmax(0,1fr) auto;column-gap:10px;row-gap:4px;align-items:center;font-size:14.5px;font-weight:600}
-.ob-task>.ob-problem,.ob-task>.ob-sub{grid-column:2/-1}
+.ob-task>.ob-problem,.ob-task>.ob-notes,.ob-task>.ob-sub{grid-column:2/-1}
+/* notes waiting for the agent's next step (TaskTools.tsx): same voice as the problem line */
+.ob-notes p{margin:0;font-size:13px;font-weight:600;line-height:1.4;color:var(--ink-soft)}
+.ob-notes .ob-more:disabled{opacity:.5;cursor:progress}
+.ob-notelist{list-style:none;padding-left:10px;display:flex;flex-direction:column;gap:6px}
+.ob-notelist b{font-weight:800}
 .ob-task.m-done>.ob-tt{color:var(--ink-soft)}
 .ob-tt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
 .ob-box{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(36,26,68,.3);display:grid;place-items:center;flex:none;font-size:12px;font-weight:900;color:#fff;line-height:1}
