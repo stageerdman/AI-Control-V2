@@ -4,6 +4,7 @@
    The project's CLAUDE.md is NOT pasted in: Claude Code reads it itself from cwd. */
 import type { EditScope } from '../domain/toolset.ts';
 import { GITHUB_PRINCIPLES_SECTION } from './github-principles.ts';
+import { READY_TO_TEST_SECTION } from './ready-to-test.ts';
 import { OUTPUT_FLAGS } from './mac-build.ts';
 
 export type ComposeInput = {
@@ -169,6 +170,7 @@ export function composePrompt({
       ].join('\n'),
     ),
     GITHUB_PRINCIPLES_SECTION,
+    READY_TO_TEST_SECTION,
   ]
     .filter(Boolean)
     .join('\n\n')

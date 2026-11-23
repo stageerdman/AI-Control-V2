@@ -31,6 +31,7 @@ import type { Reports } from '../reports/reports.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { ROADMAP_RULE } from '../room/context.ts';
 import { GITHUB_PRINCIPLES_SECTION } from '../runtime/github-principles.ts';
+import { READY_TO_TEST_SECTION } from '../runtime/ready-to-test.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { type Capabilities, canStartWork, capabilityText, NO_CAPABILITIES } from './capabilities.ts';
@@ -123,6 +124,7 @@ export function orchestratorChatPrompt(
       'Features agents ask for wait in the summary’s `featureProposals`: approve them (`approve_feature`, with changes if needed) or decline them, and mention new ones to the user. An agent who asks you for a feature in a call: add it with `add_feature`. Feature requests belong in Features, never in issues.txt.',
     ].join('\n'),
     `${GITHUB_PRINCIPLES_SECTION}\n\nEvery agent follows these; brief them to push and deploy themselves, never to wait for a push approval.`,
+    `${READY_TO_TEST_SECTION}\n\nEvery agent follows this too; never brief anyone to have the user run, install or set up anything.`,
   ].join('\n\n');
 }
 
