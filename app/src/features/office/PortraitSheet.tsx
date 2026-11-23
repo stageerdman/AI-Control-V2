@@ -2,7 +2,7 @@
    Nothing on disk changes: the folder, branch, .project and the GitHub repo keep their names; the picture lives
    in the studio's data folder. */
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import { isApiError, type Project, studio } from '../../api';
+import { apiUrl, isApiError, type Project, studio } from '../../api';
 import { Button, Sheet } from '../../ui';
 import { LogoTile } from '../projects/LogoTile';
 import { nameCheck, PICK_TYPES, pickError, toSquarePng } from './portrait';
@@ -27,7 +27,7 @@ export function PortraitSheet({
   );
 }
 
-function PortraitBody({ project, onSaved }: { project: Project; onSaved: (p: Project) => void }) {
+export function PortraitBody({ project, onSaved }: { project: Project; onSaved: (p: Project) => void }) {
   const [name, setName] = useState(project.name);
   const [busy, setBusy] = useState<null | 'name' | 'picture'>(null);
   const [note, setNote] = useState<{ text: string; bad?: boolean } | null>(null);
@@ -67,6 +67,17 @@ function PortraitBody({ project, onSaved }: { project: Project; onSaved: (p: Pro
       if (file.current) file.current.value = '';
     }
   };
+  const use = async (path: string) => {
+    setBusy('picture');
+    try {
+      onSaved(await studio.projects.linkImage(project.id, path));
+      setNote({ text: 'Using the app’s icon. It updates when the file changes.' });
+    } catch (err) {
+      fail(err, 'That icon didn’t work.');
+    } finally {
+      setBusy(null);
+    }
+  };
   const reset = async () => {
     setBusy('picture');
     try {
@@ -104,6 +115,7 @@ function PortraitBody({ project, onSaved }: { project: Project; onSaved: (p: Pro
           />
         </div>
       </div>
+      <AppIcons project={project} busy={!!busy} onUse={(p) => void use(p)} />
       <form className="field pt-name" onSubmit={saveName}>
         <label htmlFor="ptName">Name</label>
         <div className="pt-row">
@@ -128,5 +140,61 @@ function PortraitBody({ project, onSaved }: { project: Project; onSaved: (p: Pro
         {note?.text ?? ''}
       </p>
     </div>
+  );
+}
+
+/** The icon files found in the project folder, as one-click thumbnails; nothing shows when there are none. */
+function AppIcons({
+  project,
+  busy,
+  onUse,
+}: {
+  project: Project;
+  busy: boolean;
+  onUse: (path: string) => void;
+}) {
+  const [paths, setPaths] = useState<string[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    studio.projects.iconFiles(project.id).then(
+      (r) => live && setPaths(r.paths),
+      () => live && setPaths([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [project.id]);
+  /* a file that can't be shown (broken, wrong type) drops out of the row */
+  const [broken, setBroken] = useState<string[]>([]);
+  const shown = (paths ?? []).filter((p) => !broken.includes(p));
+  if (!shown.length) return null;
+  return (
+    <fieldset className="pt-app">
+      <legend>From the app</legend>
+      <div className="pt-app-row">
+        {shown.map((p) => {
+          const on = project.imageSource === p;
+          return (
+            <button
+              key={p}
+              type="button"
+              className={`pt-app-pick${on ? ' on' : ''}`}
+              title={p}
+              aria-label={`Use ${p}`}
+              aria-pressed={on}
+              disabled={busy}
+              onClick={() => !on && onUse(p)}
+            >
+              <img
+                src={apiUrl(studio.projects.iconPreviewPath(project.id, p)) ?? ''}
+                alt=""
+                draggable={false}
+                onError={() => setBroken((b) => [...b, p])}
+              />
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }

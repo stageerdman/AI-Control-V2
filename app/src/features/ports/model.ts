@@ -8,6 +8,8 @@ export type PortRow = {
   projectId: string;
   name: string;
   tile: Project['tile'] | null;
+  /** The project's office icon (shown instead of the tile). */
+  imageUrl: string | null;
   muted: boolean;
   /** "3290–3294" */
   block: string;
@@ -48,6 +50,7 @@ export function portRows(view: PortsView, projects: Project[], agents: Agent[], 
         projectId: x.projectId,
         name: x.name,
         tile: p.tile ?? null,
+        imageUrl: p.imageUrl ?? null,
         muted: !onSet,
         onSet,
         block: blockLabel(x.block),

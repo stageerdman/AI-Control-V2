@@ -103,7 +103,7 @@ function Board({ onClose, focusProject }: { onClose: () => void; focusProject?: 
               >
                 <th scope="row">
                   <button type="button" className="pt-name" onClick={() => open(r.projectId)}>
-                    <LogoTile tile={r.tile} small />
+                    <LogoTile tile={r.tile} imageUrl={r.imageUrl} small />
                     <span>{r.name}</span>
                   </button>
                 </th>

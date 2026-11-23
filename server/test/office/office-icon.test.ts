@@ -155,6 +155,45 @@ describe('the office icon', () => {
     expect(h.store.projects.require('aurora').imageUrl).toBeNull();
   });
 
+  it('finds the app’s icon files (best first, one per .appiconset, deps and hidden folders skipped)', async () => {
+    withFolder({
+      'App/Assets.xcassets/AppIcon.appiconset/16.png': png(1),
+      'App/Assets.xcassets/AppIcon.appiconset/1024.png': png(1, 1, 1, 1),
+      'App/Assets.xcassets/AppIcon.appiconset/Contents.json': '{}',
+      'build/icon.icns': icns(['ic10', png(1)]),
+      'res/AppIcon.icns': icns(['ic10', png(1)]),
+      'public/favicon.svg': SVG,
+      'src/logo.png': png(3),
+      'src/photo.png': png(4),
+      'node_modules/pkg/icon.png': png(5),
+      '.git/icon.png': png(6),
+    });
+    const r = await h.call('GET', '/projects/aurora/image/candidates');
+    expect(r.status).toBe(200);
+    expect(r.body.paths).toEqual([
+      'res/AppIcon.icns',
+      'App/Assets.xcassets/AppIcon.appiconset/1024.png',
+      'public/favicon.svg',
+      'src/logo.png',
+    ]);
+  });
+
+  it('a project with no folder has no candidates; preview shows a file without saving it', async () => {
+    h = testApp({ seed: true });
+    expect((await h.call('GET', '/projects/aurora/image/candidates')).body.paths).toEqual([]);
+    h.close();
+    withFolder({ 'icon.icns': icns(['ic10', png(8, 8)]), 'README.md': '# hi' });
+    const p = await h.app.inject({ method: 'GET', url: '/projects/aurora/image/preview?path=icon.icns' });
+    expect(p.statusCode).toBe(200);
+    expect(p.headers['content-type']).toBe('image/png');
+    expect(p.rawPayload.equals(png(8, 8))).toBe(true);
+    const bad = (path: string) =>
+      h.app.inject({ method: 'GET', url: `/projects/aurora/image/preview?path=${encodeURIComponent(path)}` });
+    expect((await bad('README.md')).statusCode).toBe(422);
+    expect((await bad('../../etc/hosts')).statusCode).toBe(422);
+    expect((await h.call('GET', '/projects/aurora')).body.imageUrl).toBeNull();
+  });
+
   it('sniff and ICNS unwrapping', () => {
     expect(sniff(SVG)).toBe('image/svg+xml');
     expect(sniff(Buffer.from('﻿  <!-- logo --><svg viewBox="0 0 1 1"></svg>'))).toBe('image/svg+xml');

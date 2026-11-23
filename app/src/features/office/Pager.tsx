@@ -6,7 +6,7 @@
    Work that a reviewer sent back past the limit stops for you without an ask: those pages come from
    the projects' whiteboards (every 15 s) and are "seen" locally when you leave that office. */
 import { useEffect, useRef, useState } from 'react';
-import { type Project, studio, useQuery } from '../../api';
+import { apiUrl, type Project, studio, useQuery } from '../../api';
 import { reducedMotion } from '../../design/palette';
 import type { PagerComponent } from '../../shell/pages';
 import { go, type Route } from '../../shell/router';
@@ -217,7 +217,13 @@ export const Pager: PagerComponent = ({ route }: { route: Route }) => {
                     <span
                       className="o-pg-tile"
                       aria-hidden="true"
-                      style={{ background: `linear-gradient(145deg,${p.tile.g1},${p.tile.g2})` }}
+                      style={
+                        p.imageUrl
+                          ? {
+                              background: `center / cover no-repeat url("${apiUrl(p.imageUrl)}")`,
+                            }
+                          : { background: `linear-gradient(145deg,${p.tile.g1},${p.tile.g2})` }
+                      }
                     />
                   )}
                   <span>{e.projectName}</span>

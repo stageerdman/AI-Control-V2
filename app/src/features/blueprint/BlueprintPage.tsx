@@ -246,7 +246,7 @@ function FreshRow({ project: p, modules }: { project: Project; modules: Blueprin
   }
   return (
     <div className="fresh-row">
-      <LogoTile tile={p.tile} small />
+      <LogoTile tile={p.tile} imageUrl={p.imageUrl} small />
       <div style={{ flex: 'none', maxWidth: '45%' }}>
         <b style={{ fontSize: 14 }}>{p.name}</b>
         {f?.state === 'broken' && f.generated && (

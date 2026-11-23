@@ -12,6 +12,7 @@ import { now } from '../db/util.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox, SandboxError } from '../fs/sandbox.ts';
+import { findIconFiles } from './icon-finder.ts';
 import { IMAGE_TYPES, type ImageType, MAX_SOURCE_BYTES, toStorable } from './image-types.ts';
 
 /** The linked file, relative to the project folder, with the stamp it had when last copied. */
@@ -148,6 +149,20 @@ export function createPortraits(deps: {
       writeRecord(id, null);
       announce(id);
       return deps.store.projects.require(id);
+    },
+    /** Icon files found in the project folder (best first); none when it has no folder yet. */
+    candidates(id: string): string[] {
+      const p = deps.store.projects.require(id);
+      if (!p.folder) return [];
+      try {
+        return findIconFiles(folderOf(id));
+      } catch {
+        return [];
+      }
+    },
+    /** A file in the project folder as the picture it would become (checked like a link; nothing is saved). */
+    preview(id: string, path: string): { bytes: Uint8Array; type: ImageType } {
+      return toStorable(readFileSync(fileInProject(id, path).file));
     },
     refresh,
     /** Refresh every project's linked icon (cheap: one stat each). */

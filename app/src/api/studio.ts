@@ -99,6 +99,10 @@ export const studio = {
     /** Use an icon file inside the project folder (relative to it); a copy is kept and refreshed when it changes. */
     linkImage: (id: string, path: string) => http.put<Project>(`/projects/${e(id)}/image/source`, { path }),
     clearImage: (id: string) => http.del<Project>(`/projects/${e(id)}/image`),
+    /** Icon files found in the project folder, best first. */
+    iconFiles: (id: string) => http.get<{ paths: string[] }>(`/projects/${e(id)}/image/candidates`),
+    /** One of them as it would show (a server path for <img>; nothing saved). */
+    iconPreviewPath: (id: string, path: string) => `/projects/${e(id)}/image/preview?path=${e(path)}`,
     remove: (id: string) => http.del<void>(`/projects/${e(id)}`),
     scaffold: (id: string) => http.get<ScaffoldReport>(`/projects/${e(id)}/scaffold`),
     work: (id: string) => http.get<Goal[]>(`/projects/${e(id)}/work`),
