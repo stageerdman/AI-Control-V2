@@ -29,9 +29,9 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…`
 
 /** Always Merged: a step the studio landed says so, so the director never relays a builder's stale "it still
     needs merging" to the user. '' when it didn't land (no checkout, or nothing new). */
-export const mergedLine = (it: { mergedCommit: string | null }): string =>
+export const mergedLine = (it: { mergedCommit: string | null; workspace?: { main: string } | null }): string =>
   it.mergedCommit
-    ? `It is merged into main (commit ${it.mergedCommit.slice(0, 7)}). Anything their note says about branches, pushing or waiting for review or a merge is out of date — never pass it on.`
+    ? `It is merged into ${it.workspace?.main ?? 'main'} (commit ${it.mergedCommit.slice(0, 7)}). Anything their note says about branches, pushing or waiting for review or a merge is out of date — never pass it on.`
     : '';
 
 export function createReportIn(deps: {

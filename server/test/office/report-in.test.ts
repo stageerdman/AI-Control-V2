@@ -13,6 +13,10 @@ describe('mergedLine (Always Merged)', () => {
     expect(line).toContain('It is merged into main (commit abc1234).');
     expect(line).toMatch(/branches, pushing or waiting for review or a merge is out of date/);
   });
+  it("names the project's own main branch (master here), so the user hears their branch's name", () => {
+    const line = mergedLine({ mergedCommit: 'abc1234def5678', workspace: { main: 'master' } });
+    expect(line).toContain('It is merged into master (commit abc1234).');
+  });
   it('nothing landed: no line', () => {
     expect(mergedLine({ mergedCommit: null })).toBe('');
   });
