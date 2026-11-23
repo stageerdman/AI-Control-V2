@@ -67,10 +67,14 @@ export function maskLine(line: string, secrets: readonly string[]): string {
   for (const v of secrets) if (v.length >= 4) out = out.split(v).join('••••');
   return out;
 }
+/** Pure: a local address with its host as `localhost` — passkeys and OAuth redirects are bound to that name,
+    so a 127.0.0.1 link opens the site but breaks sign-in. */
+export const toLocalhost = (url: string): string =>
+  url.replace(/^(https?:\/\/)(?:127\.0\.0\.1|0\.0\.0\.0|\[::1?\])/, '$1localhost');
 /** Pure: the local address a dev server printed, normalised to localhost. */
 export function urlIn(line: string): string | null {
   const m = LOCAL_URL.exec(line.replace(ANSI, ''));
-  return m ? m[0].replace('0.0.0.0', 'localhost').replace(/[.,;:]+$/, '') : null;
+  return m ? toLocalhost(m[0].replace(/[.,;:]+$/, '')) : null;
 }
 
 export function createAppRunner(deps: {
@@ -224,6 +228,8 @@ export function createAppRunner(deps: {
   }
 
   return {
+    /** The project's folder on disk (409 when it has none yet). */
+    folderOf,
     view,
     start,
     async stop(projectId: string): Promise<AppView> {

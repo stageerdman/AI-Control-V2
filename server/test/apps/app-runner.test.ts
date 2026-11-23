@@ -156,7 +156,8 @@ describe('run the app (F1c)', () => {
     expect(readRunLine('name: x\n')).toBeNull();
     expect(runCommandOf('/nonexistent')).toBeNull();
     expect(urlIn('  ➜  Local:   http://0.0.0.0:3000/app.')).toBe('http://localhost:3000/app');
-    expect(urlIn('Listening on http://127.0.0.1:8080')).toBe('http://127.0.0.1:8080');
+    expect(urlIn('Listening on http://127.0.0.1:8080')).toBe('http://localhost:8080'); // passkeys need localhost
+    expect(urlIn('on http://[::1]:8080/x')).toBe('http://localhost:8080/x');
     expect(urlIn('see https://example.com')).toBeNull();
     expect(maskLine('a secret123 b', ['secret123', 'ab'])).toBe('a •••• b');
   });
