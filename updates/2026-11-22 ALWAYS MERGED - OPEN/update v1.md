@@ -199,5 +199,7 @@ Also run once on HQ.
     the orchestrator prompt and builder prompt say the studio lands it, never ask the user.
   - `plain-problem.ts`: folder-branch message removed; clash reads "Its changes clash with
     other work."
-- Phase 5 (live check on a sandbox project): not run yet — covered by the flow tests
-  (`worktrees.test.ts`, `worktrees-flow.test.ts`, `team-flow.test.ts`).
+- Phase 5 (live check, 11-23, Elon): done — see `live-check.md`. Real agents on a sandbox repo: a plain task, a
+  clash with a commit on master, and the user's unsaved edit in the same file all landed on master by themselves;
+  the folder stayed clean; the director said "merged", never "waiting". Not forced live: a clash nobody fixes and a
+  failing `test:` line (flow tests cover them).
