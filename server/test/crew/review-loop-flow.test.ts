@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { type ChecklistItem, workRepo } from '../../src/db/work.ts';
 import type { RunSpec } from '../../src/runtime/runner.ts';
 import type { testApp } from '../helpers.ts';
-import { CHECKED, COLUMBO, commit, type Ev, isReview, LINT, studio, until } from './aurora-studio.ts';
+import { alerts, CHECKED, COLUMBO, commit, type Ev, isReview, LINT, studio, until } from './aurora-studio.ts';
 
 const SQLITE = 'The Pensieve needs sqlite, but it is not installed and npm install is refused.';
 const changes = (notes: string) => [{ result: JSON.stringify({ verdict: 'changes', notes }) }];
@@ -55,7 +55,38 @@ describe('review loops: the same note twice goes to the orchestrator', () => {
     expect(note).toContain('sent Captain Semicolon');
     expect(note).toContain(`First: ${SQLITE}`);
     expect(note).toContain(`Second: ${SQLITE.toLowerCase()}!`);
-    expect(await s.director('whiteboard', {})).toMatch(/\[waiting for a new owner\] Build the Pensieve — Pixel/);
+    expect(await s.director('whiteboard', {})).toMatch(
+      /\[waiting for a new owner\] Build the Pensieve — Pixel/,
+    );
+  }, 20_000);
+
+  /* Sea GPS: "HEAD is 1bb2479 with no new commits", sent back five times with different notes, then failed */
+  it('reworks that add no commit: after two empty tries the item is back with Pixel, who hears why', async () => {
+    let builds = 0;
+    const s = studio((_app, spec) => {
+      if (isReview(spec)) return changes(`Still nothing new, round ${builds}.`);
+      builds++;
+      /* the reworks run the tests (real work) but commit nothing */
+      return builds === 1
+        ? commit(spec, 'pensieve.txt')
+        : [
+            { activity: { kind: 'running', label: 'npm test' }, tool: 'Bash' },
+            { result: 'Tests pass for me.' },
+          ];
+    });
+    s.h.store.projects.update('aurora', { workflows: [{ ...CHECKED, maxSendBacks: 3 }] });
+    h = s.h;
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Build the Pensieve' });
+    const work = workRepo(h.db);
+    const id = r.body.items[0].id as string;
+    const back = await until(
+      () => work.item(id) as ChecklistItem,
+      (i) => i.agentId === 'a-pixel' || i.status === 'failed',
+    );
+    expect(back, back.note ?? '').toMatchObject({ agentId: 'a-pixel', status: 'todo' });
+    expect(back.reviews).toHaveLength(3); // build → changes, two empty reworks → changes, then it stops
+    expect(back.note).toContain('the last 2 reworks added no new commits');
+    expect(alerts(h)).toContainEqual(expect.objectContaining({ kind: 'stuck', itemId: id }));
   }, 20_000);
 
   it('different notes keep going: a third round, then approved and done with the builder', async () => {

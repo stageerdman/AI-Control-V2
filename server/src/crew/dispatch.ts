@@ -28,6 +28,7 @@ import {
   type Goal,
   type GoalStatus,
   type ItemPatch,
+  type ItemReview,
   resumable,
   workRepo,
 } from '../db/work.ts';
@@ -57,6 +58,7 @@ import type { Workspace, Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
+import { gitHead } from '../runtime/git-head.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { taskFeatures } from '../whiteboard/feature-route.ts';
@@ -73,7 +75,13 @@ import {
 } from './handover.ts';
 import { crewSystemPrompt, json, ORCHESTRATOR_ALTITUDE } from './prompts.ts';
 import { requeuePatch } from './requeue.ts';
-import { repeatedNote, repeatedNoteText } from './review-loop.ts';
+import {
+  emptyTries,
+  emptyTriesText,
+  MAX_EMPTY_TRIES,
+  repeatedNote,
+  repeatedNoteText,
+} from './review-loop.ts';
 import { coalesce, goalStall, itemStall, type Stall, type StallKind } from './stall.ts';
 import { type Crew, validateWith } from './structured.ts';
 import {
@@ -1095,6 +1103,7 @@ export function createDispatch(deps: {
         notes: clip(v.notes, 4000),
         runId: run.id,
         at: new Date().toISOString(),
+        head: it.workspace ? gitHead(it.workspace.cwd) : null,
       },
     ];
     if (v.verdict === 'approve') {
@@ -1132,7 +1141,7 @@ export function createDispatch(deps: {
         ...(final ? { final: true } : {}),
       },
     });
-    if (stuckOnSameNote(it, gate, v.notes, { sendBacks, reviews })) return;
+    if (loopGoesNowhere(it, gate, v.notes, { sendBacks, reviews })) return;
     if (final) {
       stopLater(it, {
         status: 'failed',
@@ -1150,24 +1159,37 @@ export function createDispatch(deps: {
     handoff(it, gate.reviewer, it.agentId, 'rework', v.notes, gate);
   }
 
-  /** The reviewer repeats its last send-back to this builder: a third round would too, so the item goes back to
-      the director with both notes, waiting for a new owner on the same branch (src/crew/review-loop.ts).
-      → true when it did. A member's part or a captain's team phase stays with its team. */
-  function stuckOnSameNote(
+  /** Another round won't help (src/crew/review-loop.ts): the reviewer repeats its last send-back to this builder,
+      or the builder added no commit in two send-backs running. The item goes back to the director with why,
+      waiting for a new owner on the same branch. → true when it did. A member's part or a captain's team phase
+      stays with its team. */
+  function loopGoesNowhere(
     it: ChecklistItem,
     gate: ItemGate,
     notes: string,
-    patch: Pick<ItemPatch, 'sendBacks' | 'reviews'>,
+    patch: { sendBacks: number; reviews: ItemReview[] },
   ): boolean {
     if (it.parentId || it.teamPhase) return false;
-    const earlier = repeatedNote(it, gate, notes);
-    if (earlier === null) return false;
+    const why = loopStopReason(it, gate, notes, patch);
+    if (!why) return false;
     settle(it, { status: 'todo', stage: 'build', notes, ...patch });
-    const why = repeatedNoteText(name(gate.reviewer), name(it.agentId), earlier, notes);
     const director = store.projects.require(it.projectId).orchestratorId;
     handOver(it.id, { agentId: director, teamId: null }, clip(why, 2000));
     itemStalled(it.id, { kind: 'stuck', reason: why });
     return true;
+  }
+  /** Why this send-back ends the loop, or null when another round may help. */
+  function loopStopReason(
+    it: ChecklistItem,
+    gate: ItemGate,
+    notes: string,
+    { sendBacks, reviews }: { sendBacks: number; reviews: ItemReview[] },
+  ): string | null {
+    const [reviewer, builder] = [name(gate.reviewer), name(it.agentId)];
+    const earlier = repeatedNote(it, gate, notes);
+    if (earlier !== null) return repeatedNoteText(reviewer, builder, earlier, notes);
+    const empty = emptyTries(reviews, sendBacks);
+    return empty >= MAX_EMPTY_TRIES ? emptyTriesText(reviewer, builder, empty, notes) : null;
   }
 
   /* ---------------------------------------------------------------- teams (F1c) */

@@ -65,4 +65,10 @@ Tasks never get stuck quietly. Six parts:
 
 ## Status
 
-- [ ] Phase 1  - [ ] Phase 2  - [ ] Phase 3  - [ ] Phase 4  - [ ] Phase 5
+- [x] Phase 1  - [x] Phase 2  - [x] Phase 3  - [ ] Phase 4  - [ ] Phase 5
+- Phase 1: `runtime.notesFor/clearNotes`, routes in `routes/runs.ts`; dispatch `voidNotes` on requeue, handover, fresh
+  reopen; carry-on brief line `STALE_NOTES`. Tests: `test/runtime/notes.test.ts`, `test/crew/restart-flow.test.ts`.
+- Phase 2: `worktrees.retire`, `dispatch.restartFresh` (caller then calls `board.changed`), route in `routes/crew.ts`,
+  `edit_task fresh: true`. Sub-tasks and split team items are refused. Test: `test/crew/restart-fresh-flow.test.ts`.
+- Phase 3: reviews keep `head`; `emptyTries` + `MAX_EMPTY_TRIES` in `review-loop.ts`; `dispatch.loopGoesNowhere`
+  (was `stuckOnSameNote`). Workflows cap `maxSendBacks` at 3, so the flow uses 3. Tests: `review-loop(.flow).test.ts`.

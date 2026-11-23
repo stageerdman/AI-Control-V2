@@ -22,6 +22,8 @@ export type ItemReview = {
   notes: string;
   runId: string;
   at: string;
+  /** The branch head the reviewer saw (absent: no git checkout, or reviewed before this was kept). */
+  head?: string | null;
 };
 export type ChecklistItem = {
   id: string;
