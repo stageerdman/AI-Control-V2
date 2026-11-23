@@ -182,7 +182,11 @@ function MainCard({
         <ul className="ob-tasks qb-trail">
           {q.steps.map((s, i) => {
             const stuck = q.stuckGoalOf[s.id];
-            const fresh = canStartFresh(s.item);
+            // a later step behind a stopped one waits for that one: only the first stopped step offers Start fresh
+            const fresh = canStartFresh(
+              s.item,
+              q.steps.map((x) => x.item),
+            );
             return (
               <TaskCard
                 key={s.id}
@@ -261,7 +265,7 @@ function SideCard({ q, i, nameOf, wf }: { q: SideQuest; i: number; nameOf: Props
       {wf?.pid && q.item && (
         <>
           <WaitingNotes pid={wf.pid} notes={notesOf(q.item, wf.notes)} nameOf={nameOf} />
-          {canStartFresh(q.item) && (
+          {canStartFresh(q.item, q.goal.items) && (
             <div className="ob-acts">
               <StartFresh pid={wf.pid} item={q.item} />
             </div>

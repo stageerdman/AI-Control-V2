@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type ChecklistItem, studio, type WaitingNote } from '../../api';
-import { canStartFresh, notesOf, StartFresh, WaitingNotes } from './TaskTools';
+import { canStartFresh, notesOf, StartFresh, saidIn, WaitingNotes } from './TaskTools';
 
 const toast = vi.hoisted(() => vi.fn());
 vi.mock('../../ui', async (orig) => ({ ...(await orig<object>()), toast }));
@@ -47,9 +47,45 @@ describe('canStartFresh', () => {
     expect(canStartFresh(item({ status: 'failed', parentId: 'p' }))).toBe(false);
     expect(canStartFresh(item({ status: 'failed', subtasks: [item({})] }))).toBe(false);
   });
+  it('not behind an earlier step that did not land (the studio would skip it again)', () => {
+    const a = item({ id: 'a', position: 0, status: 'cancelled' });
+    const b = item({ id: 'b', position: 1, status: 'cancelled' });
+    const c = item({ id: 'c', position: 2, status: 'failed', parallel: true });
+    expect(canStartFresh(a, [b, a, c])).toBe(true);
+    expect(canStartFresh(b, [a, b, c])).toBe(false);
+    expect(canStartFresh(c, [a, b, c])).toBe(false); // parallel with b, so it waits on a too
+    const done = item({ id: 'a', position: 0, status: 'done' });
+    expect(canStartFresh(b, [done, b, c])).toBe(true);
+    expect(canStartFresh(c, [done, b, c])).toBe(true); // runs alongside b, not after it
+  });
+});
+
+describe('saidIn', () => {
+  it("shows what was said, not the studio's wrapper", () => {
+    const wrapped =
+      "AI Studio — a note from the user while you work: Keep it top-right.\nSecond line.\nTake it into account from your next step; don't start over.";
+    expect(saidIn(wrapped)).toBe('Keep it top-right.\nSecond line.');
+    expect(saidIn('Access shared: GITHUB_TOKEN')).toBe('Access shared: GITHUB_TOKEN');
+  });
 });
 
 describe('WaitingNotes', () => {
+  it('a note from the user reads as You + what they said', () => {
+    render(
+      <WaitingNotes
+        pid="p"
+        notes={[
+          note({
+            from: 'the user',
+            text: "AI Studio — a note from the user while you work: Top-right.\nTake it into account from your next step; don't start over.",
+          }),
+        ]}
+        nameOf={nameOf}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'See' }));
+    expect(document.querySelector('.ob-notelist li')?.textContent).toBe('You Top-right.');
+  });
   it('nothing waiting: nothing shown', () => {
     const { container } = render(<WaitingNotes pid="p" notes={[]} nameOf={nameOf} />);
     expect(container.textContent).toBe('');

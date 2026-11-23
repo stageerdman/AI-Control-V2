@@ -13,9 +13,27 @@ export function notesOf(item: ChecklistItem, notes: WaitingNote[] | undefined): 
   return notes.filter((n) => on.has(n.agentId));
 }
 
-/** A stopped top-level task can start over; a team's split task can't (the server refuses it). */
-export const canStartFresh = (item: ChecklistItem) =>
-  (item.status === 'failed' || item.status === 'cancelled') && !item.parentId && !item.subtasks?.length;
+/** What the note says, without the studio's wrapper for the agent ("AI Studio — a note from … while you work: …
+    Take it into account …"). Other notes (an access just shared) read as they are. */
+export function saidIn(text: string): string {
+  const m = /^AI Studio — a note from .+? while you work: ([\s\S]*?)\nTake it into account[^\n]*$/.exec(text);
+  return m?.[1] ?? text;
+}
+
+const didNotLand = (i: ChecklistItem) => i.status === 'failed' || i.status === 'cancelled';
+
+/** A stopped top-level task can start over; a team's split task can't (the server refuses it). Nor can one that
+    waits on an earlier step that didn't land: the studio would skip it again at once (server domain/task-order.ts)
+    — that earlier step is the one to start over. `goalItems`: the tasks of its goal, to check that order. */
+export function canStartFresh(item: ChecklistItem, goalItems: readonly ChecklistItem[] = []): boolean {
+  if (!didNotLand(item) || item.parentId || item.subtasks?.length) return false;
+  const order = goalItems
+    .filter((x) => x.goalId === item.goalId && !x.parentId)
+    .sort((a, b) => a.position - b.position);
+  let start = order.findIndex((x) => x.id === item.id);
+  while (start > 0 && order[start]?.parallel) start--;
+  return !order.slice(0, Math.max(start, 0)).some(didNotLand);
+}
 
 export function WaitingNotes({
   pid,
@@ -69,7 +87,7 @@ export function WaitingNotes({
         <ol id={id} className="ob-raw ob-notelist">
           {notes.map((x) => (
             <li key={`${x.runId}:${x.at}`}>
-              <b>{x.from}</b> {x.text}
+              <b>{x.from === 'the user' ? 'You' : x.from}</b> {saidIn(x.text)}
             </li>
           ))}
         </ol>
