@@ -13,6 +13,9 @@ import type { RebuildOffer } from './rebuild/api';
 
 const e = encodeURIComponent;
 
+/** POST /projects/:id/start: what opened. */
+export type StartResult = { kind: 'desktop'; app: string } | { kind: 'website'; url: string };
+
 export type AgentStatusName = 'idle' | 'working' | 'waiting' | 'blocked' | 'done';
 export type ServerActivity = { kind: string; label: string; detail?: string; target?: string };
 /** An agent's latest status as the office view reports it (no `since` = never reported here). */
@@ -310,6 +313,9 @@ export const officeApi = {
     http.get<OfficeView>(`/projects/${e(pid)}/office`).then((o) => o.progress ?? null),
   app: (pid: string) => http.get<ProjectApp>(`/projects/${e(pid)}/app`),
   startApp: (pid: string) => http.post<ProjectApp>(`/projects/${e(pid)}/app/start`, {}),
+  /** Ready to Test: open the newest built desktop app, or start the website and answer once it is reachable.
+      409 = not built yet / stopped early / still building (details.log = its last lines). */
+  start: (pid: string) => http.post<StartResult>(`/projects/${e(pid)}/start`, {}),
   stopApp: (pid: string) => http.post<ProjectApp>(`/projects/${e(pid)}/app/stop`, {}),
   setAppCommand: (pid: string, command: string) =>
     http.patch<ProjectApp>(`/projects/${e(pid)}/app`, { command }),

@@ -32,7 +32,7 @@ import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../r
 import { RunningPill, RunningSheet, runningKey, useRunning } from '../running';
 import { AccessSheet } from './AccessSheet';
 import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
-import { Board, LAYER_BACK, OBJ_OF, useApp, useFeatures, useHealth, useProgress, useWork } from './Board';
+import { Board, LAYER_BACK, OBJ_OF, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
 import { OfficeEngine, type SceneAgent, type SceneTeam } from './engine';
@@ -45,6 +45,7 @@ import { PrinciplesSheet } from './PrinciplesSheet';
 import { TeamSheet } from './performance/TeamSheet';
 import { RecapSheet } from './RecapSheet';
 import { Rearrange } from './rebuild/Rearrange';
+import { StartButton } from './StartButton';
 import {
   activityOf,
   boardFacts,
@@ -202,7 +203,6 @@ function Office({
     if (office.progress) setQueryData(keys.progress(pid), office.progress);
   });
   const progress = useProgress(pid);
-  const app = useApp(pid);
   const work = useWork(pid);
   const features = useFeatures(pid);
   const health = useHealth(pid);
@@ -1004,17 +1004,7 @@ function Office({
         </div>
         <div className="o-stagectl">
           <RunningPill items={running.data} pressed={runningOpen} onClick={() => setRunningOpen(true)} />
-          {app.data?.status === 'running' && app.data.url && (
-            <a
-              className="o-ctl o-openapp"
-              href={app.data.url}
-              target="_blank"
-              rel="noreferrer"
-              title={app.data.port ? `Open the app (port ${app.data.port})` : 'Open the app'}
-            >
-              ▶ <span>Open app</span>
-            </a>
-          )}
+          <StartButton key={pid} pid={pid} />
           <button
             className="o-ctl"
             type="button"

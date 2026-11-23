@@ -496,6 +496,16 @@
 .ob-stopped{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12.5px;font-weight:700;color:var(--ink-soft)}
 .ob-stopped span{margin-right:auto}
 .o-openapp{text-decoration:none}
+/* Ready to Test: the Start button (sun = the one thing to press to try it) + its failure note */
+.o-start{background:var(--sun);color:var(--ink);box-shadow:none}
+.o-start:hover{background:var(--sun-deep)}
+.o-start:disabled{cursor:progress;opacity:.85}
+.o-start.failed{box-shadow:0 0 0 2px var(--coral)}
+.o-startnote{position:absolute;right:0;bottom:calc(100% + 10px);width:min(380px,calc(100vw - 28px));padding:12px 36px 12px 14px;border-radius:14px;background:var(--cream);color:var(--ink);box-shadow:0 0 0 2px var(--coral),0 10px 30px rgba(20,12,44,.3);font-size:14px;line-height:1.4}
+.o-startnote p{margin:0;font-weight:700}
+.o-startnote pre{margin:8px 0 0;max-height:140px;overflow:auto;font-family:var(--mono);font-size:12px;white-space:pre-wrap;word-break:break-word;color:var(--ink-soft)}
+.o-startnote-x{position:absolute;top:4px;right:4px;width:32px;height:32px;border:0;border-radius:999px;background:none;color:var(--ink);font-size:20px;cursor:pointer}
+.o-startnote-x:focus-visible{outline:3px solid var(--sun);outline-offset:1px}
 .ob-proj .ob-bad{color:#a3242c;font-weight:800}
 .ob-port{font-family:var(--mono);font-size:12.5px}
 .ob-app-out{margin:8px 0 2px 36px;max-height:140px}

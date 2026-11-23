@@ -9,6 +9,7 @@
 3. Recover from mistakes fast. Deleting the wrong agent must never cost work.
 4. See what's running in a project and stop it, one agent or all, right away, without losing their chats.
 5. Start fresh with Pixel (the orchestrator) once work is done, keeping the old chat to look back at.
+6. Try what the team built: open the app or website in one tap, without running or setting anything up.
 
 ## What they do (observed)
 - They accidentally deleted Health Analyst, an agent with chats and a team seat, and running work was blocked (Nov 2026). Getting them back needed manual recovery.
@@ -25,7 +26,11 @@
 
 - The features list grew to ~50 and they couldn't find things, add at the top, or drop a feature without deleting its record (Nov 2026). Top goals there: find > see status and dates > add. Design: one "Search or add" field, stage chips, dates per row, Shelved and Denied stages, one Description field (updates/2026-11-19 FEATURE LIST - OPEN/design.md).
 
+- To test a project they had to know how it runs: "Open app" only appeared once a dev server was already running, and desktop apps had no way to open at all (Nov 2026). Design: one sun-coloured Start in the office's bottom-right controls (design/start-button.md).
+
 ## Assumptions (guesses — check)
+- One Start, bottom-right of the office, is found without help, and Stop is rarely wanted there (it stays on the health card). Check: time to first Start in a new office; do people go to the health card to stop right after?
+- Opening the newest build (no rebuild) is what people mean by "test it". Check: do they report testing a stale build?
 - In the features list, Shelved and Denied belong at the bottom of All (not hidden), and Enter in "Search or add" should open the first match, adding only when nothing matches. Check in the live pass: does the bottom feel cluttered; any accidental adds?
 - People read agent time as "how long it took", and a median with a middle-half range is good enough to plan with. Check: do people ask about wall-clock time? Compare guesses with real times after 20+ more tasks.
 - A live picture of the way (thumbnail) is found faster than a text link, and most teams keep the "Captain checks all" default. Check: time to open How we work; share of teams still on the default after a week.

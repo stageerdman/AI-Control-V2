@@ -53,5 +53,5 @@ returned before the site was reachable.
 | Phase | State |
 | --- | --- |
 | 1. Server start call | done: `POST /projects/:id/start` (`server/src/apps/start-project.ts`, `built-app.ts`); tests `test/apps/start-project.test.ts`; live `npm run check:start` passed (Erdman Knowledge at http://localhost:3980/, MagicCut opened) |
-| 2. Start button | not started |
+| 2. Start button | done: `app/src/features/office/StartButton.tsx` (+ words in `start-button.ts`) in the office's bottom-right controls, replacing the running-only "Open app" link; tests `StartButton.test.tsx` (website, desktop, starting/still building, failure note, already running); live `start.live.test.tsx` passed against a scratch studio — Erdman Knowledge opened at http://localhost:3980/, MagicCut opened |
 | 3. Keep it working | not started |

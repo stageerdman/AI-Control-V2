@@ -16,6 +16,19 @@
   `~/.cargo-shared-target/{release,debug}/bundle/macos/`, so the bundle is matched by
   `productName`. "Newest" means the newest `Contents/Info.plist`, which every
   build rewrites.
+- **The button (phase 2) is one control, four words.** Start → Starting… → (after
+  8 s) Still building… → Opened (desktop) or the "Open app" link (website). If it
+  can't, it reads Try again and a note shows the server's own sentence plus the last
+  8 lines. No separate status chip, no settings — Stop and the run command stay on
+  the health card's App row, where the people who need them already look.
+- **The link opens through `openExternal`.** In the desktop window a `_blank` link
+  does nothing, and in a browser a pop-up opened after a long wait can be blocked —
+  so once the site runs, the button itself becomes the "Open app" link: one more tap
+  always works.
+- **Live check of the button:** start a scratch studio
+  (`AI_STUDIO_HOME=<scratch> PORT=<spare> npm --prefix server start`), then in `app/`
+  `AI_STUDIO_LIVE_API=http://127.0.0.1:<spare> npx vitest run src/features/office/start.live.test.tsx`.
+  The test page sits at `http://localhost:1420/` so the studio's CORS lets it in.
 - **Live check:** `npm run check:start` (in `server/`) runs a throwaway studio on the
   real `~/dev`. Erdman Knowledge must answer at `http://localhost:3980/` and MagicCut
   must open.
