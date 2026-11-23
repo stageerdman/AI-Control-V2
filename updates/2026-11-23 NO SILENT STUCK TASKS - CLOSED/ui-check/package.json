@@ -1,0 +1,9 @@
+{
+  "name": "stuck-tasks-ui-check",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway browser check for the task buttons (waiting notes, Start fresh). Not part of the app.",
+  "devDependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}
