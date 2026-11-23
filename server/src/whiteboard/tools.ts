@@ -207,7 +207,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
     },
     {
       name: 'edit_task',
-      can: 'change a task’s wording, brief, owner, order or parallel, or its status — todo tries a failed task again',
+      can: 'change a task’s wording, brief, owner, order or parallel, or its status — todo tries a failed task again, fresh starts it over from main',
       description:
         'Change a task: text, brief, owner, place, parallel, or status (todo = do it again, done, cancelled).',
       inputSchema: {
@@ -217,12 +217,18 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
           ...TASK_PROPS,
           position: { type: 'number', description: '1 = first.' },
           status: { type: 'string', enum: ['todo', 'done', 'cancelled'] },
+          fresh: {
+            type: 'boolean',
+            description:
+              'true = start it over from main: a new checkout and session, send-backs reset (earlier work kept on a renamed branch). Use when retries keep going nowhere.',
+          },
           force: FORCE,
         },
         required: ['task'],
       },
       run: async (a) => {
         const status = oneOf(a, 'status', ['todo', 'done', 'cancelled'] as const);
+        const fresh = bool(a, 'fresh') === true;
         const position = num(a, 'position');
         const parallel = bool(a, 'parallel');
         return board.editTask(projectId, by, need(a, 'task'), {
@@ -233,6 +239,7 @@ export function whiteboardTools(board: Board, projectId: string, by: string): Ca
           ...(position ? { position } : {}),
           ...(parallel !== undefined ? { parallel } : {}),
           ...(status ? { status } : {}),
+          ...(fresh ? { fresh } : {}),
           force: bool(a, 'force') === true,
         });
       },

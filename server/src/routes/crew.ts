@@ -22,6 +22,7 @@ const WorkBody = z.strictObject({
     .optional(),
 });
 const GoalParams = z.object({ id: Id, goalId: z.uuid() });
+const ItemParams = z.object({ id: Id, itemId: z.uuid() });
 
 export const crewRoutes =
   ({
@@ -69,5 +70,12 @@ export const crewRoutes =
     app.post('/projects/:id/work/:goalId/resume', async (req, reply) => {
       const { id, goalId } = parse(GoalParams, req.params);
       return reply.status(202).send(view(dispatch.resume(id, goalId)));
+    });
+    /* start a stopped or finished task over from main's tip (earlier unmerged work stays on a renamed branch) */
+    app.post('/projects/:id/tasks/:itemId/restart-fresh', async (req, reply) => {
+      const { id, itemId } = parse(ItemParams, req.params);
+      const { item, keptOn } = await dispatch.restartFresh(id, itemId);
+      dispatch.board.changed(id, [item.goalId]);
+      return reply.status(202).send({ goal: view(dispatch.get(id, item.goalId)), keptOn });
     });
   };

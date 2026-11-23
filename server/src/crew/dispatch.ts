@@ -1488,6 +1488,34 @@ export function createDispatch(deps: {
     return work.item(it.id);
   }
 
+  /** Start an item over from main's tip: its checkout is retired (unmerged work kept on a renamed branch), its
+      sessions, send-backs and notes are dropped, and it queues as a fresh build on a new checkout. Not while it
+      runs. The caller then calls board.changed (which starts it), so it may change hands first.
+      → the item and where the earlier work is kept. */
+  async function restartFresh(
+    projectId: string,
+    itemId: string,
+  ): Promise<{ item: ChecklistItem; keptOn: string | null }> {
+    const it = work.item(itemId);
+    if (!it || it.projectId !== projectId) throw notFound('Checklist item', itemId);
+    if (it.status === 'running' || preparing.has(it.id) || closing.has(it.id))
+      throw conflict('That task is running — stop it first, then restart it fresh');
+    if (it.parentId || it.subtasks.length)
+      throw conflict("A team's split task can't restart fresh — restart it as a new task instead");
+    let keptOn: string | null = null;
+    closing.set(it.id, 'cancelled'); // pump leaves it alone while its checkout is put away
+    try {
+      if (it.workspace && deps.worktrees)
+        ({ keptOn } = await deps.worktrees.retire(repoOf(projectId), it.workspace));
+    } finally {
+      closing.delete(it.id);
+    }
+    voidNotes(it);
+    stoppedWork.delete(it.goalId);
+    work.setItem(it.id, { ...freshBuild(), workspace: null, note: null });
+    return { item: work.item(it.id) as ChecklistItem, keptOn };
+  }
+
   const STOP_WAIT_MS = 60_000;
   /** The director's whiteboard tools (src/whiteboard) change the board through this port. */
   const board = {
@@ -1516,6 +1544,7 @@ export function createDispatch(deps: {
       }
     },
     handOver,
+    restartFresh,
     /** Queue a finished or stopped item again: it carries on in its own session when it had one, or
         (`fresh`: done work redone) starts its build over. A live run is left alone. */
     reopen(itemId: string, fresh: boolean) {
@@ -1545,6 +1574,7 @@ export function createDispatch(deps: {
 
   return {
     board,
+    restartFresh,
     /** `call_agent` with work: true from inside the caller's own build run of an item hands that item over to the
         callee (it follows them: owner, branch, reviews). → the item, or null when this isn't that case (a
         reviewer, a captain's split, a member's part, any other run: the work goes on as a task of its own). */

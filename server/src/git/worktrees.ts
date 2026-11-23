@@ -193,6 +193,24 @@ export function worktrees(root: string) {
       const left = await tryGit(repo, ['rev-list', '--count', `${ws.main}..${ws.branch}`]);
       return { kept: left !== null && Number(left) > 0 };
     },
+
+    /** Put a checkout away for good so its item can start over from main on its own branch name: unmerged work
+        moves to `<branch>-before-restart-<n>` (never lost), an empty or merged branch is deleted.
+        → where the earlier work is kept, or null when there was none. */
+    async retire(repo: string, ws: Workspace): Promise<{ keptOn: string | null }> {
+      const { kept } = await this.close(repo, ws, { deleteBranch: true });
+      if (!kept) return { keptOn: null };
+      const keptOn = await unusedBranch(repo, `${ws.branch}-before-restart`);
+      await git(repo, ['branch', '-m', ws.branch, keptOn]);
+      return { keptOn };
+    },
   };
+}
+/** `<prefix>-1`, `<prefix>-2`, … — the first one no branch has. */
+async function unusedBranch(repo: string, prefix: string): Promise<string> {
+  for (let n = 1; ; n++) {
+    const name = `${prefix}-${n}`;
+    if ((await tryGit(repo, ['rev-parse', '--verify', '-q', `refs/heads/${name}`])) === null) return name;
+  }
 }
 export type Worktrees = ReturnType<typeof worktrees>;

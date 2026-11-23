@@ -41,6 +41,8 @@ export type TaskEdit = {
   position?: number;
   parallel?: boolean;
   status?: 'todo' | 'done' | 'cancelled';
+  /** Start it over from main's tip: new checkout, new session (earlier work kept on a renamed branch). */
+  fresh?: boolean;
   force?: boolean;
 };
 export type GoalEdit = {
@@ -210,6 +212,11 @@ export function createBoard(deps: {
     );
     return `Stopped ${who}. `;
   }
+
+  const restartedLine = (keptOn: string | null) =>
+    keptOn
+      ? `It starts over from main on a new checkout; the earlier work is kept on branch ${keptOn}.`
+      : 'It starts over from main on a new checkout.';
 
   /** Stopping work lets dispatch settle its goal early (as cancelled) — before our change lands. Goals that
       were running before go back to running; port.changed then settles them on what is really left. */
@@ -401,13 +408,15 @@ export function createBoard(deps: {
       const newOwner = !!owner && (owner.agentId !== it.agentId || owner.teamId !== it.teamId);
       const notes: string[] = [];
       const wasRunning = runningNow([it.goalId]);
-      if (newOwner || (e.status && e.status !== it.status))
+      if (e.fresh && e.status && e.status !== 'todo')
+        throw invalid('fresh: true restarts the task — leave status out (or set it to todo).');
+      if (newOwner || e.fresh || (e.status && e.status !== it.status))
         notes.push(
           await clearRunning(
             projectId,
             [it],
             e.force,
-            newOwner ? 'hand it to someone else' : `mark it ${e.status}`,
+            newOwner ? 'hand it to someone else' : e.fresh ? 'restart it fresh' : `mark it ${e.status}`,
           ),
         );
       else if (it.status === 'running' && (e.text || e.brief || e.position || e.parallel !== undefined))
@@ -426,6 +435,8 @@ export function createBoard(deps: {
         ...(e.parallel !== undefined ? { parallel: e.parallel } : {}),
       });
       if (e.position !== undefined) work.moveItem(id, e.position - 1);
+      /* before a new owner takes it, so they start from main too */
+      if (e.fresh) notes.push(restartedLine((await port.restartFresh(projectId, id)).keptOn));
       /* its branch and reviews follow the new owner; done work changes hands as it is */
       const handed = newOwner && owner ? port.handOver(id, owner) : null;
       const cur = work.item(id) as ChecklistItem;
