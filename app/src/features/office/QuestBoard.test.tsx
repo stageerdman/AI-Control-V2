@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChecklistItem, Goal } from '../../api';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type ChecklistItem, clearQueryCache, type Goal, studio } from '../../api';
 import type { Feature } from './api';
 import { QuestBoard } from './QuestBoard';
 
@@ -45,6 +45,11 @@ const board = (goals: Goal[], features: Feature[] = [], go = vi.fn()) => ({
   ).container,
 });
 
+const notes = vi.spyOn(studio.projects, 'notes');
+beforeEach(() => {
+  clearQueryCache();
+  notes.mockResolvedValue([]);
+});
 afterEach(cleanup);
 
 const main = goal({
@@ -91,9 +96,23 @@ describe('Main Quests', () => {
     });
     const { c } = board([g]);
     const row = c.querySelector('.qb-trail .m-failed');
-    expect(row?.querySelector('.ob-acts')?.textContent).toBe('ContinueDrop');
+    expect(row?.querySelector('.ob-acts')?.textContent).toBe('ContinueDropStart fresh');
     expect(row?.textContent).toContain('Ran out of steps.');
     expect(c.querySelector('.ob-stopped')).toBeNull();
+  });
+  it('a running step shows the notes waiting for its agent; nothing is read when nothing runs', async () => {
+    notes.mockResolvedValue([
+      { runId: 'r', agentId: 'a', from: 'Uncle Bob', text: 'Use the new route.', at: '1' },
+    ]);
+    const { c } = board([main]);
+    expect(await screen.findByText('1 note waiting for Pete')).toBeTruthy();
+    expect(c.querySelector('.qb-trail .m-active .ob-notes')).toBeTruthy();
+    expect(notes).toHaveBeenCalledWith('p');
+    cleanup();
+    clearQueryCache();
+    notes.mockClear();
+    board([goal({ items: [item({ status: 'done' })] })]);
+    expect(notes).not.toHaveBeenCalled();
   });
   it('empty: no main quest yet', () => {
     board([]);

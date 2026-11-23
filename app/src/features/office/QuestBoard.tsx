@@ -3,7 +3,7 @@
      Side Quests  pinned cards, one per side-quest goal; older finished ones fold into one strip
    Every row and card keeps the task card's anatomy (TaskCard.tsx): mark · title · who · why it stopped. */
 import { useState } from 'react';
-import { type Goal, invalidate, isApiError, type Look, studio } from '../../api';
+import { type Goal, invalidate, isApiError, type Look, studio, useQuery, type WaitingNote } from '../../api';
 import { Hero } from '../../characters';
 import type { OfficeSub } from '../../shell/router';
 import { Button, toast } from '../../ui';
@@ -13,6 +13,7 @@ import { type MainQuest, questBoard, type SideQuest } from './quests';
 import { SignedLine } from './SignoffStrip';
 import { taskCard } from './state';
 import { Mark, People, Problem, TaskCard } from './TaskCard';
+import { canStartFresh, notesOf, StartFresh, WaitingNotes } from './TaskTools';
 import { TimeTag } from './TimeTag';
 import { WorkflowChip } from './WorkflowChip';
 import { chipOf, signedLine } from './workflow-view';
@@ -36,7 +37,14 @@ type Props = {
 };
 
 type Who = (id: string) => { name: string; look?: Look } | null;
-type Wf = { who?: Who; wid?: string; open?: (way: string) => void; times?: Map<string, TimeTagView> };
+type Wf = {
+  pid?: string;
+  notes?: WaitingNote[];
+  who?: Who;
+  wid?: string;
+  open?: (way: string) => void;
+  times?: Map<string, TimeTagView>;
+};
 
 export function QuestBoard({
   pid,
@@ -51,7 +59,10 @@ export function QuestBoard({
   times,
 }: Props) {
   const b = questBoard(goals, features, now);
-  const wf: Wf = { who, wid: defaultWorkflowId, open: (way) => go('how', way), times };
+  /* notes only wait on running agents: read them only while something runs */
+  const running = goals.some((g) => g.items.some((i) => i.status === 'running'));
+  const { data: notes } = useQuery(running ? keys.notes(pid) : null, () => studio.projects.notes(pid));
+  const wf: Wf = { pid, notes, who, wid: defaultWorkflowId, open: (way) => go('how', way), times };
   return (
     <>
       <section aria-labelledby="qbMain" className="qb-sec">
@@ -171,6 +182,7 @@ function MainCard({
         <ul className="ob-tasks qb-trail">
           {q.steps.map((s, i) => {
             const stuck = q.stuckGoalOf[s.id];
+            const fresh = canStartFresh(s.item);
             return (
               <TaskCard
                 key={s.id}
@@ -179,8 +191,14 @@ function MainCard({
                 time={wf.times?.get(s.item.id)}
                 className={i < lastDone ? 'qb-lit' : undefined}
                 actions={
-                  stuck ? <GoalActions pid={pid} goals={[{ id: stuck } as Goal]} label={null} /> : undefined
+                  stuck || fresh ? (
+                    <>
+                      {stuck && <GoalActions pid={pid} goals={[{ id: stuck } as Goal]} label={null} />}
+                      {fresh && <StartFresh pid={pid} item={s.item} />}
+                    </>
+                  ) : undefined
                 }
+                notes={<WaitingNotes pid={pid} notes={notesOf(s.item, wf.notes)} nameOf={nameOf} />}
               />
             );
           })}
@@ -240,6 +258,16 @@ function SideCard({ q, i, nameOf, wf }: { q: SideQuest; i: number; nameOf: Props
         )}
         {wf && <WorkflowChip chip={chipOf(q.goal, wf.wid)} who={wf.who} onOpen={wf.open} />}
       </div>
+      {wf?.pid && q.item && (
+        <>
+          <WaitingNotes pid={wf.pid} notes={notesOf(q.item, wf.notes)} nameOf={nameOf} />
+          {canStartFresh(q.item) && (
+            <div className="ob-acts">
+              <StartFresh pid={wf.pid} item={q.item} />
+            </div>
+          )}
+        </>
+      )}
       {wf && <SignedLine text={signedLine(q.goal)} />}
     </li>
   );

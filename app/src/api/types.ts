@@ -547,6 +547,8 @@ export type ChecklistItem = {
   createdAt: string;
   updatedAt: string;
 };
+/** A note (from the user, a leader or the studio) waiting to reach a running agent at its next tool step. */
+export type WaitingNote = { runId: string; agentId: string; from: string; text: string; at: string };
 /** A person on a whiteboard task: name + avatar (their look). */
 export type TaskPerson = { id: string; name: string; look: Look };
 export type SignoffState = 'pending' | 'signed' | 'sent-back';

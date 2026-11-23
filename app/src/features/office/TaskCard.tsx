@@ -18,9 +18,11 @@ type Props = {
   className?: string;
   /** How long it took / usually takes (estimates.ts). Members' parts get none: the team item counts them. */
   time?: TimeTagView | null;
+  /** Notes waiting for whoever is on it (TaskTools.tsx), under the title. */
+  notes?: ReactNode;
 };
 
-export function TaskCard({ item, nameOf, sub, actions, className, time }: Props) {
+export function TaskCard({ item, nameOf, sub, actions, className, time, notes }: Props) {
   const v = taskCard(item, nameOf);
   const hover = taskHover(item, nameOf);
   const kids = sub ? [] : (item.subtasks ?? []);
@@ -42,6 +44,7 @@ export function TaskCard({ item, nameOf, sub, actions, className, time }: Props)
       )}
       {actions && <div className="ob-acts">{actions}</div>}
       {v.problem && <Problem problem={v.problem} failed={v.mark === 'failed'} />}
+      {notes}
       {kids.length > 0 && (
         <ul className="ob-sub" aria-label={`${item.text}: the team’s parts`}>
           {kids.map((k) => (

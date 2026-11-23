@@ -54,6 +54,7 @@ import type {
   TeamPatch,
   Todo,
   ToolUse,
+  WaitingNote,
 } from './types';
 
 const e = encodeURIComponent;
@@ -113,6 +114,13 @@ export const studio = {
     /** Continue a stopped goal: its unfinished items carry on where they were. */
     resumeGoal: (id: string, goalId: string) =>
       http.post<Goal>(`/projects/${e(id)}/work/${e(goalId)}/resume`),
+    /** Start a stopped task over from main's tip; earlier unmerged work is kept on `keptOn`. */
+    restartFresh: (id: string, itemId: string) =>
+      http.post<{ goal: Goal; keptOn: string | null }>(`/projects/${e(id)}/tasks/${e(itemId)}/restart-fresh`),
+    /** Notes still waiting to reach running agents at their next step. */
+    notes: (id: string) => http.get<WaitingNote[]>(`/projects/${e(id)}/notes`),
+    clearNotes: (id: string, agentId: string) =>
+      http.del<{ cleared: number }>(`/projects/${e(id)}/agents/${e(agentId)}/notes`),
     health: (id: string) => http.get<ProjectHealth>(`/projects/${e(id)}/health`),
     checkHealth: (id: string, caps?: Partial<Caps>) =>
       http.post<HealthReport>(`/projects/${e(id)}/health`, caps ? { caps } : {}),

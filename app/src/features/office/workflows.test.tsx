@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChecklistItem, Goal, Signoff } from '../../api';
+import { type ChecklistItem, type Goal, type Signoff, studio } from '../../api';
 import { QuestBoard } from './QuestBoard';
+
+vi.spyOn(studio.projects, 'notes').mockResolvedValue([]);
 import { SignoffStrip } from './SignoffStrip';
 import { TaskCard } from './TaskCard';
 import { WorkflowChip } from './WorkflowChip';

@@ -337,6 +337,8 @@ export const keys = {
   office: (pid: string) => `officeview:${pid}`,
   features: (pid: string) => `office:${pid}:features`,
   work: (pid: string) => `office:${pid}:work`,
+  /** Under `work`: any board change reads the waiting notes again. */
+  notes: (pid: string) => `office:${pid}:work:notes`,
   health: (pid: string) => `office:${pid}:health`,
   asks: (pid: string) => `office:${pid}:asks`,
   access: (pid: string) => `office:${pid}:access`,
