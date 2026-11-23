@@ -108,7 +108,7 @@ type Live = {
   nudged: boolean;
   /** Notes from the user or a leader while it runs ("Uncle Bob is already running"): the nudge hook hands them
       over after its next tool step. */
-  notes: string[];
+  notes: WaitingNote[];
   /** Turns in this session, for the wrap-up nudge before the cap. */
   turns: number;
   wrapped: boolean;
@@ -117,6 +117,8 @@ type Live = {
   /** Takes it off the running list (src/running) once it has ended. */
   untrack?: () => void;
 };
+/** A note waiting on a live run until its next tool step: who left it, the words the run will get, when. */
+export type WaitingNote = { runId: string; agentId: string; from: string; text: string; at: string };
 /** How a run the user stopped is named: on its row (error), its chat's last line and its checklist item. */
 export const STOPPED_BY_YOU = 'Stopped by you';
 /** A run cut off because the studio closed; on restart it is marked interrupted and its work carries on. */
@@ -859,7 +861,7 @@ export function createRuntime(deps: RuntimeDeps) {
   function nudge(runId: string): string | null {
     const l = live.get(runId);
     if (!l) return null;
-    const text = [...l.notes.splice(0), ...memoryNudge(l)].join('\n\n');
+    const text = [...l.notes.splice(0).map((n) => n.text), ...memoryNudge(l)].join('\n\n');
     return text || null;
   }
   /** The wrap-up or forget nudge due now (at most one), for runs that can leave a desk note. */
@@ -882,7 +884,7 @@ export function createRuntime(deps: RuntimeDeps) {
     const said = text.trim();
     if (!l || !said) return null;
     const note = `AI Studio — a note from ${from} while you work: ${clip(said, 4000)}\nTake it into account from your next step; don't start over.`;
-    l.notes.push(note);
+    leaveNote(l, from, note);
     record(l.run, l.secrets, 'user', said, { kind: 'note', from });
     return l.run;
   }
@@ -903,10 +905,30 @@ export function createRuntime(deps: RuntimeDeps) {
       /* a folder joins a session only when it starts (--add-dir) */
       const how: Pickup = access.folder ? 'restart' : pickup(l, shared.writeInto);
       const note = accessNotice(access, how, !!deps.desk);
-      l.notes.push(note);
+      leaveNote(l, 'AI Studio', note);
       record(l.run, l.secrets, 'system', note, { kind: 'access', accessId, pickup: how });
       return { runId: l.run.id, agentId: l.run.agentId, how };
     });
+  }
+  function leaveNote(l: Live, from: string, text: string) {
+    const { id: runId, agentId } = l.run;
+    l.notes.push({ runId, agentId, from, text, at: new Date().toISOString() });
+  }
+  function liveOf(projectId: string, agentId?: string): Live[] {
+    store.projects.require(projectId);
+    return [...live.values()].filter(
+      (l) => l.run.projectId === projectId && (!agentId || l.run.agentId === agentId),
+    );
+  }
+  /** Notes still waiting to reach this project's live runs (one agent's, or everyone's), oldest first. */
+  function notesFor(projectId: string, agentId?: string): WaitingNote[] {
+    return liveOf(projectId, agentId)
+      .flatMap((l) => l.notes.map((n) => ({ ...n, text: redactSecrets(n.text, l.secrets).value })))
+      .sort((a, b) => a.at.localeCompare(b.at));
+  }
+  /** Drop an agent's waiting notes before they reach it (a new brief or restart replaces them). → how many. */
+  function clearNotes(projectId: string, agentId: string): number {
+    return liveOf(projectId, agentId).reduce((n, l) => n + l.notes.splice(0).length, 0);
   }
   /** Write the granted values into the run's working folder's .env; 'restart' when that isn't possible. */
   function pickup(l: Live, writeInto: (projectId: string, dir: string) => void): Pickup {
@@ -960,6 +982,8 @@ export function createRuntime(deps: RuntimeDeps) {
     start,
     tell,
     accessShared,
+    notesFor,
+    clearNotes,
     list(projectId: string) {
       store.projects.require(projectId);
       return repo.list(projectId);

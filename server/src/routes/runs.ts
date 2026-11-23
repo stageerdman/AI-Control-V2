@@ -19,6 +19,8 @@ const RunBody = z.strictObject({
 });
 const RunParams = z.object({ id: Id, runId: z.uuid() });
 const AskParams = z.object({ id: Id, askId: z.uuid() });
+const NotesQuery = z.object({ agentId: Id.optional() });
+const AgentParams = z.object({ id: Id, agentId: Id });
 const AnswerBody = z.strictObject({ answer: z.string().trim().min(1).max(10_000) });
 const AsksQuery = z.object({ status: z.enum(['open', 'answered', 'cancelled']).optional() });
 const StudioAsksQuery = z.object({
@@ -76,6 +78,16 @@ export const runRoutes =
       const { id, runId } = parse(RunParams, req.params);
       runtime.cancel(id, runId);
       return reply.status(202).send(runtime.get(id, runId));
+    });
+
+    /* NO SILENT STUCK TASKS: notes still waiting for a running agent's next step — see them, or drop them */
+    app.get('/projects/:id/notes', async (req) => {
+      const { agentId } = parse(NotesQuery, req.query);
+      return runtime.notesFor(parse(IdParams, req.params).id, agentId);
+    });
+    app.delete('/projects/:id/agents/:agentId/notes', async (req) => {
+      const { id, agentId } = parse(AgentParams, req.params);
+      return { cleared: runtime.clearNotes(id, agentId) };
     });
 
     app.get('/projects/:id/asks', async (req) => {

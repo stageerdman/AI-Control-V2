@@ -69,6 +69,8 @@ describe('restarts: the agent gets the new brief, the board keeps the true statu
       (id) => Boolean(id),
     );
 
+    const owner = work.goal(goalId)?.items[0]?.agentId as string;
+    expect(h.runtime.tell('aurora', owner, 'Pixel', 'Skip the tests for now')).not.toBeNull();
     await h.call('POST', '/projects/aurora/stop');
     const stopped = await until(
       () => work.goal(goalId),
@@ -87,6 +89,11 @@ describe('restarts: the agent gets the new brief, the board keeps the true statu
     const resumed = s.crew.calls.find((c) => c.resumeSessionId && !isReview(c));
     expect(resumed?.task).toContain('the user stopped you, and has now asked you to continue');
     expect(resumed?.task).toContain('Your brief now (follow this one, it may have changed): Store memories.');
+    /* the note sent to the stopped run is void: the resumed session is told so, and nothing still waits */
+    expect(resumed?.task).toContain(
+      'Notes the user or a leader sent you during earlier runs no longer apply',
+    );
+    expect(h.runtime.notesFor('aurora')).toEqual([]);
   }, 20_000);
 
   /* Regression: the stop landed while the first checkout was being made, the resume made it a second time
@@ -109,7 +116,9 @@ describe('restarts: the agent gets the new brief, the board keeps the true statu
       (g) => g?.status === 'done' || g?.status === 'failed',
     );
     expect(done?.status, done?.items[0]?.note ?? '').toBe('done');
-    expect(s.crew.calls.filter((c) => !isReview(c) && c.task.includes('Your checklist item'))).toHaveLength(1);
+    expect(s.crew.calls.filter((c) => !isReview(c) && c.task.includes('Your checklist item'))).toHaveLength(
+      1,
+    );
   }, 20_000);
 
   it('cancelling a goal by hand still shows cancelled', async () => {

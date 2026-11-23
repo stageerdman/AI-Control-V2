@@ -533,6 +533,7 @@ export function createDispatch(deps: {
     return [
       `${carryOnWhy(it.text, was)} Your session and your files are as you left them.`,
       `Your brief now (follow this one, it may have changed): ${it.brief}`,
+      STALE_NOTES,
       it.notes ? `The last review notes on it: ${clip(it.notes, 1500)}` : '',
       it.workspace
         ? `Check where you are (\`git status\`, \`git log --oneline ${it.workspace.main}..HEAD\`), commit what's done, then carry on and finish it. Work in small steps and commit as you go.`
@@ -542,6 +543,9 @@ export function createDispatch(deps: {
       .filter(Boolean)
       .join('\n\n');
   }
+  /** A resumed session still holds notes leaders sent during its earlier runs. */
+  const STALE_NOTES =
+    'Notes the user or a leader sent you during earlier runs no longer apply — this brief (and any review notes below) does.';
   /** Why a session is asked to carry on, by how its last run ended. */
   const carryOnWhy = (text: string, was: string | undefined) =>
     was === 'succeeded'
@@ -924,8 +928,12 @@ export function createDispatch(deps: {
   const requeue = (it: ChecklistItem) => {
     stoppedWork.delete(it.goalId); // continued: it settles on its own again
     if (preparing.has(it.id)) requeuedWhilePreparing.add(it.id);
+    voidNotes(it);
     work.setItem(it.id, requeuePatch(ending(it), hasSession));
   };
+  /** Notes still waiting for the item's owner were for the run that is ending: the brief from here on replaces
+      them (Sea GPS: a restarted builder kept acting on a leader's stale note). */
+  const voidNotes = (it: ChecklistItem) => runtime.clearNotes(it.projectId, it.agentId);
 
   /** Put a stopped item's checkout away: its work is committed on its branch (kept unless empty/merged).
       Queued again meanwhile, it waits (pump skips `closing`) and starts once the checkout is away. */
@@ -1448,6 +1456,7 @@ export function createDispatch(deps: {
     if (!it) throw notFound('Checklist item', itemId);
     const mode = handoverMode(it);
     const gates = it.report ? [] : gatesOf(it.projectId, to, goalWorkflow(it.goalId, it.projectId));
+    voidNotes(it);
     store.tx(() => {
       work.editItem(it.id, mode === 'keep' ? to : { ...to, gates });
       /* the old owner's summary goes too: reviewers read the note as the current owner's */
@@ -1512,8 +1521,10 @@ export function createDispatch(deps: {
     reopen(itemId: string, fresh: boolean) {
       const it = work.item(itemId);
       if (!it) return;
-      if (fresh) work.setItem(it.id, { ...freshBuild(), note: null });
-      else if (reopenable(it)) requeue(it);
+      if (fresh) {
+        voidNotes(it);
+        work.setItem(it.id, { ...freshBuild(), note: null });
+      } else if (reopenable(it)) requeue(it);
     },
     /** The board changed under these goals: tell the screen, settle them and start what may start. */
     changed(projectId: string, goalIds: string[]) {
