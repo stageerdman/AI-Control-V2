@@ -4,10 +4,11 @@
    disappears on the next sync and lines the user wrote by hand stay. */
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { visibleIn } from '../db/accesses.ts';
 import type { Store } from '../db/store.ts';
 import { conflict } from '../errors.ts';
 import { resolveInSandbox, SandboxError } from '../fs/sandbox.ts';
-import type { Access, Cabinet } from './cabinet.ts';
+import type { Access, AccessCreate, Cabinet } from './cabinet.ts';
 import { type EnvLine, formatLine, parseEnv, serializeEnv } from './dotenv.ts';
 import { type FolderGuard, liveFolder } from './folderAccess.ts';
 import { ownAppDataFolder } from './ownAppData.ts';
@@ -50,10 +51,13 @@ export type AgentAccess = {
   name: string;
   serves: string;
   instructions: string;
-  /** A folder access: the folder it shares, read and write. */
+  /** A folder access: the folder it shares (read and write unless `readOnly`). */
   folder: string | null;
+  readOnly?: boolean;
   fields: { label: string; envVar: string; hasValue: boolean }[];
 };
+/** A folder a run may reach: its real path, and whether it may change anything in it. */
+export type FolderGrant = { path: string; write: boolean };
 export type SyncResult = {
   /** Sandbox-relative path of the project's .env. */
   file: string;
@@ -135,7 +139,7 @@ export function projectAccess(
 
   const granted = (projectId: string) => {
     const ids = new Set(store.accesses.grantedIds(projectId));
-    return store.accesses.list().filter((a) => ids.has(a.id));
+    return store.accesses.list().filter((a) => ids.has(a.id) && visibleIn(a, projectId));
   };
   /** Every field of every granted access that has a value — the ONLY place values leave the store. */
   const grantedEnv = (projectId: string) => {
@@ -153,9 +157,10 @@ export function projectAccess(
     view(projectId: string): ProjectAccessView {
       const ids = new Set(store.accesses.grantedIds(projectId));
       const seenAt = store.accesses.seenAt(projectId);
-      const all = store.accesses.list();
+      const all = store.accesses.list().filter((a) => visibleIn(a, projectId));
       const accesses = deps.cabinet
         .list()
+        .filter((a) => visibleIn(a, projectId))
         .map((a) => ({ ...a, granted: ids.has(a.id), isNew: a.createdAt > seenAt }));
       const entries = all.map((a) => {
         const f = a.fields[0];
@@ -186,6 +191,15 @@ export function projectAccess(
       return svc.view(projectId);
     },
 
+    /** An access that exists in this project only (no other project sees it), switched on at once: the user
+        added it here to use it. The grant reaches working agents like any other (`notify`). */
+    addLocal(projectId: string, input: Omit<AccessCreate, 'localTo'>): ProjectAccessItem {
+      store.projects.require(projectId);
+      const a = deps.cabinet.create({ ...input, localTo: projectId });
+      const view = svc.setGrants(projectId, { [a.id]: true });
+      return view.accesses.find((x) => x.id === a.id) as ProjectAccessItem;
+    },
+
     /** The project looked at its access now: nothing reads as new until another access is added. */
     markSeen: (projectId: string) => ({ projectId, seenAt: store.accesses.markSeen(projectId) }),
 
@@ -213,15 +227,22 @@ export function projectAccess(
       return [...(own ? [own] : []), ...shared.map(agentView)];
     },
 
-    /** For the agent runtime: the app's own data folder plus the granted folders, real paths of those that
-        exist — each run's extra working folders (and what `backup_folder` may copy from). */
-    foldersFor: (projectId: string): string[] => {
+    /** For the agent runtime: the app's own data folder (read and write) plus the switched-on folders, real
+        paths of those that exist — each run's extra working folders. A folder shared twice is writable if
+        either share is. */
+    foldersFor: (projectId: string): FolderGrant[] => {
       const guard = deps.folders;
       if (!guard) return [];
       const own = ownAppData(projectId)?.folder;
-      const vault = granted(projectId).flatMap((a) => (a.folder ? [a.folder] : []));
-      const live = [...(own ? [own] : []), ...vault].flatMap((f) => liveFolder(f, guard) ?? []);
-      return [...new Set(live)];
+      const vault = granted(projectId).flatMap((a) =>
+        a.folder ? [{ path: a.folder, write: a.folderMode !== 'read' }] : [],
+      );
+      const live = new Map<string, boolean>();
+      for (const f of [...(own ? [{ path: own, write: true }] : []), ...vault]) {
+        const real = liveFolder(f.path, guard, f.write ? 'write' : 'read');
+        if (real) live.set(real, f.write || (live.get(real) ?? false));
+      }
+      return [...live].map(([path, write]) => ({ path, write }));
     },
 
     /** One access as an agent is told about it (no values); null when it is gone. */
@@ -269,5 +290,6 @@ const agentView = (a: Access): AgentAccess => ({
   serves: a.serves,
   instructions: a.instructions,
   folder: a.folder,
+  ...(a.folderMode === 'read' ? { readOnly: true } : {}),
   fields: a.fields.map((f) => ({ label: f.label, envVar: f.envVar, hasValue: f.hasValue })),
 });

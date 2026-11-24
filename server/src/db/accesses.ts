@@ -13,6 +13,8 @@ type AccessRecord = {
   docs_url: string | null;
   instructions: string;
   folder: string | null;
+  folder_mode: FolderMode;
+  local_to: string | null;
   position: number;
   created_at: string;
   updated_at: string;
@@ -48,14 +50,24 @@ export type AccessMeta = {
   serves: string;
   docsUrl: string | null;
   instructions: string;
-  /** A folder access: the absolute folder it shares (read and write); null = fields only. */
+  /** A folder access: the absolute folder it shares; null = fields only. */
   folder: string | null;
+  /** How a folder access shares its folder; null for an access of fields only. */
+  folderMode: FolderMode | null;
+  /** The one project it exists in (no other project sees it); null = global, listed in every project. */
+  localTo: string | null;
   fields: FieldMeta[];
   /** Projects this access is granted to. */
   projectIds: string[];
   createdAt: string;
   updatedAt: string;
 };
+export type FolderMode = 'read' | 'write';
+/** Where an access lives and how its folder is shared — fixed when it is created. */
+export type AccessPlace = { folder?: string | null; folderMode?: FolderMode; localTo?: string | null };
+/** Whether a project sees an access in its Vault: every global one, and its own local ones. */
+export const visibleIn = (a: Pick<AccessMeta, 'localTo'>, projectId: string) =>
+  a.localTo === null || a.localTo === projectId;
 export type AccessInfo = { name: string; serves?: string; docsUrl?: string | null; instructions?: string };
 export type FieldInput = { label: string; envVar: string; secret: boolean };
 /** What the cabinet tells the repo about a value — never the value itself. */
@@ -99,6 +111,8 @@ export function accessesRepo(db: Db) {
     docsUrl: r.docs_url,
     instructions: r.instructions,
     folder: r.folder,
+    folderMode: r.folder ? r.folder_mode : null,
+    localTo: r.local_to,
     fields: fieldsOf(r.id),
     projectIds: projectIds(r.id),
     createdAt: r.created_at,
@@ -172,21 +186,27 @@ export function accessesRepo(db: Db) {
     allFields: (): FieldMeta[] =>
       rows<FieldRecord>(db.prepare('SELECT * FROM access_fields ORDER BY rowid').all()).map(toField),
 
-    /** The folder access that shares `folder`, or null. */
-    byFolder(folder: string): AccessMeta | null {
-      const r = row<AccessRecord>(db.prepare('SELECT * FROM accesses WHERE folder = ?').get(folder));
+    /** The folder access that shares `folder` in one scope (`localTo` null = global), or null. */
+    byFolder(folder: string, localTo: string | null = null): AccessMeta | null {
+      const r = row<AccessRecord>(
+        db
+          .prepare("SELECT * FROM accesses WHERE folder = ? AND COALESCE(local_to, '') = ?")
+          .get(folder, localTo ?? ''),
+      );
       return r ? toAccess(r) : null;
     },
 
     /** An access with its fields (each with what the cabinet knows of its value); a folder access may have none. */
     create(
-      info: AccessInfo & { folder?: string | null },
+      info: AccessInfo & AccessPlace,
       fields: { field: FieldInput; value: ValueInfo }[],
       idPrefix = 'a',
     ): AccessMeta {
       const folder = info.folder ?? null;
+      const localTo = info.localTo ?? null;
       if (!fields.length && !folder) throw invalid('An access needs at least one field');
-      const owner = folder ? repo.byFolder(folder) : null;
+      if (localTo) requireProject(localTo);
+      const owner = folder ? repo.byFolder(folder, localTo) : null;
       if (owner)
         throw conflict(`The folder ${folder} is already in the cabinet as '${owner.name}'`, {
           existingId: owner.id,
@@ -201,8 +221,8 @@ export function accessesRepo(db: Db) {
       ).p;
       const t = now();
       db.prepare(
-        `INSERT INTO accesses (id, name, serves, docs_url, instructions, folder, position, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO accesses (id, name, serves, docs_url, instructions, folder, folder_mode, local_to, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         info.name,
@@ -210,6 +230,8 @@ export function accessesRepo(db: Db) {
         info.docsUrl ?? null,
         info.instructions ?? '',
         folder,
+        info.folderMode ?? 'write',
+        localTo,
         pos,
         t,
         t,
@@ -295,11 +317,15 @@ export function accessesRepo(db: Db) {
       ).map((r) => r.access_id);
     },
 
-    /** Partial update: `{accessId: true|false}`. Unknown access ids → 422. Returns the ids that changed. */
+    /** Partial update: `{accessId: true|false}`. Unknown access ids → 422, and so is one local to another
+        project (no other project sees it). Returns the ids that changed. */
     setGrants(projectId: string, grants: Record<string, boolean>): string[] {
       requireProject(projectId);
-      for (const aid of Object.keys(grants))
-        if (!record(aid)) throw invalid(`Unknown access '${aid}'`, { accessId: aid });
+      for (const aid of Object.keys(grants)) {
+        const r = record(aid);
+        if (!r || (r.local_to !== null && r.local_to !== projectId))
+          throw invalid(`Unknown access '${aid}'`, { accessId: aid });
+      }
       const on = db.prepare(
         'INSERT OR IGNORE INTO access_grants (project_id, access_id, granted_at) VALUES (?, ?, ?)',
       );

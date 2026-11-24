@@ -231,8 +231,13 @@ export function buildApp({
   preflight = builderPreflight,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
-  /* folder accesses never overlap the studio's own folders (its data, the projects, the global secrets) */
-  const folders: FolderGuard = { userHome, protect: [config.home, config.sandbox, config.controlHome] };
+  /* folder accesses never overlap the studio's own folders (its data, the global secrets); the projects only
+     read-only */
+  const folders: FolderGuard = {
+    userHome,
+    protect: [config.home, config.controlHome],
+    readOnly: [config.sandbox],
+  };
   registerCors(app);
   /* SSE responses are hijacked: end them on shutdown so close() never hangs */
   const open: OpenStreams = new Set();
@@ -665,7 +670,12 @@ export function buildApp({
     pageTool(pager, projectId, agentId),
     ...todoTools(todos, agentName, projectId, agentId),
     backupTool({
-      foldersFor: () => access.foldersFor(projectId),
+      /* only a folder the agent may change needs a backup */
+      foldersFor: () =>
+        access
+          .foldersFor(projectId)
+          .filter((f) => f.write)
+          .map((f) => f.path),
       backupsDir: join(config.home, 'backups', projectId),
     }),
     /* a team captain stops and tells their own team, a temporary lead their crew (the director: the whole project) */

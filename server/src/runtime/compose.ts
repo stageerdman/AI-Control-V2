@@ -37,6 +37,7 @@ export type ComposeInput = {
     serves: string;
     instructions: string;
     folder?: string | null;
+    readOnly?: boolean;
     fields: { label: string; envVar: string; hasValue: boolean }[];
   }[];
 };
@@ -48,7 +49,9 @@ function accessLine(a: AccessLine): string {
     ? ` How: ${a.instructions.trim().replace(/\s+/g, ' ').slice(0, 300)}`
     : '';
   const what = a.folder
-    ? `the folder \`${a.folder}\`, read and write: your file tools and shell may use it (and nothing else outside this project). Before you change anything in it, back it up with \`backup_folder\``
+    ? a.readOnly
+      ? `the folder \`${a.folder}\`, read only: your file tools and shell may read it (and nothing else outside this project); never change anything in it`
+      : `the folder \`${a.folder}\`, read and write: your file tools and shell may use it (and nothing else outside this project). Before you change anything in it, back it up with \`backup_folder\``
     : a.fields.map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`).join(', ');
   return `- ${a.name}${a.serves ? ` (${a.serves})` : ''}: ${what}.${how}`;
 }

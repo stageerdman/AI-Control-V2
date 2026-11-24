@@ -5,7 +5,7 @@
 
    The B3 Key Cabinet (`/credentials`) is a thin view over this: a credential = an access read
    through its first field. */
-import type { AccessInfo, AccessMeta, FieldMeta, ValueInfo } from '../db/accesses.ts';
+import type { AccessInfo, AccessMeta, AccessPlace, FieldMeta, FolderMode, ValueInfo } from '../db/accesses.ts';
 import type { Store } from '../db/store.ts';
 import { slugify } from '../domain/ids.ts';
 import { invalid, notFound } from '../errors.ts';
@@ -33,8 +33,9 @@ export type AccessField = Omit<FieldMeta, 'createdAt'> & {
 };
 export type Access = Omit<AccessMeta, 'fields'> & { fields: AccessField[] };
 export type FieldCreate = { label: string; envVar?: string; secret?: boolean; value?: string };
-/** `folder`: a folder access (read and write), checked by the folder guard; its fields may be empty. */
-export type AccessCreate = AccessInfo & { fields: FieldCreate[]; folder?: string };
+/** `folder`: a folder access, checked by the folder guard; its fields may be empty. `folderMode` (default
+    read and write) needs a folder. `localTo`: the one project it exists in; absent = global. */
+export type AccessCreate = AccessInfo & Omit<AccessPlace, 'folder'> & { fields: FieldCreate[]; folder?: string };
 export type FieldPatch = { label?: string; envVar?: string; secret?: boolean };
 export type AccessDeleted = {
   deleted: { kind: 'access'; id: string };
@@ -123,14 +124,16 @@ export function cabinet(
     }
   };
 
-  const guardedFolder = (folder: string) => {
+  const guardedFolder = (folder: string, mode: FolderMode = 'write') => {
     if (!opts.folders) throw invalid('This cabinet takes no folder accesses', { folder });
-    return checkFolder(folder, opts.folders);
+    return checkFolder(folder, opts.folders, mode);
   };
 
   function create(input: AccessCreate, idPrefix = 'a'): AccessMeta {
     const { fields, folder, ...rest } = input;
-    const info = folder === undefined ? rest : { ...rest, folder: guardedFolder(folder) };
+    if (folder === undefined && rest.folderMode !== undefined)
+      throw invalid('Only a folder access has a folder mode', { folderMode: rest.folderMode });
+    const info = folder === undefined ? rest : { ...rest, folder: guardedFolder(folder, rest.folderMode) };
     const planned = fields.map((f) => {
       const envVar = f.envVar ?? toEnvVar(`${info.name} ${f.label}`);
       checkEnvVar(envVar);

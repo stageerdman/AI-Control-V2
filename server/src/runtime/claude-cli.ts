@@ -47,6 +47,12 @@ export const PUSH_BACKSTOP = [
 ];
 /** A run with a shell but no hook (crew and review runs with their own tools) can't push at all. */
 export const NO_PUSH = ['Bash(git push)', 'Bash(git push *)'];
+/** A folder shared read-only: deny rules (they beat any allow) for the file-editing tools under it. Claude Code
+    reads `//` as an absolute path; its shell path check applies the same Edit rules to commands that write. */
+export const readOnlyRules = (dir: string) => ['Edit', 'Write'].map((t) => `${t}(/${dir}/**)`);
+/** No extra folder ever shows a .env: a folder shared read-only may hold other projects, each with its secrets.
+    The Read rules cover every read tool (Read, Glob, Grep) and the shell's checked commands (`cat`). */
+export const noEnvRules = (dir: string) => [`Read(/${dir}/**/.env)`, `Read(/${dir}/**/.env.*)`];
 /** Reporter runs research the web (read-only). */
 export const WEB_TOOLS = ['WebSearch', 'WebFetch'];
 const KILL_GRACE_MS = 3000;
@@ -119,6 +125,11 @@ export function cliArgs(
   const shell =
     tools.includes('Bash') && opts.shellHook && (!spec.tools || spec.fullShell) ? opts.shellHook : null;
   const nudge = opts.nudgeHook && spec.env.AI_STUDIO_NUDGE_URL ? opts.nudgeHook : null;
+  const denied = [
+    ...(tools.includes('Bash') ? (shell ? PUSH_BACKSTOP : NO_PUSH) : []),
+    ...(spec.addDirs ?? []).flatMap(noEnvRules),
+    ...(spec.readOnlyDirs ?? []).flatMap(readOnlyRules),
+  ];
   return [
     '-p',
     '--output-format',
@@ -134,7 +145,7 @@ export function cliArgs(
     '--tools',
     tools.join(','), // '' disables every built-in tool
     ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
-    ...(tools.includes('Bash') ? ['--disallowed-tools', (shell ? PUSH_BACKSTOP : NO_PUSH).join(',')] : []),
+    ...(denied.length ? ['--disallowed-tools', denied.join(',')] : []),
     ...(shell || nudge ? ['--settings', JSON.stringify(hookSettings(shell, nudge))] : []),
     '--permission-mode',
     'dontAsk',

@@ -38,16 +38,22 @@ const FieldCreate = z.strictObject({
   secret: z.boolean().optional(),
   value: Value.optional(),
 });
-/* a folder access shares its folder, so it needs no field; any other access needs at least one */
+/* a folder access shares its folder (read, or read and write: the default), so it needs no field; any other
+   access needs at least one. Global through /accesses, local to one project through /projects/:id/accesses. */
 const AccessCreate = z
   .strictObject({
     ...accessInfo,
     folder: z.string().trim().min(1).max(1024).optional(),
+    folderMode: z.enum(['read', 'write']).optional(),
     fields: z.array(FieldCreate).max(20),
   })
   .refine((a) => a.folder !== undefined || a.fields.length > 0, {
     message: 'An access needs at least one field',
     path: ['fields'],
+  })
+  .refine((a) => a.folder !== undefined || a.folderMode === undefined, {
+    message: 'Only a folder access has a folder mode',
+    path: ['folderMode'],
   });
 const AccessPatch = z.strictObject({ ...accessInfo, name: Name.optional() });
 const FieldPatch = z.strictObject({
@@ -95,6 +101,10 @@ export const accessesRoutes =
 
     /* per project: which accesses it may use (none by default), sync, seen */
     app.get('/projects/:id/access', async (req) => access.view(parse(IdParams, req.params).id));
+    /* an access of this project only, switched on at once; answers with the project's view */
+    app.post('/projects/:id/accesses', async (req, reply) =>
+      reply.status(201).send(access.addLocal(parse(IdParams, req.params).id, parse(AccessCreate, req.body))),
+    );
     app.put('/projects/:id/access', async (req) =>
       access.setGrants(parse(IdParams, req.params).id, parse(GrantsBody, req.body).grants),
     );
