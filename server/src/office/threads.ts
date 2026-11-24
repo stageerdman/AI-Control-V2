@@ -317,6 +317,7 @@ export function createThreads(deps: {
       const reporter = !!a?.roleId && !!store.roles.get(a.roleId)?.reporter;
       return { name: name(id), role: a?.role ?? '', ...(reporter ? { reporter: true } : {}) };
     };
+    const creatorName = () => store.agents.list().find((a) => a.kind === 'creator')?.name ?? null;
     return {
       project: { name: p.name, about: p.note, progress: p.progress },
       /* who is on the project — without it the orchestrator told a staffed project "I don't see a team yet" (F3) */
@@ -336,6 +337,8 @@ export function createThreads(deps: {
         specialists: p.agentIds.map(person),
         /* who the director may staff the project with (by name; never invent anyone) */
         castAvailable: castAvailable(store, p.id),
+        /* who designs new agents: reachable with ask_person by this name ("nobody called Tinker exists") */
+        agentCreator: creatorName(),
         /* derived, not `summary`: a summary goes stale once the way is redrawn in the editor */
         howWeWork: p.workflows?.[0]
           ? wayInWords(p.workflows[0], name)

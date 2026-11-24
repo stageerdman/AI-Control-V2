@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type AgentKind,
+  answersTo,
   assertCanCreate,
   assertCanDelete,
   assertNotSystem,
@@ -18,6 +19,18 @@ const cast = [
   a('c', 'creator'),
   a('x', 'agent'),
 ];
+
+describe('answersTo', () => {
+  const tinker = { id: 'a-creator', kind: 'creator' as const, name: 'Tinker', nick: null };
+  it('the one-of-a-kind creator answers to its name and its role', () => {
+    for (const said of ['Tinker', 'tinker ', 'a-creator', 'Agent Creator', 'the agent creator'])
+      expect(answersTo(tinker, said)).toBe(true);
+    expect(answersTo(tinker, 'Creator')).toBe(false);
+  });
+  it('a role shared by many (orchestrator) is never a name', () => {
+    expect(answersTo({ id: 'o', kind: 'orchestrator', name: 'Pixel' }, 'Orchestrator')).toBe(false);
+  });
+});
 
 const code = (fn: () => void) => {
   try {

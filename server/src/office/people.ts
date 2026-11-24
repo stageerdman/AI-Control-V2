@@ -3,14 +3,12 @@
 import type { Agent } from '../db/agents.ts';
 import type { Project } from '../db/projects.ts';
 import type { Store } from '../db/store.ts';
+import { answersTo } from '../domain/cast.ts';
 import { conflict } from '../errors.ts';
 
-/** An agent by name, nick or id, as the director (or voice) says it. */
+/** An agent by name, nick or id (or a one-of-a-kind role: "Agent Creator"), as the director (or voice) says it. */
 export function agentByName(store: Store, said: string): Agent | undefined {
-  const k = said.trim().toLowerCase();
-  return store.agents
-    .list()
-    .find((a) => a.name.toLowerCase() === k || a.nick?.toLowerCase() === k || a.id === said.trim());
+  return store.agents.list().find((a) => answersTo(a, said));
 }
 
 export type Seat = { agent: Agent; teamId: string | null; orchestrator: boolean };
