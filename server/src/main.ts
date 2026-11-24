@@ -17,6 +17,7 @@ import { fakeRunner } from './runtime/fake.ts';
 import { unavailableRunner } from './runtime/runner.ts';
 import { ASK_TOOL } from './runtime/stream.ts';
 import { cabinet } from './secrets/cabinet.ts';
+import { macFolderPicker } from './secrets/pickFolder.ts';
 import { fileSecretStore } from './secrets/secretStore.ts';
 import { seedIfNeeded } from './seed.ts';
 import {
@@ -103,6 +104,7 @@ const app = buildApp({
   ghBin,
   shell,
   selfInstall,
+  pickFolder: macFolderPicker,
 });
 app.log.info(
   { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, ghBin, error: rt.binError },

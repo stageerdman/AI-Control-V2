@@ -3,9 +3,10 @@
    a field marked `secret: false` shows its value. */
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { parse } from '../errors.ts';
+import { invalid, parse } from '../errors.ts';
 import type { Cabinet } from '../secrets/cabinet.ts';
 import { ENV_KEY } from '../secrets/dotenv.ts';
+import type { FolderPicker } from '../secrets/pickFolder.ts';
 import type { ProjectAccess } from '../secrets/projectAccess.ts';
 import { Id, IdParams, Name, Text } from './schemas.ts';
 
@@ -68,8 +69,25 @@ const GrantParams = z.object({ id: Id, accessId: Id });
 const GrantsBody = z.strictObject({ grants: z.record(Id, z.boolean()) });
 
 export const accessesRoutes =
-  ({ cabinet, access }: { cabinet: Cabinet; access: ProjectAccess }): FastifyPluginAsync =>
+  ({
+    cabinet,
+    access,
+    pickFolder,
+  }: {
+    cabinet: Cabinet;
+    access: ProjectAccess;
+    pickFolder?: FolderPicker;
+  }): FastifyPluginAsync =>
   async (app) => {
+    /* the Vault's "Choose…": the Mac's folder picker; {path: null} = cancelled */
+    app.post('/folders/pick', async () => {
+      if (!pickFolder) throw invalid('No folder picker here — paste the path instead');
+      try {
+        return { path: await pickFolder() };
+      } catch (err) {
+        throw invalid(err instanceof Error ? err.message : String(err));
+      }
+    });
     app.get('/accesses', async () => cabinet.list());
     app.get('/accesses/:id', async (req) => cabinet.get(parse(IdParams, req.params).id));
     app.post('/accesses', async (req, reply) =>

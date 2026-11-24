@@ -9,6 +9,7 @@ import type { PageProps } from '../../shell/pages';
 import { Button, EmptyState, ErrorState, Loading, SceneHead } from '../../ui';
 import { AccessEditor, type EditorMode } from './AccessEditor';
 import { type Access, accessApi, keys } from './api';
+import { modeLabel } from './folders';
 import { accessMeta, credLook, fieldShown } from './mark';
 import './access.css';
 
@@ -104,7 +105,11 @@ function AccessRow({
         {a.serves && <div className="serves">{a.serves}</div>}
         {a.folder && (
           <div className="serves">
-            Folder · read and write: <code>{a.folder}</code>
+            Folder · {modeLabel(a.folderMode).toLowerCase()} ·{' '}
+            {a.localTo
+              ? `only ${projects?.find((p) => p.id === a.localTo)?.name ?? a.localTo}`
+              : 'all projects'}
+            : <code>{a.folder}</code>
           </div>
         )}
         <div className="afford">

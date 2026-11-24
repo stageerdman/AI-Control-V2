@@ -130,6 +130,7 @@ import { createRuntime, type Runtime } from './runtime/service.ts';
 import { cabinet } from './secrets/cabinet.ts';
 import type { FolderGuard } from './secrets/folderAccess.ts';
 import { backupTool } from './secrets/folderBackup.ts';
+import type { FolderPicker } from './secrets/pickFolder.ts';
 import { projectAccess } from './secrets/projectAccess.ts';
 import { fileSecretStore, type SecretStore } from './secrets/secretStore.ts';
 import {
@@ -195,6 +196,8 @@ export type AppDeps = {
   cargoTarget?: string;
   /** Builder preflight: a fresh build's checkout problems (default: src/crew/preflight.ts; tests pass a stub). */
   preflight?: (cwd: string) => Promise<string[]>;
+  /** The Vault's "Choose…" folder picker. Default null = none (main passes the Mac's own picker). */
+  pickFolder?: FolderPicker | null;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -229,6 +232,7 @@ export function buildApp({
   openApp = openWithMac,
   cargoTarget = sharedCargoTarget(),
   preflight = builderPreflight,
+  pickFolder = null,
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   /* folder accesses never overlap the studio's own folders (its data, the global secrets); the projects only
@@ -772,7 +776,7 @@ export function buildApp({
     eventRoutes({ store, events, open, dev, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }),
   );
   app.register(credentialRoutes({ cabinet: theCabinet }));
-  app.register(accessesRoutes({ cabinet: theCabinet, access }));
+  app.register(accessesRoutes({ cabinet: theCabinet, access, pickFolder: pickFolder ?? undefined }));
   app.register(runRoutes({ runtime, pages, ...(longPollMs === undefined ? {} : { longPollMs }) }));
   app.register(
     chatRoutes({

@@ -42,6 +42,8 @@ const access = (over: Partial<Access> = {}): Access => ({
   fields: [field()],
   projectIds: [],
   folder: null,
+  folderMode: null,
+  localTo: null,
   createdAt: now,
   updatedAt: now,
   ...over,
@@ -476,18 +478,21 @@ describe('ProjectAccessPanel (the safe)', () => {
     ...over,
   });
 
-  it('a folder access shows its folder, read and write, with no env vars', async () => {
+  it('a folder access sits under Folders with its mode and place, apart from the keys', async () => {
     const vault = access({
       id: 'a-vault',
       name: 'Pensieve app data',
       fields: [],
       folder: '/Users/me/Library/x',
+      folderMode: 'write',
     });
     api.project.mockResolvedValue(view({ accesses: [{ ...vault, granted: false, isNew: false }] }));
     render(<ProjectAccessPanel projectId="aurora" projectName="Aurora" />);
-    await screen.findByRole('switch', { name: 'Grant Pensieve app data to Aurora' });
-    expect(screen.getByText('/Users/me/Library/x')).toBeTruthy();
-    expect(screen.getByText(/Folder · read and write/)).toBeTruthy();
+    await screen.findByRole('switch', { name: "Let Aurora's agents open Pensieve app data" });
+    const folders = screen.getByRole('region', { name: 'Folders' });
+    expect(within(folders).getByText('/Users/me/Library/x')).toBeTruthy();
+    expect(within(folders).getByText('Read & write · All projects')).toBeTruthy();
+    expect(screen.getByText(/No keys yet/)).toBeTruthy();
   });
 
   it('grants a whole access (auto-save) and syncs, names only', async () => {

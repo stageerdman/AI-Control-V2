@@ -49,6 +49,8 @@ export function testApp(
     openApp?: (app: string) => Promise<void>;
     /** Builder preflight stub (default: the real check). */
     preflight?: (cwd: string) => Promise<string[]>;
+    /** The Vault's folder picker stub (default: none — tests never open a real dialog). */
+    pickFolder?: () => Promise<string | null>;
   } = {},
 ) {
   const t = opts.at ? { dir: opts.at, cleanup: () => {} } : tempDir();
@@ -74,6 +76,7 @@ export function testApp(
     ...(opts.ghRun === undefined ? {} : { ghRun: opts.ghRun }),
     ...(opts.gitEnv ? { gitEnv: opts.gitEnv } : {}),
     ...(opts.preflight ? { preflight: opts.preflight } : {}),
+    ...(opts.pickFolder ? { pickFolder: opts.pickFolder } : {}),
     /* runs look for their app's data folder by themselves: never in the real home */
     userHome: opts.userHome ?? join(t.dir, 'home'),
     openApp: opts.openApp ?? (async () => {}),

@@ -8,6 +8,8 @@ import { invalidate, setQueryData, useQuery } from '../../api/query';
 import { Button, ErrorState, Loading, Switch, toast } from '../../ui';
 import { formError } from './AccessEditor';
 import { type AccessSync, accessApi, keys, type ProjectAccess, type ProjectAccessItem } from './api';
+import { FolderSection } from './FolderSection';
+import { isFolder } from './folders';
 import { credLook, masked, plural } from './mark';
 import './access.css';
 
@@ -69,9 +71,11 @@ export function ProjectAccessPanel({ projectId, projectName }: { projectId: stri
       setQueryData(key, await (next ? accessApi.grant(projectId, x.id) : accessApi.revoke(projectId, x.id)));
       const n = x.fields.length;
       toast(
-        next
-          ? `🔑 ${x.name} granted to ${projectName}${n > 1 ? ` (${plural(n, 'field')})` : ''}`
-          : `🔒 ${x.name} revoked from ${projectName}`,
+        x.folder
+          ? `📁 ${x.name} ${next ? 'on' : 'off'} for ${projectName}`
+          : next
+            ? `🔑 ${x.name} granted to ${projectName}${n > 1 ? ` (${plural(n, 'field')})` : ''}`
+            : `🔒 ${x.name} revoked from ${projectName}`,
       );
       void invalidate(keys.cabinet); // "Used by N" on the cabinet
     } catch (err) {
@@ -94,6 +98,9 @@ export function ProjectAccessPanel({ projectId, projectName }: { projectId: stri
   }
 
   const isFresh = (id: string) => fresh.current?.has(id) ?? false;
+  const sorted = a ? sortForSafe(a.accesses, fresh.current ?? new Set()) : [];
+  const folders = sorted.filter(isFolder);
+  const keyed = sorted.filter((x) => !isFolder(x));
   return (
     <div className="project-access">
       <h2>What {projectName} can reach</h2>
@@ -108,12 +115,19 @@ export function ProjectAccessPanel({ projectId, projectName }: { projectId: stri
             </b>
             . Agents get only what you grant here.
           </p>
-          {a.accesses.length === 0 && (
+          <FolderSection
+            projectId={projectId}
+            projectName={projectName}
+            folders={folders}
+            onToggle={toggle}
+          />
+          <h3 className="pa-keys">Keys</h3>
+          {keyed.length === 0 && (
             <p className="hint">
-              The cabinet is empty — add one under <a href="#access">Access</a>.
+              No keys yet — add one under <a href="#access">Access</a>.
             </p>
           )}
-          {sortForSafe(a.accesses, fresh.current ?? new Set()).map((x) => {
+          {keyed.map((x) => {
             const look = credLook({ name: x.name, envVar: x.fields[0]?.envVar });
             const line = fieldLine(x);
             const expanded = !!opened[x.id];
@@ -130,11 +144,6 @@ export function ProjectAccessPanel({ projectId, projectName }: { projectId: stri
                     {x.name}
                   </b>
                   {x.serves && <div className="sv">{x.serves}</div>}
-                  {x.folder && (
-                    <div className="vl">
-                      Folder · read and write: <code>{x.folder}</code>
-                    </div>
-                  )}
                   {expanded ? (
                     <ul className="pa-all" id={listId}>
                       {line.all.map((f) => (
