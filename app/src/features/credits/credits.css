@@ -1,0 +1,275 @@
+/* The credits line (design/credits-line.md). Drawn over the top edge: takes no layout space.
+   Motion only under [data-animate] (off with prefers-reduced-motion) and paused while the tab is hidden. */
+.credits {
+  --credits-h: 3px;
+  --credits-rainbow: linear-gradient(
+    90deg,
+    var(--color-sky),
+    var(--color-teal),
+    var(--color-mint),
+    var(--color-sun),
+    var(--color-coral),
+    var(--color-rose),
+    var(--color-grape),
+    var(--color-sky)
+  );
+  --credits-warm: linear-gradient(
+    90deg,
+    var(--color-sun),
+    var(--color-coral),
+    var(--color-rose),
+    var(--color-sun)
+  );
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 0;
+  z-index: 5000;
+  font-family: inherit;
+}
+.credits[data-thick] {
+  --credits-h: 4px;
+}
+
+/* ---- the line ---- */
+.credits-meter {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: var(--credits-h);
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  pointer-events: none;
+  transition: height 0.6s var(--ease-out);
+}
+.credits[data-state="limited"] .credits-meter {
+  background: color-mix(in srgb, var(--color-coral) 35%, transparent);
+}
+.credits[data-dim] .credits-meter {
+  opacity: 0.6;
+}
+.credits-fill {
+  position: relative;
+  display: block;
+  height: 100%;
+  background: var(--credits-rainbow);
+  background-size: 200% 100%;
+  overflow: hidden;
+  transition: width 0.6s var(--ease-out);
+}
+.credits[data-tone="warm"] .credits-fill {
+  background-image: var(--credits-warm);
+}
+.credits[data-dashed] .credits-meter > .credits-fill {
+  mask: repeating-linear-gradient(90deg, #000 0 8px, transparent 8px 11px);
+}
+
+/* shimmer: a soft white highlight gliding across */
+.credits-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 80px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  transform: translateX(-80px);
+  opacity: 0;
+}
+
+.credits[data-animate] .credits-fill {
+  animation: credits-drift 24s linear infinite;
+}
+.credits[data-animate][data-state="ok"] .credits-meter::after {
+  animation: credits-shimmer 6s var(--ease-out) infinite;
+}
+.credits[data-animate][data-state="warning"] .credits-meter::after {
+  animation: credits-shimmer 2s var(--ease-out) infinite;
+}
+.credits[data-animate][data-state="warning"] .credits-meter > .credits-fill {
+  animation:
+    credits-drift 24s linear infinite,
+    credits-breathe 1.6s ease-in-out infinite alternate;
+}
+.credits[data-animate][data-state="none"] .credits-meter::after {
+  animation: credits-shimmer 10s var(--ease-out) infinite;
+}
+.credits[data-animate][data-state="limited"] .credits-fill,
+.credits[data-animate][data-dim] .credits-fill {
+  animation: none;
+}
+.credits[data-paused] *,
+.credits[data-paused] *::after {
+  animation-play-state: paused !important;
+}
+
+@keyframes credits-drift {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes credits-shimmer {
+  0% {
+    transform: translateX(-80px);
+    opacity: 1;
+  }
+  40%,
+  100% {
+    transform: translateX(100vw);
+    opacity: 1;
+  }
+}
+/* the fill's right end breathes (opacity .7 ↔ 1) */
+@keyframes credits-breathe {
+  from {
+    mask: linear-gradient(90deg, #000 calc(100% - 48px), rgba(0, 0, 0, 0.7));
+  }
+  to {
+    mask: linear-gradient(90deg, #000 calc(100% - 48px), #000);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .credits *,
+  .credits *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- the hit area: invisible, full width; taller on touch ---- */
+.credits-hit {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 12px;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: default;
+}
+@media (pointer: coarse) {
+  .credits-hit {
+    height: 24px;
+  }
+}
+.credits-hit:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px 0 var(--color-sky);
+}
+
+/* ---- the chip: 22 px tall inside a 44 px hit box ---- */
+.credits-chip {
+  position: absolute;
+  top: calc(var(--credits-h) + 2px - 11px);
+  right: 6px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.credits-chip > span {
+  height: 22px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-radius: 11px;
+  background: var(--color-panel);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-soft);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.credits-chip:focus-visible {
+  outline: none;
+}
+.credits-chip:focus-visible > span {
+  box-shadow:
+    0 0 0 2px var(--color-sky),
+    var(--shadow-soft);
+}
+
+/* ---- the card ---- */
+.credits-card {
+  position: fixed;
+  top: 12px;
+  width: 280px;
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: credits-in 0.18s var(--ease-out);
+}
+.credits[data-state="warning"] .credits-card,
+.credits[data-state="limited"] .credits-card {
+  top: 34px; /* under the chip */
+}
+.credits-card p {
+  margin: 0;
+}
+.credits-card hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--color-line);
+}
+.credits-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.credits-card-head b,
+.credits-verdict {
+  font-size: 15px;
+  font-weight: 600;
+}
+.credits-verdict {
+  font-weight: 400;
+}
+.credits-soft {
+  color: var(--color-ink-soft);
+  font-size: 13px;
+  font-weight: 400;
+}
+.credits-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-line);
+  overflow: hidden;
+  margin: 2px 0 4px;
+}
+.credits-bar > .credits-fill {
+  border-radius: 3px;
+}
+.credits[data-dim] .credits-bar {
+  opacity: 0.6;
+}
+@keyframes credits-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.credits-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

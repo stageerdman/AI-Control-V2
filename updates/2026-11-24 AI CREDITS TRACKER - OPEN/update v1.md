@@ -166,7 +166,18 @@ These are worked out for each window `w` from the readings stored for that windo
 ## Status
 - [x] Research: data source chosen and verified against real stream lines on this machine (2026-11-24, Elon).
 - [x] Design of the line and card: `design/credits-line.md` (2026-11-24, Jony).
-- [x] Phase 1 · [x] Phase 2 · [ ] Phase 3 · [ ] Phase 4 · [ ] Phase 5 (conditional)
+- [x] Phase 1 · [x] Phase 2 · [x] Phase 3 · [ ] Phase 4 · [ ] Phase 5 (conditional)
+- Phase 3 shipped (2026-11-24, Jony): `app/src/features/credits/` (`model.ts` pure words/looks, `api.ts`
+  `useCredits` on `GET /credits/events` only — it sends on connect, so no separate GET, `CreditsLine.tsx`,
+  `credits.css`). Injected into the shell like the Pager (`<Shell TopLine={CreditsLine}>`), so the shell stays
+  feature-free; drawn on studio + office, not the gallery.
+  - Decisions in the build: a low-but-lasting warning chip reads **"12% left · resets 4:30 pm"** (the spec's
+    "runs out ≈" only fits the hits case). Screen-reader label and the announcement use words ("about 1 hour
+    28 minutes"), never `~ ≈ ·`.
+  - Live check: this checkout's server on a spare port with seeded readings → the real SSE frame through the
+    app's model gave warning, 18% left, chip "runs out ≈ 10:54 pm", "Using about 12% an hour". Not yet seen
+    by eye in the window (no screenshot tool here): the office chip-overlap check in the spec is still open.
+  - A backend older than Phase 2 answers 404 on the stream: the line stays "No reading yet" and retries quietly.
 - Phases 1–2 shipped (2026-11-24, Uncle Bob), all in `server/src/credits/`:
   - `reading.ts` `parseRateLimit` (lives here, not in `stream.ts`: the RunEvent parser stays about runs).
     `LimitReading = { at, windows: { name, used, resetsAt, status }[], overage }`.

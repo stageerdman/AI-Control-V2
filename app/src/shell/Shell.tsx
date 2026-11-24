@@ -10,7 +10,16 @@ import { go, type Route, STAGES, stageOf, useRoute } from './router';
 import { StaleNotice } from './StaleNotice';
 import './shell.css';
 
-export function Shell({ pages, Pager }: { pages: PageRegistry; Pager?: PagerComponent | null }) {
+export function Shell({
+  pages,
+  Pager,
+  TopLine,
+}: {
+  pages: PageRegistry;
+  Pager?: PagerComponent | null;
+  /** The strip over the top edge (the credits line); on the studio and the office, not the gallery. */
+  TopLine?: ComponentType | null;
+}) {
   const route = useRoute();
   const Page = (pages[route.name] ?? Building) as ComponentType<{ route: Route }>;
   const stage = stageOf(route);
@@ -24,6 +33,7 @@ export function Shell({ pages, Pager }: { pages: PageRegistry; Pager?: PagerComp
   );
   return (
     <>
+      {TopLine && layer !== 'gallery' && <TopLine />}
       <Motes />
       {layer === 'studio' && <Studio stage={stage}>{page}</Studio>}
       {layer === 'office' && (
