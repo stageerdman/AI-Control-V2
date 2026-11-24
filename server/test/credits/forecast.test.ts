@@ -84,6 +84,13 @@ describe('forecast', () => {
     expect(paying.windows[0]?.verdict).not.toBe('limited');
   });
 
+  it('15% or less left warns even when the pace lasts', () => {
+    const rs = [five('11:00', 0.82), five('12:00', 0.85)]; // 3 points an hour: 5 h to go, the reset is in 3
+    expect(windowOf(rs)?.verdict).toBe('lasts');
+    expect(forecast(rs, NOW).state).toBe('warning');
+    expect(forecast([five('11:00', 0.81), five('12:00', 0.84)], NOW).state).toBe('ok');
+  });
+
   it('allowed_warning from Anthropic shows as a warning even when the pace lasts', () => {
     expect(forecast([five('12:00', 0.1, { status: 'allowed_warning' })], NOW).state).toBe('warning');
   });

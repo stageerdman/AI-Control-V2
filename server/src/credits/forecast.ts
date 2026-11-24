@@ -91,7 +91,8 @@ export function windowForecast(
   const period = readings.filter((r) => r.resetsAt === last.resetsAt);
   const length = LENGTH_MS[name];
   const rate = burnRate(period, length);
-  const left = Math.max(0, 1 - last.used);
+  /* rounded: 1 − 0.85 is 0.15000000000000002 in floats, and exactly 15% left must warn */
+  const left = Math.max(0, Math.round((1 - last.used) * 1e6) / 1e6);
   const hitsAt = rate && rate > 0 ? now + left / rate : null;
   const verdict = verdictOf(last, hitsAt, resetsAt);
   return {
@@ -121,11 +122,14 @@ function bindingOf(windows: readonly WindowForecast[]): WindowForecast | null {
   );
 }
 
+/** At or below this share left the line warns, whatever the pace (design/credits-line.md). */
+export const LOW_LEFT = 0.15;
+
 /** Limited beats everything; a warning beats an old reading (the age is shown anyway). */
 function stateOf(binding: WindowForecast | null, warned: boolean, ageMs: number): CreditsState {
   if (!binding) return 'none';
   if (binding.verdict === 'limited') return 'limited';
-  if (binding.verdict === 'hits' || warned) return 'warning';
+  if (binding.verdict === 'hits' || binding.left <= LOW_LEFT || warned) return 'warning';
   return ageMs > STALE_MS ? 'stale' : 'ok';
 }
 
