@@ -13,3 +13,4 @@ secrets:
   - GITHUB_TOKEN
 claude_md_generated: 2026-10-17
 run: npm --prefix app run dev
+test: npm --prefix server test

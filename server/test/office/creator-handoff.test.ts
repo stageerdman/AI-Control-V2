@@ -5,9 +5,7 @@ import { workRepo } from '../../src/db/work.ts';
 import { ASK_FIRST } from '../../src/office/creator-handoff-tool.ts';
 import { findUserYes } from '../../src/office/user-yes.ts';
 import { directorStudio } from './director-studio.ts';
-
-const SEA_GPS =
-  'Build a team for the Sea GPS one-page app presentation: a storyteller and a Presentation Creator, the storyteller as captain.';
+import { SEA_GPS } from './sea-gps.ts';
 const hand = (userYes?: string) => ({
   tool: 'hand_to_agent_creator',
   args: { work: SEA_GPS, ...(userYes === undefined ? {} : { user_yes: userYes }) },
