@@ -843,6 +843,8 @@ export type EventPayloads = {
       undoToken?: string;
       summary?: string;
     };
+    /** A team the Agent Creator built from the user's yes: the chat shows it as a card. */
+    teamRequestId?: string;
   };
   /** The director's chat started fresh; the old one is now a past chat in History. */
   'thread.reset': { agentId: string };

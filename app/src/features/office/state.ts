@@ -171,6 +171,7 @@ export function threadMessageOf(ev: StudioEvent<'thread.message'>): ThreadMessag
     reportId: p.reportId ?? null,
     goalId: p.goalId ?? null,
     ...(p.rebuild ? { rebuild: p.rebuild as unknown as RebuildOffer } : {}),
+    ...(p.teamRequestId ? { teamRequestId: p.teamRequestId } : {}),
     /* the line's own time, not the event's: an answered question keeps the time it was asked */
     at: p.at ?? ev.at,
   };

@@ -60,6 +60,8 @@ export type ThreadMessage = {
   goalId: string | null;
   /** A team rebuild the director's reply carries: the confirm card, or (applied at once) its Undo. */
   rebuild?: Offer | null;
+  /** A team the Agent Creator built from an approved request: the chat shows it as a card (db/team-requests.ts). */
+  teamRequestId?: string | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
@@ -180,6 +182,7 @@ export function createThreads(deps: {
     reportId: (r.report_id as string | null) ?? null,
     goalId: (r.goal_id as string | null) ?? null,
     ...(r.rebuild ? { rebuild: JSON.parse(r.rebuild as string) as Offer } : {}),
+    ...(r.team_request_id ? { teamRequestId: r.team_request_id as string } : {}),
     at: r.created_at as string,
   });
   const insert = (
@@ -193,6 +196,7 @@ export function createThreads(deps: {
       reportId?: string | null;
       goalId?: string | null;
       rebuild?: Offer | null;
+      teamRequestId?: string | null;
       /** When it was said, if not now (an answered question keeps the time it was asked). */
       at?: string;
     },
@@ -201,7 +205,7 @@ export function createThreads(deps: {
     const text = scrub(m.text);
     const at = m.at ?? now();
     db.prepare(
-      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, rebuild, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO thread_messages (id, project_id, agent_id, sender, kind, text, run_id, report_id, goal_id, rebuild, team_request_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).run(
       id,
       projectId,
@@ -213,6 +217,7 @@ export function createThreads(deps: {
       m.reportId ?? null,
       m.goalId ?? null,
       m.rebuild ? JSON.stringify(m.rebuild) : null,
+      m.teamRequestId ?? null,
       at,
     );
     try {
@@ -229,6 +234,7 @@ export function createThreads(deps: {
           ...(m.reportId ? { reportId: m.reportId } : {}),
           ...(m.goalId ? { goalId: m.goalId } : {}),
           ...(m.rebuild ? { rebuild: m.rebuild } : {}),
+          ...(m.teamRequestId ? { teamRequestId: m.teamRequestId } : {}),
         },
       });
     } catch {
@@ -243,6 +249,7 @@ export function createThreads(deps: {
       reportId: m.reportId ?? null,
       goalId: m.goalId ?? null,
       ...(m.rebuild ? { rebuild: m.rebuild } : {}),
+      ...(m.teamRequestId ? { teamRequestId: m.teamRequestId } : {}),
       at,
     };
   };
@@ -801,7 +808,13 @@ export function createThreads(deps: {
     record(
       projectId: string,
       agentId: string,
-      m: { sender: 'user' | 'agent'; kind?: ThreadMessage['kind']; text: string; goalId?: string | null },
+      m: {
+        sender: 'user' | 'agent';
+        kind?: ThreadMessage['kind'];
+        text: string;
+        goalId?: string | null;
+        teamRequestId?: string | null;
+      },
     ): ThreadMessage {
       /* a new goal after one finished: the orchestrator's next chat turn starts a fresh session (with a recap) */
       if (m.sender === 'user' && m.goalId && agentId === store.projects.get(projectId)?.orchestratorId)
@@ -812,6 +825,7 @@ export function createThreads(deps: {
         text: clip(m.text, 20_000),
         runId: null,
         goalId: m.goalId ?? null,
+        teamRequestId: m.teamRequestId ?? null,
       });
     },
   };

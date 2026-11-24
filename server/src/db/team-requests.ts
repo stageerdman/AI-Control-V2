@@ -70,6 +70,10 @@ export function teamRequestsRepo(db: Db) {
         id,
       );
     },
+    /** The undo was taken back: the build stands again (its first build time kept). */
+    markRestored(id: string, built: Built): void {
+      db.prepare('UPDATE team_requests SET built = ?, undone_at = NULL WHERE id = ?').run(JSON.stringify(built), id);
+    },
     markUndone(id: string, built: Built): void {
       db.prepare('UPDATE team_requests SET built = ?, undone_at = ? WHERE id = ?').run(
         JSON.stringify(built),

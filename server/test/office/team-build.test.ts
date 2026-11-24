@@ -92,9 +92,14 @@ describe('the Agent Creator builds the approved team in one go', () => {
     });
     // the director's chat says what was made
     const thread = await h.call('GET', `/projects/lumi/threads/${s.orch}/messages`);
-    expect(thread.body.messages.map((m: { text: string }) => m.text)).toContain(
+    const built = (thread.body.messages as { text: string; teamRequestId?: string }[]).find((m) =>
+      m.text.startsWith('Tinker built'),
+    );
+    expect(built?.text).toBe(
       'Tinker built The Tide Tellers for you: Marina (Storyteller, captain) and Slidewright (Presentation Creator). They’re in the Cast and on this project. Change them in the Cast, or undo the whole build.',
     );
+    // …and carries its request, so the chat shows it as a card
+    expect(built?.teamRequestId).toBe(req?.id);
 
     // the user sees the request, and undoes the whole build
     const listed = await h.call('GET', '/projects/lumi/team-requests');
@@ -107,6 +112,17 @@ describe('the Agent Creator builds the approved team in one go', () => {
     expect(h.store.teams.get(team?.id as string)).toBeNull();
     expect(h.store.projects.require('lumi').teamIds).not.toContain(team?.id);
     expect((await h.call('POST', `/projects/lumi/team-requests/${req?.id}/undo`)).status).toBe(409);
+
+    // Undo of the undo: it all comes back — the agents, the team with its captain, on the project
+    const back = await h.call('POST', `/projects/lumi/team-requests/${req?.id}/restore`);
+    expect(back.status).toBe(200);
+    expect(back.body.undoneAt).toBeNull();
+    expect(byName('Marina')?.role).toBe('Storyteller');
+    const again = h.store.teams.get(team?.id as string);
+    expect(again?.captainId).toBe(byName('Marina')?.id);
+    expect(again?.members).toHaveLength(2);
+    expect(h.store.projects.require('lumi').teamIds).toContain(team?.id);
+    expect((await h.call('POST', `/projects/lumi/team-requests/${req?.id}/restore`)).status).toBe(409);
   });
 
   it('refuses a design that breaks the look rules, an unknown request, and a second build', async () => {

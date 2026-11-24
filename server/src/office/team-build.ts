@@ -22,8 +22,8 @@ export type TeamBuildDeps = {
   staffing: Staffing;
   /** The Agent Creator's persist (crew/creator.ts): roles reused by name, agents and the team created. */
   persist: (designs: Design[]) => Minted & { ids: string[] };
-  /** A line in the director's chat (threads.record as the director). */
-  tellDirector: (projectId: string, directorId: string, text: string) => void;
+  /** A line in the director's chat (threads.record as the director), carrying the request: the chat's card. */
+  tellDirector: (projectId: string, directorId: string, text: string, requestId: string) => void;
 };
 export type BuildResult = { request: TeamRequest; team: Team; agents: Agent[]; line: string };
 
@@ -106,7 +106,7 @@ export function createTeamBuild(deps: TeamBuildDeps) {
     created('team', team.id, team.name);
     const agents = built.agentIds.map((id) => store.agents.require(id));
     const line = `${name(byId)} built ${team.name} for you: ${summary(team)}`;
-    deps.tellDirector(projectId, req.directorId, line);
+    deps.tellDirector(projectId, req.directorId, line, req.id);
     return { request: requests.get(req.id) as TeamRequest, team, agents, line };
   }
 
@@ -128,14 +128,34 @@ export function createTeamBuild(deps: TeamBuildDeps) {
         if (!inUse.has(id) && store.roles.get(id)) tokens.push(store.trash.trashRole(id).restoreToken);
       requests.markUndone(req.id, { ...built, restoreTokens: tokens });
     });
-    const p = store.projects.require(projectId);
-    events.append('project', projectId, {
-      type: 'staff.changed',
-      payload: { teamIds: p.teamIds, agentIds: p.agentIds, added: [], removed: onProject ? members : [] },
-    });
+    staffChanged(projectId, { added: [], removed: onProject ? members : [] });
     return requests.get(req.id) as TeamRequest;
   }
 
-  return { build, undo, list: (projectId: string) => requests.list(projectId) };
+  const staffChanged = (projectId: string, d: { added: string[]; removed: string[] }) => {
+    const p = store.projects.require(projectId);
+    events.append('project', projectId, {
+      type: 'staff.changed',
+      payload: { teamIds: p.teamIds, agentIds: p.agentIds, ...d },
+    });
+  };
+
+  /** Undo the undo: bring back what `undo` put in the trash (roles, then agents, then the team with its seats). */
+  function restore(projectId: string, requestId: string): TeamRequest {
+    const req = requests.get(requestId);
+    if (!req || req.projectId !== projectId) throw notFound('Approved team request', requestId);
+    const tokens = req.built?.restoreTokens;
+    if (!req.built || !req.undoneAt || !tokens) throw conflict('Nothing to bring back: this build is standing');
+    const { restoreTokens: _, ...built } = req.built;
+    store.tx(() => {
+      for (const t of [...tokens].reverse()) store.trash.restore(t);
+      requests.markRestored(req.id, built);
+    });
+    const team = store.teams.get(built.teamId);
+    staffChanged(projectId, { added: team?.members.map((m) => m.agentId) ?? [], removed: [] });
+    return requests.get(req.id) as TeamRequest;
+  }
+
+  return { build, undo, restore, list: (projectId: string) => requests.list(projectId) };
 }
 export type TeamBuild = ReturnType<typeof createTeamBuild>;

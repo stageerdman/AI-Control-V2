@@ -509,8 +509,8 @@ export function buildApp({
     staffing,
     persist: creator.persist,
     /* threads are built below; a build only runs in an agent's run, by then they exist */
-    tellDirector: (projectId, directorId, text) =>
-      threadsRef?.record(projectId, directorId, { sender: 'agent', text }),
+    tellDirector: (projectId, directorId, text, teamRequestId) =>
+      threadsRef?.record(projectId, directorId, { sender: 'agent', text, teamRequestId }),
   });
   /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board, waitingOn: runtime.waitingOn });

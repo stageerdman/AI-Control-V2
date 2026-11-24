@@ -17,4 +17,9 @@ export const teamRequestRoutes =
       const p = parse(RequestParams, req.params);
       return builds.undo(p.id, p.requestId);
     });
+    /* Undo of the undo: everything it took back returns from the trash */
+    app.post('/projects/:id/team-requests/:requestId/restore', async (req) => {
+      const p = parse(RequestParams, req.params);
+      return builds.restore(p.id, p.requestId);
+    });
   };

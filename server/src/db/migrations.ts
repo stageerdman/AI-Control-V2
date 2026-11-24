@@ -823,6 +823,10 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX team_requests_by_project ON team_requests(project_id, created_at);
   `,
+  /* 54 — the director's "built it" line carries its team request, so the chat shows what was built as a card. */
+  `
+  ALTER TABLE thread_messages ADD COLUMN team_request_id TEXT;
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */

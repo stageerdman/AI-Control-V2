@@ -92,6 +92,8 @@ export type ThreadMessage = {
   goalId?: string | null;
   /** A team rebuild a director reply carries: the confirm card, or (applied at once) its Undo. */
   rebuild?: RebuildOffer | null;
+  /** A team the Agent Creator built from the user's yes: shown as its card (features/office/built/). */
+  teamRequestId?: string | null;
   at: string;
 };
 export type Thread = { projectId: string; agentId: string; busy: boolean; messages: ThreadMessage[] };
