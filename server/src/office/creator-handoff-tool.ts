@@ -1,13 +1,17 @@
 /* "Build me a team for X" in one step: the director hands the team-building work straight to the Agent Creator —
-   only once the user said yes in chat. The yes (the user's words and when) is saved on the request: in the
-   whiteboard brief and on the Agent Creator's to-do, so the user and Tinker both see what was agreed. */
+   only once the user said yes in chat. The yes (the user's words and when) is saved as an approved team request
+   (db/team-requests.ts), and its id goes in the whiteboard brief and on the Agent Creator's to-do: Tinker builds
+   from it with `build_team` (office/team-build.ts), and everything built links back to it. */
 import type { Store } from '../db/store.ts';
+import type { TeamRequestsRepo } from '../db/team-requests.ts';
 import { conflict, invalid } from '../errors.ts';
 import type { CapableTool } from '../room/bridge.ts';
 import { type ChatLine, findUserYes, type UserYes } from './user-yes.ts';
 
 export type HandoffServices = {
   store: Store;
+  /** Where the approved request is kept (the yes, and later what was built from it). */
+  requests: TeamRequestsRepo;
   /** The director's current chat, oldest first (threads.get). */
   chat: (projectId: string, directorId: string) => readonly ChatLine[];
   /** A room call from the director that hands `work` over (it goes on the whiteboard) → the callee's answer. */
@@ -18,12 +22,13 @@ export const ASK_FIRST =
   'Ask the user first: say which agents you would have the Agent Creator design and the team they would form, and wait for their yes in chat. Then call again with `user_yes`: their words.';
 
 /** The request as it goes on the whiteboard: the work first (its first line is the task title), then the yes. */
-export function handoffBrief(work: string, director: string, yes: UserYes): string {
+export function handoffBrief(work: string, director: string, yes: UserYes, requestId: string): string {
   return [
     work,
     `(Handed to you by ${director}, your orchestrator, for the user.)`,
     `The user said yes in chat on ${yes.at}: ${JSON.stringify(yes.words)}`,
-    'Design the agents, add them to the Cast, and set up the project team with a captain and members; the user can see, change or remove them afterward.',
+    `Approved request: ${requestId}`,
+    `Design the agents and the team, then call \`build_team\` once with request "${requestId}": it adds the new agents to the Cast and puts the team, with its captain and members, on this project. The user can see, change or undo all of it afterward.`,
   ].join('\n\n');
 }
 
@@ -40,7 +45,8 @@ export function creatorHandoffTool(s: HandoffServices, projectId: string, direct
     const creator = s.store.agents.list().find((x) => x.kind === 'creator');
     if (!creator) throw conflict('The studio has no Agent Creator.');
     const director = s.store.agents.get(directorId)?.name ?? 'The director';
-    const brief = handoffBrief(work, director, yes);
+    const request = s.requests.create({ projectId, directorId, work, yes });
+    const brief = handoffBrief(work, director, yes, request.id);
     const answer = await s.ask(
       projectId,
       directorId,
@@ -48,7 +54,7 @@ export function creatorHandoffTool(s: HandoffServices, projectId: string, direct
       `${director}, your orchestrator, hands you this work for the user — they said yes in chat: ${JSON.stringify(work)}\nSay in two to four short, plain sentences how you will do it; the studio starts it for you.`,
       brief,
     );
-    return `Handed to ${creator.name}, with the user’s yes recorded (${yes.at}: ${JSON.stringify(yes.words)}). Their answer, for you to act on: “${answer.trim()}”`;
+    return `Handed to ${creator.name} as request ${request.id}, with the user’s yes recorded (${yes.at}: ${JSON.stringify(yes.words)}). Their answer, for you to act on: “${answer.trim()}”`;
   }
 
   return {

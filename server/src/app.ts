@@ -27,6 +27,7 @@ import type { Db } from './db/connection.ts';
 import { runsRepo } from './db/runs.ts';
 import { metaFlag, metaValue } from './db/settings.ts';
 import { createStore, type Store } from './db/store.ts';
+import { teamRequestsRepo } from './db/team-requests.ts';
 import { workRepo } from './db/work.ts';
 import { leadOf } from './domain/workflows.ts';
 import { AppError, parse } from './errors.ts';
@@ -65,6 +66,8 @@ import { createRebuilds } from './office/rebuild-service.ts';
 import { createReportIn } from './office/report-in.ts';
 import { createStaffing } from './office/staffing.ts';
 import { createStallAlerts } from './office/stall-alerts.ts';
+import { createTeamBuild } from './office/team-build.ts';
+import { teamBuildTool } from './office/team-build-tool.ts';
 import { teamTools } from './office/team-tools.ts';
 import { createThreads } from './office/threads.ts';
 import { createWorkClock } from './office/work-time.ts';
@@ -107,6 +110,7 @@ import { runningRoutes } from './routes/running.ts';
 import { runRoutes } from './routes/runs.ts';
 import { setterRoutes } from './routes/setter.ts';
 import { settingsRoutes } from './routes/settings.ts';
+import { teamRequestRoutes } from './routes/team-requests.ts';
 import { teamRoutes, teamWorkflowRoutes } from './routes/teams.ts';
 import { threadRoutes } from './routes/threads.ts';
 import { timeRoutes } from './routes/time.ts';
@@ -496,6 +500,18 @@ export function buildApp({
   });
   /* the director staffs the project from chat (existing Cast agents only); Rearrange brings people back */
   const staffing = createStaffing({ store, events });
+  /* One-Step Team Building: the approved requests the director hands to the Agent Creator, and what they built */
+  const teamRequests = teamRequestsRepo(db);
+  const teamBuilds = createTeamBuild({
+    store,
+    requests: teamRequests,
+    events,
+    staffing,
+    persist: creator.persist,
+    /* threads are built below; a build only runs in an agent's run, by then they exist */
+    tellDirector: (projectId, directorId, text) =>
+      threadsRef?.record(projectId, directorId, { sender: 'agent', text }),
+  });
   /* the director edits the whiteboard and the features list itself (its chat turns' only tools) */
   const board = createBoard({ db, store, port: dispatch.board, waitingOn: runtime.waitingOn });
   /* the office icon: uploaded, or linked to an icon file in the project folder (route + director tool) */
@@ -553,7 +569,11 @@ export function buildApp({
           iconTool(portraits, store, projectId),
           ...actionTools(actions, projectId, directorId),
           creatorHandoffTool(
-            { ...actions, chat: (pid, did) => threadsRef?.get(pid, did).messages ?? [] },
+            {
+              ...actions,
+              requests: teamRequests,
+              chat: (pid, did) => threadsRef?.get(pid, did).messages ?? [],
+            },
             projectId,
             directorId,
           ),
@@ -650,6 +670,7 @@ export function buildApp({
     }),
     /* a team captain stops and tells their own team, a temporary lead their crew (the director: the whole project) */
     ...leadTools(actions, projectId, agentId, actions.work.goals(projectId)),
+    ...(store.agents.get(agentId)?.kind === 'creator' ? [teamBuildTool(teamBuilds, projectId, agentId)] : []),
     ...(hq.get() === projectId
       ? [
           proposeTool(creatorChats, () => ({
@@ -757,6 +778,7 @@ export function buildApp({
   app.register(todoRoutes({ todos, store }));
   app.register(usageRoutes({ db, store }));
   app.register(rebuildRoutes({ rebuilds, staffing, store }));
+  app.register(teamRequestRoutes({ builds: teamBuilds }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));
   app.register(principlesRoutes({ principles: createPrinciples({ store, sandbox: config.sandbox }) }));
   app.register(bridgeRoutes({ bridges, ...(longPollMs === undefined ? {} : { longPollMs }) }));

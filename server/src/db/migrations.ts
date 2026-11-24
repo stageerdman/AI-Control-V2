@@ -804,6 +804,25 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE checklist_items ADD COLUMN merged_commit TEXT;
   `,
+  /* 53 — One-Step Team Building: the request a director handed to the Agent Creator after the user's yes in chat
+     (their words and when), and what was built from it — so the team and its new agents can be found and undone.
+     `built`: JSON {teamId, agentIds, roleIds, restoreTokens?}; NULL until built. */
+  `
+  CREATE TABLE team_requests (
+    id             TEXT PRIMARY KEY,
+    project_id     TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    director_id    TEXT NOT NULL,
+    work           TEXT NOT NULL,
+    yes_words      TEXT NOT NULL,
+    yes_at         TEXT NOT NULL,
+    yes_message_id TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    built          TEXT,
+    built_at       TEXT,
+    undone_at      TEXT
+  );
+  CREATE INDEX team_requests_by_project ON team_requests(project_id, created_at);
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */
