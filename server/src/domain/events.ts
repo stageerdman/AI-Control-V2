@@ -119,6 +119,12 @@ export const EVENT_SCHEMAS = {
     name: text(80),
     by: id.optional(),
   }),
+  /** An agent here proposed a new agent (propose_agent): it waits in the Cast as a Tinker draft (GET /creator/sessions). */
+  'cast.drafted': z.strictObject({
+    sessionId: id,
+    name: text(80),
+    by: id.optional(),
+  }),
   /** A health check finished (B7): the three grades + the one-line summary. */
   'health.checked': z.strictObject({
     reportId: id,

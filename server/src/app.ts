@@ -564,6 +564,8 @@ export function buildApp({
           hireTool(creatorChats, () => ({
             name: store.agents.get(directorId)?.name ?? 'The director',
             projectName: store.projects.get(projectId)?.name ?? 'this project',
+            projectId,
+            agentId: directorId,
           })),
         ],
         { projectId, agentId: directorId },
@@ -609,6 +611,7 @@ export function buildApp({
     crew,
     creator,
     scratchDir: join(config.home, 'scratch'),
+    events,
   });
   /* continue chat turns a restart cut off — only now: the director's tools use mail and creatorChats (built above) */
   threads.recover(interrupted);
@@ -646,6 +649,8 @@ export function buildApp({
           proposeTool(creatorChats, () => ({
             name: store.agents.get(agentId)?.name ?? 'An agent',
             projectName: store.projects.get(projectId)?.name ?? 'HQ',
+            projectId,
+            agentId,
           })),
         ]
       : []),

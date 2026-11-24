@@ -49,7 +49,11 @@ export function CastPage({
   route: Extract<Route, { name: 'cast' | 'cast.agent' | 'cast.tinker' | 'cast.team' }>;
 }) {
   const { agents, roles, teams, loading, error, retry } = useCast();
-  const drafts = useQuery(KEYS.tinker, castApi.tinker.list).data?.sessions;
+  const draftsQ = useQuery(KEYS.tinker, castApi.tinker.list);
+  const drafts = draftsQ.data?.sessions;
+  /* agents propose drafts from their projects at any time: read them fresh each time the Cast opens */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per visit
+  useEffect(() => void draftsQ.refetch(), []);
   const tab = tabOf(route);
   const [z, setZ] = useState<Zoom | null>(() => {
     const w = zoomOf(route);

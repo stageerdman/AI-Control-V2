@@ -717,6 +717,8 @@ export type EventPayloads = {
     fields: ('name' | 'nick' | 'role' | 'look' | 'prompt' | 'canMail')[];
   };
   'cast.created': { kind: 'agent' | 'team' | 'role'; id: string; name: string; by?: string };
+  /** An agent here proposed a new agent: it waits in the Cast as a Tinker draft (GET /creator/sessions). */
+  'cast.drafted': { sessionId: string; name: string; by?: string };
   'health.checked': {
     reportId: string;
     modularity: Grade;
@@ -884,6 +886,7 @@ export const EVENT_TYPES = [
   'plan.changed',
   'agent.changed',
   'cast.created',
+  'cast.drafted',
   'health.checked',
   'goal.changed',
   'workflows.changed',

@@ -630,6 +630,11 @@ function Office({
           /* edited in the Cast (here or another window): read the roster again; the effect above redraws them */
           void invalidate('agents');
           break;
+        case 'cast.drafted':
+          /* someone here proposed a new agent: the Cast's drafts are out of date */
+          void invalidate('creator-sessions');
+          announce(`${ev.payload.name} waits in the Cast as a draft.`);
+          break;
       }
     },
     [pid, director, announce, nameOf, nickOf, reload],

@@ -156,5 +156,10 @@ describe('HQ agents propose new agents', () => {
     expect(sessions[0].chat[0].text).toBe(
       'Twinkle sent this design over from Aurora Storefront — a captain for HQ. Tell me what to change, or add them to the Cast.',
     );
+    /* the proposer's office hears it at once, so the Cast's drafts refresh without a reload */
+    const drafted = h.events.after('project', 'aurora').filter((e) => e.type === 'cast.drafted');
+    expect(drafted.map((e) => e.payload)).toEqual([
+      { sessionId: sessions[0].id, name: 'Captain Nova', by: 'a-twinkle' },
+    ]);
   });
 });

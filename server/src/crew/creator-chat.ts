@@ -8,6 +8,7 @@ import { z } from 'zod';
 import type { Agent } from '../db/agents.ts';
 import type { Db } from '../db/connection.ts';
 import type { Store } from '../db/store.ts';
+import type { EventLog } from '../events/log.ts';
 import { rows } from '../db/util.ts';
 import { AGENT_HATS, AGENT_TOOLS, ANTENNAS, BODIES, FACES, HUES } from '../domain/catalog.ts';
 import { AgentDefSchema, agentDefIssues, LookDefSchema } from '../domain/creator.ts';
@@ -91,6 +92,8 @@ export function createCreatorChat(deps: {
   creator: Creator;
   /** Where Tinker's research runs (the crew scratch dir). */
   scratchDir: string;
+  /** A proposal is news in the proposer's office (`cast.drafted`), so the Cast's drafts refresh without a reload. */
+  events?: EventLog;
 }) {
   const { db, store, crew } = deps;
   const busy = new Map<string, Activity>();
@@ -219,7 +222,11 @@ export function createCreatorChat(deps: {
       return store.agents.require(agent.id);
     },
     /** An agent's design proposal (HQ's `propose_agent`): a new draft chat in the Cast, for the user to review. */
-    propose(by: { name: string; projectName: string }, input: unknown, note?: string): Session {
+    propose(
+      by: { name: string; projectName: string; projectId?: string; agentId?: string },
+      input: unknown,
+      note?: string,
+    ): Session {
       const r = DraftSchema.safeParse(input);
       if (!r.success)
         throw new Error(
@@ -238,6 +245,11 @@ export function createCreatorChat(deps: {
       db.prepare(
         'INSERT INTO creator_sessions (id, chat, draft, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       ).run(id, JSON.stringify(chat), JSON.stringify(r.data), t, t);
+      if (by.projectId)
+        deps.events?.append('project', by.projectId, {
+          type: 'cast.drafted',
+          payload: { sessionId: id, name: r.data.name, ...(by.agentId ? { by: by.agentId } : {}) },
+        });
       return read(id);
     },
     drop(id: string): void {
@@ -249,7 +261,8 @@ export function createCreatorChat(deps: {
 export type CreatorChat = ReturnType<typeof createCreatorChat>;
 
 /** propose_agent: HQ agents design new agents for the Cast — they wait as Tinker drafts until the user adds them. */
-export function proposeTool(chats: CreatorChat, by: () => { name: string; projectName: string }) {
+type Proposer = { name: string; projectName: string; projectId?: string; agentId?: string };
+export function proposeTool(chats: CreatorChat, by: () => Proposer) {
   return {
     name: 'propose_agent',
     description: `Propose a new agent for the AI Studio Cast: it appears in the Cast as a draft the user reviews with Tinker and adds (or not). Original characters only — no real people's names or likenesses, no characters, names or art from films, games or studios; capture a spirit, not a copy. Shape: ${JSON.stringify(EXAMPLE.draft)}. Look options: ${JSON.stringify({ hat: AGENT_HATS, tool: AGENT_TOOLS, body: BODIES, antenna: ANTENNAS, face: FACES, hue: HUES })}.`,
@@ -270,7 +283,7 @@ export function proposeTool(chats: CreatorChat, by: () => { name: string; projec
 }
 
 /** The director hires from chat: propose_agent with its capability line. */
-export function hireTool(chats: CreatorChat, by: () => { name: string; projectName: string }) {
+export function hireTool(chats: CreatorChat, by: () => Proposer) {
   return {
     ...proposeTool(chats, by),
     can: 'hire someone new: propose a new Cast agent (the user reviews the draft with Tinker), when nobody in the Cast fits',
