@@ -1,55 +1,15 @@
 /* The director asks someone on the project from chat (`ask_person`) and continues stopped goals (`resume_goal`):
    both run during its turn, so it reads their answer — or why not — before it replies. Its summary says who is
    waiting on which step, so it can explain a queued owner instead of guessing. */
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fakeBrain } from '../../src/crew/fake-brain.ts';
 import { contractOf } from '../../src/crew/structured.ts';
-import { getChatMessages } from '../../src/db/chats.ts';
 import { workRepo } from '../../src/db/work.ts';
 import { waitsFor } from '../../src/office/threads.ts';
-import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
-import type { RunSpec } from '../../src/runtime/runner.ts';
-import { worked } from '../crew/brain.ts';
-import { testApp } from '../helpers.ts';
-
-const isChat = (s: RunSpec) => s.task.startsWith('Studio summary right now: ');
-type Call = { tool: string; args: Record<string, unknown> };
-
-/** A studio where the director's turns play `turns` (tool calls, then a plain reply); `help` plays `helper`,
-    whiteboard builds play `build`. */
-function studio(
-  helper: (spec: RunSpec) => FakeStep[] = fakeBrain,
-  build: (spec: RunSpec) => FakeStep[] = () => worked('Built.'),
-) {
-  const calls: RunSpec[] = [];
-  const turns: Call[][] = [];
-  const h = testApp({
-    seed: true,
-    runner: fakeRunner((spec): FakeStep[] => {
-      calls.push(spec);
-      if (isChat(spec)) return [...(turns.shift() ?? []), { result: '{"reply":"Done."}' }];
-      if (contractOf(spec.task)?.name === 'help') return helper(spec);
-      if (contractOf(spec.task)) return fakeBrain(spec);
-      return build(spec);
-    }),
-  });
-  mkdirSync(join(h.config.sandbox, 'lumi'), { recursive: true });
-  h.store.projects.update('lumi', { folder: 'lumi', teamIds: [], agentIds: ['a-pete'] });
-  const orch = h.store.projects.require('lumi').orchestratorId;
-  /** One director turn running `call` → what the tool answered. */
-  const turn = async (text: string, call: Call) => {
-    turns.push([call]);
-    const r = await h.call('POST', `/projects/lumi/threads/${orch}/messages`, { text });
-    await h.runtime.settled(r.body.runId);
-    return getChatMessages(h.db, r.body.runId).find((m) => m.role === 'assistant')?.text;
-  };
-  return { h, calls, turn };
-}
+import { directorStudio as studio } from './director-studio.ts';
 
 describe('the director asks someone from chat', () => {
-  let h: ReturnType<typeof testApp>;
+  let h: ReturnType<typeof studio>['h'];
   afterEach(() => h.close());
 
   it('asks them during the turn, the office sees the call, and the director reads their answer', async () => {
@@ -216,7 +176,7 @@ describe('the director asks someone from chat', () => {
 });
 
 describe('the director continues stopped work from chat', () => {
-  let h: ReturnType<typeof testApp>;
+  let h: ReturnType<typeof studio>['h'];
   afterEach(() => h.close());
 
   it('sees stopped goals, `resume_goal` puts them back on, and an asked agent sees its stopped steps', async () => {

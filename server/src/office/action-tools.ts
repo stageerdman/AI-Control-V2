@@ -73,6 +73,9 @@ export function actionTools(s: ActionServices, projectId: string, directorId: st
     const question = need(a, 'question');
     const them = anyone(need(a, 'to'));
     const work = a.work === true;
+    /* team-building work waits for the user's yes: it goes through hand_to_agent_creator, never around it */
+    if (work && them.kind === 'creator')
+      throw invalid('Work for the Agent Creator goes through `hand_to_agent_creator`, after the user said yes.');
     const director = store.agents.get(directorId)?.name ?? 'The director';
     const request = [
       `${director}, your orchestrator, ${work ? 'hands you this work' : 'asks you this'} for the user: ${json(question)}`,

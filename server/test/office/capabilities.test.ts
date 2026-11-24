@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { hireTool } from '../../src/crew/creator-chat.ts';
 import { actionTools } from '../../src/office/action-tools.ts';
 import { capabilityLines } from '../../src/office/capabilities.ts';
+import { creatorHandoffTool } from '../../src/office/creator-handoff-tool.ts';
 import { directorAnswer } from '../../src/office/director-reply.ts';
 import { featureTools } from '../../src/office/feature-tools.ts';
 import { iconTool } from '../../src/office/icon-tool.ts';
@@ -29,6 +30,7 @@ const allTools = () => [
   ...featureTools({} as never, {} as never, 'p'),
   iconTool({} as never, {} as never, 'p'),
   ...actionTools({} as never, 'p', 'a-pixel'),
+  creatorHandoffTool({} as never, 'p', 'a-pixel'),
   ...teamTools({} as never, 'p', 'a-pixel', { card: () => {} }),
   ...workflowTools({} as never, 'p', 'a-pixel'),
   ...questionTools({} as never, 'p'),

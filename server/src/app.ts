@@ -40,6 +40,7 @@ import { createHealth } from './health/health.ts';
 import { registerCors } from './http/cors.ts';
 import type { OpenStreams } from './http/sse.ts';
 import { actionTools } from './office/action-tools.ts';
+import { creatorHandoffTool } from './office/creator-handoff-tool.ts';
 import { createAgentEdits } from './office/agent-edits.ts';
 import { agentFeatureTool, proposeFeatureTool } from './office/agent-feature-tool.ts';
 import { createChatWork } from './office/chat-work.ts';
@@ -551,6 +552,11 @@ export function buildApp({
           ...featureTools(features, store, projectId),
           iconTool(portraits, store, projectId),
           ...actionTools(actions, projectId, directorId),
+          creatorHandoffTool(
+            { ...actions, chat: (pid, did) => threadsRef?.get(pid, did).messages ?? [] },
+            projectId,
+            directorId,
+          ),
           ...teamTools({ staffing, rebuilds }, projectId, directorId, turn),
           ...workflowTools(
             { workflows, store, note: board.note, goalWorkflow: board.workflowOfGoal },
