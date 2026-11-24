@@ -73,6 +73,16 @@ const alive = (pid: number) => {
     return false;
   }
 };
+/* The fake CLI creates its pids file before it writes it: wait for a full list, not just the file. */
+const pidsWhenWritten = async (file: string, ms = 3000): Promise<number[]> => {
+  const until = Date.now() + ms;
+  for (;;) {
+    const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    if (text.trim().endsWith(']')) return JSON.parse(text) as number[];
+    if (Date.now() > until) throw new Error(`No pids written to ${file} within ${ms}ms (got '${text}')`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+};
 
 describe('ClaudeCliRunner', () => {
   let t: ReturnType<typeof tempDir>;
@@ -279,10 +289,7 @@ describe('ClaudeCliRunner', () => {
 
   it('cancel kills the whole process group (the CLI and what it spawned)', async () => {
     const { h } = run(spec('hang'));
-    const pidsFile = `${out}.pids`;
-    const until = Date.now() + 3000;
-    while (!existsSync(pidsFile) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));
-    const [cli, kid] = JSON.parse(readFileSync(pidsFile, 'utf8')) as number[];
+    const [cli, kid] = await pidsWhenWritten(`${out}.pids`);
     expect(alive(cli as number) && alive(kid as number)).toBe(true);
     h.cancel();
     const o = await h.done;

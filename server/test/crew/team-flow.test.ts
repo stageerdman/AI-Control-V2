@@ -77,6 +77,16 @@ async function settled(h: ReturnType<typeof testApp>, goalId: string) {
   }
   throw new Error('goal never settled');
 }
+/* A stopped item's checkout is put away in the background after it settles: wait for it, don't guess a delay. */
+async function worktreesLeft(repo: string, want = 1, ms = 5000) {
+  const until = Date.now() + ms;
+  let n = git(repo, 'worktree', 'list').split('\n').length;
+  while (n > want && Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 20));
+    n = git(repo, 'worktree', 'list').split('\n').length;
+  }
+  return n;
+}
 const types = (h: ReturnType<typeof testApp>, t: string) =>
   h.events
     .after('project', 'aurora')
@@ -339,7 +349,7 @@ describe('captains delegate (F1c)', () => {
     expect(g.status).toBe('cancelled');
     expect(g.items[0].status).toBe('cancelled');
     expect(g.items[0].subtasks.every((x: { status: string }) => x.status === 'cancelled')).toBe(true);
-    expect(git(s.repo, 'worktree', 'list').split('\n')).toHaveLength(1);
+    expect(await worktreesLeft(s.repo)).toBe(1);
   });
 });
 
