@@ -22,7 +22,7 @@ describe('designing an agent with Tinker', () => {
       'creator-chat': [
         () => [
           { activity: { kind: 'research', label: 'Looking up “SwiftUI best practices”' } },
-          { wait: 60 },
+          { wait: 1500 }, // long enough to be seen under load; the test polls for it, not a fixed sleep
           { result: JSON.stringify({ reply: 'Here’s Sally.', draft: DRAFT }) },
         ],
         {
@@ -37,8 +37,13 @@ describe('designing an agent with Tinker', () => {
     const id = created.body.id;
 
     const turn = h.call('POST', `/creator/sessions/${id}/chat`, { text: 'I need a Swift dev' });
-    await new Promise((ok) => setTimeout(ok, 30));
-    expect((await h.call('GET', `/creator/sessions/${id}`)).body.activity).toEqual({
+    /* wait for what we check (the research activity) instead of racing it with a fixed sleep */
+    let activity: { kind?: string } | null = null;
+    for (let i = 0; i < 100 && activity?.kind !== 'research'; i++) {
+      await new Promise((ok) => setTimeout(ok, 10));
+      activity = (await h.call('GET', `/creator/sessions/${id}`)).body.activity;
+    }
+    expect(activity).toEqual({
       kind: 'research',
       label: 'Looking up “SwiftUI best practices”',
     });
