@@ -1,0 +1,161 @@
+# AI Credits Tracker — v1
+
+## Goal
+Add one thin, sparkly, multi-colour line across the top of AI Studio. It always answers three questions:
+1. **How much is left** before we hit the plan limit?
+2. **At our current pace, when do we hit it**, or do we reach the reset first?
+3. **When does the limit reset?**
+
+Feature: `f-ai-credits-tracker`. This file covers the research and the roadmap. The design comes in Phase 3.
+
+## The data source (research, 2026-11-24)
+
+### First principles
+- A subscription (Pro/Max) has **no published token or credit number**. The limit is a set of rolling windows
+  (5-hour, 7-day, and sometimes per-model 7-day ones). Anthropic reports each window only as **% used plus a reset
+  time**. So "credits left" is really **100% minus % used**. Any absolute token "limit" we show would be made up.
+- Only Anthropic knows the real % used. That's because the user's own Claude Code sessions, claude.ai chats, and
+  every studio run all draw from the same windows. Counting our own tokens can never give the truth. It only
+  covers the studio's share.
+
+### What we have: the CLI already tells us, and we throw it away
+Every `claude -p --output-format stream-json` run the studio starts writes a `rate_limit_event` line. The CLI writes
+one whenever an API response moves the rounded utilization or a reset time. We have captured real ones on this
+machine (CLI 2.1.322, `apiKeySource: none`, so a subscription), in `server/test/fixtures/live-*.jsonl` and
+`.tmp-live/home/runs/*.jsonl`:
+
+```json
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1794630600,"rateLimitType":"five_hour",
+ "overageStatus":"rejected","overageDisabledReason":"out_of_credits","isUsingOverage":false,
+ "unifiedWindows":{"five_hour":{"utilization":0.15,"resetsAt":1794630600,"status":"allowed"},
+                   "seven_day":{"utilization":0.53,"resetsAt":1794808800,"status":"allowed"}}}, ...}
+```
+
+- `unifiedWindows.<window>.utilization` is a **fraction from 0 to 1**.
+- `resetsAt` is in **epoch seconds**.
+- `status` is one of `allowed`, `allowed_warning` or `rejected`.
+- Other window names can appear: `seven_day_opus`, `seven_day_sonnet`, `overage`.
+- `server/src/runtime/stream.ts` ignores this line today. Nothing in `server/src` reads `rate_limit`.
+
+**Decision: this is the primary source.** Why:
+- It's exact, because it comes from Anthropic's own rate limiter.
+- It costs nothing extra: no extra requests and no tokens.
+- It's already on our pipe. Every claude process goes through `claudeCliRunner` (`server/src/runtime/claude-cli.ts`
+  › `lines.on('line')`), so there's a single place to tap it.
+
+**Caveat:** the event isn't formally documented. Every field must be treated as optional. If the shape changes, the
+parser drops the reading and the line shows "no reading". It never shows a wrong number.
+
+### Sources considered and deleted
+| Source | Verdict |
+|---|---|
+| Status-line JSON `rate_limits` (official, documented: `used_percentage` 0–100, `resets_at` epoch s) | Same numbers, but only for *interactive* sessions with a status-line script. We'd have to install a script into the user's own Claude Code settings. That's invasive, and we already have the data. **Deleted.** |
+| `GET api.anthropic.com/api/oauth/usage` (what `/usage` uses) | It would work while the studio is idle. But it's undocumented, and it means reading the user's OAuth token out of the Keychain. That breaks "never touch secret values". **Deleted.** We'll revisit only if staleness turns out to hurt in practice. |
+| A tiny "probe" run (`claude -p` with Haiku) to refresh when idle | Burns a little of the very quota we measure, and adds a moving part. **Deleted from v1.** Phase 4 notes when to add it back. |
+| HTTP `anthropic-ratelimit-*` headers | These are for API keys only. The CLI doesn't pass them to us. **N/A.** |
+| Our own token log (`runs` + `crew_time` tokens, `runs.cost_usd`; Agent Performance) | Not the truth for a subscription (see above). **Kept** in two roles: (a) the fallback, when an account sends no `unifiedWindows` (API key, Bedrock, Vertex); (b) "who is burning it": the studio's share of the burn, per agent. |
+
+### Staleness, honestly
+The readings only arrive while a run is going. When the studio is idle, the last reading stays true until its
+`resetsAt`, apart from use outside the studio. Once `resetsAt` passes, we know that window reset. Then we show
+"fresh window, next reading with the next run". The line always says how old its reading is once it's more than
+about 15 minutes old.
+
+## How the numbers are worked out (pure, server-side)
+These are worked out for each window `w` from the readings stored for that window, all sharing the same `resetsAt`:
+- `left = 1 − u_now`.
+- `start = resetsAt − length(w)`, where the length is 5 h or 7 d.
+- **Burn rate.** The default is the slope over the last 60 minutes of readings, which needs at least 2 readings
+  and at least 2 points of rise. If there aren't enough, use `u_now / (now − start)`, the average since the window
+  opened. Utilization comes in 1% steps, so a short slope on its own would be noise.
+- `hitsAt = now + left / rate`. If `hitsAt ≥ resetsAt`, the verdict is **"lasts until reset"**. Otherwise the
+  verdict is **"hits limit at T"**.
+- **The line shows the binding window.** That's the one with the earliest `hitsAt`, or the highest `u` if neither
+  hits. It's usually the 5-hour window, but it's the weekly one when the week is nearly used up.
+- `status: rejected` with `isUsingOverage: false` means **limited now, until resetsAt**. The line shows that
+  outright.
+
+## Roadmap
+
+### Phase 1: Server: capture the readings
+- `stream.ts`: add a pure `parseRateLimit(line) → LimitReading | null`, where `LimitReading` is
+  `{ at, status, windows: { name, used (0–1), resetsAt (ISO) }[], overage: { using, status } }`. The parser takes
+  the fields defensively: it accepts a fraction or a percent, and epoch seconds or milliseconds, and drops anything
+  it doesn't recognise.
+- `claudeCliRunner(opts)` gets `onLimits?(reading)`, which is called from the line handler. This keeps the
+  RunEvent consumers (service, dispatch, setup-chat, creator, health) unchanged.
+- New module `server/src/credits/`: `store.ts`. Migration `limit_readings(at, window, used, resets_at, status)`,
+  written only when something changed. It keeps 8 days of readings, and older rows are pruned on write. The data is
+  studio-wide, not per project, because there's one account.
+- **Tests:**
+  - Parse every real fixture line in `server/test/fixtures/live-*.jsonl`.
+  - A bare event, an unknown window, percent and millisecond variants, junk and a non-limit line all return null or
+    a partial result. Nothing throws.
+  - Store dedupe and prune.
+  - The runner calls `onLimits`, tested with a fake CLI script that prints a limit line.
+
+### Phase 2: Server: forecast and route
+- `server/src/credits/forecast.ts` (pure): readings plus `now` give a list of windows with
+  `{ name, used, left, resetsAt, ratePerHour, hitsAt | null, verdict, readingAgeMs }`, plus `binding` and `state`.
+  `state` is one of `ok`, `warning`, `limited`, `stale` or `none`.
+- `GET /credits` returns the forecast. A `credits.changed` event goes out on the studio's existing event stream
+  after each new reading, so the line moves live without polling. A plain timer re-forecasts once a minute, so
+  "hits at" and "resets in" stay current while idle.
+- The studio's share comes from Agent Performance spans: tokens in the binding window's span, per agent. It reuses
+  `performance/spans.ts`, so no new recording is needed.
+- **Tests (clock injected):**
+  - A steady burn hits before reset.
+  - A slow burn lasts until reset.
+  - Too few readings falls back to the average since the window opened.
+  - The window reset leaves "fresh, no reading".
+  - Weekly is the binding window when it's nearly used up.
+  - `rejected` gives `limited`, but `rejected` with overage in use doesn't.
+  - No readings at all gives `none`.
+  - The route's shape is locked.
+
+### Phase 3: App: the sparkly line (bring in UX)
+- A UX expert designs it first, along these lines:
+  - A 3–4 px full-width bar at the very top of `app/src/shell/Shell.tsx`.
+  - The fill shows the **left** share in a slowly drifting rainbow gradient with a faint shimmer. The used part is
+    a quiet track.
+  - The colours stay joyful and don't turn red. Urgency shows as the shimmer getting faster plus the words.
+  - Hovering, focusing or tapping opens a small card:
+    - "5-hour: 62% left · resets 4:30 pm"
+    - "At this pace: lasts until reset", or "runs out ≈ 3:10 pm"
+    - "Weekly: 47% left · resets Sat 9:00"
+    - "Studio's share this window: Elon 40%, Pixel 22%…"
+    - "updated 3 min ago"
+  - Respects `prefers-reduced-motion` (no shimmer). Has an `aria-label` with the plain sentence. Can be reached by
+    keyboard.
+  - Every state is designed: `none` shows "Usage appears after the first run", plus `stale`, `limited` and the
+    fallback "estimated".
+- `app/src/features/credits/`: an isolated `CreditsLine` component plus a pure `model.ts` for formatting and state
+  to style.
+- **Tests:**
+  - `model.ts`: every state, the times in the user's local zone, and the sentences.
+  - Component render for `none`, `ok`, `limited` and reduced motion.
+  - Live check: run the app, start one real run, see the line fill in.
+
+### Phase 4: Voice path, and a decision on idle refresh
+- Voice/chat: Pixel, and any agent, can answer "how much credit do we have left?" from `GET /credits`. That works
+  through a small read-only `credits` studio tool, or as a single line in the orchestrator's context. Pick
+  whichever is fewer parts. The orchestrator can also read `limited` / `hitsAt` to stop starting big work it can't
+  finish, as a hint only.
+- Decision gate: if the live use in Phase 3 shows that stale readings mislead, add the deleted Haiku probe back.
+  It would run at most once per 30 minutes, only while the app is open and the studio is idle, and only if the user
+  turns it on. Otherwise it stays deleted.
+- **Tests:** the tool or context line text for each state, and that it refuses nothing and leaks no secrets.
+
+### Phase 5: Fallback when Anthropic gives no windows (only if needed)
+- This applies when readings arrive with no `unifiedWindows`, or none ever arrive. That happens with an API key,
+  Bedrock or Vertex. The `init` line shows `apiKeySource` ≠ `none`.
+- The fallback: the user sets one limit in the card, either "$ per day" or "tokens per 5 hours". The line then
+  works it out from our own token log (`runs` tokens and `cost_usd`, `crew_time`) over a rolling window, with the
+  same forecast maths. It's labelled **"estimated: studio use only"**.
+- Build this phase only if a user without subscription windows shows up. The current account sends them.
+- **Tests:** estimate maths against a seeded token log, the label, and that a real reading always beats the
+  estimate.
+
+## Status
+- [x] Research: data source chosen and verified against real stream lines on this machine (2026-11-24, Elon).
+- [ ] Phase 1 · [ ] Phase 2 · [ ] Phase 3 · [ ] Phase 4 · [ ] Phase 5 (conditional)
