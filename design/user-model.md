@@ -30,7 +30,12 @@
 
 - They ask the orchestrator "build me a team for X" and say yes in chat (Sea GPS, Nov 2026). Afterwards they need to see what was made and fix or take it back without hunting through the Cast. Design: one "built for you" card in the chat (design/team-built-card.md).
 
+- The home screen's "On set today" filled up with projects the user hadn't touched, because agents keep them live or edited (Nov 2026). They asked for their own pinned projects on top, then "Today" holding only projects where they sent a message or gave work (opening one doesn't count), then the rest. Design: updates/2026-11-24 HOME SCREEN - OPEN/design.md.
+
 ## Assumptions (guesses — check)
+- People pin a short list (2–6) and rarely reorder it. Check: pin count after a week; reorder events.
+- "Today" as the local calendar day matches what the user means. Check: complaints after working past midnight.
+- A needs-input project sorted first in All other projects (plus the pager) is never missed. Check: time from a needs-input ask to the answer, before vs after.
 - After a team is built, people mostly rename or tweak one agent, and rarely take the whole build back. Check: Edit vs Remove vs Remove all clicks on the built card.
 - One Start, bottom-right of the office, is found without help, and Stop is rarely wanted there (it stays on the health card). Check: time to first Start in a new office; do people go to the health card to stop right after?
 - Opening the newest build (no rebuild) is what people mean by "test it". Check: do they report testing a stale build?
