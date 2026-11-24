@@ -100,7 +100,9 @@ Feature: `f-home-screen-pinned-today`. The full design is in [design.md](design.
 
 ## Status
 - [x] Roadmap and design (this file, [design.md](design.md)); user model updated.
-- [ ] Phase 1: server pins + `lastUserAt`
+- [x] Phase 1: server pins + `lastUserAt` (migration 56, `src/home/user-activity.ts`, `PUT /projects/pins`;
+  tests in `server/test/home/`). Decided: `last_user_at` is a stored column stamped by an allowlist of the user's
+  HTTP actions, backfilled once from the user's words on record. See wiki.
 - [ ] Phase 2: app model
 - [ ] Phase 3: app UI + pin
 - [ ] Phase 4: reorder + voice (nice-to-have)

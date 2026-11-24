@@ -22,7 +22,10 @@ const withFolder = (h: H) => {
   forget(h);
   return h;
 };
-const asking: FakeStep[] = [{ ask: 'Ship it?', options: ['Yes', 'No'] }, { result: 'ok' }];
+const asking: FakeStep[] = [
+  { ask: 'Reload the app — did the fix work?', options: ['Yes', 'No'] }, // not a permission check: never auto-answered
+  { result: 'ok' },
+];
 const tick = () => new Promise((r) => setTimeout(r, 5));
 async function openAsk(h: H): Promise<AskView> {
   for (let i = 0; i < 200; i++) {
@@ -96,7 +99,7 @@ describe('lastUserAt: the user gave work here', () => {
     await h.runtime.settled(agentRun.id);
     expect(last(h)).toBeNull();
 
-    const r = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-baron', task: 'Fix it' });
+    const r = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-prof', task: 'Fix it' });
     expect(r.status).toBe(201);
     expect(last(h)).not.toBeNull();
     const ask = await openAsk(h);
