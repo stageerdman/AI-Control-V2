@@ -101,6 +101,21 @@ describe('the director asks someone from chat', () => {
     expect(joined.map((e) => (e.payload as { agentId: string }).agentId)).toEqual(['a-twinkle']);
   });
 
+  /* "build me a team": ask_person said nobody called Tinker or Agent Creator exists */
+  it.each(['Tinker', 'Agent Creator', 'agent creator'])('reaches the Agent Creator as “%s”', async (to) => {
+    const s = studio();
+    h = s.h;
+    const said = await s.turn(`Ask ${to} to design a storyteller`, {
+      tool: 'ask_person',
+      args: { to, question: 'Could you design a storyteller agent?' },
+    });
+    expect(said).toMatch(/^Tinker’s answer, for you to act on/);
+    const joined = h.events.after('project', 'lumi').filter((e) => e.type === 'room.joined');
+    expect(joined.map((e) => (e.payload as { agentId: string }).agentId)).toEqual(['a-creator']);
+    // the director's summary names who designs new agents
+    expect(s.calls[0]?.task).toContain('"agentCreator":"Tinker"');
+  });
+
   it('`work: true` hands them a side quest: it goes on the whiteboard as their task', async () => {
     const s = studio();
     h = s.h;

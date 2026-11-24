@@ -23,6 +23,18 @@ type HasKind = { id: string; kind: AgentKind };
 export const isSystemKind = (k: AgentKind) => k !== 'agent';
 const isSingleton = (k: AgentKind) => k === 'setter' || k === 'creator';
 
+/** Is `said` this agent: its id, name or nick (case-blind) — or, for the one setter and the one creator, its role,
+    since a one-of-a-kind role names exactly one agent ("ask the Agent Creator"). */
+export function answersTo(a: HasKind & { name: string; nick?: string | null }, said: string): boolean {
+  const k = said.trim().toLowerCase();
+  return (
+    a.id === said.trim() ||
+    a.name.toLowerCase() === k ||
+    a.nick?.toLowerCase() === k ||
+    (isSingleton(a.kind) && KIND_LABEL[a.kind].toLowerCase() === k.replace(/^the\s+/, ''))
+  );
+}
+
 /** Creating a second setter or creator is refused; agents and orchestrators are open. */
 export function assertCanCreate(kind: AgentKind, cast: readonly HasKind[]): void {
   if (isSingleton(kind) && cast.some((a) => a.kind === kind)) {

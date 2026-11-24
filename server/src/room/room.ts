@@ -17,6 +17,7 @@ import type { Db } from '../db/connection.ts';
 import type { ChatMessage } from '../db/drafts.ts';
 import type { Store } from '../db/store.ts';
 import { rows } from '../db/util.ts';
+import { answersTo } from '../domain/cast.ts';
 import type { EventInput } from '../domain/events.ts';
 import type { EventLog } from '../events/log.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
@@ -194,16 +195,12 @@ export function createRoom(deps: {
         : { agentId, status: 'idle' },
     });
 
-  /** Find a callable agent by id, name or nick (case-insensitive): Cast agents, the creator, and this room's orchestrator. */
+  /** Find a callable agent by id, name or nick (case-insensitive), or the creator by its role: Cast agents, the
+      creator, and this room's orchestrator. */
   function resolve(who: string, orchestratorId: string | null): Agent | null {
-    const k = who.trim().toLowerCase();
     const hit = store.agents
       .list()
-      .find(
-        (a) =>
-          (CALLABLE.has(a.kind) || a.id === orchestratorId) &&
-          (a.id === who.trim() || a.name.toLowerCase() === k || a.nick?.toLowerCase() === k),
-      );
+      .find((a) => (CALLABLE.has(a.kind) || a.id === orchestratorId) && answersTo(a, who));
     return hit ?? null;
   }
 
