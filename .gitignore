@@ -16,4 +16,6 @@ target/
 *.log
 .vscode/
 .idea/
+# Agents' throwaway checks (screenshots, headless browsers, probe scripts) — never commit
+.scratch/
 updates/*/concepts/disney-v3/shots/
