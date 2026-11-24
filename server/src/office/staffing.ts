@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { Agent } from '../db/agents.ts';
 import type { Store } from '../db/store.ts';
+import { describe } from '../domain/agent-about.ts';
 import { EMBLEM_IDS, HUES } from '../domain/catalog.ts';
 import { TEAM_MAX } from '../domain/teams.ts';
 import { invalid } from '../errors.ts';
@@ -31,7 +32,7 @@ export const StaffSchema = z.object({
 });
 export type Staff = z.output<typeof StaffSchema>;
 
-/** Who the director may add: Cast agents and teams not on the project yet (names, for its prompt).
+/** Who the director may add: Cast agents (name, role, about) and teams not on the project yet, for its prompt.
     `wasHere`: they used to be on this project and can be brought back. */
 export function castAvailable(store: Store, projectId: string) {
   const p = store.projects.require(projectId);
@@ -41,7 +42,12 @@ export function castAvailable(store: Store, projectId: string) {
     agents: store.agents
       .list()
       .filter((a) => a.kind === 'agent' && !here.has(a.id))
-      .map((a) => ({ name: a.name, role: a.role, ...(former.has(a.id) ? { wasHere: true } : {}) })),
+      .map((a) => ({
+        name: a.name,
+        role: a.role,
+        ...describe(a),
+        ...(former.has(a.id) ? { wasHere: true } : {}),
+      })),
     teams: store.teams
       .list()
       .filter((t) => !p.teamIds.includes(t.id))

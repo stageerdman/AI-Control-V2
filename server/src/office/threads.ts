@@ -21,6 +21,7 @@ import { type Ask, INTERRUPTED, type Run, runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now, type Row, rows } from '../db/util.ts';
 import { resumable, workRepo } from '../db/work.ts';
+import { describe } from '../domain/agent-about.ts';
 import { dependsOn } from '../domain/task-order.ts';
 import { wayInWords } from '../domain/workflows.ts';
 import { AppError, conflict, notFound } from '../errors.ts';
@@ -318,11 +319,17 @@ export function createThreads(deps: {
     const stopped = all.filter((g) => resumable(g.status));
     const finished = all.filter((g) => g.status !== 'running' && !resumable(g.status)).slice(0, 3);
     const health = deps.health.latest(p.id);
-    /* name + role, and `reporter` when the role files reports (only reporters may take research) */
-    const person = (id: string) => {
+    /* name + role + who they are (+ their job on the team), and `reporter` when the role files reports (only
+       reporters may take research) — name + role alone made the director pick the wrong person */
+    const person = (id: string, job?: string) => {
       const a = store.agents.get(id);
       const reporter = !!a?.roleId && !!store.roles.get(a.roleId)?.reporter;
-      return { name: name(id), role: a?.role ?? '', ...(reporter ? { reporter: true } : {}) };
+      return {
+        name: name(id),
+        role: a?.role ?? '',
+        ...describe(a, job),
+        ...(reporter ? { reporter: true } : {}),
+      };
     };
     const creatorName = () => store.agents.list().find((a) => a.kind === 'creator')?.name ?? null;
     return {
@@ -336,12 +343,12 @@ export function createThreads(deps: {
             {
               name: t.name,
               captain: t.captainId ? name(t.captainId) : null,
-              members: t.members.map((m) => person(m.agentId)),
+              members: t.members.map((m) => person(m.agentId, m.instr)),
               ...(t.reporter ? { reporter: true } : {}),
             },
           ];
         }),
-        specialists: p.agentIds.map(person),
+        specialists: p.agentIds.map((id) => person(id)),
         /* who the director may staff the project with (by name; never invent anyone) */
         castAvailable: castAvailable(store, p.id),
         /* who designs new agents: reachable with ask_person by this name ("nobody called Tinker exists") */

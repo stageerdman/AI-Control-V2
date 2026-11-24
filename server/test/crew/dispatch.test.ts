@@ -130,6 +130,9 @@ describe('dispatch: goal → checklist → runs', () => {
     expect(plan?.tools).toEqual([]);
     expect(plan?.task).toContain('"captain":{"id":"a-semic","name":"Captain Semicolon"}');
     expect(plan?.task).toContain('"specialists":[{"id":"a-baron"');
+    // who each one is and their job on the team, so the plan goes to the right person
+    expect(plan?.task).toContain('{"name":"Pixel Pete","about":"You are a frontend engineer.","job":"Own the');
+    expect(plan?.task).toContain('"role":"DevOps","about":"You are a DevOps engineer."');
 
     // the office saw it: goal, items, progress, then the goal settling
     const ev = h.events.after('project', 'aurora');

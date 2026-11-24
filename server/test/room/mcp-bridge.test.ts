@@ -86,12 +86,21 @@ it('relays room + call_agent from the backend, and the CLI pre-approves them by 
       content: { text: string }[];
     };
     const view = JSON.parse(room.content[0]?.text ?? '{}');
-    expect(view.inTheRoom[0]).toEqual({ name: 'Pixel', role: 'Orchestrator' });
+    expect(view.inTheRoom[0]).toEqual({
+      name: 'Pixel',
+      role: 'Orchestrator',
+      about: 'You are the orchestrator.',
+    });
     expect(view.yourContact).toBe('Captain Semicolon'); // Pete reports to his captain
+    /* who each one is and their job on the team, so nobody picks the wrong person */
     expect(view.inTheRoom.find((p: { you?: boolean }) => p.you)).toMatchObject({
       name: 'Pixel Pete',
       team: 'The Ship-It Squad',
+      about: 'You are a frontend engineer.',
+      job: expect.stringMatching(/^Own the storefront UI/),
     });
+    expect(view.elsewhereInTheStudio.length).toBeGreaterThan(0);
+    for (const p of view.elsewhereInTheStudio) expect(p.about).toEqual(expect.any(String));
     const self = (
       await rpc(4, 'tools/call', {
         name: 'call_agent',

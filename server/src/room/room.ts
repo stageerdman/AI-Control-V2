@@ -17,6 +17,7 @@ import type { Db } from '../db/connection.ts';
 import type { ChatMessage } from '../db/drafts.ts';
 import type { Store } from '../db/store.ts';
 import { rows } from '../db/util.ts';
+import { describe, jobOn } from '../domain/agent-about.ts';
 import { answersTo } from '../domain/cast.ts';
 import type { EventInput } from '../domain/events.ts';
 import type { EventLog } from '../events/log.ts';
@@ -222,6 +223,7 @@ export function createRoom(deps: {
       return {
         name: a.name,
         role: id === orch ? 'Orchestrator' : a.role,
+        ...describe(a, jobOn(teams, id)),
         ...(team ? { team: team.name, ...(team.captainId === id ? { captain: true } : {}) } : {}),
         ...(id === ctx.agentId ? { you: true } : {}),
       };
@@ -230,7 +232,7 @@ export function createRoom(deps: {
       .list()
       .filter((a) => CALLABLE.has(a.kind) && !here.includes(a.id))
       .slice(0, 40)
-      .map((a) => ({ name: a.name, role: a.role }));
+      .map((a) => ({ name: a.name, role: a.role, ...describe(a) }));
     const contact = contactOf(ctx.agentId, orch, leaderOf(ctx, teams));
     return {
       ...(contact ? { yourContact: store.agents.get(contact)?.name ?? contact } : {}),
@@ -438,7 +440,7 @@ export function createRoom(deps: {
       {
         name: 'room',
         description:
-          'Who is in the room with you (roles, teams, captains, the orchestrator) and who else is in the studio.',
+          'Who is in the room with you (roles, who each one is, their job on the team, captains, the orchestrator) and who else is in the studio.',
         inputSchema: { type: 'object', properties: {} },
         run: async () => JSON.stringify(roomView(ctx)),
       },

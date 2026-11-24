@@ -47,6 +47,27 @@ describe('the director staffs from chat', () => {
       .filter((m) => m.role === 'assistant')
       .map((m) => m.text);
 
+  it('the summary says who each person is and their job on the team, not just name + role', async () => {
+    const calls = setup([]);
+    h.store.projects.update('lumi', { teamIds: ['ship-it'], agentIds: ['a-twinkle'] });
+    const orch = h.store.projects.require('lumi').orchestratorId;
+    const r = await h.call('POST', `/projects/lumi/threads/${orch}/messages`, { text: 'Who is here?' });
+    await h.runtime.settled(r.body.runId);
+    const line = calls[0]?.task.split('\n')[0] ?? '';
+    type Who = { name: string; about?: string; job?: string };
+    const { people } = JSON.parse(line.replace('Studio summary right now: ', '')) as {
+      people: { teams: { members: Who[] }[]; specialists: Who[]; castAvailable: { agents: Who[] } };
+    };
+    expect(people.teams[0]?.members.find((m) => m.name === 'Pixel Pete')).toMatchObject({
+      about: 'You are a frontend engineer.',
+      job: expect.stringMatching(/^Own the storefront UI/),
+    });
+    expect(people.specialists[0]).toMatchObject({ name: 'Twinkle', about: expect.any(String) });
+    expect(people.specialists[0]).not.toHaveProperty('job');
+    expect(people.castAvailable.agents.length).toBeGreaterThan(0);
+    for (const a of people.castAvailable.agents) expect(a.about).toEqual(expect.any(String));
+  });
+
   it('a new team from Cast agents + a specialist join in the turn, then the goal goes to them', async () => {
     const calls = setup([
       {

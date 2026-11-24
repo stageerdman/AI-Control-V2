@@ -2,6 +2,7 @@
    well and the fake brain can parse it back (src/crew/fake-brain.ts). */
 import type { Agent } from '../db/agents.ts';
 import type { Store } from '../db/store.ts';
+import { describe } from '../domain/agent-about.ts';
 import { ORCHESTRATOR_ROOM } from '../room/context.ts';
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -18,10 +19,11 @@ export type CastCatalogue = {
     /** Files reports (research, reviews, write-ups end in the Reports tray). */
     reporter?: true;
   }[];
-  agents: { id: string; name: string; role: string; reporter?: true; toolsmith?: true }[];
+  agents: { id: string; name: string; role: string; about?: string; reporter?: true; toolsmith?: true }[];
 };
 
-/** Teams (with what they do / how they code / members / captain) and every regular agent with its role. */
+/** Teams (with what they do / how they code / members / captain) and every regular agent with its role and
+    who they are. */
 export function castCatalogue(store: Store): CastCatalogue {
   const agents = store.agents.list().filter((a) => a.kind === 'agent');
   const byId = new Map(agents.map((a) => [a.id, a]));
@@ -47,6 +49,7 @@ export function castCatalogue(store: Store): CastCatalogue {
       id: a.id,
       name: a.name,
       role: a.role,
+      ...describe(a),
       ...(reporterRole(a.roleId) ? { reporter: true as const } : {}),
       /* quality / test people who keep their own checks — natural reviewers for collaboration gates */
       ...(toolsmithRole(a.roleId) ? { toolsmith: true as const } : {}),

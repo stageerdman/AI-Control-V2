@@ -112,7 +112,12 @@ describe('project conversations (threads)', () => {
       'The Polish Patrol',
     ]);
     expect(summary.people.teams[0]).toMatchObject({ captain: 'Captain Semicolon' });
-    expect(summary.people.teams[0].members).toContainEqual({ name: 'Pixel Pete', role: 'Frontend' });
+    expect(summary.people.teams[0].members).toContainEqual({
+      name: 'Pixel Pete',
+      role: 'Frontend',
+      about: 'You are a frontend engineer.',
+      job: expect.stringMatching(/^Own the storefront UI/),
+    });
     expect(summary.people.specialists.map((s: { name: string }) => s.name)).toContain('Baron von Backup');
     expect(summary.people.howWeWork).toBeTruthy();
     expect(spec.systemPrompt).toMatch(/ONE goal/);
@@ -132,7 +137,9 @@ describe('project conversations (threads)', () => {
     const s3 = JSON.parse(
       ((seen.at(-1) as RunSpec).task.split('\n')[0] as string).replace('Studio summary right now: ', ''),
     );
-    expect(s3.people.specialists).toEqual([{ name: 'Professor Prompt', role: 'Research', reporter: true }]);
+    expect(s3.people.specialists).toEqual([
+      { name: 'Professor Prompt', role: 'Research', about: 'You are a research agent.', reporter: true },
+    ]);
   });
 
   it('a message to an agent at work becomes a note for its run, not a refusal', async () => {

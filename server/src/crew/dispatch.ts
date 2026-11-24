@@ -32,6 +32,7 @@ import {
   resumable,
   workRepo,
 } from '../db/work.ts';
+import { describe } from '../domain/agent-about.ts';
 import { GATE_FOCUS, parseVerdict } from '../domain/collaboration.ts';
 import { isClosed } from '../domain/feature-stages.ts';
 import { BranchLabel } from '../domain/gates.ts';
@@ -1711,7 +1712,10 @@ export function createDispatch(deps: {
                     name: t.name,
                     does: clip(t.instr, 400),
                     captain: t.captainId ? { id: t.captainId, name: c.name(t.captainId) } : null,
-                    members: t.members.map((m) => c.name(m.agentId)),
+                    members: t.members.map((m) => ({
+                      name: c.name(m.agentId),
+                      ...describe(store.agents.get(m.agentId), m.instr),
+                    })),
                     ...(t.captainId && c.canReport(t.captainId, t.id) ? { reporter: true } : {}),
                   },
                 ]
@@ -1721,6 +1725,7 @@ export function createDispatch(deps: {
             id,
             name: c.name(id),
             role: store.agents.get(id)?.role ?? '',
+            ...describe(store.agents.get(id)),
             ...(c.canReport(id) ? { reporter: true } : {}),
           })),
         };

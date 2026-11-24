@@ -6,6 +6,7 @@
    Contract `collaboration`: {"reply": string, "workflows": Workflow[]}. */
 import { z } from 'zod';
 import type { Store } from '../db/store.ts';
+import { describe, jobOn } from '../domain/agent-about.ts';
 import {
   type Collaboration,
   CollaborationSchema,
@@ -81,18 +82,21 @@ export function createCollaboration(deps: {
         throw conflict('Nobody staffs this project yet — add a team or a specialist first');
       if (busy.has(projectId)) throw conflict('The orchestrator is already designing how this team works');
       const orch = store.agents.require(p.orchestratorId);
-      const who = (id: string) => {
+      const who = (id: string, job?: string) => {
         const a = store.agents.get(id);
-        return { id, name: a?.name ?? id, role: a?.role ?? '' };
+        return { id, name: a?.name ?? id, role: a?.role ?? '', ...describe(a, job) };
       };
       const people = {
-        teams: [...s.teams.entries()].map(([id, t]) => ({
-          teamId: id,
-          name: t.name,
-          captain: store.teams.get(id)?.captainId ?? null,
-          members: t.members.map(who),
-        })),
-        specialists: [...s.specialists].map(who),
+        teams: [...s.teams.entries()].map(([id, t]) => {
+          const team = store.teams.get(id);
+          return {
+            teamId: id,
+            name: t.name,
+            captain: team?.captainId ?? null,
+            members: t.members.map((m) => who(m, team ? jobOn([team], m) : undefined)),
+          };
+        }),
+        specialists: [...s.specialists].map((id) => who(id)),
       };
       busy.add(projectId);
       try {
