@@ -836,6 +836,23 @@ export const MIGRATIONS: readonly string[] = [
   DROP INDEX accesses_by_folder;
   CREATE UNIQUE INDEX accesses_by_folder ON accesses(folder, COALESCE(local_to, '')) WHERE folder IS NOT NULL;
   `,
+  /* 56 — the home screen: pin_rank = the project's place in My Workplace (NULL = not pinned); last_user_at = the
+     last time the user gave work there (src/home/user-activity.ts stamps it). Backfilled from the user's own words
+     already on record: thread messages, answers they gave (NULL answered_by predates auto-answers), chat follow-ups. */
+  `
+  ALTER TABLE projects ADD COLUMN pin_rank INTEGER;
+  ALTER TABLE projects ADD COLUMN last_user_at TEXT;
+  UPDATE projects SET last_user_at = (SELECT MAX(t) FROM (
+    SELECT MAX(created_at) AS t FROM thread_messages WHERE project_id = projects.id AND sender = 'user'
+    UNION ALL
+    SELECT MAX(answered_at) FROM asks
+      WHERE project_id = projects.id AND status = 'answered' AND COALESCE(answered_by, 'user') = 'user'
+    UNION ALL
+    SELECT MAX(created_at) FROM chat_messages
+      WHERE project_id = projects.id AND role = 'user'
+        AND (CASE WHEN json_valid(meta) THEN json_extract(meta, '$.followUp') END) = 1
+  ));
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */

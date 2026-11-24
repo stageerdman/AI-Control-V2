@@ -20,6 +20,8 @@ const fields = {
 };
 const ProjectCreate = z.strictObject(fields);
 const ProjectPatch = z.strictObject({ ...fields, name: Name.optional() });
+/** The whole My Workplace list in order: pin, unpin and reorder are one call. */
+const PinsBody = z.strictObject({ ids: z.array(Id).max(500) });
 
 /** `icons`: re-copies icons linked to a file that changed, so a read carries the fresh imageUrl. */
 type Icons = { refresh(id: string): void; refreshAll(): void };
@@ -39,6 +41,11 @@ export const projectRoutes =
     app.post('/projects', async (req, reply) =>
       reply.status(201).send(store.tx(() => store.projects.create(parse(ProjectCreate, req.body)))),
     );
+    app.put('/projects/pins', async (req) => {
+      const { ids } = parse(PinsBody, req.body);
+      store.tx(() => store.projects.setPins(ids));
+      return store.projects.list();
+    });
     app.patch('/projects/:id', async (req) => {
       const { id } = parse(IdParams, req.params);
       return store.tx(() => store.projects.update(id, parse(ProjectPatch, req.body)));

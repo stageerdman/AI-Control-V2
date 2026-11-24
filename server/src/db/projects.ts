@@ -37,6 +37,8 @@ type ProjectRecord = {
   workflows: string | null;
   target: string | null;
   position: number;
+  pin_rank: number | null;
+  last_user_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -71,6 +73,10 @@ export type Project = {
   workflows: Workflow[] | null;
   /** What the overall progress counts towards ("v1.0"); null = no label. */
   target: string | null;
+  /** HOME: its place in My Workplace (lower = first; ranks may have gaps); null = not pinned. */
+  pinRank: number | null;
+  /** HOME: the last time the user gave work here (a message, a goal, an answer); agents' work never moves it. */
+  lastUserAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -206,6 +212,8 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     agentIds: links(r.id, 'agents'),
     workflows: readWorkflows(r),
     target: r.target ?? null,
+    pinRank: r.pin_rank,
+    lastUserAt: r.last_user_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   });
@@ -289,6 +297,22 @@ export function projectsRepo(db: Db, deps: { agents: AgentsRepo; teams: TeamsRep
     remove(id: string): void {
       requireRecord(id);
       db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    },
+
+    /** My Workplace, in order: these projects are pinned as listed, every other one is unpinned. */
+    setPins(ids: readonly string[]): void {
+      if (new Set(ids).size !== ids.length) throw invalid('ids has duplicates');
+      for (const id of ids) requireRecord(id);
+      db.prepare('UPDATE projects SET pin_rank = NULL WHERE pin_rank IS NOT NULL').run();
+      const pin = db.prepare('UPDATE projects SET pin_rank = ? WHERE id = ?');
+      ids.forEach((id, rank) => {
+        pin.run(rank, id);
+      });
+    },
+
+    /** The user gave work here just now. Not an edit: updated_at stays. Unknown ids are ignored. */
+    markUserActive(id: string, at: string = now()): void {
+      db.prepare('UPDATE projects SET last_user_at = ? WHERE id = ?').run(at, id);
     },
 
     /** Orchestrator hand-over (used when an orchestrator is deleted / restored). */

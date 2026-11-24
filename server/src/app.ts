@@ -25,6 +25,7 @@ import { createTeamWorkflows } from './crew/team-workflow.ts';
 import { createWorkflows, shortName } from './crew/workflows.ts';
 import type { Db } from './db/connection.ts';
 import { runsRepo } from './db/runs.ts';
+import { trackUserActivity } from './home/user-activity.ts';
 import { metaFlag, metaValue } from './db/settings.ts';
 import { createStore, type Store } from './db/store.ts';
 import { teamRequestsRepo } from './db/team-requests.ts';
@@ -745,6 +746,10 @@ export function buildApp({
     reply.status(404).send({ error: { code: 'not_found', message: `No route ${req.method} ${req.url}` } }),
   );
 
+  trackUserActivity(app, {
+    projectOfRun: (runId) => runsRepo(db).get(runId)?.projectId ?? null,
+    markUserActive: (projectId) => store.projects.markUserActive(projectId),
+  });
   app.register(healthRoutes({ config, db, build }));
   for (const routes of [roleRoutes, draftRoutes]) app.register(routes(store));
   app.register(projectRoutes(store, portraits));
