@@ -13,7 +13,8 @@ const fieldsOf = (a: AgentAccess) =>
   a.fields.map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`).join(', ');
 
 /** How a shared folder may be used, in the words agents are told. */
-export const folderReach = (a: Pick<AgentAccess, 'readOnly'>) => (a.readOnly ? 'read only' : 'read and write');
+export const folderReach = (a: Pick<AgentAccess, 'readOnly'>) =>
+  a.readOnly ? 'read only' : 'read and write';
 
 const headOf = (a: AgentAccess) =>
   a.folder

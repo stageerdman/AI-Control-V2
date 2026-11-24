@@ -46,7 +46,15 @@ data folder uses. The live-access path already tells working agents to restart w
 
 ## Status
 
-(filled in as phases land)
+- Phases 1–3 landed (server). `test/secrets/folder-scope.test.ts`: global vs local visibility, switch on/off,
+  read-only deny rule vs read/write none, the projects folder read-only only, path checks (missing, file,
+  home root, `/`, symlink to the home root, relative). Full suite passes.
+- Live check with the real CLI (`spike-readonly.mjs`, haiku, a read-only `--add-dir`): `Read` and `ls` work;
+  the `Write` tool, `touch`, `echo >` and `mkdir` are all denied; `.env` is refused to both `Read` and
+  `cat`. One `Edit(//dir/**)` rule is enough — the CLI ignores a `Write(path)` rule and says so, so the
+  studio no longer passes one.
+- Still open: the Vault screen (mode picker, "this project only" switch) — the client side.
+- Phase 4 is this section, the wiki and the feature lines.
 
 ## Risks
 

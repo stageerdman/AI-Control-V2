@@ -47,12 +47,21 @@ describe('folder grants: global or local, read or read and write', () => {
     return seen.at(-1) as RunSpec;
   };
   const listed = async (projectId: string) =>
-    ((await h.call('GET', `/projects/${projectId}/access`)).body.accesses as { id: string; granted: boolean }[]).map(
-      (a) => `${a.id}:${a.granted ? 'on' : 'off'}`,
-    );
+    (
+      (await h.call('GET', `/projects/${projectId}/access`)).body.accesses as {
+        id: string;
+        granted: boolean;
+      }[]
+    ).map((a) => `${a.id}:${a.granted ? 'on' : 'off'}`);
   const global = async (folder: string, folderMode?: 'read' | 'write') =>
-    (await h.call('POST', '/accesses', { name: 'Notes', folder, fields: [], ...(folderMode ? { folderMode } : {}) }))
-      .body;
+    (
+      await h.call('POST', '/accesses', {
+        name: 'Notes',
+        folder,
+        fields: [],
+        ...(folderMode ? { folderMode } : {}),
+      })
+    ).body;
 
   it('a global folder is listed in every project, off until switched on, and reaches only that project', async () => {
     const a = await global(notes);
@@ -71,7 +80,11 @@ describe('folder grants: global or local, read or read and write', () => {
   });
 
   it('a local folder exists in its project only: on at once there, unseen and refused elsewhere', async () => {
-    const r = await h.call('POST', '/projects/aurora/accesses', { name: 'Photos', folder: photos, fields: [] });
+    const r = await h.call('POST', '/projects/aurora/accesses', {
+      name: 'Photos',
+      folder: photos,
+      fields: [],
+    });
     expect(r.status).toBe(201);
     expect(r.body).toMatchObject({ localTo: 'aurora', granted: true, folder: photos });
     expect(await listed('aurora')).toEqual([`${r.body.id}:on`]);
@@ -85,9 +98,13 @@ describe('folder grants: global or local, read or read and write', () => {
     expect((await run('aurora')).addDirs).toBeUndefined();
   });
 
-  it('a read-only folder reaches the CLI with Edit and Write denied under it; read and write has no deny rule', async () => {
+  it('a read-only folder reaches the CLI with editing denied under it; read and write has no deny rule', async () => {
     const ro = await global(notes, 'read');
-    const rw = await h.call('POST', '/projects/aurora/accesses', { name: 'Photos', folder: photos, fields: [] });
+    const rw = await h.call('POST', '/projects/aurora/accesses', {
+      name: 'Photos',
+      folder: photos,
+      fields: [],
+    });
     await h.call('PUT', `/projects/aurora/access/${ro.id}`);
     const spec = await run('aurora');
     expect(spec.addDirs).toEqual([realpathSync(notes), realpathSync(photos)]);
@@ -99,7 +116,6 @@ describe('folder grants: global or local, read or read and write', () => {
     const denied = args[args.indexOf('--disallowed-tools') + 1] as string;
     const [r, w] = [realpathSync(notes), realpathSync(photos)];
     expect(denied).toContain(`Edit(/${r}/**)`);
-    expect(denied).toContain(`Write(/${r}/**)`);
     expect(denied).not.toContain(`Edit(/${w}/**)`);
     /* neither folder ever shows a .env */
     for (const d of [r, w]) expect(denied).toContain(`Read(/${d}/**/.env)`);
@@ -108,7 +124,11 @@ describe('folder grants: global or local, read or read and write', () => {
 
   it("the projects folder may be shared read-only (other projects' .env stay hidden), never read and write", async () => {
     const projects = h.config.sandbox;
-    const write = await h.call('POST', '/projects/aurora/accesses', { name: 'Dev', folder: projects, fields: [] });
+    const write = await h.call('POST', '/projects/aurora/accesses', {
+      name: 'Dev',
+      folder: projects,
+      fields: [],
+    });
     expect(write.status).toBe(422);
     expect(JSON.stringify(write.body)).toMatch(/share it read-only/);
     const ro = { name: 'Dev', folder: projects, folderMode: 'read', fields: [] };
@@ -116,7 +136,9 @@ describe('folder grants: global or local, read or read and write', () => {
     const spec = await run('aurora');
     expect(spec.readOnlyDirs).toEqual([realpathSync(projects)]);
     const args = cliArgs(spec, { askServer: '/a.ts' });
-    expect(args[args.indexOf('--disallowed-tools') + 1]).toContain(`Read(/${realpathSync(projects)}/**/.env)`);
+    expect(args[args.indexOf('--disallowed-tools') + 1]).toContain(
+      `Read(/${realpathSync(projects)}/**/.env)`,
+    );
     /* the studio's own data folder stays refused, read-only or not */
     const data = { name: 'Data', folder: h.config.home, folderMode: 'read', fields: [] };
     expect((await h.call('POST', '/projects/aurora/accesses', data)).status).toBe(422);
@@ -124,7 +146,9 @@ describe('folder grants: global or local, read or read and write', () => {
 
   it('the same folder may be global once and local once per project, never twice in one scope', async () => {
     await global(notes);
-    expect((await h.call('POST', '/accesses', { name: 'Again', folder: notes, fields: [] })).status).toBe(409);
+    expect((await h.call('POST', '/accesses', { name: 'Again', folder: notes, fields: [] })).status).toBe(
+      409,
+    );
     const local = { name: 'Mine', folder: notes, fields: [] };
     expect((await h.call('POST', '/projects/aurora/accesses', local)).status).toBe(201);
     expect((await h.call('POST', '/projects/lumi/accesses', local)).status).toBe(201);
@@ -138,6 +162,8 @@ describe('folder grants: global or local, read or read and write', () => {
     symlinkSync(join(home.dir, 'me'), link);
     for (const folder of [join(notes, 'gone'), file, join(home.dir, 'me'), '/', link, 'relative/path'])
       expect((await h.call('POST', '/accesses', { name: 'X', folder, fields: [] })).status, folder).toBe(422);
-    expect((await h.call('POST', '/accesses', { name: 'X', folderMode: 'read', fields: [] })).status).toBe(422);
+    expect((await h.call('POST', '/accesses', { name: 'X', folderMode: 'read', fields: [] })).status).toBe(
+      422,
+    );
   });
 });

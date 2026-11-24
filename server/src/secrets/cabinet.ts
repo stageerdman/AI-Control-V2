@@ -5,7 +5,14 @@
 
    The B3 Key Cabinet (`/credentials`) is a thin view over this: a credential = an access read
    through its first field. */
-import type { AccessInfo, AccessMeta, AccessPlace, FieldMeta, FolderMode, ValueInfo } from '../db/accesses.ts';
+import type {
+  AccessInfo,
+  AccessMeta,
+  AccessPlace,
+  FieldMeta,
+  FolderMode,
+  ValueInfo,
+} from '../db/accesses.ts';
 import type { Store } from '../db/store.ts';
 import { slugify } from '../domain/ids.ts';
 import { invalid, notFound } from '../errors.ts';
@@ -35,7 +42,8 @@ export type Access = Omit<AccessMeta, 'fields'> & { fields: AccessField[] };
 export type FieldCreate = { label: string; envVar?: string; secret?: boolean; value?: string };
 /** `folder`: a folder access, checked by the folder guard; its fields may be empty. `folderMode` (default
     read and write) needs a folder. `localTo`: the one project it exists in; absent = global. */
-export type AccessCreate = AccessInfo & Omit<AccessPlace, 'folder'> & { fields: FieldCreate[]; folder?: string };
+export type AccessCreate = AccessInfo &
+  Omit<AccessPlace, 'folder'> & { fields: FieldCreate[]; folder?: string };
 export type FieldPatch = { label?: string; envVar?: string; secret?: boolean };
 export type AccessDeleted = {
   deleted: { kind: 'access'; id: string };

@@ -47,9 +47,10 @@ export const PUSH_BACKSTOP = [
 ];
 /** A run with a shell but no hook (crew and review runs with their own tools) can't push at all. */
 export const NO_PUSH = ['Bash(git push)', 'Bash(git push *)'];
-/** A folder shared read-only: deny rules (they beat any allow) for the file-editing tools under it. Claude Code
-    reads `//` as an absolute path; its shell path check applies the same Edit rules to commands that write. */
-export const readOnlyRules = (dir: string) => ['Edit', 'Write'].map((t) => `${t}(/${dir}/**)`);
+/** A folder shared read-only: a deny rule (it beats any allow) for editing under it. Claude Code reads `//` as an
+    absolute path; one Edit rule covers every file-editing tool and the shell's writing commands (touch, >, mkdir)
+    — checked live, see updates/2026-11-22 VAULT FOLDER ACCESS. A Write(path) rule is ignored (the CLI warns). */
+export const readOnlyRules = (dir: string) => [`Edit(/${dir}/**)`];
 /** No extra folder ever shows a .env: a folder shared read-only may hold other projects, each with its secrets.
     The Read rules cover every read tool (Read, Glob, Grep) and the shell's checked commands (`cat`). */
 export const noEnvRules = (dir: string) => [`Read(/${dir}/**/.env)`, `Read(/${dir}/**/.env.*)`];

@@ -625,7 +625,10 @@ export function createRuntime(deps: RuntimeDeps) {
       const shared = big ? [] : (deps.foldersFor?.(projectId) ?? []);
       const dirs = [...(toolkit ? [toolkit.dir] : []), ...shared.map((f) => f.path)];
       const readOnly = shared.filter((f) => !f.write).map((f) => f.path);
-      return { ...(dirs.length ? { addDirs: dirs } : {}), ...(readOnly.length ? { readOnlyDirs: readOnly } : {}) };
+      return {
+        ...(dirs.length ? { addDirs: dirs } : {}),
+        ...(readOnly.length ? { readOnlyDirs: readOnly } : {}),
+      };
     };
     const spec: RunSpec = {
       runId,
