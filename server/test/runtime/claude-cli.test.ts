@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { LimitReading } from '../../src/credits/reading.ts';
 import { claudeCliRunner } from '../../src/runtime/claude-cli.ts';
 import { isStuckStop } from '../../src/runtime/limits.ts';
 import type { RunEvent, RunSpec } from '../../src/runtime/runner.ts';
@@ -317,5 +318,36 @@ describe('ClaudeCliRunner', () => {
       status: 'failed',
       error: expect.stringMatching(/Could not start Claude Code/),
     });
+  });
+
+  it('hands each usage reading in the stream to onLimits (AI Credits Tracker); the run is unchanged', async () => {
+    const readings: LimitReading[] = [];
+    const fixture = join(import.meta.dirname, '../fixtures/live-f1c-integrate.jsonl');
+    const o = await claudeCliRunner({
+      bin,
+      afterResultMs: 200,
+      askServer: '/srv/ask-server.ts',
+      onLimits: (r) => readings.push(r),
+    }).start(
+      spec('replay', {
+        env: { ...spec('replay').env, FAKE_FIXTURE: fixture },
+        caps: { maxTurns: 500, maxBudgetUsd: 1 },
+      }),
+      {
+        emit: () => {},
+        ask: async () => 'n/a',
+      },
+    ).done;
+    expect(o.status).toBe('succeeded');
+    expect(readings.map((r) => r.windows.map((w) => [w.name, w.used]))).toEqual([
+      [
+        ['five_hour', 0.03],
+        ['seven_day', 0.52],
+      ],
+      [
+        ['five_hour', 0.04],
+        ['seven_day', 0.52],
+      ],
+    ]);
   });
 });

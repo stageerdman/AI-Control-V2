@@ -166,4 +166,19 @@ These are worked out for each window `w` from the readings stored for that windo
 ## Status
 - [x] Research: data source chosen and verified against real stream lines on this machine (2026-11-24, Elon).
 - [x] Design of the line and card: `design/credits-line.md` (2026-11-24, Jony).
-- [ ] Phase 1 · [ ] Phase 2 · [ ] Phase 3 · [ ] Phase 4 · [ ] Phase 5 (conditional)
+- [x] Phase 1 · [x] Phase 2 · [ ] Phase 3 · [ ] Phase 4 · [ ] Phase 5 (conditional)
+- Phases 1–2 shipped (2026-11-24, Uncle Bob), all in `server/src/credits/`:
+  - `reading.ts` `parseRateLimit` (lives here, not in `stream.ts`: the RunEvent parser stays about runs).
+    `LimitReading = { at, windows: { name, used, resetsAt, status }[], overage }`.
+  - `store.ts` (migration 57 `limit_readings`, dedupe per window, 8-day prune), `forecast.ts` (pure),
+    `share.ts` (studio share from Agent Performance spans), `credits.ts` (the service: record → watchers).
+  - `claudeCliRunner({ onLimits })` feeds it; main.ts shares one `credits` between the runner and the app.
+  - **Live updates: `GET /credits/events`**, a dedicated SSE stream (event `credits`, data = the whole view), not
+    the project event log: that log is per project, the credits are studio-wide. Sends on connect, after every
+    changed reading, and once a minute. `GET /credits` returns the same view once.
+  - View: `{ state, binding, windows: [{ name, used, left, resetsAt, opensAt, ratePerHour, hitsAt, verdict,
+    readingAgeMs }], readingAgeMs, at, studioShare: [{ agentId, name, tokens, share }] }`. Verdicts: `limited`,
+    `hits`, `lasts`, `fresh`. State order: `none` › `limited` › `warning` (runs out before reset, ≤ 15% left, or
+    Anthropic's `allowed_warning`) › `stale` (newest reading > 15 min) › `ok`. Unknown windows (`overage`) are
+    listed, never bind. `studioShare` stays in the API (the design keeps it off the card; Phase 4's voice path can
+    use it).

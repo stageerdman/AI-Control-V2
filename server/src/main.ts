@@ -4,6 +4,7 @@ import { buildApp } from './app.ts';
 import { CAST_PACKS } from './cast-packs/index.ts';
 import { installPackIfNeeded } from './cast-packs/pack.ts';
 import { ensureDirs, loadConfig } from './config.ts';
+import { createCredits } from './credits/credits.ts';
 import { pacedBrain } from './crew/fake-brain.ts';
 import { acquireDataLock } from './data-lock.ts';
 import { openDb } from './db/connection.ts';
@@ -48,6 +49,8 @@ const secrets = fileSecretStore(join(config.controlHome, '.env'));
 const rt = loadRuntimeConfig();
 /* AI_STUDIO_AGENT_SHELL=safe → B5's read-only shell + git; default dev (mkdir, npm, npx, node too) */
 const shell = loadShell();
+/* AI Credits Tracker: every CLI run reports the plan's usage; the app serves it (GET /credits) */
+const credits = createCredits({ db, store });
 /* AI_STUDIO_RUNNER=fake: the free, scripted runner + fake crew brain (UI work, demos) */
 const runner =
   process.env.AI_STUDIO_RUNNER === 'fake'
@@ -67,6 +70,7 @@ const runner =
             macToolsFor(shell),
           ),
           nudgeHook: shellHookCommand(join(import.meta.dirname, 'runtime', 'nudge-hook.ts'), []),
+          onLimits: credits.record,
         })
       : unavailableRunner(rt.binError ?? 'Claude Code CLI not found');
 /* GitHub visibility for health checks — only if gh is installed (read-only `gh repo view`) */
@@ -105,6 +109,7 @@ const app = buildApp({
   shell,
   selfInstall,
   pickFolder: macFolderPicker,
+  credits,
 });
 app.log.info(
   { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, ghBin, error: rt.binError },

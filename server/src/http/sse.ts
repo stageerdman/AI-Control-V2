@@ -28,12 +28,13 @@ export function resumeFrom(req: FastifyRequest): number {
 
 export type OpenStreams = Set<ServerResponse>;
 
-export function openStream(
+/** Turn the reply into an open SSE pipe with a heartbeat, ended on shutdown (`open`); `onClose` runs once the
+    client goes. */
+export function openPipe(
   req: FastifyRequest,
   reply: FastifyReply,
-  opts: { log: EventLog; scope: Scope; id: string; open: OpenStreams; heartbeatMs?: number },
-): void {
-  const { log, scope, id, open } = opts;
+  opts: { open: OpenStreams; heartbeatMs?: number; onClose: () => void },
+): ServerResponse {
   const res = reply.raw;
   reply.hijack();
   /* headers set by hooks (CORS) must survive the hijack */
@@ -46,6 +47,33 @@ export function openStream(
     'x-accel-buffering': 'no',
   });
   res.write('retry: 2000\n\n');
+  const beat = setInterval(() => res.write(': heartbeat\n\n'), opts.heartbeatMs ?? HEARTBEAT_MS);
+  opts.open.add(res);
+  let closed = false;
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(beat);
+    opts.open.delete(res);
+    opts.onClose();
+  };
+  res.on('close', cleanup);
+  req.raw.on('close', cleanup);
+  return res;
+}
+
+export function openStream(
+  req: FastifyRequest,
+  reply: FastifyReply,
+  opts: { log: EventLog; scope: Scope; id: string; open: OpenStreams; heartbeatMs?: number },
+): void {
+  const { log, scope, id, open } = opts;
+  let unsubscribe = () => {};
+  const res = openPipe(req, reply, {
+    open,
+    ...(opts.heartbeatMs === undefined ? {} : { heartbeatMs: opts.heartbeatMs }),
+    onClose: () => unsubscribe(),
+  });
 
   let last = resumeFrom(req);
   let replaying = true;
@@ -55,19 +83,9 @@ export function openStream(
     last = e.id;
     res.write(frame(e));
   };
-  const unsubscribe = log.bus.subscribe(streamKey(scope, id), (e) => (replaying ? held.push(e) : send(e)));
+  unsubscribe = log.bus.subscribe(streamKey(scope, id), (e) => (replaying ? held.push(e) : send(e)));
   for (let batch = log.after(scope, id, last); batch.length; batch = log.after(scope, id, last))
     batch.forEach(send);
   replaying = false;
   held.forEach(send);
-
-  const beat = setInterval(() => res.write(': heartbeat\n\n'), opts.heartbeatMs ?? HEARTBEAT_MS);
-  open.add(res);
-  const cleanup = () => {
-    clearInterval(beat);
-    unsubscribe();
-    open.delete(res);
-  };
-  res.on('close', cleanup);
-  req.raw.on('close', cleanup);
 }

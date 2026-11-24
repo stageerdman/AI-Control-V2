@@ -78,7 +78,9 @@ describe('lastUserAt: the user gave work here', () => {
 
   it('a refused action does not count', async () => {
     h = withFolder(testApp({ seed: true, runner: fakeRunner(() => [{ result: 'ok' }]) }));
-    expect((await h.call('POST', '/projects/aurora/threads/a-ghost/messages', { text: 'x' })).status).toBe(422);
+    expect((await h.call('POST', '/projects/aurora/threads/a-ghost/messages', { text: 'x' })).status).toBe(
+      422,
+    );
     expect((await h.call('POST', '/projects/aurora/work', {})).status).toBe(422);
     expect(last(h)).toBeNull();
   });
@@ -104,14 +106,18 @@ describe('lastUserAt: the user gave work here', () => {
     expect(last(h)).not.toBeNull();
     const ask = await openAsk(h);
     forget(h);
-    expect((await h.call('POST', `/projects/aurora/asks/${ask.id}/answer`, { answer: 'Yes' })).status).toBe(200);
+    expect((await h.call('POST', `/projects/aurora/asks/${ask.id}/answer`, { answer: 'Yes' })).status).toBe(
+      200,
+    );
     expect(last(h)).not.toBeNull();
     await h.runtime.settled(r.body.id);
   });
 
   it('a follow-up in a past chat counts for the chat’s project', async () => {
     const runner = fakeRunner((spec) =>
-      contractOf(spec.task)?.name === 'agent-chat-reply' ? [{ result: '{"reply":"Sure."}' }] : [{ result: 'ok' }],
+      contractOf(spec.task)?.name === 'agent-chat-reply'
+        ? [{ result: '{"reply":"Sure."}' }]
+        : [{ result: 'ok' }],
     );
     h = withFolder(testApp({ seed: true, runner }));
     const run = h.runtime.start('aurora', { agentId: 'a-baron', task: 'Make it' });
@@ -125,7 +131,7 @@ describe('lastUserAt: the user gave work here', () => {
 describe('migration 56 backfills lastUserAt from the user’s words on record', () => {
   it('takes the newest user message, user answer or chat follow-up; agents’ rows are ignored', () => {
     const db = new DatabaseSync(':memory:');
-    const until = MIGRATIONS.length - 1;
+    const until = 55; // migration 56 is MIGRATIONS[55]
     for (let v = 0; v < until; v++) db.exec(MIGRATIONS[v] as string);
     db.exec(`PRAGMA user_version = ${until}`);
     const t = '2026-01-01T00:00:00.000Z';

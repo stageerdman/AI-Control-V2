@@ -11,6 +11,7 @@ import { testStep } from './apps/test-run.ts';
 import { historyTools } from './chats/tools.ts';
 import { createComms } from './comms/comms.ts';
 import type { Config } from './config.ts';
+import { type Credits, createCredits } from './credits/credits.ts';
 import { cantDoTool } from './crew/cant-do-tool.ts';
 import { createCollaboration } from './crew/collaboration.ts';
 import { createCreator } from './crew/creator.ts';
@@ -87,6 +88,7 @@ import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
 import { creatorChatRoutes } from './routes/creator-chat.ts';
 import { credentialRoutes } from './routes/credentials.ts';
+import { creditsRoutes } from './routes/credits.ts';
 import { crewRoutes } from './routes/crew.ts';
 import { deskRoutes } from './routes/desk.ts';
 import { draftRoutes } from './routes/drafts.ts';
@@ -199,6 +201,8 @@ export type AppDeps = {
   preflight?: (cwd: string) => Promise<string[]>;
   /** The Vault's "Choose…" folder picker. Default null = none (main passes the Mac's own picker). */
   pickFolder?: FolderPicker | null;
+  /** AI Credits Tracker: the plan's usage readings (main.ts shares it with the CLI runner, which feeds it). */
+  credits?: Credits;
 };
 
 /** Every value in the secret store, for the event log's redaction net. */
@@ -234,6 +238,7 @@ export function buildApp({
   cargoTarget = sharedCargoTarget(),
   preflight = builderPreflight,
   pickFolder = null,
+  credits = createCredits({ db, store }),
 }: AppDeps): FastifyInstance {
   const app = Fastify({ logger });
   /* folder accesses never overlap the studio's own folders (its data, the global secrets); the projects only
@@ -796,6 +801,7 @@ export function buildApp({
   app.register(deskRoutes({ desk, store }));
   app.register(todoRoutes({ todos, store }));
   app.register(usageRoutes({ db, store }));
+  app.register(creditsRoutes({ credits, open, ...(heartbeatMs === undefined ? {} : { heartbeatMs }) }));
   app.register(rebuildRoutes({ rebuilds, staffing, store }));
   app.register(teamRequestRoutes({ builds: teamBuilds }));
   app.register(guestRoutes({ guests: createGuests({ store, events, room, comms, runtime }) }));

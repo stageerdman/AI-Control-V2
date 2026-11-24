@@ -7,6 +7,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { type LimitReading, parseRateLimit } from '../credits/reading.ts';
 import { redactSecrets } from '../events/redact.ts';
 import { stopTree } from '../running/processes.ts';
 import {
@@ -78,6 +79,8 @@ export type CliOptions = {
   afterResultMs?: number;
   /** How long a run whose answer waits on its background commands stays open for them (background.ts). */
   backgroundWaitMs?: number;
+  /** AI Credits Tracker: the plan's usage, each time a run's stream reports it (src/credits/). */
+  onLimits?: (reading: LimitReading) => void;
 };
 
 export function cliArgs(
@@ -271,6 +274,10 @@ export function claudeCliRunner(opts: CliOptions): Runner {
       lines.on('line', (line) => {
         if (logFile) appendFileSync(logFile, `${redactSecrets(line, spec.secretValues).value}\n`);
         for (const e of parser.feed(line)) io.emit(e);
+        if (opts.onLimits) {
+          const reading = parseRateLimit(line, new Date());
+          if (reading) opts.onLimits(reading);
+        }
         afterAnswer.check();
         if (parser.turns() > spec.caps.maxTurns)
           stop({ status: 'failed', error: turnCapError(spec.caps.maxTurns) });

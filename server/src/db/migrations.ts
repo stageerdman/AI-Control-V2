@@ -853,6 +853,19 @@ export const MIGRATIONS: readonly string[] = [
         AND (CASE WHEN json_valid(meta) THEN json_extract(meta, '$.followUp') END) = 1
   ));
   `,
+  /* 57 — AI Credits Tracker: the plan's usage per window as Claude Code reports it (src/credits/). Studio-wide (one
+     account). A row only when a window's reading changed; kept 8 days. used 0–1; overage 1 = paying past the plan. */
+  `
+  CREATE TABLE limit_readings (
+    at        TEXT NOT NULL,
+    window    TEXT NOT NULL,
+    used      REAL NOT NULL,
+    resets_at TEXT NOT NULL,
+    status    TEXT,
+    overage   INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX limit_readings_by_window ON limit_readings(window, at);
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */
