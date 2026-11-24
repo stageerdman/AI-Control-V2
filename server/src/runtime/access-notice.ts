@@ -12,9 +12,13 @@ export type Pickup = 'live' | 'restart';
 const fieldsOf = (a: AgentAccess) =>
   a.fields.map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`).join(', ');
 
+/** How a shared folder may be used, in the words agents are told. */
+export const folderReach = (a: Pick<AgentAccess, 'readOnly'>) =>
+  a.readOnly ? 'read only' : 'read and write';
+
 const headOf = (a: AgentAccess) =>
   a.folder
-    ? `AI Studio — a folder (${a.name}) was shared with you, read and write: \`${a.folder}\`.`
+    ? `AI Studio — a folder (${a.name}) was shared with you, ${folderReach(a)}: \`${a.folder}\`.`
     : `AI Studio — a new access (${a.name}) was shared with you: ${fieldsOf(a)}.`;
 
 export function accessNotice(a: AgentAccess, how: Pickup, canForget: boolean): string {

@@ -561,6 +561,93 @@
   color: #6b3fd6;
   cursor: pointer;
 }
+/* the safe: Folders (each with a switch, "＋ Add folder" opening a form in place), then Keys */
+.pa-folders {
+  margin-bottom: 18px;
+}
+.pa-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  min-height: 34px;
+}
+.pa-folders h3,
+.project-access .pa-keys {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.project-access .pa-keys {
+  margin-bottom: 8px;
+}
+.pa-empty {
+  margin: 0 0 4px;
+}
+.toggle-row .pa-folder-ic {
+  background: rgba(36, 26, 68, 0.06);
+  font-size: 18px;
+}
+.pa-add {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--cream);
+  border: 2px solid var(--line);
+  margin-bottom: 9px;
+}
+.pa-path {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: -6px;
+}
+.pa-path input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+  border: 2px solid var(--line);
+  border-radius: 11px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.pa-path input:focus {
+  outline: 0;
+  border-color: var(--sun-deep);
+  box-shadow: 0 0 0 3px rgba(255, 155, 61, 0.16);
+}
+.pa-path input[aria-invalid="true"] {
+  border-color: var(--coral);
+}
+.pa-choices {
+  display: flex;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+}
+.seg {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.pa-note {
+  margin: 0;
+}
+.pa-err {
+  color: #a3262c;
+  font-weight: 700;
+}
+.pa-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
 .pa-more:focus-visible {
   outline: 2px solid var(--grape);
   outline-offset: 2px;

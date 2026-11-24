@@ -34,7 +34,7 @@ import {
   YOUR_MEMORY,
 } from '../room/context.ts';
 import type { Running } from '../running/registry.ts';
-import type { AgentAccess } from '../secrets/projectAccess.ts';
+import type { AgentAccess, FolderGrant } from '../secrets/projectAccess.ts';
 import { tracked } from '../usage/usage.ts';
 import { accessNotice, type Pickup } from './access-notice.ts';
 import { composePrompt } from './compose.ts';
@@ -162,8 +162,8 @@ export type RuntimeDeps = {
   envFor: (projectId: string) => Record<string, string>;
   /** What each granted access provides, by label + env var (no values) — named in the agent's prompt (G1). */
   accessFor?: (projectId: string) => AgentAccess[];
-  /** Granted folder accesses that exist (real paths): each session's extra working folders (`--add-dir`). */
-  foldersFor?: (projectId: string) => string[];
+  /** Switched-on folders that exist (real paths, read-only or not): each session's extra working folders. */
+  foldersFor?: (projectId: string) => FolderGrant[];
   /** LIVE ACCESS: an access shared while agents work — what it is (no values), and writing the project's granted
       values into a working folder's .env (throws when it can't → the agent is told to restart). */
   liveAccess?: {
@@ -621,9 +621,14 @@ export function createRuntime(deps: RuntimeDeps) {
         principles,
       });
     /* the toolkit + the granted folders, read again for each fresh session (a folder shared mid-run included) */
-    const addDirsNow = (): Pick<RunSpec, 'addDirs'> => {
-      const dirs = [...(toolkit ? [toolkit.dir] : []), ...(big ? [] : (deps.foldersFor?.(projectId) ?? []))];
-      return dirs.length ? { addDirs: dirs } : {};
+    const addDirsNow = (): Pick<RunSpec, 'addDirs' | 'readOnlyDirs'> => {
+      const shared = big ? [] : (deps.foldersFor?.(projectId) ?? []);
+      const dirs = [...(toolkit ? [toolkit.dir] : []), ...shared.map((f) => f.path)];
+      const readOnly = shared.filter((f) => !f.write).map((f) => f.path);
+      return {
+        ...(dirs.length ? { addDirs: dirs } : {}),
+        ...(readOnly.length ? { readOnlyDirs: readOnly } : {}),
+      };
     };
     const spec: RunSpec = {
       runId,
@@ -728,7 +733,7 @@ export function createRuntime(deps: RuntimeDeps) {
               },
             });
             try {
-              const { resumeSessionId: _old, addDirs: _dirs, ...fresh } = spec;
+              const { resumeSessionId: _old, addDirs: _dirs, readOnlyDirs: _ro, ...fresh } = spec;
               record(run, secrets, 'system', next.line ?? next.brief, { kind: next.kind });
               l.mark = markNow();
               /* LIVE ACCESS: a fresh session gets what is granted now — access shared mid-run included */

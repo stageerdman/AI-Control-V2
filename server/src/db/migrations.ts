@@ -827,6 +827,15 @@ export const MIGRATIONS: readonly string[] = [
   `
   ALTER TABLE thread_messages ADD COLUMN team_request_id TEXT;
   `,
+  /* 55 — folder accesses, v3: read-only or read and write (older ones were read and write), and global (NULL:
+     listed in every project, switched on per project) or local to one project (no other project sees it).
+     A folder is unique per scope: once globally, once per project. */
+  `
+  ALTER TABLE accesses ADD COLUMN folder_mode TEXT NOT NULL DEFAULT 'write' CHECK (folder_mode IN ('read', 'write'));
+  ALTER TABLE accesses ADD COLUMN local_to TEXT REFERENCES projects(id) ON DELETE CASCADE;
+  DROP INDEX accesses_by_folder;
+  CREATE UNIQUE INDEX accesses_by_folder ON accesses(folder, COALESCE(local_to, '')) WHERE folder IS NOT NULL;
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */

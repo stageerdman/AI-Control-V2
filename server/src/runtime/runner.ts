@@ -31,8 +31,11 @@ export type RunSpec = {
   /** Studio tools from the bridge (src/room/bridge.ts): `names` are listed to the agent (pre-approved);
       `remote` is where the CLI's MCP server reaches them (absent → only the FakeRunner can call them). */
   studioTools?: { names: readonly string[]; remote?: { url: string; token: string } };
-  /** Extra directories the file tools may reach (`--add-dir`): a toolsmith's own toolkit folder, nothing else. */
+  /** Extra directories the file tools and the shell may reach (`--add-dir`): a toolsmith's toolkit folder, the
+      app's own data folder, the folders switched on in the Vault. */
   addDirs?: readonly string[];
+  /** The ones of `addDirs` shared read-only: every file-editing tool is denied there. */
+  readOnlyDirs?: readonly string[];
   /** Web research tools (WebSearch, WebFetch) — reporter runs and agents whose toolset grants the web. */
   web?: boolean;
 };

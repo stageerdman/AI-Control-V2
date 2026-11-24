@@ -47,6 +47,13 @@ export const PUSH_BACKSTOP = [
 ];
 /** A run with a shell but no hook (crew and review runs with their own tools) can't push at all. */
 export const NO_PUSH = ['Bash(git push)', 'Bash(git push *)'];
+/** A folder shared read-only: a deny rule (it beats any allow) for editing under it. Claude Code reads `//` as an
+    absolute path; one Edit rule covers every file-editing tool and the shell's writing commands (touch, >, mkdir)
+    — checked live, see updates/2026-11-22 VAULT FOLDER ACCESS. A Write(path) rule is ignored (the CLI warns). */
+export const readOnlyRules = (dir: string) => [`Edit(/${dir}/**)`];
+/** No extra folder ever shows a .env: a folder shared read-only may hold other projects, each with its secrets.
+    The Read rules cover every read tool (Read, Glob, Grep) and the shell's checked commands (`cat`). */
+export const noEnvRules = (dir: string) => [`Read(/${dir}/**/.env)`, `Read(/${dir}/**/.env.*)`];
 /** Reporter runs research the web (read-only). */
 export const WEB_TOOLS = ['WebSearch', 'WebFetch'];
 const KILL_GRACE_MS = 3000;
@@ -119,6 +126,11 @@ export function cliArgs(
   const shell =
     tools.includes('Bash') && opts.shellHook && (!spec.tools || spec.fullShell) ? opts.shellHook : null;
   const nudge = opts.nudgeHook && spec.env.AI_STUDIO_NUDGE_URL ? opts.nudgeHook : null;
+  const denied = [
+    ...(tools.includes('Bash') ? (shell ? PUSH_BACKSTOP : NO_PUSH) : []),
+    ...(spec.addDirs ?? []).flatMap(noEnvRules),
+    ...(spec.readOnlyDirs ?? []).flatMap(readOnlyRules),
+  ];
   return [
     '-p',
     '--output-format',
@@ -134,7 +146,7 @@ export function cliArgs(
     '--tools',
     tools.join(','), // '' disables every built-in tool
     ...(allowed.length ? ['--allowed-tools', allowed.join(',')] : []),
-    ...(tools.includes('Bash') ? ['--disallowed-tools', (shell ? PUSH_BACKSTOP : NO_PUSH).join(',')] : []),
+    ...(denied.length ? ['--disallowed-tools', denied.join(',')] : []),
     ...(shell || nudge ? ['--settings', JSON.stringify(hookSettings(shell, nudge))] : []),
     '--permission-mode',
     'dontAsk',

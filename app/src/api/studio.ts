@@ -41,6 +41,7 @@ import type {
   PrinciplesTeam,
   Project,
   ProjectAccess,
+  ProjectAccessItem,
   ProjectHealth,
   ProjectPatch,
   Restored,
@@ -137,6 +138,9 @@ export const studio = {
     accessSeen: (id: string) =>
       http.post<{ projectId: string; seenAt: string }>(`/projects/${e(id)}/access/seen`),
     syncAccess: (id: string) => http.post<AccessSync>(`/projects/${e(id)}/access/sync`),
+    /** An access of this project only (no other project sees it), switched on at once. */
+    addLocalAccess: (id: string, body: AccessCreate) =>
+      http.post<ProjectAccessItem>(`/projects/${e(id)}/accesses`, body),
     github: (id: string) => http.get<GithubView>(`/projects/${e(id)}/github`),
     publish: (id: string, body: { name?: string; visibility: 'private' | 'public' }) =>
       http.post<GithubView & { pushed: boolean }>(`/projects/${e(id)}/github/publish`, body),
@@ -163,6 +167,8 @@ export const studio = {
   },
   accesses: {
     list: () => http.get<Access[]>('/accesses'),
+    /** The Mac's own folder picker (opened by the server); path null = cancelled. */
+    pickFolder: () => http.post<{ path: string | null }>('/folders/pick'),
     create: (body: AccessCreate) => http.post<Access>('/accesses', body),
     update: (id: string, body: Partial<AccessMeta>) => http.patch<Access>(`/accesses/${e(id)}`, body),
     remove: (id: string) => http.del<AccessDeleted>(`/accesses/${e(id)}`),

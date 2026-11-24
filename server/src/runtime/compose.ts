@@ -4,8 +4,8 @@
    The project's CLAUDE.md is NOT pasted in: Claude Code reads it itself from cwd. */
 import type { EditScope } from '../domain/toolset.ts';
 import { GITHUB_PRINCIPLES_SECTION } from './github-principles.ts';
-import { READY_TO_TEST_SECTION } from './ready-to-test.ts';
 import { OUTPUT_FLAGS } from './mac-build.ts';
+import { READY_TO_TEST_SECTION } from './ready-to-test.ts';
 
 export type ComposeInput = {
   agent: { name: string; prompt: string; role: string };
@@ -37,6 +37,7 @@ export type ComposeInput = {
     serves: string;
     instructions: string;
     folder?: string | null;
+    readOnly?: boolean;
     fields: { label: string; envVar: string; hasValue: boolean }[];
   }[];
 };
@@ -48,7 +49,9 @@ function accessLine(a: AccessLine): string {
     ? ` How: ${a.instructions.trim().replace(/\s+/g, ' ').slice(0, 300)}`
     : '';
   const what = a.folder
-    ? `the folder \`${a.folder}\`, read and write: your file tools and shell may use it (and nothing else outside this project). Before you change anything in it, back it up with \`backup_folder\``
+    ? a.readOnly
+      ? `the folder \`${a.folder}\`, read only: your file tools and shell may read it (and nothing else outside this project); never change anything in it`
+      : `the folder \`${a.folder}\`, read and write: your file tools and shell may use it (and nothing else outside this project). Before you change anything in it, back it up with \`backup_folder\``
     : a.fields.map((f) => `${f.label} → \`${f.envVar}\`${f.hasValue ? '' : ' (not set yet)'}`).join(', ');
   return `- ${a.name}${a.serves ? ` (${a.serves})` : ''}: ${what}.${how}`;
 }
@@ -80,7 +83,8 @@ const MAC_BUILDS_LINE = `- This is a native Mac project, so these are pre-approv
 /** AGENTS PUSH: only a run with the shell hook (git-guard.ts) may push; any other run's push is refused (NO_PUSH). */
 function gitLine(cmds: readonly string[], hooked: boolean): string {
   if (!cmds.includes('git')) return '- The studio commits your changes when you finish.';
-  const commit = '- Commit your work with git when it is done, following the GitHub working principles below.';
+  const commit =
+    '- Commit your work with git when it is done, following the GitHub working principles below.';
   return hooked
     ? `${commit} You may \`git push\` to this project's \`origin\` (branches, main, tags) and rebuild and deploy with \`npm run …\` / \`npx …\`; the studio refuses force pushes, other remotes, remote deletes and changing remotes or git aliases.`
     : `${commit} Your toolset can't \`git push\`: your work reaches \`origin\` when it is merged.`;

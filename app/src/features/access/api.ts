@@ -7,6 +7,7 @@ export type {
   Access,
   AccessField,
   AccessSync,
+  FolderMode,
   ProjectAccess,
   ProjectAccessItem,
 } from '../../api/types';
@@ -25,6 +26,8 @@ export const accessApi = {
   revoke: studio.projects.revoke,
   seen: studio.projects.accessSeen,
   sync: studio.projects.syncAccess,
+  addLocal: studio.projects.addLocalAccess,
+  pickFolder: studio.accesses.pickFolder,
 };
 
 /** Query keys (invalidate 'accesses' after any cabinet change; it also refreshes project grants). */

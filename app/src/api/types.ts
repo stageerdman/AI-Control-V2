@@ -306,8 +306,12 @@ export type Access = {
   instructions: string;
   /** In order: ≥ 1, except a folder access, which may have none. */
   fields: AccessField[];
-  /** A folder access: the folder it shares, read and write (outside every project). */
+  /** A folder access: the folder it shares. */
   folder: string | null;
+  /** How a folder access shares its folder: 'read' (read only) or 'write' (read and write); null = no folder. */
+  folderMode: FolderMode | null;
+  /** The one project it exists in (no other project sees it); null = global, listed in every project. */
+  localTo: string | null;
   /** Granted to. */
   projectIds: string[];
   createdAt: string;
@@ -315,7 +319,14 @@ export type Access = {
 };
 export type AccessMeta = Pick<Access, 'name' | 'serves' | 'docsUrl' | 'instructions'>;
 export type AccessFieldCreate = { label: string; envVar?: string; secret?: boolean; value?: string };
-export type AccessCreate = Partial<Omit<AccessMeta, 'name'>> & { name: string; fields: AccessFieldCreate[] };
+export type AccessCreate = Partial<Omit<AccessMeta, 'name'>> & {
+  name: string;
+  fields: AccessFieldCreate[];
+  /** A folder access (fields may then be empty); `folderMode` defaults to read and write on the server. */
+  folder?: string;
+  folderMode?: FolderMode;
+};
+export type FolderMode = 'read' | 'write';
 export type AccessDeleted = {
   deleted: { kind: 'access'; id: string };
   restorable: false;
