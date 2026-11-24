@@ -1,5 +1,5 @@
-/* Projects home (#projects) — the prototype's renderProjects(): head with "+ New project",
-   search (press /), then shelves: In setup (drafts) · On set today · The back lot · Not adopted. */
+/* Projects home (#projects): head with "+ New project", search (press /), then shelves:
+   My Workplace (pinned) · Today (the user gave work today) · In setup · All other projects · Not adopted. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type Agent, type Draft, type Project, studio, type Team, useQuery } from '../../api';
 import { Hero } from '../../characters/Hero';
@@ -14,13 +14,16 @@ import {
   castOf,
   editedAgo,
   ghBadge,
+  homeShelves,
   nickOf,
+  pinned,
   progressLine,
   type Shelves,
-  shelves,
   unadopted,
 } from './model';
 import { NotAdoptedShelf } from './NotAdoptedShelf';
+import { PinButton } from './PinButton';
+import { usePins } from './usePins';
 import './projects.css';
 
 const newProject = () => go({ name: 'new', draftId: null });
@@ -62,10 +65,13 @@ export function ProjectsPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /* a fresh `now` on every refresh, so at midnight Today empties into All other */
   const s = useMemo(
-    () => shelves(projects.data ?? [], drafts.data ?? [], q),
+    () => homeShelves(projects.data ?? [], drafts.data ?? [], q, Date.now()),
     [projects.data, drafts.data, q],
   );
+  const pins = usePins();
+  const anyPins = (projects.data ?? []).some(pinned);
   const loose = useMemo(
     () => unadopted(folders.data ?? [], drafts.data ?? [], q),
     [folders.data, drafts.data, q],
@@ -126,6 +132,9 @@ export function ProjectsPage() {
         <ShelvesView
           s={s}
           q={q}
+          anyPins={anyPins}
+          onPin={pins.toggle}
+          moved={pins.moved}
           agents={agents.data ?? []}
           teams={teams.data ?? []}
           looseCount={loose.length + (folders.error ? 1 : 0)}
@@ -141,15 +150,21 @@ export function ProjectsPage() {
           }
         />
       )}
+      <div className="sr-only" role="status" aria-live="polite">
+        {pins.said}
+      </div>
     </>
   );
 }
 
-const hasWork = (s: Shelves) => !!(s.onSet.length || s.backLot.length || s.drafts.length);
+const hasWork = (s: Shelves) => !!(s.workplace.length || s.today.length || s.rest.length || s.drafts.length);
 
 function ShelvesView({
   s,
   q,
+  anyPins,
+  onPin,
+  moved,
   agents,
   teams,
   loose,
@@ -157,6 +172,10 @@ function ShelvesView({
 }: {
   s: Shelves;
   q: string;
+  anyPins: boolean;
+  onPin: (id: string) => void;
+  /** The project that just changed shelf (and a tick that bumps on every move). */
+  moved: { id: string; n: number } | null;
   agents: Agent[];
   teams: Team[];
   loose: React.ReactNode;
@@ -185,8 +204,45 @@ function ShelvesView({
         {q.trim() ? 'Start a new one?' : 'Start one, or adopt a folder you already have.'}
       </EmptyState>
     );
+  const slot = (p: Project, card: React.ReactNode) => (
+    <div key={p.id} className={`pcard-slot${p.id === moved?.id ? ' arrived' : ''}`}>
+      {card}
+      <PinButton
+        name={p.name}
+        pinned={pinned(p)}
+        onToggle={() => onPin(p.id)}
+        focusTick={p.id === moved?.id ? moved.n : undefined}
+      />
+    </div>
+  );
+  const full = (p: Project) => slot(p, <ActiveCard p={p} agents={agents} teams={teams} />);
   return (
     <div>
+      {s.workplace.length > 0 ? (
+        <section className="shelf active-shelf" aria-labelledby="shelf-workplace">
+          <div className="shelf-head">
+            <h2 id="shelf-workplace">My Workplace</h2>
+            <span className="cnt">{s.workplace.length}</span>
+          </div>
+          <div className="shelf-hr" />
+          <div className="shelf-grid">{s.workplace.map(full)}</div>
+        </section>
+      ) : (
+        !anyPins &&
+        !q.trim() && (
+          <p className="hint pin-hint">📌 Pin the projects you keep coming back to. They’ll stay up here.</p>
+        )
+      )}
+      {s.today.length > 0 && (
+        <section className="shelf today-shelf" aria-labelledby="shelf-today">
+          <div className="shelf-head">
+            <h2 id="shelf-today">Today</h2>
+            <span className="cnt">{s.today.length}</span>
+          </div>
+          <div className="shelf-hr" />
+          <div className="shelf-grid">{s.today.map(full)}</div>
+        </section>
+      )}
       {s.drafts.length > 0 && (
         <section className="shelf draft-shelf" aria-labelledby="shelf-drafts">
           <div className="shelf-head">
@@ -203,40 +259,16 @@ function ShelvesView({
           </div>
         </section>
       )}
-      <section className="shelf active-shelf" aria-labelledby="shelf-active">
-        <div className="shelf-head">
-          <h2 id="shelf-active">On set today</h2>
-          <span className="cnt">{s.onSet.length} active</span>
-        </div>
-        <div className="shelf-hr" />
-        <div className="shelf-grid">
-          {s.onSet.map((p) => (
-            <ActiveCard key={p.id} p={p} agents={agents} teams={teams} />
-          ))}
-          {!s.onSet.length && (
-            <p className="hint" style={{ color: 'rgba(255,246,233,.6)' }}>
-              {q.trim() ? 'Nothing on set matches.' : 'Nothing on set right now.'}
-            </p>
-          )}
-        </div>
-      </section>
-      <section className="shelf db-shelf" aria-labelledby="shelf-db">
-        <div className="shelf-head">
-          <h2 id="shelf-db">The back lot</h2>
-          <span className="cnt">{s.backLot.length} saved</span>
-        </div>
-        <div className="shelf-hr" />
-        <div className="shelf-grid">
-          {s.backLot.map((p) => (
-            <BackLotCard key={p.id} p={p} />
-          ))}
-          {!s.backLot.length && (
-            <p className="hint" style={{ color: 'rgba(255,246,233,.6)' }}>
-              {q.trim() ? 'Nothing in the back lot matches.' : 'The back lot is empty.'}
-            </p>
-          )}
-        </div>
-      </section>
+      {s.rest.length > 0 && (
+        <section className="shelf db-shelf" aria-labelledby="shelf-rest">
+          <div className="shelf-head">
+            <h2 id="shelf-rest">All other projects</h2>
+            <span className="cnt">{s.rest.length}</span>
+          </div>
+          <div className="shelf-hr" />
+          <div className="shelf-grid">{s.rest.map((p) => slot(p, <BackLotCard p={p} />))}</div>
+        </section>
+      )}
       {loose}
     </div>
   );
@@ -260,7 +292,7 @@ function ActiveCard({ p, agents, teams }: { p: Project; agents: Agent[]; teams: 
       <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}>
         <LogoTile tile={p.tile} imageUrl={p.imageUrl} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+          <div className="row pcard-top" style={{ justifyContent: 'space-between', gap: 8 }}>
             <h3>{p.name}</h3>
             {p.status === 'live' ? (
               <Pill tone="live" dot>

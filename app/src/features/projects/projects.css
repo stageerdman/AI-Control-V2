@@ -39,7 +39,8 @@
   display: grid;
   gap: 16px;
 }
-.shelf.active-shelf .shelf-grid {
+.shelf.active-shelf .shelf-grid,
+.shelf.today-shelf .shelf-grid {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 .shelf.db-shelf .shelf-grid {
@@ -188,6 +189,80 @@
   font-size: 12px;
   color: var(--ink-soft);
   font-weight: 700;
+}
+
+/* The pin: a sibling of the card's button, in the slot's top-right. The slot (not the card) lifts on
+   hover so the two move together. */
+.pcard-slot {
+  position: relative;
+  min-width: 0;
+  transition: transform 0.18s;
+}
+.pcard-slot:hover {
+  transform: translateY(-4px);
+}
+.pcard-slot .pcard:hover,
+.pcard-slot .pcard-db:hover {
+  transform: none;
+}
+.pcard-slot .pcard-top {
+  padding-right: 26px; /* the status pill makes room for the pin */
+}
+.pcard-slot .pcard-db {
+  padding-right: 46px;
+}
+.pin-btn {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.pcard-slot .pcard-db + .pin-btn {
+  top: 50%;
+  transform: translateY(-50%);
+}
+.pcard-slot:hover .pin-btn,
+.pcard-slot:focus-within .pin-btn,
+.pin-btn.on {
+  opacity: 1;
+}
+.pin-btn.on {
+  color: var(--grape);
+}
+.pin-btn:focus-visible {
+  outline: 3px solid var(--grape);
+  outline-offset: 1px;
+}
+.pcard-slot.arrived {
+  animation: pcard-arrive 0.18s ease-out;
+}
+@keyframes pcard-arrive {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcard-slot,
+  .pcard-slot.arrived {
+    transition: none;
+    animation: none;
+  }
+}
+.pin-hint {
+  margin: 0 0 22px;
+  color: rgba(255, 246, 233, 0.75);
 }
 
 /* Not adopted: compact folder rows, the back lot's look without tile or pill */

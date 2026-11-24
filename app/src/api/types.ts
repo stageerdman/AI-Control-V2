@@ -154,6 +154,10 @@ export type Project = {
   collaboration?: Collaboration | null;
   /** What `progress` is towards ("v1.0"); null = no label. */
   target?: string | null;
+  /** HOME: its place in My Workplace (lower = first); null/absent = not pinned. */
+  pinRank?: number | null;
+  /** HOME: the last time the user gave work here (a message, a goal, an answer); null = never. */
+  lastUserAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

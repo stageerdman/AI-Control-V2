@@ -96,6 +96,8 @@ export const studio = {
     list: () => http.get<Project[]>('/projects'),
     get: (id: string) => http.get<Project>(`/projects/${e(id)}`),
     update: (id: string, body: ProjectPatch) => http.patch<Project>(`/projects/${e(id)}`, body),
+    /** My Workplace, whole and in order (pin, unpin and reorder are this one call); returns every project. */
+    setPins: (ids: string[]) => http.put<Project[]>('/projects/pins', { ids }),
     /** The project's picture (raw bytes; the app's only — never the project folder) / back to the tile. */
     setImage: (id: string, image: Blob) => http.put<Project>(`/projects/${e(id)}/image`, image),
     /** Use an icon file inside the project folder (relative to it); a copy is kept and refreshed when it changes. */

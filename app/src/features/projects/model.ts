@@ -1,12 +1,12 @@
-/* Projects home, pure: shelves (on set / back lot / in setup), search, card view-models. */
+/* Projects home, pure: shelves (My Workplace / Today / In setup / All other), search, card view-models. */
 import type { Agent, Draft, Project, Team } from '../../api';
 
 /** Short display name (the prototype's shortName: nick, else name). */
 export const nickOf = (a: Pick<Agent, 'name' | 'nick'> | null | undefined): string =>
   a ? a.nick || a.name : '';
 
-/** On set = live or waiting on you — and a real project that went idle this week (the server moves
-    status on its own: a project between goals is idle, not shelved); the back lot = the rest. */
+/** Ports board only (the home uses homeShelves): live or waiting on you, or a real project that went
+    idle this week. */
 const RECENT_MS = 7 * 24 * 3600 * 1000;
 export const isOnSet = (p: Project, now = Date.now()): boolean =>
   p.status === 'live' ||
@@ -19,15 +19,53 @@ export const matchesProject = (p: Project, q: string): boolean =>
 export const matchesDraft = (d: Draft, q: string): boolean =>
   !norm(q) || (d.name || 'untitled').toLowerCase().includes(norm(q));
 
-export type Shelves = { drafts: Draft[]; onSet: Project[]; backLot: Project[] };
-export function shelves(projects: Project[], drafts: Draft[], q: string): Shelves {
-  const ps = projects.filter((p) => matchesProject(p, q));
-  return {
-    drafts: drafts.filter((d) => matchesDraft(d, q)),
-    onSet: ps.filter((p) => isOnSet(p)),
-    backLot: ps.filter((p) => !isOnSet(p)),
-  };
+/** HOME: pinned by the user into My Workplace. */
+export const pinned = (p: Pick<Project, 'pinRank'>): boolean => p.pinRank != null;
+
+/** HOME: the user gave work here today — on or after local midnight (the client's clock and time zone). */
+export function workedToday(p: Pick<Project, 'lastUserAt'>, now = Date.now()): boolean {
+  if (!p.lastUserAt) return false;
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  return Date.parse(p.lastUserAt) >= midnight.getTime();
 }
+
+const t = (iso: string | null | undefined) => (iso ? Date.parse(iso) || 0 : 0);
+/** All other: waiting on you first, then live, then most recent; archived last. */
+const restRank = (p: Project) =>
+  p.status === 'needs' ? 0 : p.status === 'live' ? 1 : p.status === 'archived' ? 3 : 2;
+
+export type Shelves = { workplace: Project[]; today: Project[]; drafts: Draft[]; rest: Project[] };
+/** The home's shelves: each project lands in exactly one; search filters them all alike. */
+export function homeShelves(projects: Project[], drafts: Draft[], q: string, now = Date.now()): Shelves {
+  const ps = projects.filter((p) => matchesProject(p, q));
+  const workplace = ps.filter(pinned).sort((a, b) => (a.pinRank ?? 0) - (b.pinRank ?? 0));
+  const today = ps
+    .filter((p) => !pinned(p) && workedToday(p, now))
+    .sort((a, b) => t(b.lastUserAt) - t(a.lastUserAt));
+  const rest = ps
+    .filter((p) => !pinned(p) && !workedToday(p, now))
+    .sort(
+      (a, b) => restRank(a) - restRank(b) || t(b.lastUserAt ?? b.updatedAt) - t(a.lastUserAt ?? a.updatedAt),
+    );
+  return { workplace, today, drafts: drafts.filter((d) => matchesDraft(d, q)), rest };
+}
+
+/** My Workplace with `id` pinned (at the end) or unpinned — the ids PUT /projects/pins takes. */
+export function togglePin(projects: Project[], id: string): string[] {
+  const order = projects
+    .filter(pinned)
+    .sort((a, b) => (a.pinRank ?? 0) - (b.pinRank ?? 0))
+    .map((p) => p.id);
+  return order.includes(id) ? order.filter((x) => x !== id) : [...order, id];
+}
+
+/** The projects as they'd read with this pin order (the optimistic update). */
+export const withPins = (projects: Project[], ids: string[]): Project[] =>
+  projects.map((p) => {
+    const i = ids.indexOf(p.id);
+    return { ...p, pinRank: i < 0 ? null : i };
+  });
 
 /** Everyone on the project: its teams' members (teams first), then the specialists — once each. */
 export function castOf(p: Pick<Project, 'teamIds' | 'agentIds'>, teams: Team[]): string[] {

@@ -103,6 +103,10 @@ Feature: `f-home-screen-pinned-today`. The full design is in [design.md](design.
 - [x] Phase 1: server pins + `lastUserAt` (migration 56, `src/home/user-activity.ts`, `PUT /projects/pins`;
   tests in `server/test/home/`). Decided: `last_user_at` is a stored column stamped by an allowlist of the user's
   HTTP actions, backfilled once from the user's words on record. See wiki.
-- [ ] Phase 2: app model
-- [ ] Phase 3: app UI + pin
+- [x] Phase 2: app model (`homeShelves`, `workedToday`, `togglePin`, `withPins` in `model.ts`; `isOnSet` stays,
+  the ports board still uses it).
+- [x] Phase 3: app UI + pin (`ProjectsPage.tsx`, `PinButton.tsx`, `usePins.ts`; tests in
+  `ProjectsPage.home.test.tsx`). Focus follows the card: the moved card's `PinButton` focuses itself on mount
+  (a page-level `querySelector` missed on the second move). Not done: the live check against a running
+  backend; the server route is covered by its own tests.
 - [ ] Phase 4: reorder + voice (nice-to-have)
