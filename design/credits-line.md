@@ -18,6 +18,8 @@ Exact burn rate is the least asked; it explains (2), so it sits in the card, in 
 | Showing every window (Opus/Sonnet 7-day, overage) | The line shows the **binding** window; the card adds at most one other row. Rare windows appear only when they bind. |
 | A red bar | Red on the whole top edge reads as an error all the time. The warning uses warm colours, a word chip and a slow pulse. It never depends on colour alone. |
 | A refresh button | It would cost quota (see "probe", deleted). The card says how old the reading is instead. |
+| The chip on the line ("runs out ≈ 3:10 pm", "Limit reached · back at…") — *v2, 2026-11-24* | The user found it noisy. The warm, thicker, breathing line already says "careful"; the details are one hover away. Screen readers still hear the runs-out sentence (meter label + one announcement). |
+| Burn rate and the verdict sentence in the card — *v2* | The user asked for the card to be just: 5-hour left, weekly left, both resets. "Runs out in ~40 min" was the same noise as the chip. |
 
 ## Where
 - One strip fixed to the very top edge of the window, full width, above everything, on **both** the studio and the
@@ -33,18 +35,14 @@ quiet track: `--color-line` on light screens, `rgba(255,255,255,.12)` on dark on
 | State | When (from `/credits`) | Fill | Motion | Words on the line |
 |---|---|---|---|---|
 | `ok` | lasts until reset, > 15% left | Full rainbow, in order: sky → teal → mint → sun → coral → rose → grape. The gradient is 200% wide and drifts left to right, one loop per 24 s. | Faint shimmer: a soft white highlight (12% opacity, 80 px wide) glides across every 6 s. | none |
-| `warning` | hits limit before reset, **or** ≤ 15% left, **or** Anthropic says `allowed_warning` | Same rainbow, but only the warm half (sun → coral → rose), so it reads "warm" at a glance without going red. Line grows to 4 px. | Shimmer every 2 s and the fill's right end breathes (opacity .7 ↔ 1, 1.6 s). | Chip at the right end: **"runs out ≈ 3:10 pm"** |
-| `limited` | `rejected` and not on overage | Track only, tinted coral at 35%. No fill. 4 px. | none (stillness says "stopped") | Chip: **"Limit reached · back at 4:30 pm"** |
+| `warning` | hits limit before reset, **or** ≤ 15% left, **or** Anthropic says `allowed_warning` | Same rainbow, but only the warm half (sun → coral → rose), so it reads "warm" at a glance without going red. Line grows to 4 px. | Shimmer every 2 s and the fill's right end breathes (opacity .7 ↔ 1, 1.6 s). | none |
+| `limited` | `rejected` and not on overage | Track only, tinted coral at 35%. No fill. 4 px. | none (stillness says "stopped") | none |
 | `stale` | newest reading > 15 min old | As `ok`/`warning` from the last reading, at 60% opacity. | Shimmer off. | none (age is in the card) |
 | `fresh` | the window's `resetsAt` has passed, no new reading | Full rainbow, full width, at 60% opacity. | Shimmer off. | none |
 | `none` | no reading ever | Track only, with a single slow shimmer every 10 s, so it's clearly "something lives here". | as said | none |
 | `estimated` (Phase 5) | fallback in use | As `ok`/`warning`, with the fill drawn as dashes (8 px on, 3 px off). | as the state | none; the card says "estimated" |
 
-### The chip
-- Sits at the top-right, under the line: 6 px from the right edge, 2 px under the line. Height 22 px, radius 11 px,
-  12 px semibold text, `--color-ink` on white with `--shadow-soft`. It sits above all other layers; it must not
-  cover the office's own top-right controls (see Assumptions).
-- It is a button: click/tap/Enter opens the card. Only in `warning` and `limited`. One chip, never two.
+No words ever sit on the line (v2: the chip was removed).
 
 ### Motion rules
 - `prefers-reduced-motion: reduce` → no drift, no shimmer, no breathing. The colours, chip and words stay, so
@@ -55,39 +53,42 @@ quiet track: `--color-line` on light screens, `rgba(255,255,255,.12)` on dark on
 ## The card
 Opens on hover (after 150 ms, so passing the mouse to the tabs doesn't flash it), on keyboard focus, or on tap.
 Closes on mouse leave (after 250 ms), Escape, tap outside, or focus leaving. Anchored under the pointer's x
-position (clamped 12 px from the edges); from the chip or keyboard it anchors at the right.
+position (clamped 12 px from the edges); from the keyboard it anchors at the right.
 
 Width 280 px, radius `--radius-md`, white panel, `--shadow-panel`, 16 px padding, two type sizes only
 (15 px semibold, 13 px regular `--color-ink-soft`).
 
+v2 (2026-11-24): the card answers three things, top to bottom — how much of the 5-hour window is left, how much
+of the week is left, and when each comes back. Nothing else.
+
 ```
  ┌────────────────────────────────────┐
- │ 62% left                    5-hour │  15 px semibold · window name 13 px soft
- │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░       │  the same rainbow, 6 px, radius 3
- │ Using about 9% an hour             │  13 px soft (burn rate, in words)
- │ Lasts until it resets at 4:30 pm   │  15 px — the verdict, the line that matters
+ │ 49% left                    5-hour │  15 px semibold · window name 13 px soft
+ │ ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░       │  rainbow (warm when this window is low), 6 px
+ │ 72% left                    Weekly │  the same row, same look
+ │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░       │
  │ ────────────────────────────────── │
- │ Weekly · 47% left · resets Sat 9am │  13 px soft (the other window, one row)
+ │ 5-hour resets  Today 4:30 pm · in 2 hours │  label soft · day + time ink · countdown soft
+ │ Weekly resets      Sat 9 am · in 4 days   │
  │ Updated 3 min ago                  │  13 px soft, only when > 2 min old
  └────────────────────────────────────┘
 ```
 
-Verdict sentences (the one line in 15 px, under the burn rate):
-- Lasts: **"Lasts until it resets at 4:30 pm"**
-- Runs out: **"Runs out in ~40 min (≈ 3:10 pm) · resets 4:30 pm"**
-- Limited: **"Limit reached. Back at 4:30 pm (in 1 h 20 min)"**; burn-rate row hidden.
-- Fresh: **"Fresh window. The next run brings a reading."**
-- None: title **"No reading yet"**, one line: **"Usage appears after the first run."** Nothing else.
-- Estimated: title gets a small soft suffix **"· estimated, studio use only"**.
+- Always 5-hour first, weekly second, whichever window the line follows. The dialog is named by the first title.
+- Row states: limited → **"0% left · Limit reached"**, empty bar; fresh → **"100% left · Fresh window"**, dim
+  full bar; no reading of that window yet → **"No reading yet"**, dim empty bar.
+- Reset rows: day + time always carries the day — **"Today 4:30 pm"**, **"Tomorrow 9 am"**, **"Sat 9 am"** — then a
+  one-unit countdown: **"in 40 minutes"**, **"in 3 hours"**, **"in 2 days"** (rounded, singular at 1). Unknown
+  (fresh or no reading) → **"Known after the next run"**, no countdown.
+- None at all: title **"No reading yet"**, one line: **"Usage appears after the first run."** Nothing else.
+- Estimated: the first title gets a small soft suffix **"· estimated, studio use only"**.
+- Data: both windows and their `resetsAt` already come in `windows[]` of `GET /credits` and its live events; no
+  server change was needed.
 
 Number and time rules:
 - % left is a whole number, never "100% left" while anything is used (show 99%). Never below 0.
-- Burn rate: "about N% an hour", N rounded; under 1 → "under 1% an hour". When the rate is the
-  since-window-opened average (too few readings), the same words. The user doesn't need to know which.
-- "In ~X": < 60 min → "~40 min"; otherwise "~2 h 10 min"; ≥ 24 h → "~2 days". Clock times in the user's locale and
-  zone; a day name only when it isn't today ("Sat 9am").
-- Weekly row appears only when it isn't the binding window. If weekly binds, the row shows the 5-hour one.
-- Rare windows (Opus/Sonnet weekly) appear as the title's window name only when they bind.
+- Clock times in the user's locale and zone.
+- Rare windows (Opus/Sonnet weekly) can still drive the line when they bind; the card shows the two plan windows.
 
 ## Accessibility
 - The visible line is `role="meter"` with `aria-valuemin=0`, `aria-valuemax=100`,
@@ -98,15 +99,17 @@ Number and time rules:
 - The card is `role="dialog"` non-modal (`aria-modal` false), labelled by its title. No focus trap.
 - Entering `warning` or `limited` announces once through a polite live region: "AI credits low: runs out in about
   40 minutes." Never repeats for the same window.
-- Contrast: chip and card text are ink on white (> 12:1). The line itself is decorative beyond the meter; meaning
-  never rides on colour alone (chip words, card words, aria label).
-- Tap target: the chip is 22 px tall inside a 44 px hit box; the top-edge tap zone is 24 px.
+- Contrast: card text is ink on white (> 12:1). The line itself is decorative beyond the meter; meaning
+  never rides on colour alone (card words, aria label, announcement).
+- Reset rows are a `<dl>` (label → value), so screen readers pair them.
+- Tap target: the top-edge tap zone is 24 px.
 
 ## Build spec (for Frontend)
 - `app/src/features/credits/model.ts` (pure): `view(forecast, now, locale) → { state, leftPct, fillTone:
-  'rainbow'|'warm'|'none', thick, dim, dashed, chip: string|null, aria: string, card: { title, window, rate|null,
-  verdict, other|null, age|null, estimated } }`. All words above come from here and nowhere else.
-- `app/src/features/credits/CreditsLine.tsx`: renders the strip, chip and card from `view()`; subscribes to
+  'rainbow'|'warm'|'none', thick, dim, dashed, aria, announce, card: { title, empty|null, usage: [{ window, title,
+  note|null, fill, tone, dim }], resets: [{ label, when, relative|null }], age|null, estimated } }`. All words above
+  come from here and nowhere else.
+- `app/src/features/credits/CreditsLine.tsx`: renders the strip and card from `view()`; subscribes to
   `GET /credits` and the `credits.changed` event; re-renders each minute.
 - `app/src/features/credits/credits.css`: tokens only from `design/theme.css` (`--color-*`, `--ease-out`,
   `--radius-md`, `--shadow-*`). Gradient stops use the seven palette colours in the order above.

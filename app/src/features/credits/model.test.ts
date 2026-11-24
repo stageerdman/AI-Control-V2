@@ -1,6 +1,15 @@
 /* The credits line's words and looks (design/credits-line.md), state by state, in a fixed zone and locale. */
 import { describe, expect, it } from 'vitest';
-import { clockTime, duration, type Forecast, percentLeft, view, type WindowForecast } from './model';
+import {
+  clockTime,
+  duration,
+  type Forecast,
+  percentLeft,
+  relative,
+  resetTime,
+  view,
+  type WindowForecast,
+} from './model';
 
 const C = { locale: 'en-US', timeZone: 'UTC' };
 const NOW = Date.parse('2026-11-24T14:30:00Z'); // a Tuesday
@@ -50,41 +59,63 @@ describe('number and time rules', () => {
     expect(clockTime(Date.parse('2026-11-24T16:30:00Z'), NOW, C)).toBe('4:30 pm');
     expect(clockTime(Date.parse('2026-11-28T09:00:00Z'), NOW, C)).toBe('Sat 9 am');
   });
+  it('reset times always carry the day: today, tomorrow, a weekday', () => {
+    expect(resetTime(Date.parse('2026-11-24T16:30:00Z'), NOW, C)).toBe('Today 4:30 pm');
+    expect(resetTime(Date.parse('2026-11-25T09:00:00Z'), NOW, C)).toBe('Tomorrow 9 am');
+    expect(resetTime(Date.parse('2026-11-28T09:00:00Z'), NOW, C)).toBe('Sat 9 am');
+  });
+  it('"in X": one unit, rounded, singular when 1', () => {
+    expect(relative(40 * 60_000)).toBe('in 40 minutes');
+    expect(relative(10_000)).toBe('in 1 minute');
+    expect(relative(3 * 3_600_000 + 10 * 60_000)).toBe('in 3 hours');
+    expect(relative(70 * 60_000)).toBe('in 1 hour');
+    expect(relative(50 * 3_600_000)).toBe('in 2 days');
+  });
 });
 
 describe('view', () => {
   it('none: track only, "No reading yet"', () => {
     for (const f of [null, fc('none', [])]) {
       const v = view(f, NOW, C);
-      expect(v).toMatchObject({ state: 'none', fill: 0, fillTone: 'none', chip: null, announce: null });
+      expect(v).toMatchObject({ state: 'none', fill: 0, fillTone: 'none', announce: null });
       expect(v.card).toMatchObject({
         title: 'No reading yet',
-        verdict: 'Usage appears after the first run.',
+        empty: 'Usage appears after the first run.',
+        usage: [],
+        resets: [],
       });
-      expect(v.card.rate).toBeNull();
     }
   });
 
-  it('ok: full rainbow at the share left, lasts until reset, the weekly row', () => {
+  it('ok: the line is the share left, no words on it; the card shows both windows and both resets', () => {
     const v = view(fc('ok', [win(), weekly()]), NOW, C);
     expect(v).toMatchObject({ state: 'ok', leftPct: 62, fill: 0.62, fillTone: 'rainbow', thick: false });
-    expect(v.chip).toBeNull();
+    expect(v).not.toHaveProperty('chip');
     expect(v.card).toEqual({
       title: '62% left',
-      window: '5-hour',
-      rate: 'Using about 9% an hour',
-      verdict: 'Lasts until it resets at 4:30 pm',
-      other: 'Weekly · 47% left · resets Sat 9 am',
+      empty: null,
+      usage: [
+        { window: '5-hour', title: '62% left', note: null, fill: 0.62, tone: 'rainbow', dim: false },
+        { window: 'Weekly', title: '47% left', note: null, fill: 0.47, tone: 'rainbow', dim: false },
+      ],
+      resets: [
+        { label: '5-hour resets', when: 'Today 4:30 pm', relative: 'in 2 hours' },
+        { label: 'Weekly resets', when: 'Sat 9 am', relative: 'in 4 days' },
+      ],
       age: null,
       estimated: false,
     });
     expect(v.aria).toBe('AI credits: 62% left, lasts until it resets at 4:30 pm');
   });
 
-  it('warning (runs out before reset): warm, thick, chip with the time, one announcement', () => {
-    const v = view(fc('warning', [win({ verdict: 'hits', hitsAt: iso(40), ratePerHour: 0.5 })]), NOW, C);
-    expect(v).toMatchObject({ state: 'warning', fillTone: 'warm', thick: true, chip: 'runs out ≈ 3:10 pm' });
-    expect(v.card.verdict).toBe('Runs out in ~40 min (≈ 3:10 pm) · resets 4:30 pm');
+  it('warning: warm and thick, the binding row warm in the card, one announcement', () => {
+    const v = view(
+      fc('warning', [win({ verdict: 'hits', hitsAt: iso(40), ratePerHour: 0.5 }), weekly()]),
+      NOW,
+      C,
+    );
+    expect(v).toMatchObject({ state: 'warning', fillTone: 'warm', thick: true });
+    expect(v.card.usage.map((u) => u.tone)).toEqual(['warm', 'rainbow']);
     expect(v.announce?.text).toBe('AI credits low: runs out in about 40 minutes.');
     expect(v.aria).toBe('AI credits: 62% left, runs out in about 40 minutes, at 3:10 pm; resets at 4:30 pm');
   });
@@ -92,22 +123,28 @@ describe('view', () => {
   it('read aloud, hours and minutes are words', () => {
     const v = view(fc('warning', [win({ verdict: 'hits', hitsAt: iso(88) })]), NOW, C);
     expect(v.announce?.text).toBe('AI credits low: runs out in about 1 hour 28 minutes.');
-    expect(v.card.verdict).toBe('Runs out in ~1 h 28 min (≈ 3:58 pm) · resets 4:30 pm');
   });
 
-  it('warning (low but lasts): the chip says what is left', () => {
+  it('low but lasting: announced with what is left', () => {
     const v = view(fc('warning', [win({ used: 0.88, left: 0.12, ratePerHour: 0.004 })]), NOW, C);
-    expect(v.chip).toBe('12% left · resets 4:30 pm');
-    expect(v.card.rate).toBe('Using under 1% an hour');
+    expect(v.card.usage[0]).toMatchObject({ title: '12% left', tone: 'warm' });
     expect(v.announce?.text).toBe('AI credits low: 12% left.');
   });
 
-  it('limited: no fill, chip and verdict say when it is back; no burn rate', () => {
-    const v = view(fc('limited', [win({ used: 1, left: 0, verdict: 'limited', resetsAt: iso(80) })]), NOW, C);
+  it('limited: no fill; the card says limit reached and when it resets', () => {
+    const v = view(
+      fc('limited', [win({ used: 1, left: 0, verdict: 'limited', resetsAt: iso(80) }), weekly()]),
+      NOW,
+      C,
+    );
     expect(v).toMatchObject({ state: 'limited', fill: 0, fillTone: 'none', thick: true });
-    expect(v.chip).toBe('Limit reached · back at 3:50 pm');
-    expect(v.card.verdict).toBe('Limit reached. Back at 3:50 pm (in 1 h 20 min)');
-    expect(v.card.rate).toBeNull();
+    expect(v.card.usage[0]).toMatchObject({ title: '0% left', note: 'Limit reached', fill: 0 });
+    expect(v.card.resets[0]).toEqual({
+      label: '5-hour resets',
+      when: 'Today 3:50 pm',
+      relative: 'in 1 hour',
+    });
+    expect(v.aria).toBe('AI credits: limit reached, back at 3:50 pm');
     expect(v.announce?.key).not.toBe(
       view(fc('warning', [win({ verdict: 'hits', hitsAt: iso(5) })]), NOW, C).announce?.key,
     );
@@ -115,7 +152,7 @@ describe('view', () => {
 
   it('stale: as ok but dimmed, with the age in the card', () => {
     const v = view(fc('stale', [win({ readingAgeMs: 20 * 60_000 })]), NOW, C);
-    expect(v).toMatchObject({ state: 'stale', dim: true, fillTone: 'rainbow', chip: null });
+    expect(v).toMatchObject({ state: 'stale', dim: true, fillTone: 'rainbow' });
     expect(v.card.age).toBe('Updated 20 min ago');
   });
 
@@ -124,23 +161,34 @@ describe('view', () => {
     expect(v.card.age).toBe('Updated 4 min ago');
   });
 
-  it('fresh: the window reset — full and dim, no numbers to explain', () => {
+  it('fresh: the window reset — full and dim; its reset time comes with the next run', () => {
     const f = fc('stale', [win({ used: 0, left: 1, verdict: 'fresh', resetsAt: null, ratePerHour: null })]);
     const v = view(f, NOW, C);
-    expect(v).toMatchObject({ state: 'fresh', fill: 1, dim: true, chip: null, announce: null });
-    expect(v.card.verdict).toBe('Fresh window. The next run brings a reading.');
-    expect(v.card.rate).toBeNull();
+    expect(v).toMatchObject({ state: 'fresh', fill: 1, dim: true, announce: null });
+    expect(v.card.usage[0]).toMatchObject({ title: '100% left', note: 'Fresh window', dim: true });
+    expect(v.card.resets[0]).toEqual({
+      label: '5-hour resets',
+      when: 'Known after the next run',
+      relative: null,
+    });
   });
 
-  it('weekly binding: its name in the title, the 5-hour window in the other row', () => {
+  it('no weekly reading yet: the weekly row says so, the 5-hour row is unchanged', () => {
+    const v = view(fc('ok', [win()]), NOW, C);
+    expect(v.card.usage[1]).toMatchObject({ window: 'Weekly', title: 'No reading yet', fill: 0 });
+    expect(v.card.resets[1]).toEqual({
+      label: 'Weekly resets',
+      when: 'Known after the next run',
+      relative: null,
+    });
+  });
+
+  it('weekly binding: the line follows weekly, the card keeps 5-hour first, weekly warm', () => {
     const v = view(fc('warning', [win(), weekly({ used: 0.9, left: 0.1 })], 'seven_day'), NOW, C);
-    expect(v.card.window).toBe('Weekly');
-    expect(v.card.title).toBe('10% left');
-    expect(v.card.other).toBe('5-hour · 62% left · resets 4:30 pm');
-  });
-
-  it('a rare window shows its name only when it binds', () => {
-    const v = view(fc('ok', [win({ name: 'seven_day_opus' })], 'seven_day_opus'), NOW, C);
-    expect(v.card.window).toBe('Opus weekly');
+    expect(v.leftPct).toBe(10);
+    expect(v.card.usage.map((u) => [u.window, u.title, u.tone])).toEqual([
+      ['5-hour', '62% left', 'rainbow'],
+      ['Weekly', '10% left', 'warm'],
+    ]);
   });
 });

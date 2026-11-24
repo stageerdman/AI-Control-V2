@@ -36,19 +36,33 @@ export type LineView = {
   dim: boolean;
   /** Phase 5 (estimated) only; always false until then. */
   dashed: boolean;
-  chip: string | null;
   aria: string;
   /** Said once, politely, on entering warning or limited; `key` tells one episode from the next. */
   announce: { key: string; text: string } | null;
-  card: {
-    title: string;
-    window: string | null;
-    rate: string | null;
-    verdict: string;
-    other: string | null;
-    age: string | null;
-    estimated: boolean;
-  };
+  card: Card;
+};
+
+/** One usage row of the card: "49% left" over its own small bar. */
+export type UsageRow = {
+  window: string;
+  title: string;
+  /** "Limit reached", "Fresh window", "No reading yet"; null when the title says it all. */
+  note: string | null;
+  fill: number;
+  tone: 'rainbow' | 'warm' | 'none';
+  dim: boolean;
+};
+/** One reset row: "5-hour resets · Today 4:30 pm · in 2 hours". */
+export type ResetRow = { label: string; when: string; relative: string | null };
+export type Card = {
+  /** The dialog's name: the 5-hour title (or "No reading yet"). */
+  title: string;
+  /** Only with no reading at all: the one sentence the card says. */
+  empty: string | null;
+  usage: UsageRow[];
+  resets: ResetRow[];
+  age: string | null;
+  estimated: boolean;
 };
 
 const MIN = 60_000;
@@ -118,25 +132,66 @@ function age(readingAgeMs: number): string | null {
   return `Updated ${d} ${d === 1 ? 'day' : 'days'} ago`;
 }
 
-function rate(perHour: number | null): string | null {
-  if (perHour === null) return null;
-  const pts = perHour * 100;
-  return pts < 1 ? 'Using under 1% an hour' : `Using about ${Math.round(pts)}% an hour`;
+/** "in 40 minutes", "in 3 hours", "in 2 days": one unit, rounded, read the same way it is said. */
+export function relative(spanMs: number): string {
+  const n = (v: number, unit: string) => `in ${v} ${unit}${v === 1 ? '' : 's'}`;
+  if (spanMs < HOUR) return n(Math.max(1, Math.round(spanMs / MIN)), 'minute');
+  if (spanMs < DAY) return n(Math.round(spanMs / HOUR), 'hour');
+  return n(Math.round(spanMs / DAY), 'day');
 }
 
-/** The second row: the weekly window under a 5-hour line, the 5-hour one under any weekly line. */
-function otherWindow(f: Forecast, binding: WindowForecast, now: number, c: Clock): string | null {
-  const name = binding.name === 'five_hour' ? 'seven_day' : 'five_hour';
-  const w = f.windows.find((x) => x.name === name);
-  if (!w) return null;
-  const label = windowName(w.name);
-  if (w.verdict === 'fresh' || !w.resetsAt) return `${label} · fresh window`;
-  const back = clockTime(ms(w.resetsAt), now, c);
-  if (w.verdict === 'limited') return `${label} · limit reached · back ${back}`;
-  return `${label} · ${percentLeft(w)}% left · resets ${back}`;
+/** Day and time, always with the day: "Today 4:30 pm", "Tomorrow 9 am", "Sat 9 am". */
+export function resetTime(t: number, now: number, c: Clock = {}): string {
+  const time = clockTime(t, now, c);
+  if (dayKey(t, c) === dayKey(now, c)) return `Today ${time}`;
+  if (dayKey(t, c) === dayKey(now + DAY, c)) return `Tomorrow ${time.replace(/^\S+ /, '')}`;
+  return time;
 }
 
-const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+/** The card's two usage rows, always 5-hour then weekly, whichever binds the line. */
+const CARD_WINDOWS = ['five_hour', 'seven_day'] as const;
+const LOW = 0.15;
+
+function usageRow(name: string, w: WindowForecast | undefined, warning: boolean): UsageRow {
+  const window = windowName(name);
+  if (!w) return { window, title: 'No reading yet', note: null, fill: 0, tone: 'none', dim: true };
+  if (w.verdict === 'fresh')
+    return { window, title: '100% left', note: 'Fresh window', fill: 1, tone: 'rainbow', dim: true };
+  if (w.verdict === 'limited')
+    return { window, title: '0% left', note: 'Limit reached', fill: 0, tone: 'none', dim: false };
+  const low = warning || w.verdict === 'hits' || w.left <= LOW;
+  return {
+    window,
+    title: `${percentLeft(w)}% left`,
+    note: null,
+    fill: Math.max(0, Math.min(1, w.left)),
+    tone: low ? 'warm' : 'rainbow',
+    dim: false,
+  };
+}
+
+function resetRow(name: string, w: WindowForecast | undefined, now: number, c: Clock): ResetRow {
+  const label = `${windowName(name)} resets`;
+  if (!w?.resetsAt || w.verdict === 'fresh')
+    return { label, when: 'Known after the next run', relative: null };
+  const t = ms(w.resetsAt);
+  return { label, when: resetTime(t, now, c), relative: relative(t - now) };
+}
+
+function card(f: Forecast, now: number, c: Clock, ageMs: number): Card {
+  const find = (name: string) => f.windows.find((w) => w.name === name);
+  const usage = CARD_WINDOWS.map((name) =>
+    usageRow(name, find(name), f.state === 'warning' && f.binding === name),
+  );
+  return {
+    title: (usage[0] as UsageRow).title,
+    empty: null,
+    usage,
+    resets: CARD_WINDOWS.map((name) => resetRow(name, find(name), now, c)),
+    age: age(ageMs),
+    estimated: false,
+  };
+}
 
 const NONE: LineView = {
   state: 'none',
@@ -146,15 +201,13 @@ const NONE: LineView = {
   thick: false,
   dim: false,
   dashed: false,
-  chip: null,
   aria: 'AI credits: no reading yet. Usage appears after the first run.',
   announce: null,
   card: {
     title: 'No reading yet',
-    window: null,
-    rate: null,
-    verdict: 'Usage appears after the first run.',
-    other: null,
+    empty: 'Usage appears after the first run.',
+    usage: [],
+    resets: [],
     age: null,
     estimated: false,
   },
@@ -167,63 +220,42 @@ export function view(f: Forecast | null, now: number, c: Clock = {}): LineView {
   const at = (iso: string) => clockTime(ms(iso), now, c);
   const ageMs = binding.readingAgeMs + Math.max(0, now - ms(f.at));
   const leftPct = percentLeft(binding);
-  const base = {
-    leftPct,
-    dashed: false,
-    other: otherWindow(f, binding, now, c),
-    age: age(ageMs),
-    window: windowName(binding.name),
-  };
   const episode = `${binding.name}@${binding.resetsAt}`;
+  const shared = { dashed: false, card: card(f, now, c, ageMs) };
 
   if (binding.verdict === 'fresh') {
-    const verdict = 'Fresh window. The next run brings a reading.';
     return {
-      ...pick(base),
+      ...shared,
       state: 'fresh',
       leftPct: 100,
       fill: 1,
       fillTone: 'rainbow',
       thick: false,
       dim: true,
-      chip: null,
-      aria: `AI credits: ${lower(verdict)}`,
+      aria: 'AI credits: fresh window. The next run brings a reading.',
       announce: null,
-      card: { ...card(base), title: '100% left', rate: null, verdict },
     };
   }
 
   const resets = binding.resetsAt as string;
   if (f.state === 'limited' || binding.verdict === 'limited') {
     const back = at(resets);
-    const verdict = `Limit reached. Back at ${back} (in ${duration(ms(resets) - now)})`;
     return {
-      ...pick(base),
+      ...shared,
       state: 'limited',
       leftPct: 0,
       fill: 0,
       fillTone: 'none',
       thick: true,
       dim: false,
-      chip: `Limit reached · back at ${back}`,
       aria: `AI credits: limit reached, back at ${back}`,
       announce: { key: `limited:${episode}`, text: `AI credits: limit reached. Back at ${back}.` },
-      card: { ...card(base), title: '0% left', rate: null, verdict },
     };
   }
 
   const title = `${leftPct}% left`;
   const hits = binding.verdict === 'hits' && binding.hitsAt ? ms(binding.hitsAt) : null;
-  const verdict =
-    hits !== null
-      ? `Runs out in ~${duration(hits - now)} (≈ ${at(binding.hitsAt as string)}) · resets ${at(resets)}`
-      : `Lasts until it resets at ${at(resets)}`;
   const warning = f.state === 'warning';
-  const chip = !warning
-    ? null
-    : hits !== null
-      ? `runs out ≈ ${at(binding.hitsAt as string)}`
-      : `${leftPct}% left · resets ${at(resets)}`;
   const announce = !warning
     ? null
     : {
@@ -234,22 +266,17 @@ export function view(f: Forecast | null, now: number, c: Clock = {}): LineView {
             : `AI credits low: ${leftPct}% left.`,
       };
   return {
-    ...pick(base),
+    ...shared,
     state: warning ? 'warning' : f.state === 'stale' ? 'stale' : 'ok',
+    leftPct,
     fill: Math.max(0, Math.min(1, binding.left)),
     fillTone: warning ? 'warm' : 'rainbow',
     thick: warning,
     dim: f.state === 'stale',
-    chip,
     aria:
       hits !== null
         ? `AI credits: ${title}, runs out in about ${spokenDuration(hits - now)}, at ${at(binding.hitsAt as string)}; resets at ${at(resets)}`
-        : `AI credits: ${title}, ${lower(verdict)}`,
+        : `AI credits: ${title}, lasts until it resets at ${at(resets)}`,
     announce,
-    card: { ...card(base), title, rate: rate(binding.ratePerHour), verdict },
   };
 }
-
-type Base = { leftPct: number; dashed: boolean; other: string | null; age: string | null; window: string };
-const pick = (b: Base) => ({ leftPct: b.leftPct, dashed: b.dashed });
-const card = (b: Base) => ({ window: b.window, other: b.other, age: b.age, estimated: false });

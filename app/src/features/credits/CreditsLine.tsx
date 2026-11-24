@@ -1,5 +1,5 @@
 /* The credits line (design/credits-line.md): a thin rainbow over the top edge whose length is the share of the
-   plan left, a chip only when it matters (low, limited), and a small card on hover, focus or tap.
+   plan left (no words on the line), and a small card on hover, focus or tap: 5-hour and weekly left, both resets.
    All words come from model.ts; this file only draws them and handles open/close. */
 import { type CSSProperties, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useCredits } from './api';
@@ -166,18 +166,6 @@ export function CreditsLineView({ view: v }: { view: LineView }) {
         onClick={(e) => show(e.detail === 0 ? null : e.clientX)}
         {...hover}
       />
-      {v.chip && (
-        <button
-          type="button"
-          className="credits-chip"
-          aria-expanded={open}
-          aria-controls={cardId}
-          onClick={() => show(null)}
-          {...hover}
-        >
-          <span>{v.chip}</span>
-        </button>
-      )}
       {open && (
         <div
           id={cardId}
@@ -188,22 +176,51 @@ export function CreditsLineView({ view: v }: { view: LineView }) {
           style={cardStyle}
           {...hover}
         >
-          <div className="credits-card-head">
-            <b id={titleId}>
-              {c.title}
-              {c.estimated && <span className="credits-soft"> · estimated, studio use only</span>}
-            </b>
-            {c.window && <span className="credits-soft">{c.window}</span>}
-          </div>
-          {v.state !== 'none' && (
-            <div className="credits-bar" aria-hidden="true">
-              <span className="credits-fill" style={{ width: `${v.fill * 100}%` }} />
-            </div>
+          {c.empty !== null ? (
+            <>
+              <b id={titleId} className="credits-title">
+                {c.title}
+              </b>
+              <p className="credits-soft">{c.empty}</p>
+            </>
+          ) : (
+            <>
+              {c.usage.map((u, i) => (
+                <div
+                  key={u.window}
+                  className="credits-usage"
+                  data-tone={u.tone}
+                  data-dim={u.dim || undefined}
+                >
+                  <div className="credits-card-head">
+                    <b id={i === 0 ? titleId : undefined} className="credits-title">
+                      {u.title}
+                      {u.note && <span className="credits-soft"> · {u.note}</span>}
+                      {i === 0 && c.estimated && (
+                        <span className="credits-soft"> · estimated, studio use only</span>
+                      )}
+                    </b>
+                    <span className="credits-soft">{u.window}</span>
+                  </div>
+                  <div className="credits-bar" aria-hidden="true">
+                    <span className="credits-fill" style={{ width: `${u.fill * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+              <hr />
+              <dl className="credits-resets">
+                {c.resets.map((r) => (
+                  <div key={r.label}>
+                    <dt className="credits-soft">{r.label}</dt>
+                    <dd>
+                      {r.when}
+                      {r.relative && <span className="credits-soft"> · {r.relative}</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </>
           )}
-          {c.rate && <p className="credits-soft">{c.rate}</p>}
-          <p className="credits-verdict">{c.verdict}</p>
-          {(c.other || c.age) && <hr />}
-          {c.other && <p className="credits-soft">{c.other}</p>}
           {c.age && <p className="credits-soft">{c.age}</p>}
         </div>
       )}

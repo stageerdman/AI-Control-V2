@@ -55,20 +55,43 @@ describe('CreditsLineView', () => {
     expect(document.querySelector('.credits-chip')).toBeNull();
   });
 
-  it('warning: thick warm line and the chip; the chip opens the card', () => {
+  it('warning: thick warm line, no words on the line', () => {
     draw(fc('warning', win({ verdict: 'hits', hitsAt: iso(40) })));
     expect(root().dataset.tone).toBe('warm');
     expect(root().dataset.thick).toBe('true');
-    const chip = screen.getByRole('button', { name: 'runs out ≈ 3:10 pm' });
-    fireEvent.click(chip);
-    expect(screen.getByRole('dialog', { name: '62% left' })).toBeTruthy();
-    expect(screen.getByText('Runs out in ~40 min (≈ 3:10 pm) · resets 4:30 pm')).toBeTruthy();
+    expect(document.querySelector('.credits-chip')).toBeNull();
+    expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      'AI credits details',
+    ]);
   });
 
-  it('limited: no fill, the chip says when it is back', () => {
+  it('the card: 5-hour left, weekly left, then both resets with day, time and countdown', () => {
+    const f = fc('ok', win());
+    f.windows.push(win({ name: 'seven_day', used: 0.51, left: 0.49, resetsAt: '2026-11-28T09:00:00Z' }));
+    draw(f);
+    fireEvent.click(screen.getByRole('button', { name: 'AI credits details' }));
+    const card = screen.getByRole('dialog', { name: '62% left' });
+    const text = (card.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toBe(
+      '62% left5-hour49% leftWeekly5-hour resetsToday 4:30 pm · in 2 hoursWeekly resetsSat 9 am · in 4 days',
+    );
+    const fills = [...card.querySelectorAll('.credits-bar > .credits-fill')] as HTMLElement[];
+    expect(fills.map((el) => el.style.width)).toEqual(['62%', '49%']);
+  });
+
+  it('limited: no fill; the card says limit reached', () => {
     draw(fc('limited', win({ used: 1, left: 0, verdict: 'limited' })));
     expect(root().dataset.state).toBe('limited');
-    expect(screen.getByRole('button', { name: 'Limit reached · back at 4:30 pm' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'AI credits details' }));
+    expect(screen.getByRole('dialog').textContent).toMatch(/0% left · Limit reached/);
+  });
+
+  it('no reading: the card says the one sentence', () => {
+    draw(fc('none', null));
+    fireEvent.click(screen.getByRole('button', { name: 'AI credits details' }));
+    expect(screen.getByRole('dialog', { name: 'No reading yet' }).textContent).toMatch(
+      /Usage appears after the first run\./,
+    );
   });
 
   it('the card: focus opens it, Escape closes it and focus stays on the line', () => {
@@ -126,7 +149,7 @@ describe('CreditsLineView', () => {
       draw(fc('warning', win({ verdict: 'hits', hitsAt: iso(40) })));
       expect(root().dataset.animate).toBeUndefined();
       expect(root().dataset.tone).toBe('warm');
-      expect(screen.getByRole('button', { name: 'runs out ≈ 3:10 pm' })).toBeTruthy();
+      expect(screen.getByRole('meter').getAttribute('aria-label')).toMatch(/runs out in about 40 minutes/);
     } finally {
       window.matchMedia = mm;
     }
