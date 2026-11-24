@@ -12,6 +12,7 @@ import { Button } from '../../ui';
 import type { RunningItem } from '../running/api';
 import { type ChatSummary, keys, officeApi, type Thread, type ThreadChat, type ThreadMessage } from './api';
 import { aboutTitles, Bubble } from './Bubble';
+import { BuiltCard } from './built/BuiltCard';
 import { CHAT_COPY, ChatList, ChatView } from './ChatHistorySheet';
 import { NewChatPill } from './NewChatPill';
 import { asksForNewChat, newChatState } from './new-chat';
@@ -451,11 +452,15 @@ export function Panel(p: PanelProps) {
           )}
           {messages.map((m, i) => (
             <Fragment key={m.id}>
-              <Bubble
-                m={m}
-                who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
-                openReport={p.openReport}
-              />
+              {isDir && m.teamRequestId ? (
+                <BuiltCard pid={pid} requestId={m.teamRequestId} text={m.text} />
+              ) : (
+                <Bubble
+                  m={m}
+                  who={m.from === 'user' ? 'You' : (p.agents[m.from]?.name ?? ag.name)}
+                  openReport={p.openReport}
+                />
+              )}
               {isDir && m.rebuild && (
                 <div className="op-rebuild">
                   {m.rebuild.undoToken ? (

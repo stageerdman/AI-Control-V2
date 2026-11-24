@@ -27,7 +27,8 @@ export const requestsKey = (pid: string) => `project:${pid}:team-requests`;
 export const builtApi = {
   list: (pid: string) =>
     http.get<{ requests: TeamRequest[] }>(`/projects/${e(pid)}/team-requests`).then((r) => r.requests),
-  undo: (pid: string, id: string) => http.post<TeamRequest>(`/projects/${e(pid)}/team-requests/${e(id)}/undo`),
+  undo: (pid: string, id: string) =>
+    http.post<TeamRequest>(`/projects/${e(pid)}/team-requests/${e(id)}/undo`),
   restore: (pid: string, id: string) =>
     http.post<TeamRequest>(`/projects/${e(pid)}/team-requests/${e(id)}/restore`),
 };
@@ -35,7 +36,7 @@ export const builtApi = {
 /** A plain line from any failure (`name`: who, when they're busy in a session). */
 export const plainError = (x: unknown, fallback: string, name = 'They') =>
   isApiError(x) && x.code === 'agent_busy'
-    ? busyReason(name, ((x.details as { sessions?: BusySession[] } | undefined)?.sessions ?? []))
+    ? busyReason(name, (x.details as { sessions?: BusySession[] } | undefined)?.sessions ?? [])
     : isApiError(x) || x instanceof Error
       ? x.message || fallback
       : fallback;
@@ -55,7 +56,10 @@ export const removedOne = (id: string) => tokens.get(id) ?? null;
 /** For tests. */
 export const resetBuiltTokens = () => tokens.clear();
 
-export async function removeOne(pid: string, x: { kind: 'agent'; agent: Agent } | { kind: 'team'; team: Team }) {
+export async function removeOne(
+  pid: string,
+  x: { kind: 'agent'; agent: Agent } | { kind: 'team'; team: Team },
+) {
   const id = x.kind === 'agent' ? x.agent.id : x.team.id;
   const res = x.kind === 'agent' ? await castApi.agents.remove(id) : await castApi.teams.remove(id);
   tokens.set(id, { token: res.restoreToken, name: x.kind === 'agent' ? x.agent.name : x.team.name });

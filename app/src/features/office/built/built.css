@@ -1,0 +1,178 @@
+/* "Built for you" card (design/team-built-card.md). Same family as the rebuild card (rebuild/rebuild.css):
+   panel, medium radius, small shadow, ink text; actions are underlined text buttons with 44px targets. */
+
+.bc-card {
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px 10px;
+  margin: 6px 0 10px;
+  max-width: 520px;
+  animation: bc-in 0.22s ease-out both;
+}
+.bc-eyebrow {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.bc-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.bc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 2px 0;
+  border-top: 1px solid var(--line);
+}
+.bc-row:first-child {
+  border-top: 0;
+}
+.bc-face {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(36, 26, 68, 0.06);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.bc-row.team .bc-face {
+  border-radius: 10px;
+}
+.bc-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.bc-name {
+  font-size: 14px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-sub {
+  font-size: 12px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bc-row.gone .bc-name {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+.bc-acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.bc-text {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+  text-decoration: underline;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 8px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.bc-text.soft {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.bc-text:hover {
+  background: rgba(36, 26, 68, 0.06);
+}
+.bc-text[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+.bc-text:focus-visible {
+  outline: 3px solid var(--sky);
+  outline-offset: 2px;
+}
+.bc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.bc-yes {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+  min-width: 0;
+}
+.bc-yes q {
+  font-style: italic;
+}
+.bc-yes time {
+  color: var(--ink-soft);
+}
+.bc-err {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a3242a;
+}
+.bc-line .bc-err {
+  margin: 0;
+}
+
+/* one-line states: the build taken back, or the card can't be read */
+.bc-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 4px 0 10px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--panel);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  padding: 6px 12px;
+  max-width: 520px;
+}
+
+@keyframes bc-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bc-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bc-card {
+    animation: bc-fade 0.2s ease-out both;
+  }
+}

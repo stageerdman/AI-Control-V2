@@ -2,7 +2,7 @@
    from the user's yes. It shows the team, its people, the captain and the yes. Each row: Edit (opens it in the
    Cast, where its name and everything else change) and, for what this build made, Remove (Undo on the row).
    Remove all takes the whole build back, with Undo. Names and looks are live from the Cast. */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useQuery } from '../../../api';
 import type { Agent, Team } from '../../../api/types';
 import { Emblem, Hero } from '../../../characters';
@@ -109,7 +109,12 @@ function Card(p: { pid: string; req: TeamRequest; builder: string; agents: Agent
             className="bc-text"
             aria-disabled={!!busy || undefined}
             onClick={() =>
-              void run('all', () => bringAllBack(pid, req.id), `${teamName} is back.`, 'Couldn’t bring them back.')
+              void run(
+                'all',
+                () => bringAllBack(pid, req.id),
+                `${teamName} is back.`,
+                'Couldn’t bring them back.',
+              )
             }
           >
             {busy === 'all' ? 'Bringing back…' : 'Undo'}
@@ -133,7 +138,9 @@ function Card(p: { pid: string; req: TeamRequest; builder: string; agents: Agent
             r={r}
             captain={r.id === team?.captainId}
             busy={busy}
-            edit={() => go(r.kind === 'team' ? { name: 'cast.team', id: r.id } : { name: 'cast.agent', id: r.id })}
+            edit={() =>
+              go(r.kind === 'team' ? { name: 'cast.team', id: r.id } : { name: 'cast.agent', id: r.id })
+            }
             remove={(name) =>
               void run(
                 r.id,
@@ -150,7 +157,12 @@ function Card(p: { pid: string; req: TeamRequest; builder: string; agents: Agent
               )
             }
             undo={(name) =>
-              void run(r.id, () => bringOneBack(pid, r.id), `${name} is back.`, `Couldn’t bring ${name} back.`)
+              void run(
+                r.id,
+                () => bringOneBack(pid, r.id),
+                `${name} is back.`,
+                `Couldn’t bring ${name} back.`,
+              )
             }
           />
         ))}
@@ -169,7 +181,12 @@ function Card(p: { pid: string; req: TeamRequest; builder: string; agents: Agent
           className="bc-text soft"
           aria-disabled={!!busy || undefined}
           onClick={() =>
-            void run('all', () => removeAll(pid, req.id), `${teamName} removed.`, 'Couldn’t remove the build.')
+            void run(
+              'all',
+              () => removeAll(pid, req.id),
+              `${teamName} removed.`,
+              'Couldn’t remove the build.',
+            )
           }
         >
           {busy === 'all' ? 'Removing…' : 'Remove all'}
@@ -201,7 +218,9 @@ function RowLine(p: {
       : 'Removed · in Recently deleted'
     : r.kind === 'team'
       ? 'Team · on this project'
-      : [agent?.role, p.captain ? 'captain' : '', r.fresh ? '' : 'already in the Cast'].filter(Boolean).join(' · ');
+      : [agent?.role, p.captain ? 'captain' : '', r.fresh ? '' : 'already in the Cast']
+          .filter(Boolean)
+          .join(' · ');
   const mine = p.busy === r.id;
   return (
     <li className={`bc-row${r.kind === 'team' ? ' team' : ''}${gone ? ' gone' : ''}`}>

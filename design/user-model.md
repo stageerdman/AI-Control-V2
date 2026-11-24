@@ -28,7 +28,10 @@
 
 - To test a project they had to know how it runs: "Open app" only appeared once a dev server was already running, and desktop apps had no way to open at all (Nov 2026). Design: one sun-coloured Start in the office's bottom-right controls (design/start-button.md).
 
+- They ask the orchestrator "build me a team for X" and say yes in chat (Sea GPS, Nov 2026). Afterwards they need to see what was made and fix or take it back without hunting through the Cast. Design: one "built for you" card in the chat (design/team-built-card.md).
+
 ## Assumptions (guesses — check)
+- After a team is built, people mostly rename or tweak one agent, and rarely take the whole build back. Check: Edit vs Remove vs Remove all clicks on the built card.
 - One Start, bottom-right of the office, is found without help, and Stop is rarely wanted there (it stays on the health card). Check: time to first Start in a new office; do people go to the health card to stop right after?
 - Opening the newest build (no rebuild) is what people mean by "test it". Check: do they report testing a stale build?
 - In the features list, Shelved and Denied belong at the bottom of All (not hidden), and Enter in "Search or add" should open the first match, adding only when nothing matches. Check in the live pass: does the bottom feel cluttered; any accidental adds?
