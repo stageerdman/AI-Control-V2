@@ -6,7 +6,7 @@ Add one thin, sparkly, multi-colour line across the top of AI Studio. It always 
 2. **At our current pace, when do we hit it**, or do we reach the reset first?
 3. **When does the limit reset?**
 
-Feature: `f-ai-credits-tracker`. This file covers the research and the roadmap. The design comes in Phase 3.
+Feature: `f-ai-credits-tracker`. This file covers the research, the roadmap and (in Phase 3) the design.
 
 ## The data source (research, 2026-11-24)
 
@@ -113,28 +113,35 @@ These are worked out for each window `w` from the readings stored for that windo
   - No readings at all gives `none`.
   - The route's shape is locked.
 
-### Phase 3: App: the sparkly line (bring in UX)
-- A UX expert designs it first, along these lines:
-  - A 3–4 px full-width bar at the very top of `app/src/shell/Shell.tsx`.
-  - The fill shows the **left** share in a slowly drifting rainbow gradient with a faint shimmer. The used part is
-    a quiet track.
-  - The colours stay joyful and don't turn red. Urgency shows as the shimmer getting faster plus the words.
-  - Hovering, focusing or tapping opens a small card:
-    - "5-hour: 62% left · resets 4:30 pm"
-    - "At this pace: lasts until reset", or "runs out ≈ 3:10 pm"
-    - "Weekly: 47% left · resets Sat 9:00"
-    - "Studio's share this window: Elon 40%, Pixel 22%…"
-    - "updated 3 min ago"
-  - Respects `prefers-reduced-motion` (no shimmer). Has an `aria-label` with the plain sentence. Can be reached by
-    keyboard.
-  - Every state is designed: `none` shows "Usage appears after the first run", plus `stale`, `limited` and the
-    fallback "estimated".
-- `app/src/features/credits/`: an isolated `CreditsLine` component plus a pure `model.ts` for formatting and state
-  to style.
+### Phase 3: App: the sparkly line
+**Designed (Jony, 2026-11-24). Full spec: `design/credits-line.md`.** In short:
+- **The line.** A 3 px strip over the very top edge, on the studio and the office (not the gallery). It takes no
+  layout space. The fill is the **binding window's share left**, from the left edge, in a drifting seven-colour
+  rainbow (sky → teal → mint → sun → coral → rose → grape) with a faint shimmer every 6 s. The used part is a quiet
+  track. There's no number on the line: its length is the number.
+- **Calm vs warning.** `ok` is the full rainbow, slow. `warning` (runs out before reset, or ≤ 15% left, or
+  `allowed_warning`): the line grows to 4 px, keeps only the warm colours (sun → coral → rose), shimmers every 2 s,
+  its end breathes, and a small chip at the top-right says **"runs out ≈ 3:10 pm"**. `limited`: no fill, a
+  coral-tinted track, chip **"Limit reached · back at 4:30 pm"**. It never turns red, and meaning never rides on
+  colour alone.
+- **Other states.** `stale` (> 15 min) and `fresh` (window reset, no reading yet) are dimmed, with no shimmer.
+  `none` is the track with one slow shimmer. `estimated` (Phase 5) has a dashed fill.
+- **The card** (hover after 150 ms, focus, or tap; 280 px). Title "62% left" plus the window name, a mini rainbow
+  bar, "Using about 9% an hour", the verdict in one line ("Lasts until it resets at 4:30 pm" / "Runs out in ~40 min
+  (≈ 3:10 pm) · resets 4:30 pm"), the other window in one row, and "Updated 3 min ago" when it's more than 2 min old.
+- **Deleted from the earlier sketch:** the per-agent "studio's share" row (not a top goal; it belongs to Agent
+  Performance), any settings, a refresh button, and showing every rare window.
+- **Accessibility.** `role="meter"` with the plain sentence as its label. The hit area is the first tab stop
+  (`button`, `aria-expanded`). The card is a non-modal dialog. One polite announcement on entering warning or
+  limited. `prefers-reduced-motion` stops all motion and keeps the colours and words.
+- **Build:** `app/src/features/credits/{model.ts, CreditsLine.tsx, credits.css}`, mounted once in
+  `app/src/shell/Shell.tsx`. All the words come from the pure `model.ts`.
 - **Tests:**
-  - `model.ts`: every state, the times in the user's local zone, and the sentences.
-  - Component render for `none`, `ok`, `limited` and reduced motion.
-  - Live check: run the app, start one real run, see the line fill in.
+  - `model.ts`: every state, each verdict sentence, the time and "in ~X" rules, 99% never shown as 100%, and the
+    binding/other-window swap.
+  - Component render for `none`, `ok`, `warning` (chip shown), `limited` and reduced motion.
+  - Live check: run the app, start one real run, see the line fill in. Also check the chip clears the office's
+    top-right controls.
 
 ### Phase 4: Voice path, and a decision on idle refresh
 - Voice/chat: Pixel, and any agent, can answer "how much credit do we have left?" from `GET /credits`. That works
@@ -158,4 +165,5 @@ These are worked out for each window `w` from the readings stored for that windo
 
 ## Status
 - [x] Research: data source chosen and verified against real stream lines on this machine (2026-11-24, Elon).
+- [x] Design of the line and card: `design/credits-line.md` (2026-11-24, Jony).
 - [ ] Phase 1 · [ ] Phase 2 · [ ] Phase 3 · [ ] Phase 4 · [ ] Phase 5 (conditional)

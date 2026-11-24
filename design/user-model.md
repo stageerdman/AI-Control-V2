@@ -32,7 +32,10 @@
 
 - The home screen's "On set today" filled up with projects the user hadn't touched, because agents keep them live or edited (Nov 2026). They asked for their own pinned projects on top, then "Today" holding only projects where they sent a message or gave work (opening one doesn't count), then the rest. Design: updates/2026-11-24 HOME SCREEN - OPEN/design.md.
 
+- They want to know, at a glance, how much AI usage is left before the plan limit, when it runs out at the current pace, and when it resets, so agent work isn't cut off by surprise (Nov 2026). Design: a sparkly rainbow line across the top edge that turns warm and grows a "runs out ≈ …" chip only when low (design/credits-line.md).
+
 ## Assumptions (guesses — check)
+- A 3 px top line is noticed when calm, and the warm line with its chip is noticed when low. Warning at ≤ 15% left or "runs out before reset" is the right moment. Check: does anyone hit a limit without having seen the chip? How many false alarms?
 - People pin a short list (2–6) and rarely reorder it. Check: pin count after a week; reorder events.
 - "Today" as the local calendar day matches what the user means. Check: complaints after working past midnight.
 - A needs-input project sorted first in All other projects (plus the pager) is never missed. Check: time from a needs-input ask to the answer, before vs after.
