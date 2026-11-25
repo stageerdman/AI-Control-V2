@@ -194,9 +194,21 @@ describe('rebuild card — keyboard and screen readers', () => {
     ]);
     const close = screen.getByRole('button', { name: 'Close out-of-date plan' });
     expect(close.textContent).toBe('Close');
-    expect(document.querySelector('select')).toBeNull(); // no dead menus: the picks show as plain text
-    expect(document.querySelector('.rb-fixed')?.textContent).toBe('Jony');
     expect(screen.queryByText(/Plan changed|ran out/)).toBeNull();
+  });
+
+  /* Eraser: greyed menus look like choices still open — out of date, only Close is left */
+  it('out of date: no menus — each pick shows as plain words, Close is the only button', () => {
+    const c = card({
+      lone: [{ agentId: 'ann', name: 'Ann', teamId: 't2', teamName: 'Ops', pick: 'remove' }],
+    });
+    const { container } = render(<RebuildCard card={c} faceOf={faceOf} director="Ada" stale />);
+    expect(container.querySelector('select')).toBeNull();
+    expect(screen.queryAllByRole('combobox')).toEqual([]);
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Close']);
+    expect(screen.getByText('Jony', { selector: '.rb-picked' })).toBeTruthy();
+    expect(screen.getByText('removed too', { selector: '.rb-picked' })).toBeTruthy();
+    expect(screen.getByText(/1 open item goes to Jony \(captain\)/)).toBeTruthy(); // the work line still says where
   });
 
   it('Close: the server closes it at once, it folds into one line, and focus follows', async () => {

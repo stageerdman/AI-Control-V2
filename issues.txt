@@ -4,6 +4,7 @@ Running list. Newest at top. Move resolved items to the bottom with a strikethro
 
 OPEN
 ----
+- [ ] `npm --prefix app run lint` fails on older code: format in ChatHistorySheet.test.tsx, Rearrange.tsx, rearrange.test.tsx, rebuild.css (written compact on purpose), CommsDrawer.tsx; import order in Rearrange.tsx and ReportsList.tsx; role="menu" on a <ul> in Rearrange.tsx. RebuildCard.tsx is clean. (MAGIC UX)
 - [ ] At 390 px the studio top nav (logo + Projects/Cast/Access/Blueprint) is wider than the screen → sideways scroll. Pre-existing shell layout. (STUDIO LIFE)
 - [ ] Office doesn't draw guests a project agent calls in with call_agent (events room.joined / room.call exist; spec-ux-room.md §4). (AGENT MCP)
 - [ ] /Applications/AI Studio.app front end not rebuilt since AGENT MCP — rebuild + reinstall to see the setup room. (AGENT MCP)

@@ -385,7 +385,7 @@ function LiveCard(
                     to={picks.hand[l.id] ?? l.openItems[0].to}
                     director={director}
                     disabled={busy}
-                    fixed={stale}
+                    stale={stale}
                     onChange={(to) => setPicks((s) => ({ ...s, hand: { ...s.hand, [l.id]: to } }))}
                   />
                 )}
@@ -458,7 +458,7 @@ function LiveCard(
                   label={`Captain of ${c.teamName}`}
                   value={picks.captain[c.teamId] ?? c.agentId}
                   disabled={busy}
-                  fixed={stale}
+                  stale={stale}
                   options={uniq([{ id: c.agentId, name: c.name }, ...c.choices]).map((x) => [x.id, x.name])}
                   onChange={(v) => setPicks((s) => ({ ...s, captain: { ...s.captain, [c.teamId]: v } }))}
                 />
@@ -480,7 +480,8 @@ function LiveCard(
                   label={`What happens to ${x.name}`}
                   value={picks.lone[x.agentId] ?? x.pick}
                   disabled={busy}
-                  fixed={stale}
+                  stale={stale}
+                  picked={(v) => (v === 'remove' ? 'removed too' : 'made a specialist')}
                   options={[
                     ['specialist', `Make ${x.name} a specialist`],
                     ['remove', `Remove ${x.name} too`],
@@ -510,7 +511,7 @@ function LiveCard(
             <Button
               ref={closeBtn}
               variant="ghost"
-              className="rb-ghost"
+              className="rb-quiet-btn"
               aria-label="Close out-of-date plan"
               aria-disabled={folding !== null || undefined}
               onClick={dismiss}
@@ -531,7 +532,7 @@ function LiveCard(
             <Button
               ref={keep}
               variant="ghost"
-              className="rb-ghost"
+              className="rb-quiet-btn"
               aria-disabled={busy || undefined}
               onClick={kept}
             >
@@ -589,7 +590,7 @@ function WorkLine({
   to,
   director,
   disabled,
-  fixed,
+  stale,
   onChange,
 }: {
   id: string;
@@ -597,7 +598,7 @@ function WorkLine({
   to: HandoverTo;
   director: string;
   disabled: boolean;
-  fixed: boolean;
+  stale: boolean;
   onChange: (to: HandoverTo) => void;
 }) {
   const n = leaver.openItems.length;
@@ -630,7 +631,7 @@ function WorkLine({
         label={`Change where ${leaver.name}’s work goes`}
         value={to}
         disabled={disabled}
-        fixed={fixed}
+        stale={stale}
         options={opts}
         onChange={(v) => onChange(v as HandoverTo)}
         change
@@ -639,31 +640,34 @@ function WorkLine({
   );
 }
 
-/* one small native menu ("change"): keyboard and screen readers get the platform's own control */
+/* one small native menu ("change"): keyboard and screen readers get the platform's own control.
+   Out of date there is no choice left: a "change" menu goes, any other shows what was picked as plain words. */
 function Pick({
   id,
   label,
   value,
   options,
   disabled,
+  stale,
+  picked,
   onChange,
   change,
-  fixed,
 }: {
   id: string;
   label: string;
   value: string;
   options: [string, string][];
   disabled: boolean;
+  stale?: boolean;
+  /** The plain words for a pick once the card is out of date (default: the option's label). */
+  picked?: (v: string) => string;
   onChange: (v: string) => void;
   change?: boolean;
-  /** Out of date: no dead control — the pick shows as plain text (a "change" menu just goes). */
-  fixed?: boolean;
 }) {
   if (options.length < 2) return null;
-  if (fixed) {
+  if (stale) {
     if (change) return null;
-    return <span className="rb-pick rb-fixed">{options.find(([v]) => v === value)?.[1] ?? ''}</span>;
+    return <span className="rb-picked">{picked?.(value) ?? options.find(([v]) => v === value)?.[1]}</span>;
   }
   return (
     <span className={`rb-pick${change ? ' rb-change' : ''}`}>
