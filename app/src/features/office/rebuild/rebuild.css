@@ -5,7 +5,11 @@
 .rb-card{background:var(--panel);color:var(--ink);border-radius:var(--r-md);box-shadow:var(--shadow-sm);
   padding:16px 16px 14px;margin:6px 0 10px;max-width:520px;animation:rb-in .22s ease-out both}
 .rb-card h3{margin:0 0 10px;font-size:16px;font-weight:800}
-.rb-card.stale{opacity:.62;filter:grayscale(.7)}
+/* out of date: only the plan dims (once, ~400 ms, then still); the title, the why and Close stay full ink */
+.rb-groups,.rb-copy{transition:opacity .4s ease-out,filter .4s ease-out}
+.rb-card.stale .rb-groups,.rb-card.stale .rb-copy{opacity:.5;filter:grayscale(1)}
+.rb-card.stale .rb-change{display:none}
+.rb-card.folding{overflow:hidden;transform-origin:top;animation:rb-fold .22s ease-in both;pointer-events:none}
 .rb-groups{margin:0;display:grid;gap:10px}
 .rb-group{display:grid;grid-template-columns:minmax(110px,30%) 1fr;gap:4px 12px;align-items:start;
   padding:8px 0 8px 10px;border-left:4px solid var(--line);border-radius:4px}
@@ -34,7 +38,10 @@
   text-decoration:underline;color:var(--ink)}
 .rb-pick select:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
 .rb-copy{margin:12px 0 0;font-size:13px;color:var(--ink)}
-.rb-stale{margin:12px 0 0;font-weight:700;color:var(--ink-soft)}
+.rb-stale{margin:14px 0 0}
+.rb-stale p{margin:0}
+.rb-stale-l{font-size:13px;font-weight:800;color:var(--ink)}
+.rb-why{margin-top:2px;font-size:14px;color:var(--ink)}
 .rb-err{margin:12px 0 0;font-size:13px;font-weight:700;color:#a3242a}
 .rb-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
 .rb-foot .btn{min-height:44px}
@@ -43,7 +50,7 @@
 /* ---------- after: one line + Undo */
 .rb-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:4px 0 10px;font-size:14px;
   color:var(--ink);background:var(--panel);border-radius:var(--r-md);padding:6px 12px;max-width:520px}
-.rb-quiet{color:var(--ink-soft)}
+.rb-quiet{color:var(--ink-soft);animation:rb-fade .16s ease-out both}
 .rb-undo{appearance:none;border:0;background:none;font:inherit;font-weight:800;color:var(--ink);
   text-decoration:underline;min-height:44px;min-width:44px;padding:0 8px;cursor:pointer}
 .rb-undo:focus-visible{outline:3px solid var(--sky);outline-offset:2px;border-radius:8px}
@@ -93,11 +100,16 @@
   92%{transform:scale(1.05,.94)}100%{transform:none}}
 @keyframes rb-split{from{opacity:.4;transform:scaleX(.92)}to{opacity:1;transform:none}}
 @keyframes rb-fade{from{opacity:0}to{opacity:1}}
+@keyframes rb-fold{from{max-height:var(--rb-h,400px)}to{max-height:36px;opacity:0;transform:scaleY(.96)}}
 .o-body.rb-leaving{animation:rb-leave .9s ease-in-out both}
 .o-body.rb-moved{animation:rb-chair .6s ease-in-out both}
 .o-world.rb-split .o-table,.o-world.rb-split [class*="table"]{animation:rb-split .6s ease-out both}
 @media (prefers-reduced-motion:reduce){
   .rb-card,.rr{animation:rb-fade .2s ease-out both}
+  /* out of date: no fold (the card goes straight to its line), just a 120 ms fade */
+  .rb-groups,.rb-copy{transition:opacity .12s linear,filter .12s linear}
+  .rb-card.folding{animation:none}
+  .rb-quiet{animation:rb-fade .12s linear both}
   .o-body.rb-leaving,.o-body.rb-moved,.o-world.rb-split .o-table,.o-world.rb-split [class*="table"]{
     animation:rb-fade .3s ease-out both}
 }

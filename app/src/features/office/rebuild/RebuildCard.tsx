@@ -113,8 +113,15 @@ export type RebuildCardProps = {
    (voice / typed answer, focus elsewhere) — never both, never silence, never focus dropped to the page. */
 const KEPT = 'Kept as is.';
 const UNDONE = 'Undone — the team is back as it was.';
-const expiredText = (director: string) =>
-  `This plan ran out — nothing changed. Ask ${director} again if you still want it.`;
+/* out of date: one state, one set of words — live, after a restart, or coming back (Merlin's note) */
+const OUT_OF_DATE = 'Out of date';
+const whyOutOfDate = (director: string) =>
+  `Nothing changed — the team moved on since this plan. Ask ${director} again if you still want it.`;
+const CLOSED = 'Out-of-date plan closed — nothing changed.';
+/** The card folds shut, then its one line fades in; reduced motion: no fold. */
+const FOLD_MS = 220;
+const reducedMotion = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const doneText = (summary?: string) =>
   summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.';
 /** Focus is inside `el`, or was until the focused control was removed (focus fell back to the page). */
@@ -151,6 +158,7 @@ function QuietLine({ text, grab }: { text: string; grab: boolean }) {
     </p>
   );
 }
+const settleOutOfDate = (planId: string) => outcomes.set(planId, { kind: 'expired' });
 
 export function RebuildCard(p: RebuildCardProps) {
   const { card } = p;
@@ -159,7 +167,7 @@ export function RebuildCard(p: RebuildCardProps) {
   );
   const [said, setSaid] = useState('');
   const [grab, setGrab] = useState(false);
-  const expired = expiredText(p.director);
+  const expired = CLOSED;
   const settle = (o: Outcome, hadFocus: boolean) => {
     outcomes.set(card.planId, o);
     setOutcome(o);
@@ -269,11 +277,15 @@ function LiveCard(
   const id = useId();
   const keep = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
-  const staleLine = useRef<HTMLParagraphElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
   const within = useFocusWithin();
   const [picks, setPicks] = useState<Picks>(() => firstPicks(card));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  /* Close pressed: the card's height while it folds shut (null = open) */
+  const [folding, setFolding] = useState<number | null>(null);
+  const fold = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(fold.current), []);
   const stale = card.stale || !!p.stale;
   const had = () => holdsFocus(root.current, within.was.current);
   /* the server closes the card for good (it never comes back after a restart); the line shows at once */
@@ -297,9 +309,15 @@ function LiveCard(
     close();
     p.onKept(had());
   };
+  /* the one way out of an out-of-date card: closed on the server at once, then it folds into its line */
   const dismiss = () => {
+    if (folding !== null) return;
+    const hadFocus = had();
     close();
-    p.onRanOut(had());
+    settleOutOfDate(card.planId); // closed even if the thread switches mid-fold
+    if (reducedMotion()) return p.onRanOut(hadFocus);
+    setFolding(root.current?.offsetHeight ?? 0);
+    fold.current = setTimeout(() => p.onRanOut(hadFocus), FOLD_MS);
   };
   const ref = useRef({ rebuild, keep: kept });
   ref.current = { rebuild, keep: kept };
@@ -308,10 +326,11 @@ function LiveCard(
   useEffect(() => {
     if (p.focus !== false) keep.current?.focus({ preventScroll: true });
   }, []);
-  // the buttons go away when the plan goes stale: focus moves to the reason instead of the page
+  /* Keep as is / Rebuild go away when the plan goes out of date: focus already in the card moves to Close
+     instead of dropping to the page. It never takes focus from anywhere else (the composer keeps it). */
   // biome-ignore lint/correctness/useExhaustiveDependencies: only when it turns stale
   useEffect(() => {
-    if (stale && had()) staleLine.current?.focus({ preventScroll: true });
+    if (stale && had()) closeBtn.current?.focus({ preventScroll: true });
   }, [stale]);
   useEffect(() => {
     if (stale) return;
@@ -339,12 +358,14 @@ function LiveCard(
     <section
       ref={root}
       {...within.handlers}
-      className={`rb-card${stale ? ' stale' : ''}`}
+      className={`rb-card${stale ? ' stale' : ''}${folding !== null ? ' folding' : ''}`}
+      style={folding !== null ? ({ '--rb-h': `${folding}px` } as React.CSSProperties) : undefined}
       aria-labelledby={title}
       aria-describedby={stale ? `${id}-stale` : undefined}
       aria-busy={busy || undefined}
     >
-      <h3 id={title}>Rebuild the team?</h3>
+      {/* out of date, the card stops asking: the question mark goes */}
+      <h3 id={title}>{stale ? 'Rebuild the team' : 'Rebuild the team?'}</h3>
       <dl className="rb-groups">
         {card.leaves.length > 0 && (
           <Group label="Leaves this project" warm>
@@ -478,13 +499,21 @@ function LiveCard(
       ))}
       {stale ? (
         <>
-          <p ref={staleLine} tabIndex={-1} className="rb-stale" id={`${id}-stale`} role="status">
-            Plan changed — ask again.
-          </p>
-          {/* the user can always close a card */}
+          <div className="rb-stale" id={`${id}-stale`} role="status">
+            <p className="rb-stale-l">{OUT_OF_DATE}</p>
+            <p className="rb-why">{whyOutOfDate(director)}</p>
+          </div>
+          {/* the user can always close a card — and this is the only thing left to do */}
           <footer className="rb-foot">
-            <Button variant="ghost" className="rb-keep" onClick={dismiss}>
-              Dismiss
+            <Button
+              ref={closeBtn}
+              variant="ghost"
+              className="rb-keep"
+              aria-label="Close out-of-date plan"
+              aria-disabled={folding !== null || undefined}
+              onClick={dismiss}
+            >
+              Close
             </Button>
           </footer>
         </>

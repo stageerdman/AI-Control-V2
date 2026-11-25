@@ -2,7 +2,7 @@
 /* Accessibility of the rebuild confirm card (spec-ux-team-rebuild §3; notes in a11y-team-rebuild.md):
    focus starts on Keep as is, every control has a name, focus never drops to the page after Keep / Rebuild /
    Undo, a voice answer is still announced, and a failed Rebuild keeps focus on the button. */
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Row = { id: string; name: string; role: string };
@@ -31,7 +31,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RebuildCard as Card } from './api';
 import { Rearrange } from './Rearrange';
-import { answerByVoice, RebuildCard, resetRebuildCards } from './RebuildCard';
+import { answerByVoice, isRebuildSettled, RebuildCard, resetRebuildCards } from './RebuildCard';
 
 const here = import.meta.dirname; // happy-dom swaps the global URL, so use paths
 const themeCss = readFileSync(join(here, '../../../design/theme.css'), 'utf8');
@@ -65,6 +65,7 @@ describe('rebuild card — keyboard and screen readers', () => {
     resetRebuildCards();
     apply.mockReset();
     undo.mockReset();
+    dismiss.mockClear();
   });
   afterEach(cleanup);
 
@@ -150,23 +151,81 @@ describe('rebuild card — keyboard and screen readers', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Message' }));
   });
 
-  it('a card going stale while focused moves focus to "Plan changed — ask again"', () => {
+  it('a card going stale while focused moves focus to Close, not the page', () => {
     const c = card();
     const { rerender } = render(<RebuildCard card={c} faceOf={faceOf} director="Ada" />);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep as is' }));
     rerender(<RebuildCard card={c} faceOf={faceOf} director="Ada" stale />);
-    expect(document.activeElement).toBe(screen.getByText('Plan changed — ask again.'));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close out-of-date plan' }));
   });
 
-  /* the HQ bug: a card whose plan went out of date said "Plan changed" and could never be closed */
-  it('a stale card can always be dismissed: the server closes it and focus moves to the line', () => {
+  it('a card going stale never takes focus from the composer', () => {
     const c = card();
-    render(<RebuildCard card={c} faceOf={faceOf} director="Ada" stale />);
-    const b = screen.getByRole('button', { name: 'Dismiss' });
+    const { rerender } = render(
+      <>
+        <input aria-label="Message" />
+        <RebuildCard card={c} faceOf={faceOf} director="Ada" focus={false} />
+      </>,
+    );
+    const box = screen.getByRole('textbox', { name: 'Message' });
+    box.focus();
+    rerender(
+      <>
+        <input aria-label="Message" />
+        <RebuildCard card={c} faceOf={faceOf} director="Ada" focus={false} stale />
+      </>,
+    );
+    expect(document.activeElement).toBe(box);
+    expect(answerByVoice('yes')).toBe(false); // a typed "yes" is a message, not an answer to a dead card
+  });
+
+  /* the HQ bug: an out-of-date card said "Plan changed" and could never be closed */
+  it('out of date: the card stops asking, says so plainly, and offers only Close', () => {
+    render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" stale />);
+    expect(screen.getByRole('region', { name: 'Rebuild the team' })).toBeTruthy();
+    expect(screen.getByText('Out of date')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Nothing changed — the team moved on since this plan. Ask Ada again if you still want it.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Close out-of-date plan',
+    ]);
+    const close = screen.getByRole('button', { name: 'Close out-of-date plan' });
+    expect(close.textContent).toBe('Close');
+    for (const s of screen.queryAllByRole('combobox')) expect((s as HTMLSelectElement).disabled).toBe(true);
+    expect(screen.queryByText(/Plan changed|ran out/)).toBeNull();
+  });
+
+  it('Close: the server closes it at once, it folds into one line, and focus follows', async () => {
+    const c = card();
+    const ran = vi.fn();
+    render(<RebuildCard card={c} faceOf={faceOf} director="Ada" stale onExpired={ran} />);
+    const b = screen.getByRole('button', { name: 'Close out-of-date plan' });
     b.focus();
-    fireEvent.click(b);
+    fireEvent.click(b); // keyboard Enter / Space on a native button is the same click
+    fireEvent.click(b); // a second press while it folds does nothing
+    expect(dismiss).toHaveBeenCalledTimes(1);
     expect(dismiss).toHaveBeenCalledWith(c.planId);
-    expect(document.activeElement).toBe(screen.getByText(/This plan ran out — nothing changed/));
+    expect(isRebuildSettled(c.planId)).toBe(true); // New chat is free right away
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByText('Out-of-date plan closed — nothing changed.')),
+    );
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(ran).toHaveBeenCalledTimes(1);
+  });
+
+  it('reduced motion: no fold — Close goes straight to the line', () => {
+    const mm = vi
+      .spyOn(window, 'matchMedia')
+      .mockImplementation((q: string) => ({ matches: /reduce/.test(q) }) as MediaQueryList);
+    render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" stale />);
+    fireEvent.click(screen.getByRole('button', { name: 'Close out-of-date plan' }));
+    expect(screen.getByText('Out-of-date plan closed — nothing changed.', { selector: '.rb-line' })).toBeTruthy();
+    mm.mockRestore();
+    expect(rule('.rb-card.folding')).toMatch(/animation:rb-fold \.22s/);
+    expect(rebuildCss).toMatch(/prefers-reduced-motion:reduce\)\{[^@]*\.rb-card\.folding\{animation:none\}/);
   });
 
   it('a Rebuild the server finds out of date closes the card instead of leaving it stuck', async () => {
@@ -175,9 +234,7 @@ describe('rebuild card — keyboard and screen readers', () => {
     render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" onExpired={ran} />);
     fireEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
     await flush();
-    expect(
-      screen.getByText('This plan ran out — nothing changed. Ask Ada again if you still want it.'),
-    ).toBeTruthy();
+    expect(screen.getByText('Out-of-date plan closed — nothing changed.')).toBeTruthy();
     expect(ran).toHaveBeenCalled();
   });
 
@@ -189,7 +246,7 @@ describe('rebuild card — keyboard and screen readers', () => {
     cleanup();
     render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" closed="expired" />);
     expect(screen.queryByRole('button', { name: 'Rebuild' })).toBeNull();
-    expect(screen.getByText(/This plan ran out/)).toBeTruthy();
+    expect(screen.getByText('Out-of-date plan closed — nothing changed.')).toBeTruthy();
   });
 });
 
