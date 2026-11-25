@@ -167,7 +167,6 @@ export function RebuildCard(p: RebuildCardProps) {
   );
   const [said, setSaid] = useState('');
   const [grab, setGrab] = useState(false);
-  const expired = CLOSED;
   const settle = (o: Outcome, hadFocus: boolean) => {
     outcomes.set(card.planId, o);
     setOutcome(o);
@@ -180,7 +179,7 @@ export function RebuildCard(p: RebuildCardProps) {
           : o.kind === 'undone'
             ? UNDONE
             : o.kind === 'expired'
-              ? expired
+              ? CLOSED
               : doneText(o.summary),
     );
   };
@@ -194,7 +193,7 @@ export function RebuildCard(p: RebuildCardProps) {
     ) : outcome?.kind === 'undone' ? (
       <QuietLine key="undone" text={UNDONE} grab={grab} />
     ) : outcome?.kind === 'expired' ? (
-      <QuietLine key="expired" text={expired} grab={grab} />
+      <QuietLine key="expired" text={CLOSED} grab={grab} />
     ) : outcome?.kind === 'applied' ? (
       <QuietLine key="applied" text={doneText(outcome.summary)} grab={grab} />
     ) : outcome?.kind === 'done' ? (
@@ -385,7 +384,8 @@ function LiveCard(
                     leaver={l}
                     to={picks.hand[l.id] ?? l.openItems[0].to}
                     director={director}
-                    disabled={stale || busy}
+                    disabled={busy}
+                    fixed={stale}
                     onChange={(to) => setPicks((s) => ({ ...s, hand: { ...s.hand, [l.id]: to } }))}
                   />
                 )}
@@ -457,7 +457,8 @@ function LiveCard(
                   id={`${id}-c-${c.teamId}`}
                   label={`Captain of ${c.teamName}`}
                   value={picks.captain[c.teamId] ?? c.agentId}
-                  disabled={stale || busy}
+                  disabled={busy}
+                  fixed={stale}
                   options={uniq([{ id: c.agentId, name: c.name }, ...c.choices]).map((x) => [x.id, x.name])}
                   onChange={(v) => setPicks((s) => ({ ...s, captain: { ...s.captain, [c.teamId]: v } }))}
                 />
@@ -478,7 +479,8 @@ function LiveCard(
                   id={`${id}-l-${x.agentId}`}
                   label={`What happens to ${x.name}`}
                   value={picks.lone[x.agentId] ?? x.pick}
-                  disabled={stale || busy}
+                  disabled={busy}
+                  fixed={stale}
                   options={[
                     ['specialist', `Make ${x.name} a specialist`],
                     ['remove', `Remove ${x.name} too`],
@@ -508,7 +510,7 @@ function LiveCard(
             <Button
               ref={closeBtn}
               variant="ghost"
-              className="rb-keep"
+              className="rb-ghost"
               aria-label="Close out-of-date plan"
               aria-disabled={folding !== null || undefined}
               onClick={dismiss}
@@ -529,7 +531,7 @@ function LiveCard(
             <Button
               ref={keep}
               variant="ghost"
-              className="rb-keep"
+              className="rb-ghost"
               aria-disabled={busy || undefined}
               onClick={kept}
             >
@@ -587,6 +589,7 @@ function WorkLine({
   to,
   director,
   disabled,
+  fixed,
   onChange,
 }: {
   id: string;
@@ -594,6 +597,7 @@ function WorkLine({
   to: HandoverTo;
   director: string;
   disabled: boolean;
+  fixed: boolean;
   onChange: (to: HandoverTo) => void;
 }) {
   const n = leaver.openItems.length;
@@ -626,6 +630,7 @@ function WorkLine({
         label={`Change where ${leaver.name}’s work goes`}
         value={to}
         disabled={disabled}
+        fixed={fixed}
         options={opts}
         onChange={(v) => onChange(v as HandoverTo)}
         change
@@ -643,6 +648,7 @@ function Pick({
   disabled,
   onChange,
   change,
+  fixed,
 }: {
   id: string;
   label: string;
@@ -651,8 +657,14 @@ function Pick({
   disabled: boolean;
   onChange: (v: string) => void;
   change?: boolean;
+  /** Out of date: no dead control — the pick shows as plain text (a "change" menu just goes). */
+  fixed?: boolean;
 }) {
   if (options.length < 2) return null;
+  if (fixed) {
+    if (change) return null;
+    return <span className="rb-pick rb-fixed">{options.find(([v]) => v === value)?.[1] ?? ''}</span>;
+  }
   return (
     <span className={`rb-pick${change ? ' rb-change' : ''}`}>
       <label htmlFor={id} className="sr-only">
@@ -717,10 +729,10 @@ export function UndoLine({
   return (
     <p ref={ref} tabIndex={-1} className="rb-line" role="status">
       {state === 'done' ? (
-        'Undone — the team is back as it was.'
+        UNDONE
       ) : (
         <>
-          <span>{summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.'}</span>
+          <span>{doneText(summary)}</span>
           {(state === 'ready' || state === 'busy') && (
             <button type="button" className="rb-undo" disabled={state === 'busy'} onClick={() => void undo()}>
               {state === 'busy' ? 'Undoing…' : 'Undo'}

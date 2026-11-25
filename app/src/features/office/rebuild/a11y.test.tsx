@@ -194,7 +194,8 @@ describe('rebuild card — keyboard and screen readers', () => {
     ]);
     const close = screen.getByRole('button', { name: 'Close out-of-date plan' });
     expect(close.textContent).toBe('Close');
-    for (const s of screen.queryAllByRole('combobox')) expect((s as HTMLSelectElement).disabled).toBe(true);
+    expect(document.querySelector('select')).toBeNull(); // no dead menus: the picks show as plain text
+    expect(document.querySelector('.rb-fixed')?.textContent).toBe('Jony');
     expect(screen.queryByText(/Plan changed|ran out/)).toBeNull();
   });
 
