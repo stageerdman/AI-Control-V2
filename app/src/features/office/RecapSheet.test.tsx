@@ -36,7 +36,8 @@ beforeEach(() => {
     vi.fn(async (input: string) => {
       const url = String(input).replace(/^https?:\/\/[^/]+/, '');
       calls.push(url);
-      if (url === '/projects/atlas/agents/a-pixel/recap') return json({ recap: null, chat: null, cached: false });
+      if (url === '/projects/atlas/agents/a-pixel/recap')
+        return json({ recap: null, chat: null, cached: false });
       if (url === RECAP) {
         if (answer === 'hang') return new Promise<Response>(() => {});
         if (answer === 'fail') return json({ error: { code: 'agent_error', message: 'boom' } }, 500);

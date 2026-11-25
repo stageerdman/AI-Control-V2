@@ -1,9 +1,6 @@
 /* REPRO — agents remember other projects' work (updates/2026-11-25 PROJECT ISOLATION - OPEN).
    The user tapped an agent in project B and it told them about a feature request from project A.
-
-   Each test below states what MUST hold and is marked `it.fails`: it passes while the bug is there, so the
-   suite stays green. The phase that fixes a root cause flips its test to a plain `it` (and, for the recap and
-   chat list, points it at the project-scoped route the app will call). */
+   Each test states what MUST hold; each root cause below is fixed, so they are plain `it`s now. */
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -47,32 +44,43 @@ describe('an agent in project B never sees project A', () => {
     return r.body.id as string;
   }
 
-  /* Root cause 1 — routes/recap.ts:16 + db/chats.ts:119: the recap picks the agent's newest chat in ANY
-     project. The Atlas office taps the agent (OfficePage.tsx clickActor → RecapSheet → GET /agents/:id/recap). */
-  it.fails('tapping the agent in Atlas recaps nothing from Aurora', async () => {
+  /* Root cause 1: the recap picked the agent's newest chat in ANY project. */
+  it('tapping the agent in Atlas recaps nothing from Aurora', async () => {
     h = studio();
     await workInAurora();
-    const r = await h.call('GET', `/agents/${AGENT}/recap`); // what the Atlas office calls today
+    const r = await h.call('GET', `/projects/atlas/agents/${AGENT}/recap`);
     expect(r.status).toBe(200);
-    expect(r.body.chat?.projectId ?? 'atlas').toBe('atlas');
+    expect(r.body.chat).toBeNull();
     expect(JSON.stringify(r.body)).not.toContain('voice search');
     expect(h.recapAsked).toHaveLength(0); // no model call spent on another project's chat
   });
 
-  /* Root cause 2 — routes/chats.ts:59 + db/chats.ts:104: the chat history in the Atlas office lists every
-     project's chats; "Open chat" then keeps writing into Aurora's chat (and "Start it" puts a goal on
-     Aurora's board) from Atlas. */
-  it.fails("the Atlas office's chat history lists no Aurora chat", async () => {
+  it('tapping the agent in Aurora still recaps its Aurora work', async () => {
     h = studio();
-    await workInAurora();
-    const r = await h.call('GET', `/agents/${AGENT}/chats`); // what the Atlas office calls today
+    const runId = await workInAurora();
+    const r = await h.call('GET', `/projects/aurora/agents/${AGENT}/recap`);
     expect(r.status).toBe(200);
-    expect((r.body as { projectId: string }[]).map((c) => c.projectId)).not.toContain('aurora');
+    expect(r.body.chat?.runId).toBe(runId);
   });
 
-  /* Root cause 3 — running/tools.ts:14 + registry.ts:89: my_runs (and cancel_run) filter by agent only, so a
-     session in Atlas lists — and can stop — the agent's session in Aurora, task line included. */
-  it.fails('my_runs in Atlas shows nothing running in Aurora, and cancel_run cannot reach it', async () => {
+  /* Root cause 2: the chat history listed every project's chats, and "Open chat" / "Start it" wrote into them. */
+  it("the Atlas office's chat history lists no Aurora chat, and cannot open one", async () => {
+    h = studio();
+    const runId = await workInAurora();
+    const list = await h.call('GET', `/projects/atlas/agents/${AGENT}/chats`);
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([]);
+    expect((await h.call('GET', `/projects/atlas/chats/${runId}/messages`)).status).toBe(404);
+    expect((await h.call('POST', `/projects/atlas/chats/${runId}/messages`, { text: 'hi' })).status).toBe(
+      404,
+    );
+    expect((await h.call('POST', `/projects/atlas/chats/${runId}/start`, { seq: 1 })).status).toBe(404);
+    const own = await h.call('GET', `/projects/aurora/agents/${AGENT}/chats`);
+    expect((own.body as { runId: string }[]).map((c) => c.runId)).toContain(runId);
+  });
+
+  /* Root cause 3: my_runs and cancel_run filtered by agent only. */
+  it('my_runs in Atlas shows nothing running in Aurora, and cancel_run cannot reach it', async () => {
     const running = createRunning({ procs: () => [] });
     let stopped = false;
     const there = running.add({
@@ -92,19 +100,18 @@ describe('an agent in project B never sees project A', () => {
       runId: 'r-atlas',
       cancel: () => {},
     });
-    const caller = { projectId: 'atlas', agentId: AGENT, runId: 'r-atlas' };
-    const [myRuns, cancelRun] = runningTools(running, caller, (id) => id);
-    const listed = await myRuns?.run({});
-    expect(listed).not.toContain('voice search');
+    const [myRuns, cancelRun] = runningTools(running, {
+      projectId: 'atlas',
+      agentId: AGENT,
+      runId: 'r-atlas',
+    });
+    expect(await myRuns?.run({})).not.toContain('voice search');
     await expect(cancelRun?.run({ id: there.id }) ?? Promise.resolve()).rejects.toThrow();
     expect(stopped).toBe(false);
   });
 
-  /* Root cause 4 — runtime/env.ts:31: Claude Code's own auto memory (~/.claude/projects/<folder>/memory/
-     MEMORY.md) stays on for every run. It is keyed by folder, not by (project, agent): every crew call (recap,
-     chat reply, room calls without a folder) shares the one scratch folder (crew/structured.ts:126), and it is a
-     second, hidden memory the studio neither scopes nor shows — and it costs context on every session. */
-  it.fails("every run starts with Claude Code's auto memory off", () => {
+  /* Root cause 4: Claude Code's own auto memory is keyed by folder, a hidden memory the studio cannot scope. */
+  it("every run starts with Claude Code's auto memory off", () => {
     expect(runEnv({ HOME: '/home/u' }, {}).CLAUDE_CODE_DISABLE_AUTO_MEMORY).toBe('1');
   });
 });

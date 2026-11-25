@@ -145,7 +145,9 @@ describe('restore missing agents', () => {
     expect(findMissingAgents(h.store)[0]?.chatsFound).toBe(true);
 
     expect(restoreAgent(h.store, 'a-pete').chatsRelinked).toBe(1);
-    expect(listAgentChats(h.store.db, { projectId: 'aurora', agentId: 'a-pete' }).map((c) => c.runId)).toEqual([runId]);
+    expect(
+      listAgentChats(h.store.db, { projectId: 'aurora', agentId: 'a-pete' }).map((c) => c.runId),
+    ).toEqual([runId]);
   });
 
   it('a blocked item carries on: the agent is back on the project and the item queues again in its session', () => {

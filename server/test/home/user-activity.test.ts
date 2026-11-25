@@ -123,7 +123,9 @@ describe('lastUserAt: the user gave work here', () => {
     const run = h.runtime.start('aurora', { agentId: 'a-baron', task: 'Make it' });
     await h.runtime.settled(run.id);
     expect(last(h)).toBeNull();
-    expect((await h.call('POST', `/chats/${run.id}/messages`, { text: 'Why?' })).status).toBe(200);
+    expect((await h.call('POST', `/projects/aurora/chats/${run.id}/messages`, { text: 'Why?' })).status).toBe(
+      200,
+    );
     expect(last(h)).not.toBeNull();
   });
 });

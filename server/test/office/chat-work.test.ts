@@ -49,11 +49,13 @@ describe('a reply in an agent’s chat can start work', () => {
     const s = studio('{"reply":"I would add a footer to hello.txt.","work":"Add a footer to hello.txt"}');
     h = s.h;
     const runId = await s.pastChat();
-    const r = await h.call('POST', `/chats/${runId}/messages`, { text: 'Please add a footer too' });
+    const r = await h.call('POST', `/projects/aurora/chats/${runId}/messages`, {
+      text: 'Please add a footer too',
+    });
     expect(r.body.reply.meta).toEqual({ followUp: true, offer: { work: 'Add a footer to hello.txt' } });
     expect(await s.goals()).toHaveLength(0);
 
-    const start = await h.call('POST', `/chats/${runId}/start`, { seq: r.body.reply.seq });
+    const start = await h.call('POST', `/projects/aurora/chats/${runId}/start`, { seq: r.body.reply.seq });
     expect(start.status).toBe(201);
     expect(start.body.message).toMatchObject({
       role: 'assistant',
@@ -70,9 +72,11 @@ describe('a reply in an agent’s chat can start work', () => {
     expect(brief).toContain('I would add a footer to hello.txt.');
 
     /* the chat keeps the started line after a reload, and a second tap is refused */
-    const chat = (await h.call('GET', `/chats/${runId}/messages`)).body as { meta: unknown }[];
+    const chat = (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body as {
+      meta: unknown;
+    }[];
     expect(chat.at(-1)?.meta).toMatchObject({ started: { goalId: goal.id } });
-    const again = await h.call('POST', `/chats/${runId}/start`, { seq: r.body.reply.seq });
+    const again = await h.call('POST', `/projects/aurora/chats/${runId}/start`, { seq: r.body.reply.seq });
     expect(again.status).toBe(409);
     expect(await s.goals()).toHaveLength(1);
   });
@@ -81,9 +85,11 @@ describe('a reply in an agent’s chat can start work', () => {
     const s = studio('{"reply":"It says hi."}');
     h = s.h;
     const runId = await s.pastChat();
-    const r = await h.call('POST', `/chats/${runId}/messages`, { text: 'What is in the file?' });
+    const r = await h.call('POST', `/projects/aurora/chats/${runId}/messages`, {
+      text: 'What is in the file?',
+    });
     expect(r.body.reply.meta).toEqual({ followUp: true });
-    const start = await h.call('POST', `/chats/${runId}/start`, { seq: r.body.reply.seq });
+    const start = await h.call('POST', `/projects/aurora/chats/${runId}/start`, { seq: r.body.reply.seq });
     expect(start.status).toBe(422);
     expect(start.body.error.message).toContain('offers no work');
     expect(await s.goals()).toHaveLength(0);
@@ -95,7 +101,7 @@ describe('a reply in an agent’s chat can start work', () => {
     const orch = h.store.projects.require('aurora').orchestratorId;
     const r0 = await h.call('POST', '/projects/aurora/runs', { agentId: orch, task: 'Plan' });
     await h.runtime.settled(r0.body.id);
-    const r = await h.call('POST', `/chats/${r0.body.id}/messages`, { text: 'Add a footer' });
+    const r = await h.call('POST', `/projects/aurora/chats/${r0.body.id}/messages`, { text: 'Add a footer' });
     expect(r.body.reply.meta).toEqual({ followUp: true });
   });
 });

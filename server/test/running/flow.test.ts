@@ -78,7 +78,7 @@ describe('the running list, end to end', () => {
     expect(h.runtime.busy('aurora', 'a-pete')).toBe(false);
   });
 
-  it('an agent lists its own runs across projects and cancels another of its sessions — not its current one', async () => {
+  it('an agent lists only its own runs in this project, and cannot cancel its session in another', async () => {
     const other: { id?: string } = {};
     h = studio(
       fakeRunner((s: RunSpec) =>
@@ -100,20 +100,15 @@ describe('the running list, end to end', () => {
 
     const said = texts(h, me.id);
     const listed = (said[0] as string).split('\n').map((l) => JSON.parse(l));
-    expect(
-      listed.map((i: { project: string; what: string; current?: boolean }) => [
-        i.project,
-        i.what,
-        !!i.current,
-      ]),
-    ).toEqual([
-      ['Atlas Analytics', 'long', false],
-      ['Aurora Storefront', 'tidy up', true],
-    ]);
+    expect(listed.map((i: { what: string; current?: boolean }) => [i.what, !!i.current])).toEqual([
+      ['tidy up', true],
+    ]); // its Atlas session is another project's work
     expect(said[1]).toMatch(/cancel_run refused: .*not found/); // 'self' is no id of theirs
-    expect(said[2]).toMatch(/Stopping session "long"/);
-    expect((await h.runtime.settled(long.id)).status).toBe('cancelled');
+    expect(said[2]).toMatch(/cancel_run refused: .*not found/); // nor is its session in Atlas
+    expect((await running(h, 'atlas')).map((i) => i.runId)).toEqual([long.id]); // untouched
     expect((await running(h, 'aurora')).map((i) => i.agentId)).toEqual(['a-scar']); // untouched
+    await h.call('POST', `/projects/atlas/runs/${long.id}/cancel`);
+    await h.runtime.settled(long.id);
   });
 
   it('cancel_run refuses the calling session itself', async () => {
@@ -129,7 +124,7 @@ describe('the running list, end to end', () => {
         throw new Error('should not cancel');
       },
     });
-    const cancel = runningTools(r, { agentId: 'a-pete', runId: 'run-1' }, () => 'Aurora').find(
+    const cancel = runningTools(r, { projectId: 'aurora', agentId: 'a-pete', runId: 'run-1' }).find(
       (t) => t.name === 'cancel_run',
     );
     await expect(cancel?.run({ id: mine.id })).rejects.toThrow(/your current session/);

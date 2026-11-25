@@ -22,7 +22,7 @@ function studio(
   return { ...h, asked };
 }
 
-describe('GET /agents/:id/recap', () => {
+describe('GET /projects/:id/agents/:agentId/recap', () => {
   let h: ReturnType<typeof studio>;
   afterEach(() => h.close());
 
@@ -31,7 +31,7 @@ describe('GET /agents/:id/recap', () => {
     expect(r.status).toBe(201);
     return r.body.id as string;
   };
-  const recap = () => h.call('GET', '/agents/a-pete/recap');
+  const recap = () => h.call('GET', '/projects/aurora/agents/a-pete/recap');
 
   it('an agent with no saved chat has nothing to tell (no model call)', async () => {
     h = studio([{ result: 'ok' }]);
@@ -40,9 +40,10 @@ describe('GET /agents/:id/recap', () => {
     expect(h.asked).toHaveLength(0);
   });
 
-  it('an unknown agent is 404', async () => {
+  it('an unknown agent or project is 404', async () => {
     h = studio([{ result: 'ok' }]);
-    expect((await h.call('GET', '/agents/nobody/recap')).status).toBe(404);
+    expect((await h.call('GET', '/projects/aurora/agents/nobody/recap')).status).toBe(404);
+    expect((await h.call('GET', '/projects/nowhere/agents/a-pete/recap')).status).toBe(404);
   });
 
   it('a finished chat is recapped once, then served from the cache', async () => {

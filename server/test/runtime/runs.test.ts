@@ -264,6 +264,7 @@ describe('agent runs (FakeRunner end-to-end)', () => {
           'AI_STUDIO_PORTS',
           'AI_STUDIO_APP_PORT',
           'AI_STUDIO_PROJECT_DIR', // the shell hook checks Mac build paths against it
+          'CLAUDE_CODE_DISABLE_AUTO_MEMORY', // PROJECT ISOLATION: no hidden memory keyed by folder
         ].includes(k),
       ),
     ).toBe(true);

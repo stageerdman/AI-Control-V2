@@ -67,7 +67,9 @@ export const chatRoutes =
     app.get('/projects/:id/agents/:agentId/chats/latest', async (req) =>
       latestAgentChat(db, agentInProject(db, store, req.params)),
     );
-    app.get('/projects/:id/chats/:runId/messages', async (req) => getChatMessages(db, chatOf(req.params).runId));
+    app.get('/projects/:id/chats/:runId/messages', async (req) =>
+      getChatMessages(db, chatOf(req.params).runId),
+    );
     /* the user's message is saved before the model is asked, so a model failure (502) never loses it */
     app.post('/projects/:id/chats/:runId/messages', async (req) => {
       const chat = writableChat(req.params);

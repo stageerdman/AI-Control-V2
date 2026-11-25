@@ -22,7 +22,8 @@ describe('chat history (runs keep every message)', () => {
     expect(r.status).toBe(201);
     return r.body.id as string;
   };
-  const messages = async (runId: string) => (await h.call('GET', `/chats/${runId}/messages`)).body as Msg[];
+  const messages = async (runId: string) =>
+    (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body as Msg[];
 
   it('a run that succeeds keeps its task, words, short tool lines and the end', async () => {
     h = studio([
@@ -44,7 +45,7 @@ describe('chat history (runs keep every message)', () => {
     ]);
     expect(msgs[1]?.meta).toEqual({ tool: 'Write', summary: 'Writing hello.txt' });
 
-    const chats = await h.call('GET', '/agents/a-pete/chats');
+    const chats = await h.call('GET', '/projects/aurora/agents/a-pete/chats');
     expect(chats.body).toEqual([
       expect.objectContaining({
         runId: id,
@@ -55,7 +56,7 @@ describe('chat history (runs keep every message)', () => {
         lastText: 'hello.txt is in place.',
       }),
     ]);
-    expect((await h.call('GET', '/agents/a-pete/chats/latest')).body.runId).toBe(id);
+    expect((await h.call('GET', '/projects/aurora/agents/a-pete/chats/latest')).body.runId).toBe(id);
   });
 
   it('a final result the agent already said is not saved twice', async () => {
@@ -129,12 +130,15 @@ describe('chat history (runs keep every message)', () => {
     expect(raw).toContain('••••');
   });
 
-  it('unknown agents and chats are 404', async () => {
+  it('unknown projects, agents and chats are 404', async () => {
     h = studio([{ result: 'ok' }]);
-    expect((await h.call('GET', '/agents/nobody/chats')).status).toBe(404);
-    expect((await h.call('GET', '/agents/nobody/chats/latest')).status).toBe(404);
-    expect((await h.call('GET', '/chats/00000000-0000-4000-8000-000000000000/messages')).status).toBe(404);
-    const latest = await h.call('GET', '/agents/a-pete/chats/latest');
+    expect((await h.call('GET', '/projects/nowhere/agents/a-pete/chats')).status).toBe(404);
+    expect((await h.call('GET', '/projects/aurora/agents/nobody/chats')).status).toBe(404);
+    expect((await h.call('GET', '/projects/aurora/agents/nobody/chats/latest')).status).toBe(404);
+    expect(
+      (await h.call('GET', '/projects/aurora/chats/00000000-0000-4000-8000-000000000000/messages')).status,
+    ).toBe(404);
+    const latest = await h.call('GET', '/projects/aurora/agents/a-pete/chats/latest');
     expect(latest.status).toBe(200);
     expect(latest.body).toBeNull();
   });

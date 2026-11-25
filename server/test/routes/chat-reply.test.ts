@@ -19,7 +19,7 @@ function studio(work: FakeStep[], model: FakeStep[] = [{ result: '{"reply":"Yes,
   return { ...h, asked };
 }
 
-describe('POST /chats/:runId/messages', () => {
+describe('POST /projects/:id/chats/:runId/messages', () => {
   let h: ReturnType<typeof studio>;
   afterEach(() => h.close());
 
@@ -29,12 +29,13 @@ describe('POST /chats/:runId/messages', () => {
     await h.runtime.settled(r.body.id);
     return r.body.id as string;
   };
-  const send = (runId: string, body: unknown) => h.call('POST', `/chats/${runId}/messages`, body);
+  const send = (runId: string, body: unknown) =>
+    h.call('POST', `/projects/aurora/chats/${runId}/messages`, body);
 
   it('saves the message and the reply, and the model sees the earlier chat', async () => {
     h = studio([{ text: 'Writing the file now.' }, { result: 'hello.txt is in place.' }]);
     const runId = await finishedChat();
-    const before = (await h.call('GET', `/chats/${runId}/messages`)).body.length as number;
+    const before = (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body.length as number;
 
     const r = await send(runId, { text: '  What is in the file?  ' });
     expect(r.status).toBe(200);
@@ -56,7 +57,7 @@ describe('POST /chats/:runId/messages', () => {
     expect(h.asked[0]).toContain('hello.txt is in place.');
     expect(h.asked[0]).toContain('What is in the file?');
 
-    const after = (await h.call('GET', `/chats/${runId}/messages`)).body;
+    const after = (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body;
     expect(after).toHaveLength(before + 2);
     expect(after.slice(-2)).toEqual([r.body.sent, r.body.reply]);
   });
@@ -73,12 +74,12 @@ describe('POST /chats/:runId/messages', () => {
     const r0 = await h.call('POST', '/projects/aurora/runs', { agentId: 'a-pete', task: 'Long job' });
     const runId = r0.body.id as string;
     await new Promise((r) => setTimeout(r, 30));
-    const before = (await h.call('GET', `/chats/${runId}/messages`)).body.length;
+    const before = (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body.length;
 
     const r = await send(runId, { text: 'Are you done?' });
     expect(r.status).toBe(409);
     expect(r.body.error.code).toBe('chat_running');
-    expect((await h.call('GET', `/chats/${runId}/messages`)).body).toHaveLength(before);
+    expect((await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body).toHaveLength(before);
 
     await h.call('POST', `/projects/aurora/runs/${runId}/cancel`);
     await h.runtime.settled(runId);
@@ -101,7 +102,7 @@ describe('POST /chats/:runId/messages', () => {
     const r = await send(runId, { text: 'Still there?' });
     expect(r.status).toBe(502);
     expect(r.body.error.code).toBe('agent_error');
-    const last = (await h.call('GET', `/chats/${runId}/messages`)).body.at(-1);
+    const last = (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body.at(-1);
     expect(last).toMatchObject({ role: 'user', text: 'Still there?', meta: { followUp: true } });
   });
 
@@ -109,9 +110,9 @@ describe('POST /chats/:runId/messages', () => {
     h = studio([{ result: 'done' }], [{ fail: 'model unavailable' }]);
     const runId = await finishedChat();
     expect((await send(runId, { text: 'Still there?' })).status).toBe(502);
-    const before = (await h.call('GET', `/chats/${runId}/messages`)).body;
+    const before = (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body;
     expect((await send(runId, { text: 'Still there?' })).status).toBe(502);
-    expect((await h.call('GET', `/chats/${runId}/messages`)).body).toEqual(before);
+    expect((await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body).toEqual(before);
     expect(h.asked[1]?.match(/Still there\?/g)).toHaveLength(
       h.asked[0]?.match(/Still there\?/g)?.length ?? 0,
     );

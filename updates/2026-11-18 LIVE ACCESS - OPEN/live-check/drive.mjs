@@ -77,7 +77,7 @@ const run = await call('POST', `/projects/${project.id}/runs`, {
 });
 console.log(`${at()}  run started`, run.id);
 
-const messages = () => call('GET', `/chats/${run.id}/messages`);
+const messages = () => call('GET', `/projects/${project.id}/chats/${run.id}/messages`);
 const runNow = () => call('GET', `/projects/${project.id}/runs/${run.id}`);
 const flat = (ms) => JSON.stringify(ms);
 const list = (ms) => (Array.isArray(ms) ? ms : (ms.messages ?? []));

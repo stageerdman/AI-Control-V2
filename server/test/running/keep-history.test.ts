@@ -30,7 +30,7 @@ const start = async (h: H, task: string, extra: Record<string, unknown> = {}) =>
   return r.body.id as string;
 };
 const messages = async (h: H, runId: string) =>
-  (await h.call('GET', `/chats/${runId}/messages`)).body as Msg[];
+  (await h.call('GET', `/projects/aurora/chats/${runId}/messages`)).body as Msg[];
 const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 
 describe('stopped agents keep their history and can continue', () => {
@@ -67,7 +67,7 @@ describe('stopped agents keep their history and can continue', () => {
     await h.close();
     h = boot(dir.dir, script);
     expect(await messages(h, id)).toEqual(before);
-    expect((await h.call('GET', '/agents/a-pete/chats')).body[0]).toMatchObject({
+    expect((await h.call('GET', '/projects/aurora/agents/a-pete/chats')).body[0]).toMatchObject({
       runId: id,
       status: 'cancelled',
       sessionId: `fake-${id}`,

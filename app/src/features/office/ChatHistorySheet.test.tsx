@@ -175,7 +175,10 @@ describe('a chat', () => {
     post = (text) =>
       json({
         sent: { ...msg('user', text), meta: { followUp: true } },
-        reply: { ...msg('assistant', 'I would add a footer.'), meta: { followUp: true, offer: { work: 'Add a footer' } } },
+        reply: {
+          ...msg('assistant', 'I would add a footer.'),
+          meta: { followUp: true, offer: { work: 'Add a footer' } },
+        },
       });
     fireEvent.change(box(), { target: { value: 'Please add a footer' } });
     fireEvent.submit(box().closest('form') as HTMLFormElement);
@@ -295,7 +298,9 @@ describe('All chats', () => {
 describe('ChatHistorySheet', () => {
   it('is a labelled dialog; Escape closes it', async () => {
     const onClose = vi.fn();
-    render(<ChatHistorySheet pid="aurora" agentId="a-pixel" name="Pixel" chat={chat()} open onClose={onClose} />);
+    render(
+      <ChatHistorySheet pid="aurora" agentId="a-pixel" name="Pixel" chat={chat()} open onClose={onClose} />,
+    );
     expect(screen.getByRole('dialog', { name: 'Pixel’s chats' })).toBeTruthy();
     await screen.findByText(/Toggle shipped/);
     fireEvent.keyDown(document, { key: 'Escape' });
