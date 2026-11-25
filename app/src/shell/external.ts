@@ -2,8 +2,7 @@
    target=_blank link does nothing, so one document-level listener hands http(s) links to the
    system browser through the `open_url` command. In a plain browser links behave normally. */
 import { invoke } from '@tauri-apps/api/core';
-
-const inTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+import { inTauri } from './in-tauri';
 
 export function openExternal(url: string): void {
   if (inTauri()) void invoke('open_url', { url }).catch(() => undefined);

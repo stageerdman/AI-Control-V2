@@ -25,6 +25,9 @@ const DEFAULT_PORT: u16 = 4319;
 const START_TIMEOUT: Duration = Duration::from_secs(30);
 const POLL_EVERY: Duration = Duration::from_millis(250);
 const STOP_GRACE: Duration = Duration::from_secs(3);
+/// On Quit the server pauses its agents and ends what they started (≈4 s at worst); past this
+/// the app force-stops the group and exits anyway (design: "after 5 s, the app quits anyway").
+const QUIT_DEADLINE: Duration = Duration::from_secs(5);
 
 #[derive(serde::Serialize)]
 pub struct Started {
@@ -130,6 +133,9 @@ impl Backend {
     /// Idempotent: returns the health body once the server answers. Serialized by the lock.
     pub fn ensure_running(&self) -> Result<Started, String> {
         let mut child = self.child.lock().map_err(|_| "backend lock poisoned".to_string())?;
+        if self.stopping.load(Ordering::SeqCst) {
+            return Err("The studio is quitting.".into()); // never respawn behind a Quit
+        }
 
         // Forget a child that has already exited (crash, killed) so Retry can respawn.
         if let Some(c) = child.as_mut() {
@@ -168,7 +174,7 @@ impl Backend {
             }
             if Instant::now() >= deadline {
                 if let Some(c) = child.take() {
-                    kill_group(c);
+                    kill_group(c, STOP_GRACE);
                 }
                 return Err(format!(
                     "The server didn't answer on port {} within {}s.\n{}",
@@ -201,12 +207,13 @@ impl Backend {
         }
     }
 
-    /// Stop the server if this app spawned it. A reused server is left alone.
+    /// Stop the server if this app spawned it, giving it until QUIT_DEADLINE to pause its agents
+    /// and end what they started. A reused server is left alone. Idempotent.
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::SeqCst);
         if let Ok(mut child) = self.child.lock() {
             if let Some(c) = child.take() {
-                kill_group(c);
+                kill_group(c, QUIT_DEADLINE);
             }
         }
     }
@@ -280,20 +287,28 @@ fn live_holder(home: &std::path::Path) -> Option<LockInfo> {
     read_lock(home).filter(|l| pid_alive(l.pid) && l.pid as u32 != std::process::id())
 }
 
-/// SIGTERM the child's process group, wait briefly, then SIGKILL whatever is left.
-fn kill_group(mut child: Child) {
+/// SIGTERM the child's process group, wait until the whole group is gone (up to `grace`), then
+/// SIGKILL whatever is left. Waiting on the group, not just npm: the node server under it is the
+/// one doing the graceful shutdown.
+fn kill_group(mut child: Child, grace: Duration) {
     let pgid = child.id() as libc::pid_t;
     unsafe { libc::killpg(pgid, libc::SIGTERM) };
-    let deadline = Instant::now() + STOP_GRACE;
+    let deadline = Instant::now() + grace;
     while Instant::now() < deadline {
-        if let Ok(Some(_)) = child.try_wait() {
+        let _ = child.try_wait(); // reap our child: a zombie would keep the group "alive"
+        if !group_alive(pgid) {
             break;
         }
         sleep(Duration::from_millis(50));
     }
-    // Grandchildren (tsx → node) can outlive npm; always sweep the group.
     unsafe { libc::killpg(pgid, libc::SIGKILL) };
     let _ = child.wait();
+}
+
+/// Does any process remain in this process group?
+fn group_alive(pgid: libc::pid_t) -> bool {
+    let r = unsafe { libc::killpg(pgid, 0) };
+    r == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
 }
 
 fn home_dir() -> String {
@@ -490,6 +505,44 @@ mod tests {
         let b = backend_at(&home, port);
         let s = b.ensure_running().unwrap();
         assert_eq!(s.port, port);
+    }
+
+    /// A process group like the server's: `sh` running `script`, with a grandchild in the group.
+    fn group_running(script: &str) -> Child {
+        Command::new("/bin/sh").arg("-c").arg(script).process_group(0).spawn().unwrap()
+    }
+
+    #[test]
+    fn stopping_waits_for_the_whole_group_not_just_the_leader() {
+        // the leader exits at once on TERM; its child takes 300 ms to wind down
+        let c = group_running("(trap 'sleep 0.3; exit 0' TERM; while :; do sleep 0.05; done) & trap 'exit 0' TERM; wait");
+        let pgid = c.id() as libc::pid_t;
+        sleep(Duration::from_millis(200));
+        let t0 = Instant::now();
+        kill_group(c, Duration::from_secs(3));
+        assert!(t0.elapsed() >= Duration::from_millis(250), "waited for the winding-down child");
+        assert!(t0.elapsed() < Duration::from_secs(2), "didn't sit out the whole grace");
+        assert!(!group_alive(pgid));
+    }
+
+    #[test]
+    fn a_group_that_ignores_term_is_killed_at_the_deadline() {
+        let c = group_running("trap '' TERM; while :; do sleep 0.05; done");
+        let pgid = c.id() as libc::pid_t;
+        sleep(Duration::from_millis(100));
+        let t0 = Instant::now();
+        kill_group(c, Duration::from_millis(300));
+        assert!(t0.elapsed() >= Duration::from_millis(300));
+        sleep(Duration::from_millis(100));
+        assert!(!group_alive(pgid));
+    }
+
+    #[test]
+    fn no_respawn_once_quitting() {
+        let home = temp_home("quitting");
+        let b = backend_at(&home, 1);
+        b.stop();
+        assert_eq!(b.ensure_running().err().unwrap(), "The studio is quitting.");
     }
 
     #[test]

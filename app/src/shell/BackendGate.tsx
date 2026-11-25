@@ -13,8 +13,7 @@ import { invalidate } from '../api/query';
 import { Hero } from '../characters/Hero';
 import type { HeroAgent } from '../characters/hero-svg';
 import { Button } from '../ui';
-
-const inTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+import { inTauri } from './in-tauri';
 
 const RIVET: HeroAgent = {
   name: 'Rivet',

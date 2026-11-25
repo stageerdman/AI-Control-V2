@@ -50,6 +50,29 @@
   white-space: nowrap;
 }
 
+/* Quit still pausing agents: one calm centred line on the plain surface, nothing else */
+.quitting {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 24px;
+  background: var(--bg-0);
+  color: var(--cream-72);
+  font-size: 15px;
+  text-align: center;
+}
+.quitting-idle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
 /* backend gate (A0): centred robot + one line */
 .gate {
   position: relative;

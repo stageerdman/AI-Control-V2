@@ -13,6 +13,7 @@
     "web:dev": "vite",
     "web:build": "tsc --noEmit && vite build",
     "test": "vitest run",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
