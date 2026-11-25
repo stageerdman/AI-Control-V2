@@ -20,7 +20,6 @@ beforeAll(() => {
   });
 });
 afterAll(() => {
-  // biome-ignore lint/performance/noDelete: put the prototype back as it was
   delete (HTMLTextAreaElement.prototype as { scrollHeight?: number }).scrollHeight;
   if (desc) Object.defineProperty(HTMLElement.prototype, 'scrollHeight', desc);
 });
@@ -45,6 +44,19 @@ function Box({ maxPx, onSend }: { maxPx?: number; onSend?: (v: string) => void }
       }}
     >
       <MessageBox aria-label="Message" value={v} onText={setV} maxPx={maxPx} style={STYLE} />
+    </form>
+  );
+}
+function Stopper({ onSend }: { onSend: () => void }) {
+  const [v, setV] = useState('x');
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSend();
+      }}
+    >
+      <MessageBox aria-label="Message" value={v} onText={setV} onKeyDown={(e) => e.preventDefault()} />
     </form>
   );
 }
@@ -135,15 +147,7 @@ describe('MessageBox keys', () => {
 
   it("the caller's onKeyDown runs first and can stop the send", () => {
     const onSend = vi.fn();
-    function Stopper() {
-      const [v, setV] = useState('x');
-      return (
-        <form onSubmit={(e) => (e.preventDefault(), onSend())}>
-          <MessageBox aria-label="Message" value={v} onText={setV} onKeyDown={(e) => e.preventDefault()} />
-        </form>
-      );
-    }
-    render(<Stopper />);
+    render(<Stopper onSend={onSend} />);
     fireEvent.keyDown(box(), { key: 'Enter' });
     expect(onSend).not.toHaveBeenCalled();
   });

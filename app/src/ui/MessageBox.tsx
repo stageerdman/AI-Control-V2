@@ -1,6 +1,12 @@
 /* The one chat message box: a one-line textarea that grows as you type (useAutoGrow).
    Enter sends (submits its form), Shift+Enter is a new line, Enter while composing (IME) does nothing. */
-import { type KeyboardEvent, type Ref, type TextareaHTMLAttributes, useImperativeHandle, useRef } from 'react';
+import {
+  type KeyboardEvent,
+  type Ref,
+  type TextareaHTMLAttributes,
+  useImperativeHandle,
+  useRef,
+} from 'react';
 import { useAutoGrow } from './useAutoGrow';
 
 export type MessageBoxProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChange'> & {
