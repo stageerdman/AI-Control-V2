@@ -22,6 +22,11 @@
 - **Use the last turn's context, not the peak,** to judge how big a session is to resume: the peak can come
   from before a forget.
 
+- **Check which build is running before measuring.** `/health` → `build.running` vs `build.installed`. A shipped fix
+  saves nothing until the studio restarts onto it.
+- **Forgetting earlier is the bigger lever** (replay: fix 2 does most of the −28%). Fix 1 alone is −4 to −11%,
+  because many reworks are small and warm, or their gap isn't recorded.
+
 ## Gotchas
 - Don't run `npm run format` across the repo: biome rewrites ~20 unrelated files. Use
   `npx biome check --write <files>`.

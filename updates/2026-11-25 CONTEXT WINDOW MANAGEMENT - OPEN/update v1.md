@@ -109,6 +109,11 @@ loaded. Phase 1 records what we had to estimate.
   `crew/dispatch.ts` via `context/resume-rule.ts` + `context/handoff.ts`) and fix 2 (`FORGET_AT` 60 k) done.
   Fixes 3–5 not started. The carry-on branch (parked asks) still always resumes.
 
+- [~] Savings check (2026-11-25, [`savings-check.md`](savings-check.md)): the live studio still runs the old build
+  (fe409f0), so nothing has run under the fixes. Replaying the shipped rules on all 1,369 recorded runs: fix 1 −4 to
+  −11%, fixes 1 + 2 **−28%** (1,745 → 1,260 M tokens). Quality isn't measured. The live check waits for a studio
+  restart.
+
 ## Savings estimate (fixes 1 + 2, from the Nov 15–25 numbers)
 - **Fix 1:** reworks that resumed used ≈ 410 M tokens at a median 53.7 k context per turn, vs 20.2 k fresh. Most
   are over 40 k or come back after the cache expired, so they now start fresh: ≈ 60% fewer tokens on them, about
