@@ -424,7 +424,7 @@ function Office({
       announce(`Now talking to ${nameOf(to)}`);
       if (from !== 'scene')
         setTimeout(
-          () => panelRef.current?.querySelector<HTMLInputElement>('.op-composer input')?.focus(),
+          () => panelRef.current?.querySelector<HTMLTextAreaElement>('.op-composer textarea')?.focus(),
           60,
         );
     },

@@ -3,17 +3,9 @@
    the sheet wrapper below is kept only for its own tests.
    One action: the composer pinned at the bottom (Enter sends, Shift+Enter = new line). A running
    chat has no composer — you can't write into a live run. */
-import {
-  type FormEvent,
-  Fragment,
-  type KeyboardEvent,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { invalidate, isApiError, setQueryData, useQuery } from '../../api';
-import { Button, Sheet } from '../../ui';
+import { Button, draftKey, MessageBox, Sheet, useDraft } from '../../ui';
 import { Markdown, relWhen } from '../reports';
 import { type ChatMessage, type ChatSummary, keys, officeApi } from './api';
 import './chat-history.css';
@@ -397,12 +389,13 @@ export function ChatView({
   const q = useQuery(keys.chat(pid, chat.runId), () => officeApi.getChatMessages(pid, chat.runId));
   const { refetch } = q;
   const [status, setStatus] = useState(chat.status);
-  const [text, setText] = useState('');
+  const box = useRef<HTMLTextAreaElement>(null);
+  /* a past chat keeps its own draft, apart from the live chat with the same agent */
+  const [text, setText] = useDraft(draftKey(pid, `${agentId}#${chat.runId}`), box);
   /** My line while they answer. */
   const [mine, setMine] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const log = useRef<HTMLDivElement>(null);
-  const box = useRef<HTMLTextAreaElement>(null);
   const running = status === 'running';
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: read fresh once, when the chat opens
@@ -441,11 +434,6 @@ export function ChatView({
     }
   };
   const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    void send();
-  };
-  const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
     void send();
   };
@@ -556,15 +544,13 @@ export function ChatView({
       ) : (
         q.data && (
           <form className="ch-composer" onSubmit={onSubmit}>
-            <textarea
+            <MessageBox
               ref={box}
-              rows={1}
               aria-label={inPanel ? `Continue this chat with ${name}` : `Message ${name}`}
               placeholder={inPanel ? CHAT_COPY.continuePh : `Message ${name}…`}
               value={text}
               maxLength={8000}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={onKey}
+              onText={setText}
             />
             <Button variant="hero" type="submit" disabled={mine !== null}>
               Send

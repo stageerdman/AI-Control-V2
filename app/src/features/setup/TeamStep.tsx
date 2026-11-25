@@ -16,6 +16,7 @@ import {
 import { Hero } from '../../characters/Hero';
 import { reducedMotion } from '../../design/palette';
 import { go } from '../../shell/router';
+import { draftKey, MessageBox, useDraft } from '../../ui';
 import { briefName, ChatLog, type Resolve, WorkDesign } from '../collab';
 import { nickOf } from '../projects/model';
 import { fireConfetti, sparkle } from './confetti';
@@ -59,8 +60,9 @@ export function TeamStep({
   const [chatErr, setChatErr] = useState<string | null>(null);
   const [acceptErr, setAcceptErr] = useState<string | null>(null);
   const [fresh, setFresh] = useState<ReadonlySet<string>>(new Set());
-  const [text, setText] = useState('');
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  /* keyed on this new project, so two projects being set up never share an unsent message */
+  const [text, setText] = useDraft(draftKey('setup', d.id), input);
   const primary = useRef<HTMLButtonElement>(null);
   const live = useRef(true);
   useEffect(() => {
@@ -156,8 +158,8 @@ export function TeamStep({
       putDraft(d.id, { chat: r.chat, plan: r.plan });
       if (live.current) setFresh(new Set());
     } catch (e) {
+      if (msg) setText((t) => t || msg); // keep what you wrote (in its draft, if you left)
       if (!live.current) return;
-      if (msg) setText((t) => t || msg); // keep what you wrote
       setChatErr(`${oNick} couldn’t answer — ${(e as Error).message}`);
     } finally {
       if (live.current) {
@@ -333,15 +335,14 @@ export function TeamStep({
             void say(v);
           }}
         >
-          <input
+          <MessageBox
             ref={input}
-            autoComplete="off"
             placeholder={`Message ${oNick}…`}
             aria-label={`Message ${orch?.name ?? 'the orchestrator'}`}
             value={text}
             readOnly={busy === 'creator' || busy === 'accept'}
             maxLength={4000}
-            onChange={(e) => setText(e.target.value)}
+            onText={setText}
           />
           <button
             className="btn btn-hero btn-sm"

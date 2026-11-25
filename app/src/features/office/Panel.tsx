@@ -8,7 +8,7 @@
 import { type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { invalidate, isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
-import { Button } from '../../ui';
+import { Button, draftKey, MessageBox, useDraft } from '../../ui';
 import type { RunningItem } from '../running/api';
 import { type ChatSummary, keys, officeApi, type Thread, type ThreadChat, type ThreadMessage } from './api';
 import { aboutTitles, Bubble } from './Bubble';
@@ -100,7 +100,9 @@ export function Panel(p: PanelProps) {
   const isDir = id === director;
   const key = keys.thread(pid, id);
   const t = useQuery<Thread>(key, () => officeApi.thread(pid, id));
-  const [text, setText] = useState('');
+  const input = useRef<HTMLTextAreaElement>(null);
+  /* what you typed and didn't send stays, per project and agent, through switching, leaving and restarts */
+  const [text, setText] = useDraft(draftKey(pid, id), input);
   const [, bump] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   /* the history view belongs to one agent, so switching agent is back to live at once */
@@ -113,7 +115,6 @@ export function Panel(p: PanelProps) {
   /** Where focus goes after the next view change. */
   const focusTo = useRef<'pill' | 'input' | 'first' | { run: string } | null>(null);
   const log = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
   const openedAt = useRef(Date.now());
   const lkey = `${pid}:${id}`;
   const addLocal = (m: ThreadMessage) => {
@@ -253,7 +254,10 @@ export function Panel(p: PanelProps) {
     /* the agent waits on your answer: what you type answers it, like the card (a note would never reach it) */
     const waiting = ctx?.reportId ? undefined : asks.find((a) => !answers[a.id]);
     /* a question nobody waits on any more leaves, and the words go out as a plain message instead */
-    if (waiting && (await answer(waiting, said, true))) return;
+    const went = waiting && (await answer(waiting, said, true));
+    /* an answer that didn't go through gives the words back to the box (and its draft), like a failed send */
+    if (went === 'failed') setText((now) => now || raw);
+    if (went && went !== 'closed') return;
     try {
       const r = await officeApi.say(pid, id, said, ctx?.reportId);
       setQueryData<Thread>(key, (prev) => ({
@@ -264,6 +268,8 @@ export function Panel(p: PanelProps) {
         messages: mergeMessage(prev?.messages ?? [], r.message),
       }));
     } catch (e) {
+      /* the words come back to the box (and its draft) so you can try again */
+      setText((now) => now || raw);
       addLocal({ ...note('user', said), reportId: ctx?.reportId ?? null });
       addLocal(note(id, isApiError(e) ? e.message : 'That message didn’t go through.', 'error'));
     }
@@ -272,21 +278,22 @@ export function Panel(p: PanelProps) {
     e.preventDefault();
     void send(text);
   };
-  /** True when the answer went in. A 409 means the question is closed (answered elsewhere, or withdrawn): its
-      card leaves either way; typed words (`typed`) then go out as a message, a card's answer says why not. */
-  const answer = async (a: PendingAsk, value: string, typed = false): Promise<boolean> => {
+  /** 'in' when the answer went in. 'closed' (a 409) means the question is closed (answered elsewhere, or
+      withdrawn): its card leaves either way; typed words (`typed`) then go out as a message, a card's answer
+      says why not. 'failed' is anything else (offline, a 500): the card stays, with a line saying why. */
+  const answer = async (a: PendingAsk, value: string, typed = false): Promise<'in' | 'closed' | 'failed'> => {
     try {
       await studio.projects.answer(pid, a.id, value);
       setAnswers((m) => ({ ...m, [a.id]: value }));
       /* the server saves the question and this answer in the thread (two `thread.message` lines) */
       p.answered(a.id);
-      return true;
+      return 'in';
     } catch (e) {
       const closed = isApiError(e) && e.status === 409;
       if (closed) p.answered(a.id);
       if (!(closed && typed))
         addLocal(note(a.agentId, isApiError(e) ? e.message : 'The answer didn’t go through.', 'error'));
-      return !closed;
+      return closed ? 'closed' : 'failed';
     }
   };
 
@@ -520,13 +527,12 @@ export function Panel(p: PanelProps) {
           </div>
         )}
         <form className="op-composer" onSubmit={submit} hidden={!live}>
-          <input
+          <MessageBox
             ref={input}
-            autoComplete="off"
             value={text}
             placeholder={`Message ${short}…`}
             aria-label={`Message ${ag.name}`}
-            onChange={(e) => setText(e.target.value)}
+            onText={setText}
             onKeyDown={(e) => {
               if (e.key === 'Escape' && !text && !isDir) {
                 e.stopPropagation();

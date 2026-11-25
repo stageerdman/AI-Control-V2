@@ -9,7 +9,7 @@ import type { Agent, CreatorDraft, CreatorSession, Look, Role, Team } from '../.
 import { Hero, type HeroHandle, LOOK_SLOTS, type LookSlotId, randomLook } from '../../characters';
 import { hueHex } from '../../design/palette';
 import { formatRoute, go } from '../../shell/router';
-import { toast } from '../../ui';
+import { draftKey, MessageBox, toast, useDraft } from '../../ui';
 import { ChatLog } from '../collab';
 import { AgentPanel, type PanelAgent } from './AgentPanel';
 import { castApi, KEYS } from './api';
@@ -97,7 +97,7 @@ export function TinkerZoom(p: TinkerZoomProps) {
   const zRef = useRef<HTMLElement>(null);
   const bot = useRef<HeroHandle>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const addBtn = useRef<HTMLButtonElement>(null);
   const live = useRef(true);
   const [px, setPx] = useState(0);
@@ -110,7 +110,7 @@ export function TinkerZoom(p: TinkerZoomProps) {
   const [remote, setRemote] = useState(false); // a turn from before (resumed mid-answer)
   const [activity, setActivity] = useState<CreatorSession['activity']>(null);
   const [mine, setMine] = useState<string | null>(null);
-  const [text, setText] = useState('');
+  const [text, setText] = useDraft(draftKey('cast', 'tinker'), input);
   const [chatErr, setChatErr] = useState<string | null>(null);
   const [slow, setSlow] = useState(false);
   const [diff, setDiff] = useState<DraftDiff | null>(null);
@@ -304,8 +304,8 @@ export function TinkerZoom(p: TinkerZoomProps) {
       setSession((s) => (s ? { ...s, chat: r.chat, draft: r.draft, activity: null } : s));
       showChanges(prev, r.draft);
     } catch (e) {
+      setText((t) => t || v); // your text goes back in the box (or its draft, if you left)
       if (!live.current) return;
-      setText((t) => t || v); // your text goes back in the box
       setChatErr(`${tName} couldn’t answer — ${message(e)}`);
     } finally {
       if (live.current) {
@@ -578,14 +578,13 @@ export function TinkerZoom(p: TinkerZoomProps) {
               void send(v);
             }}
           >
-            <input
+            <MessageBox
               ref={input}
-              autoComplete="off"
               placeholder="Describe them — what they do, how they work…"
               aria-label={`Message ${tName}`}
               value={text}
               maxLength={4000}
-              onChange={(e) => setText(e.target.value)}
+              onText={setText}
             />
             <button className="btn btn-hero btn-sm" type="submit">
               Send
