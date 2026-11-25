@@ -30,6 +30,7 @@ import {
   trend,
   valueText,
 } from './model';
+import { TokensView } from './tokens/TokensView';
 import './performance.css';
 
 const LIVE_EVERY = 30_000;
@@ -222,6 +223,7 @@ export function TeamView({
 
       <Cards p={p} range={range} measure={measure} onMeasure={setMeasure} />
       <Chart p={p} measure={measure} picked={picked} agents={agents} onClear={() => setPicked(null)} />
+      {measure === 'tokens' && state === 'normal' && <TokensView p={p} nameOf={nameOf} />}
 
       {state === 'quiet' ? (
         range !== 'all' && (

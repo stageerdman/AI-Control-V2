@@ -166,6 +166,21 @@ export type Performance = {
   agents: AgentPerformance[];
   /** Every local day of the range, oldest first; `day` = YYYY-MM-DD. */
   days: (Measures & { day: string; byAgent: Record<string, Measures> })[];
+  /** Where the tokens went (server performance/tokens.ts); absent from an older server. */
+  tokenUse?: TokenUse;
+};
+export type TokenUse = {
+  /** About what each agent's runs cost at API prices (USD). */
+  usd: Record<string, number>;
+  /** Sessions started with a clean slate. */
+  fresh: number;
+  /** Runs that carried an earlier session on, and their tokens. */
+  pickedUp: number;
+  pickedUpTokens: number;
+  /** Tokens of each session's first step; null = not measured yet. */
+  ready: number | null;
+  /** All tokens of the spans whose first step was measured. */
+  readyOf: number;
 };
 
 /** How long work really took, and a guess for new work (GET /projects/:id/timesheet —

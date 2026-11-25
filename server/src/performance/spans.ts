@@ -41,7 +41,26 @@ export type Span = {
   end: string | null;
   /** The checklist item it served (time estimates); null = no task's work (chats, calls, planning). */
   itemId: string | null;
+  /** It carried an earlier session on (--resume) instead of starting clean. */
+  resumed?: boolean;
+  /** About what it cost at API prices (runs only). */
+  costUsd?: number | null;
+  /** Tokens of each session's first step (session measuring, Phase 1); null/absent = not measured. */
+  firstContext?: number | null;
 };
+
+/** Session measuring (context window roadmap, Phase 1) may not be in this database yet: read it only when it is. */
+const hasColumn = (db: Db, table: string, col: string) =>
+  rows<Row>(db.prepare(`SELECT name FROM pragma_table_info('${table}')`).all()).some((r) => r.name === col);
+
+function firstContextSql(db: Db, alias: string, table: 'runs' | 'crew_time'): string {
+  if (hasColumn(db, table, 'first_context')) return `${alias}.first_context`;
+  if (table === 'runs' && hasColumn(db, 'run_sessions', 'first_context'))
+    return `(SELECT SUM(s.first_context) FROM run_sessions s WHERE s.run_id = ${alias}.id)`;
+  return 'NULL';
+}
+
+const numOrNull = (v: unknown): number | null => (typeof v === 'number' ? v : null);
 
 const ASKED: readonly string[] = ['task', 'call', 'chat'] satisfies Asked[];
 const askedOf = (v: unknown): Asked => (ASKED.includes(v as string) ? (v as Asked) : 'task');
@@ -66,8 +85,13 @@ function runSpans(db: Db, projectId: string): Span[] {
   return rows<Row>(
     db
       .prepare(
-        `SELECT r.agent_id, r.kind, r.asked, r.task, r.status, r.turns, r.started_at, r.ended_at, r.item_id,
-                r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_write_tokens, a.kind AS agent_kind
+        `SELECT r.id, r.agent_id, r.kind, r.asked, r.task, r.status, r.turns, r.started_at, r.ended_at, r.item_id,
+                r.input_tokens, r.output_tokens, r.cache_read_tokens, r.cache_write_tokens, a.kind AS agent_kind,
+                r.cost_usd, ${firstContextSql(db, 'r', 'runs')} AS first_context,
+                EXISTS (SELECT 1 FROM runs o
+                        WHERE o.project_id = r.project_id AND o.agent_id = r.agent_id AND o.id <> r.id
+                          AND (o.id = r.session_id OR (o.session_id = r.session_id AND o.started_at < r.started_at))
+                       ) AS resumed
          FROM runs r LEFT JOIN agents a ON a.id = r.agent_id WHERE r.project_id = ?`,
       )
       .all(projectId),
@@ -85,6 +109,10 @@ function runSpans(db: Db, projectId: string): Span[] {
     start: r.started_at as string,
     end: (r.ended_at as string | null) ?? null,
     itemId: (r.item_id as string | null) ?? null,
+    /* a fresh run's session is its own id (a forget: a new random one); a resumed run's is an earlier run's */
+    resumed: !!r.resumed,
+    costUsd: numOrNull(r.cost_usd),
+    firstContext: numOrNull(r.first_context),
   }));
 }
 
@@ -93,7 +121,8 @@ function crewSpans(db: Db, projectId: string): Span[] {
     db
       .prepare(
         `SELECT agent_id, kind, asked, status, turns, started_at, ended_at, item_id,
-                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                ${firstContextSql(db, 'crew_time', 'crew_time')} AS first_context
          FROM crew_time WHERE scope = 'project' AND owner_id = ?`,
       )
       .all(projectId),
@@ -107,6 +136,7 @@ function crewSpans(db: Db, projectId: string): Span[] {
     start: r.started_at as string,
     end: (r.ended_at as string | null) ?? null,
     itemId: (r.item_id as string | null) ?? null,
+    firstContext: numOrNull(r.first_context),
   }));
 }
 
