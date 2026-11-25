@@ -201,6 +201,25 @@ describe('collaboration: design + enforcement', () => {
     ]);
   });
 
+  it('send back after a big build session → rework starts fresh from a handoff, not the old transcript', async () => {
+    let reviews = 0;
+    const s = studio({ dispatch: [ONE] }, (spec) => {
+      if (isReview(spec)) return ++reviews === 1 ? changes('The empty state crashes.') : approve();
+      if (spec.task.includes('sent it back')) return worked('Fixed the empty state.');
+      return [{ tokens: { input: 50_000, output: 100 } }, ...worked('Built it.')];
+    });
+    h = s.h;
+    useDesign(h, DESIGN);
+    const r = await h.call('POST', '/projects/aurora/work', { goal: 'Search' });
+    expect((await settled(h, r.body.id)).status).toBe('done');
+    const rework = s.crew.calls.find((c) => c.task.includes('sent it back'));
+    expect(rework?.resumeSessionId).toBeUndefined();
+    expect(rework?.task).toContain('fresh memory');
+    expect(rework?.task).toContain('The empty state crashes.');
+    expect(rework?.task).toContain('Your summary last time: Built it.');
+    expect(rework?.task).toMatch(/Your original brief, for reference:\n[\s\S]*Brief: A page\./);
+  });
+
   it('bounded: past maxSendBacks the item fails for the user, later items are skipped', async () => {
     const two = { ...ONE, items: [...ONE.items, { ...ONE.items[0], text: 'Then the filters' }] };
     /* different notes each round: the same note twice would go to the director instead (review-loop-flow) */

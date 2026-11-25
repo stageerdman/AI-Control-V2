@@ -98,7 +98,25 @@ loaded. Phase 1 records what we had to estimate.
 ## Status
 - [x] Roadmap
 - [x] Phase 0: research, findings and report (2026-11-25)
-- [ ] Phase 1 · [ ] Phase 2 · [ ] Phase 3 · [ ] Phase 4
+- [x] Phase 1 (runs, 2026-11-25): `run_sessions` (migration 58), one row per CLI session with `started_by`, gap,
+  first / peak / last context, turns, tokens, `ended_by`. Code: `server/src/context/`, `runtime/service.ts`.
+  Crew-call context sizes are not recorded yet.
+- [~] Phase 2: server read done (`GET /projects/:id/context?range=`, `GET /projects/:id/runs/:runId/sessions`).
+  Tally on the team sheet + UI line not done.
+- [ ] Phase 3: benchmark not built. Fixes 1 and 2 shipped on the estimate below, ahead of the gate; the real
+  before/after comes from `run_sessions` on live work.
+- [~] Phase 4: fix 1 (rework fresh + handoff, resume only if last context < 40 k and ended < 5 min ago, in
+  `crew/dispatch.ts` via `context/resume-rule.ts` + `context/handoff.ts`) and fix 2 (`FORGET_AT` 60 k) done.
+  Fixes 3–5 not started. The carry-on branch (parked asks) still always resumes.
+
+## Savings estimate (fixes 1 + 2, from the Nov 15–25 numbers)
+- **Fix 1:** reworks that resumed used ≈ 410 M tokens at a median 53.7 k context per turn, vs 20.2 k fresh. Most
+  are over 40 k or come back after the cache expired, so they now start fresh: ≈ 60% fewer tokens on them, about
+  **250 M tokens (~15%) and ~$70 per 10 days**.
+- **Fix 2:** a session that grows to 120 k averages ≈ 66 k per turn; two sessions to 60 k average ≈ 36 k plus one
+  cold start (~12 k). About **40% fewer tokens on the long sessions** that cross 60 k.
+- These are estimates. Check them against `GET /projects/:id/context` after a week: `started_by` = `rework`
+  counts, and the median `peak_context` per session should fall.
 
 ## Decisions
 - **Measure first, then cut.** Every fix in Phase 4 waits for Phase 1's numbers and Phase 3's quality gate.

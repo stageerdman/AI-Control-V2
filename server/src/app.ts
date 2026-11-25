@@ -86,6 +86,7 @@ import { bridgeRoutes } from './routes/bridges.ts';
 import { chatRoutes } from './routes/chats.ts';
 import { collaborationRoutes } from './routes/collaboration.ts';
 import { commsRoutes } from './routes/comms.ts';
+import { contextRoutes } from './routes/context.ts';
 import { creatorChatRoutes } from './routes/creator-chat.ts';
 import { credentialRoutes } from './routes/credentials.ts';
 import { creditsRoutes } from './routes/credits.ts';
@@ -775,6 +776,7 @@ export function buildApp({
   app.register(setterRoutes({ store, config, events, github, clock }));
   app.register(timeRoutes({ store, clock }));
   app.register(performanceRoutes({ db, store }));
+  app.register(contextRoutes({ db, store }));
   app.register(timesheetRoutes({ db, store }));
   app.register(portraitRoutes({ portraits }));
   app.register(githubRoutes({ github }));
