@@ -41,4 +41,9 @@ Reviewer: Eraser. 2026-11-25. Reviewed: `## Menu bar design` in `plan.md` (as of
 
 ## Sign-off
 
-_Pending Jony's fixes._
+Both merges applied in `plan.md` at integration (Columbo, captain), word for word as asked above:
+
+1. Section 3 now has one rule: "While stopping, any Open or Quit, from anywhere, does nothing new."
+2. "No agents working" and "under 400 ms" are folded into one rule ("Stopping done within 400 ms … the app just closes and nothing is shown") and one table row.
+
+Nothing else changed. **APPROVED**: one Quit, two menu items, one calm line, no confirmations.

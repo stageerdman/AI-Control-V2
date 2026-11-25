@@ -41,18 +41,18 @@ Quit AI Studio      ⌘Q
 
 ### 3. While Quit is stopping agents
 
-**No agents working:** the app quits right away and nothing is shown. The icon and the Dock icon disappear.
+**Stopping done within 400 ms** (including when no agents are working): the app just closes and nothing is shown. The icon and the Dock icon disappear.
 
-**Agents working:** the window shows one calm line, centred, with nothing else:
+**Still stopping after 400 ms:** the window shows one calm line, centred, with nothing else:
 
 > Pausing your agents. They'll carry on next time.
 
 - **Look:** the line replaces the window's content on a plain background (the app's normal surface colour). It uses the body text size in the secondary text colour. There are no buttons, icons, spinner or colours. It isn't a dialog or a sheet, so there's nothing to click and nothing to dismiss. It meets the normal text contrast (4.5:1 or better). VoiceOver announces it once as a polite live region.
-- **When it appears:** only if stopping is still going **400 ms** after Quit. Quick stops then end with nothing shown, which avoids a distracting flash.
+- **Why 400 ms:** quick stops end with nothing shown, which avoids a distracting flash.
 - **If the window was hidden:** after the same 400 ms, the window comes to the front, showing only the line. That way every Quit looks the same, from the menu bar, ⌘Q or the Dock.
 - **How long it stays:** until the agents have stopped, and then the app closes at once. There's no minimum time on screen and no "Done" step.
 - **If stopping takes longer:** the server gives each agent 3 s and then stops it by force, so the line stays for about 3 s at most. It doesn't change, count down or turn into a warning. If the server still hasn't reported back after **5 s**, the app quits anyway. The watchdog finishes the cleanup, and the user never sees a second message.
-- **Pressing ⌘Q again, or using Quit in the Dock or Open/Quit in the menu bar, while stopping:** does nothing new. The same stop continues, so the studio is never left half-quit.
+- **While stopping, any Open or Quit, from anywhere, does nothing new.** The same stop continues, so the studio is never left half-quit.
 - **The icon** disappears only once the app has really exited, which is the visible sign that the studio is off.
 - **Next launch:** the existing "Paused: the studio closed during this run" note keeps it calm, with no red and no error styling, and the agent carries on.
 
@@ -69,8 +69,7 @@ Quit AI Studio      ⌘Q
 |---|---|---|---|
 | Running, window open | visible | open | normal studio |
 | Running, window closed | visible | hidden | nothing |
-| Quit, nothing working | goes at exit | closes | nothing |
-| Quit, agents stop in under 400 ms | goes at exit | closes | nothing |
+| Quit, stopping done within 400 ms | goes at exit | closes | nothing |
 | Quit, agents still stopping after 400 ms | visible until exit | at the front | the one line |
 | Stopping hits 3 s | same | same | same line, unchanged |
 | No answer after 5 s | goes at exit | closes | nothing new |
