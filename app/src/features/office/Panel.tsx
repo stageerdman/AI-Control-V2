@@ -8,7 +8,7 @@
 import { type FormEvent, Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { invalidate, isApiError, setQueryData, studio, useQuery } from '../../api';
 import { Hero } from '../../characters';
-import { Button } from '../../ui';
+import { Button, draftKey, MessageBox, useDraft } from '../../ui';
 import type { RunningItem } from '../running/api';
 import { type ChatSummary, keys, officeApi, type Thread, type ThreadChat, type ThreadMessage } from './api';
 import { aboutTitles, Bubble } from './Bubble';
@@ -100,7 +100,9 @@ export function Panel(p: PanelProps) {
   const isDir = id === director;
   const key = keys.thread(pid, id);
   const t = useQuery<Thread>(key, () => officeApi.thread(pid, id));
-  const [text, setText] = useState('');
+  const input = useRef<HTMLTextAreaElement>(null);
+  /* what you typed and didn't send stays, per project and agent, through switching, leaving and restarts */
+  const [text, setText] = useDraft(draftKey(pid, id), input);
   const [, bump] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   /* the history view belongs to one agent, so switching agent is back to live at once */
@@ -113,7 +115,6 @@ export function Panel(p: PanelProps) {
   /** Where focus goes after the next view change. */
   const focusTo = useRef<'pill' | 'input' | 'first' | { run: string } | null>(null);
   const log = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
   const openedAt = useRef(Date.now());
   const lkey = `${pid}:${id}`;
   const addLocal = (m: ThreadMessage) => {
@@ -264,6 +265,8 @@ export function Panel(p: PanelProps) {
         messages: mergeMessage(prev?.messages ?? [], r.message),
       }));
     } catch (e) {
+      /* the words come back to the box (and its draft) so you can try again */
+      setText((now) => now || raw);
       addLocal({ ...note('user', said), reportId: ctx?.reportId ?? null });
       addLocal(note(id, isApiError(e) ? e.message : 'That message didn’t go through.', 'error'));
     }
@@ -520,13 +523,12 @@ export function Panel(p: PanelProps) {
           </div>
         )}
         <form className="op-composer" onSubmit={submit} hidden={!live}>
-          <input
+          <MessageBox
             ref={input}
-            autoComplete="off"
             value={text}
             placeholder={`Message ${short}…`}
             aria-label={`Message ${ag.name}`}
-            onChange={(e) => setText(e.target.value)}
+            onText={setText}
             onKeyDown={(e) => {
               if (e.key === 'Escape' && !text && !isDir) {
                 e.stopPropagation();
