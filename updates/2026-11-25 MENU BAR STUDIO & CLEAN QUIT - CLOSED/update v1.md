@@ -108,6 +108,14 @@ those last ones either never fires or can't see them.**
 ## Status
 - [x] Cause found and written down (above).
 - [x] Phased roadmap.
-- [ ] Phase 1: menu bar studio
-- [ ] Phase 2: proper quit with notes and resume
-- [ ] Phase 3: nothing keeps running (ledger, tag, reliable stop, crash clean-up)
+- [x] Phase 1: menu bar studio (red cross and Close Window hide; tray Open / Quit; one graceful quit path).
+- [x] Phase 2: proper quit with notes and resume (each live agent gets a studio-written desk note).
+- [x] Phase 3: nothing keeps running (`server/src/reaper/`). Built simpler than planned:
+  - No `children.json` ledger and no boot id. Every child carries `AI_STUDIO_OWNER=<data dir key>`, and since
+    the data lock allows one backend per data dir, anything with that key is ours. So one sweep serves both
+    quit and boot (a crash's leftovers).
+  - Apps macOS opens for us carry no tag, so their bundles go into `<data dir>/opened-apps.json` before they
+    open and are swept the same way.
+  - A reused pid is safe: each read picks again by tag, and a reused pid no longer carries it.
+  - The `ps` that reads the table runs without the tag; otherwise every sweep picked itself.
+  - Live check: the backend boots, and on SIGTERM it exits 0 in about 70 ms.
