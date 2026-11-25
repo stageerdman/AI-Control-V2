@@ -43,18 +43,23 @@ describe('tokenView', () => {
     });
   });
 
-  it('a sentence first: who used most, with cost (the share is already on the sheet)', () => {
+  it('a sentence first: what it cost and who, without the shares the sheet already shows', () => {
     const v = normal(withUse());
-    expect(v.lead).toBe('Most of the studio’s tokens went to Rivet (about $3) and Blair (under $1).');
+    expect(v.lead).toBe('About $4 in all, at pay-as-you-go prices: Rivet about $3, Blair under $1.');
     expect(v.lead).not.toMatch(/%/);
-    expect(v.cost).toBe('About $4 in all, if paid per use.');
   });
 
-  it('one agent with almost everything', () => {
-    const p = withUse({ usd: {} });
-    const v = normal({ ...p, totals: { ...p.totals, tokens: 2_500_000 } });
-    expect(v.lead).toBe('Almost all of the studio’s tokens went to Rivet.');
-    expect(v.cost).toBeNull();
+  it('one agent with nearly all the cost', () => {
+    const v = normal(withUse({ usd: { 'a-rivet': 3.2 } }));
+    expect(v.lead).toBe('About $3 in all, at pay-as-you-go prices, nearly all of it Rivet.');
+  });
+
+  it('only crew calls priced: the total alone', () => {
+    expect(normal(withUse({ usd: { crew: 2 } })).lead).toBe('About $2 in all, at pay-as-you-go prices.');
+  });
+
+  it('no price known: no sentence', () => {
+    expect(normal(withUse({ usd: {} })).lead).toBeNull();
   });
 
   it('working vs getting ready, with what it means', () => {
@@ -83,16 +88,16 @@ describe('tokenView', () => {
     expect(normal({ ...withUse(), range: 'all', previous: null }).perHour?.trend).toBeNull();
   });
 
-  it('an older server without the rollup: the sentence and the rate only', () => {
+  it('an older server without the rollup: the rate only', () => {
     const v = normal(week);
-    expect(v.cost).toBeNull();
+    expect(v.lead).toBeNull();
     expect(v.starts).toBeNull();
     expect(v.ready.text).toBe(NOT_MEASURED);
   });
 
   it('plain words only', () => {
     const v = normal(withUse());
-    const all = [v.lead, v.cost, v.ready.text, v.starts?.text, v.perHour?.text, v.hint].join(' ');
-    expect(all).not.toMatch(/cache|context|re-?read|prefix|input|output|session|API/i);
+    const all = [v.lead, v.ready.text, v.starts?.text, v.perHour?.text, v.hint].join(' ');
+    expect(all).not.toMatch(/cache|context|re-?read|prefix|input|output|\bAPI\b|session/i);
   });
 });

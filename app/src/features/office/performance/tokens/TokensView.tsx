@@ -12,10 +12,7 @@ export function TokensView({ p, nameOf }: { p: Performance; nameOf: (id: string)
         <p className="hint">{v.text}</p>
       ) : (
         <>
-          <p className="pf-tk-lead">
-            {v.lead}
-            {v.cost && <span className="pf-tk-soft"> {v.cost}</span>}
-          </p>
+          {v.lead && <p className="pf-tk-lead">{v.lead}</p>}
           <dl className="pf-tk-lines">
             <div>
               <dt>Spent on</dt>

@@ -1,6 +1,6 @@
 /* How the team works (pure): the performance read → what the sheet says. Numbers in words, trends, the bars
    of the chart, the "Worth a look" flags and the team list. No React, no I/O — every rule is tested here.
-   Design: updates/2026-11-16 AGENT PERFORMANCE - OPEN/design.md. No money anywhere. */
+   Design: updates/2026-11-16 AGENT PERFORMANCE - OPEN/design.md. No money here; the token view (tokens/) says the cost. */
 import type { AgentPerformance, Measures, Performance, PerfRange, WorkKind } from '../api';
 import { ago, worked } from '../time';
 

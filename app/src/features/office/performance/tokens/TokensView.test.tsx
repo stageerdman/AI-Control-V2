@@ -26,7 +26,7 @@ describe('TokensView', () => {
     const { container } = render(<TokensView p={p} nameOf={nameOf} />);
     expect(screen.getByRole('heading', { name: 'Where the tokens go' })).toBeTruthy();
     expect(container.querySelector('.pf-tk-lead')?.textContent).toBe(
-      'Most of the studio’s tokens went to Rivet (about $3) and Blair (under $1). About $4 in all, if paid per use.',
+      'About $4 in all, at pay-as-you-go prices: Rivet about $3, Blair under $1.',
     );
     expect([...container.querySelectorAll('dt')].map((d) => d.textContent)).toEqual([
       'Spent on',

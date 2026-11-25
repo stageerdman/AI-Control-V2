@@ -264,7 +264,7 @@
 }
 .pf-tk-lines div {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   align-items: baseline;
   gap: 12px;
   font-weight: 700;

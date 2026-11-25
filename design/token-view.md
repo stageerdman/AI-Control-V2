@@ -16,23 +16,26 @@ another card and it goes away. The credits line doesn't point here (Eraser's cal
 ## What it says (only what the sheet doesn't already)
 ```
 Where the tokens go
-Most of the studio's tokens went to Rivet (about $3) and Blair (under $1). About $4 in all, if paid per use.
+About $4 in all, at pay-as-you-go prices: Rivet about $3, Blair under $1.
 Spent on          ███████████████████████░  97% working · 3% getting ready
 Starts            11 fresh starts · 2 picked up old work (40% of the tokens)
 Per hour of work  766k tokens · ↑ 2% vs last week
-Getting ready: the first step of each run, reading the rules and the task. Picked up old work: it brings the
-whole earlier chat back, so it costs more than a fresh start.
+Getting ready is reading the rules and the task when an agent starts a task. Picking up old work brings back
+everything from the earlier try, so it costs more than a fresh start.
 ```
-1. **Who:** a sentence naming the few agents that cover ¾ of the tokens (3 at most), with cost only — their share is
-   already in "Worth a look" and "Who does the work" (Eraser). Cost is rounded to whole dollars and labelled "if paid
-   per use", because the owner pays a flat plan.
-2. **Spent on:** working vs getting ready. Getting ready is each run's first step. One thin bar, sun on line.
+1. **Cost:** one sentence, the only money on the sheet: the total, then the few agents that cover ¾ of the tokens (3 at
+   most) with their dollars. Rounded to whole dollars and labelled "at pay-as-you-go prices", because the owner pays a
+   flat plan. One agent with ≥ 90% of the cost: "…, nearly all of it Rivet." No price known: no sentence.
+2. **Spent on:** working vs getting ready. Getting ready is the first step when an agent starts a task. One thin bar,
+   sun on line.
 3. **Starts:** one count each, in neutral colour. Fresh starts are cheap and fine. Picked-up old work is where the cost
    hides, so it carries its share of the tokens.
-4. **Per hour of work:** tokens per hour of agent time against the window before. This compares like with like, so a busy week
-   doesn't look like a failed fix. The raw per-day trend is already the chart above.
+4. **Per hour of work:** tokens per hour of agent time against the window before. This compares like with like, so a
+   busy week doesn't look like a failed fix. The label says what it measures, so it isn't read as a second version of
+   the Tokens card's raw trend (that one is the chart above).
 
 ## Removed, and why
+- Token shares in the sentence. "Worth a look" and the team list's share bars already say them; only the money is new.
 - A second per-agent list. The "Who does the work" list already ranks by tokens when the Tokens card is picked.
 - Raw totals and the raw trend. The Tokens card shows them.
 - "% of the plan left". That's the credits line's job.
@@ -44,11 +47,12 @@ whole earlier chat back, so it costs more than a fresh start.
 ## States
 - **Empty** (tokens = 0 in the range): "Nothing measured yet. This fills in after the next run." Never zeros.
 - **Quiet range / no work ever:** not shown. The sheet's own line covers it.
-- **Getting ready not measured** (before session measuring, roadmap Phase 1): "Getting ready isn't measured yet." No
+- **Getting ready not measured** (before measuring each task's first step, roadmap Phase 1): "Getting ready isn't measured yet." No
   bar and no definition.
 - **Nothing picked up:** "none picked up old work", and no hint about it.
 - **All time:** no "vs" (nothing to compare).
-- **Older server without `tokenUse`:** the sentence and the rate only.
+- **No price known** (no `cost_usd`): no sentence; the lines start the view.
+- **Older server without `tokenUse`:** the rate only (getting ready says it isn't measured).
 - **Loading / range switch:** follows the sheet (dimmed, last numbers kept).
 
 ## Data (read-only)
