@@ -16,7 +16,15 @@
 - **Price weights that fit our bill:** read ≈ 0.1×, write ≈ 1.25×, output ≈ 5× input, which gives ≈ $3/M input.
   Use them to turn token savings into money.
 
+- **Fresh beats resume unless small and warm.** The rule lives in one pure function (`context/resume-rule.ts`):
+  resume only if the last session's last context is < 40 k and it ended < 5 min ago. Everything else gets a
+  handoff brief (ask, commits + diff stat, last words, desk note, original brief).
+- **Use the last turn's context, not the peak,** to judge how big a session is to resume: the peak can come
+  from before a forget.
+
 ## Gotchas
+- Don't run `npm run format` across the repo: biome rewrites ~20 unrelated files. Use
+  `npx biome check --write <files>`.
 - The running studio may be older than the checkout: chat messages were at `/chats/:runId/messages` before project
   isolation, and are at `/projects/:id/chats/:runId/messages` after. The spike tries both.
 - Agents' file tools can't read `~/.ai-studio/runs/*.jsonl` (`--restricted`). Use the API, or the fixtures in
