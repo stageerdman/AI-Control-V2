@@ -92,6 +92,11 @@ describe('stopped agents keep their history and can continue', () => {
     const texts = (await messages(h, id)).map((m) => m.text);
     expect(texts.at(-1)).toBe(STUDIO_CLOSED);
     expect(texts.join('\n')).not.toContain(STOPPED_BY_YOU);
+    /* the quit left a note on the agent's desk, written by the studio */
+    const { notes } = (await h.call('GET', '/projects/aurora/desk-notes?agentId=a-pete')).body;
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ runId: id, doing: 'Build the long thing' });
+    expect(notes[0].notes).toContain('Starting the long job.');
   });
 
   it('my_history lets the agent look back at its own chats — and only its own', async () => {

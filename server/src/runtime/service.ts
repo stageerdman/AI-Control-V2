@@ -48,6 +48,7 @@ import { afterLimit, afterNote, carriesOn, isLimit, type LimitState, limitBrief 
 import { isMacProject } from './mac-project.ts';
 import { answeredBrief, parkedHandle } from './parked.ts';
 import { runPermissions } from './permissions.ts';
+import { quitNote } from './quit-note.ts';
 import type { Caps, RunEvent, RunHandle, RunIO, Runner, RunOutcome, RunSpec } from './runner.ts';
 import { ASK_TOOL } from './stream.ts';
 
@@ -900,6 +901,22 @@ export function createRuntime(deps: RuntimeDeps) {
     l.cancelled = true;
     l.handle.cancel();
   }
+  /** The studio quits: the note on this agent's desk says where it stopped (a failed save never holds up the quit). */
+  function leaveQuitNote(l: Live) {
+    if (!deps.desk) return;
+    const { run } = l;
+    try {
+      const note = quitNote({ task: run.task, cwd: l.cwd, said: l.said, note: l.note });
+      deps.desk.save(run.projectId, run.agentId, run.id, note, l.secrets);
+    } catch (e) {
+      console.error('[runtime.shutdown] could not leave the quit note', {
+        runId: run.id,
+        projectId: run.projectId,
+        agentId: run.agentId,
+        error: (e as Error).message,
+      });
+    }
+  }
   /** `forget` from a live run: save the desk note, then stop this process — the run starts again from the note. */
   function forget(runId: string, input: unknown): Promise<string> {
     const l = live.get(runId);
@@ -1172,6 +1189,7 @@ export function createRuntime(deps: RuntimeDeps) {
       const all = [...live.values()];
       for (const l of all) {
         l.closing = true; // not the user's stop: the restart picks the work up again
+        leaveQuitNote(l);
         stopLive(l);
       }
       await Promise.allSettled(all.map((l) => l.handle.done));
