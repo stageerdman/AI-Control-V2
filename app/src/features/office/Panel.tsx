@@ -254,7 +254,10 @@ export function Panel(p: PanelProps) {
     /* the agent waits on your answer: what you type answers it, like the card (a note would never reach it) */
     const waiting = ctx?.reportId ? undefined : asks.find((a) => !answers[a.id]);
     /* a question nobody waits on any more leaves, and the words go out as a plain message instead */
-    if (waiting && (await answer(waiting, said, true))) return;
+    const went = waiting && (await answer(waiting, said, true));
+    /* an answer that didn't go through gives the words back to the box (and its draft), like a failed send */
+    if (went === 'failed') setText((now) => now || raw);
+    if (went && went !== 'closed') return;
     try {
       const r = await officeApi.say(pid, id, said, ctx?.reportId);
       setQueryData<Thread>(key, (prev) => ({
@@ -275,21 +278,22 @@ export function Panel(p: PanelProps) {
     e.preventDefault();
     void send(text);
   };
-  /** True when the answer went in. A 409 means the question is closed (answered elsewhere, or withdrawn): its
-      card leaves either way; typed words (`typed`) then go out as a message, a card's answer says why not. */
-  const answer = async (a: PendingAsk, value: string, typed = false): Promise<boolean> => {
+  /** 'in' when the answer went in. 'closed' (a 409) means the question is closed (answered elsewhere, or
+      withdrawn): its card leaves either way; typed words (`typed`) then go out as a message, a card's answer
+      says why not. 'failed' is anything else (offline, a 500): the card stays, with a line saying why. */
+  const answer = async (a: PendingAsk, value: string, typed = false): Promise<'in' | 'closed' | 'failed'> => {
     try {
       await studio.projects.answer(pid, a.id, value);
       setAnswers((m) => ({ ...m, [a.id]: value }));
       /* the server saves the question and this answer in the thread (two `thread.message` lines) */
       p.answered(a.id);
-      return true;
+      return 'in';
     } catch (e) {
       const closed = isApiError(e) && e.status === 409;
       if (closed) p.answered(a.id);
       if (!(closed && typed))
         addLocal(note(a.agentId, isApiError(e) ? e.message : 'The answer didn’t go through.', 'error'));
-      return !closed;
+      return closed ? 'closed' : 'failed';
     }
   };
 

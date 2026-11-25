@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../characters', () => ({ Hero: () => null }));
 
-import { clearQueryCache } from '../../api';
+import { ApiError, clearQueryCache, studio } from '../../api';
 import { draftKey, loadDraft, resetDraftsForTests } from '../../ui/drafts';
 import { officeApi, type Thread, type ThreadMessage } from './api';
 import { Panel, type PanelProps } from './Panel';
@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 const flush = () => act(async () => {});
-const panel = (pid: string, who: string) => (
+const panel = (pid: string, who: string, asks: PanelProps['asks'] = []) => (
   <Panel
     pid={pid}
     thread={who}
@@ -54,7 +54,7 @@ const panel = (pid: string, who: string) => (
     agents={agents}
     teamName={() => null}
     actor={undefined}
-    asks={[]}
+    asks={asks}
     context={null}
     clearContext={() => {}}
     open={() => {}}
@@ -122,5 +122,19 @@ describe('office chat drafts', () => {
     await flush();
     expect(box().value).toBe('try again later');
     expect(loadDraft(draftKey('p1', 'a-ada'))).toBe('try again later');
+  });
+
+  it('keep the words when a typed answer fails', async () => {
+    vi.spyOn(studio.projects, 'answer').mockRejectedValue(new ApiError(500, 'internal', 'Server error'));
+    const say = vi.spyOn(officeApi, 'say');
+    const ask = { id: 'k1', agentId: 'a-ada', question: 'Which colour?', options: null };
+    render(panel('p1', 'a-ada', [ask]));
+    await screen.findByText('Hello from a-ada');
+    type('teal, please');
+    fireEvent.submit(box());
+    await flush();
+    expect(box().value).toBe('teal, please');
+    expect(loadDraft(draftKey('p1', 'a-ada'))).toBe('teal, please');
+    expect(say).not.toHaveBeenCalled();
   });
 });
