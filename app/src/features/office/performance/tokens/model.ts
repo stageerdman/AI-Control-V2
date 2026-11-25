@@ -5,10 +5,9 @@ import type { Performance } from '../../api';
 import { type Trend, tokensText, trend } from '../model';
 
 export type TokenLines = {
-  /** Who used most: "Most of the studio's tokens went to Rivet (65%, about $3) and Blair (32%, under $1)." */
-  lead: string;
-  /** "About $5 in all, at API prices." null = no price known. */
-  cost: string | null;
+  /** What it cost, and who: "About $4 in all, at pay-as-you-go prices: Rivet about $3, Blair under $1."
+      Shares are left out — Worth a look and the team list already show them. null = no price known. */
+  lead: string | null;
   /** Working vs getting ready; working = null while not measured. */
   ready: { working: number | null; text: string };
   /** "12 fresh starts · 2 picked up old work"; null = an older server that doesn't count them. */
@@ -21,10 +20,11 @@ export type TokenLines = {
 export type TokenView = { state: 'empty'; text: string } | ({ state: 'normal' } & TokenLines);
 
 export const EMPTY = 'Nothing measured yet. This fills in after the next run.';
-export const READY_HINT = 'Getting ready is reading the rules and the task when a session starts.';
+export const PRICES = 'at pay-as-you-go prices';
+export const READY_HINT = 'Getting ready is reading the rules and the task when an agent starts a task.';
 export const NOT_MEASURED = 'Getting ready isn’t measured yet.';
 export const PICKED_UP_HINT =
-  'Picking up old work brings the whole earlier session back, so it costs more than a fresh start.';
+  'Picking up old work brings back everything from the earlier try, so it costs more than a fresh start.';
 
 const H = 3_600_000;
 const pct = (x: number) => Math.round(100 * x);
@@ -34,10 +34,6 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export function money(usd: number): string {
   return usd < 1 ? 'under $1' : `about $${Math.round(usd)}`;
 }
-
-/** "Rivet and Blair" · "Rivet, Blair and Quill" */
-const and = (xs: string[]) =>
-  xs.length < 2 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`;
 
 /** The few agents that used most (until three quarters are covered, three at most), biggest first. */
 export function topAgents(p: Performance): { agentId: string; share: number }[] {
@@ -58,19 +54,20 @@ export function tokenView(p: Performance, nameOf: (id: string) => string): Token
   if (total <= 0) return { state: 'empty', text: EMPTY };
   const u = p.tokenUse;
 
-  const top = topAgents(p);
-  const part = (t: { agentId: string; share: number }) => {
-    const usd = u?.usd[t.agentId];
-    return `${nameOf(t.agentId)} (${pct(t.share)}%${usd ? `, ${money(usd)}` : ''})`;
-  };
-  const lead =
-    top.length === 1 && (top[0]?.share ?? 0) >= 0.9
-      ? `Almost all of the studio’s tokens went to ${part(top[0] as (typeof top)[number])}.`
-      : `Most of the studio’s tokens went to ${and(top.map(part))}.`;
-
   const usdAll = u ? Object.values(u.usd).reduce((s, x) => s + x, 0) : 0;
-  const cost =
-    usdAll > 0 ? `${money(usdAll).replace(/^./, (c) => c.toUpperCase())} in all, at API prices.` : null;
+  const usdOf = (id: string) => u?.usd[id] ?? 0;
+  const priced = topAgents(p)
+    .map((t) => t.agentId)
+    .filter((id) => usdOf(id) > 0);
+  const all = `${money(usdAll).replace(/^./, (c) => c.toUpperCase())} in all, ${PRICES}`;
+  const lead =
+    usdAll <= 0
+      ? null
+      : priced.length === 1 && usdOf(priced[0] ?? '') / usdAll >= 0.9
+        ? `${all}, nearly all of it ${nameOf(priced[0] ?? '')}.`
+        : priced.length
+          ? `${all}: ${priced.map((id) => `${nameOf(id)} ${money(usdOf(id))}`).join(', ')}.`
+          : `${all}.`;
 
   const working = u && u.ready != null && u.readyOf > 0 ? 100 - pct(u.ready / u.readyOf) : null;
   const ready = {
@@ -98,9 +95,9 @@ export function tokenView(p: Performance, nameOf: (id: string) => string): Token
     now == null
       ? null
       : {
-          text: `${tokensText(now)} per hour of work`,
+          text: `${tokensText(now)} tokens`,
           trend: before == null ? null : trend('tokens', Math.round(now), Math.round(before), p.range),
         };
 
-  return { state: 'normal', lead, cost, ready, starts, perHour, hint: hints.length ? hints.join(' ') : null };
+  return { state: 'normal', lead, ready, starts, perHour, hint: hints.length ? hints.join(' ') : null };
 }

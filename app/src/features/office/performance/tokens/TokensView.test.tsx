@@ -22,22 +22,20 @@ const use: TokenUse = {
 const p: Performance = { ...week, tokenUse: use };
 
 describe('TokensView', () => {
-  it('a sentence, then when · starts · over time, then one hint', () => {
+  it('a sentence, then spent on · starts · per hour of work, then one hint', () => {
     const { container } = render(<TokensView p={p} nameOf={nameOf} />);
     expect(screen.getByRole('heading', { name: 'Where the tokens go' })).toBeTruthy();
     expect(container.querySelector('.pf-tk-lead')?.textContent).toBe(
-      'Most of the studio’s tokens went to Rivet (65%, about $3) and Blair (32%, under $1). About $4 in all, at API prices.',
+      'About $4 in all, at pay-as-you-go prices: Rivet about $3, Blair under $1.',
     );
     expect([...container.querySelectorAll('dt')].map((d) => d.textContent)).toEqual([
-      'When',
+      'Spent on',
       'Starts',
-      'Over time',
+      'Per hour of work',
     ]);
     expect(screen.getByText('97% working · 3% getting ready')).toBeTruthy();
     expect((container.querySelector('.pf-tk-split span') as HTMLElement).style.width).toBe('97%');
-    expect(screen.getByText(/766k per hour of work/).textContent).toBe(
-      '766k per hour of work · ↑ 2% vs last week',
-    );
+    expect(screen.getByText(/766k tokens/).textContent).toBe('766k tokens · ↑ 2% vs last week');
     expect(container.querySelectorAll('.pf-tk-hint')).toHaveLength(1);
     expect(container.querySelectorAll('button, input, select')).toHaveLength(0);
   });
