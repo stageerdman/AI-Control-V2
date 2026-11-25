@@ -1,0 +1,70 @@
+# Review: the message box grows, and drafts are kept
+
+Reviewer: Eraser. Builder: Jony. Code checked: `afd0863` (team branch `studio/grow-the-message-box-as-you-type-and-kee-3a640c9f`, same head as Jony's pushed `studio/design-and-build-the-growing-message-box-f69d700c`).
+Plan: `plan.md` (same folder). Rechecked 2026-11-25.
+
+## Verdict: RETURNED (one small fix still open, then I sign)
+
+## Goal
+
+The user writes to Pixel or any agent, even something long, and never loses words they haven't sent.
+
+## Step count (most common path: a long message to Pixel)
+
+| # | Step | Mark | Why |
+|---|---|---|---|
+| 1 | Put the cursor in the box | Keep | It's focused for you when you switch agents (OfficePage now looks for the textarea). |
+| 2 | Type | Keep | This is the work itself. |
+| 3 | Shift+Enter for each new line | Keep | It's the usual chat rule, and Enter still sends. |
+| 4 | Scroll inside the box past the cap (10 lines or 40% of the window) | Keep | Only for long pastes. |
+| 5 | Enter (or Send) | Keep | — |
+
+**Total: 4 steps, plus 1 per extra line. Target: 4.** Steps that are gone:
+
+| Case | Before | Now |
+|---|---|---|
+| Leave the chat, come back, or restart | Retype all of it | 0 (the draft is back) |
+| Switch from Pixel to Rivet | Pixel's text sits in Rivet's box (delete it, or risk sending it to the wrong agent) | 0 (each chat has its own draft) |
+| `say` fails | Retype | 0 (the text comes back to the box and the draft) |
+| Answer by voice ("yes", "new chat") | — | Counts as a send: the draft is cleared |
+| **A typed answer to an agent's waiting question fails (not a 409)** | Retype | **Still retype: open** |
+
+## Checklist
+
+| Check | Result |
+|---|---|
+| One shared auto-grow hook (`app/src/ui/useAutoGrow.ts`), one box (`app/src/ui/MessageBox.tsx`) | Pass |
+| One draft store (`app/src/ui/drafts.ts`, `useDraft`); no per-chat copies | Pass |
+| No leftover resize code in the boxes in scope (ChatHistorySheet's own Enter handler, `field-sizing` and `max-height` are gone) | Pass |
+| No new buttons, labels or settings (no "save draft"; it just works) | Pass |
+| All four boxes in the plan use it: Panel, ChatView (past chats), TinkerZoom, TeamStep | Pass |
+| Drafts cleared on send; never in the wrong chat or project | Pass (`Panel.drafts.test.tsx`) |
+| Failed send keeps the words | **Fail for one path** (see below) |
+| Tests for both parts: `useAutoGrow.test.tsx` (grow, cap, shrink, resize, Enter/Shift+Enter/IME), `drafts.test.ts`, `Panel.drafts.test.tsx` | Pass |
+| Full app suite `npm --prefix app test` | Pass: 870 passed, 2 skipped |
+| Typecheck | Pass |
+| Lint | 7 errors, all in files this work doesn't touch (rebuild/Rearrange, rebuild CSS, CommsDrawer, ReportsList). None in message-box files. |
+| Branch pushed | Pass (`afd0863` on origin) |
+| Start (`npm --prefix app run dev`) builds from source, so it opens the newest code | Pass |
+
+## Open for Jony (already on the whiteboard as task 2e4b7124)
+
+`app/src/features/office/Panel.tsx`, in `send`:
+
+```ts
+if (waiting && (await answer(waiting, said, true))) return;
+```
+
+`answer()` returns `true` on any failure that isn't a 409 (offline, a 500). `send` has already run `setText('')`, so the words are gone from the box and the draft. Fix: tell "sent" apart from "failed" and put the words back (`setText((now) => now || raw)`), the way the `say` catch does. Add a case to `Panel.drafts.test.tsx`: an ask is waiting, `studio.projects.answer` rejects with a 500, and the box and `loadDraft(draftKey(pid, id))` still hold the text.
+
+## Watch later (not blocking)
+
+- `AgentPanel.tsx:79` and `TeamPanels.tsx:41` still have their own small grow code. The plan leaves them out on purpose, since they're record fields. If they're ever touched, move them to `fitTextarea` so there's one way to grow a box.
+- An abandoned new-project setup leaves a small `setup:<draftId>` entry in localStorage. It does no harm.
+- Don't add a "Draft saved" label or a Shift+Enter hint later.
+
+## When Jony returns
+
+I check only the fix and its test, run the full suite, and sign below.
+
+Sign-off: _pending (waiting on task 2e4b7124)_
