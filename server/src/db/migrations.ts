@@ -866,6 +866,36 @@ export const MIGRATIONS: readonly string[] = [
   );
   CREATE INDEX limit_readings_by_window ON limit_readings(window, at);
   `,
+  /* 58 — Context Window Management: one row per CLI session of a run (a run may hold several: forget, limit
+     carry-on). started_by says why it began (new | rework | resume | forget | limit), why in words; first_context
+     is the cold prefix (turn 1's input + cache), last_context what a --resume of it would reload. Runs before
+     this have no rows: "not measured". */
+  `
+  CREATE TABLE run_sessions (
+    run_id         TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    n              INTEGER NOT NULL,
+    project_id     TEXT NOT NULL,
+    agent_id       TEXT NOT NULL,
+    kind           TEXT,
+    started_by     TEXT NOT NULL,
+    why            TEXT,
+    resumed_gap_ms INTEGER,
+    started_at     TEXT NOT NULL,
+    ended_at       TEXT NOT NULL,
+    turns          INTEGER NOT NULL,
+    first_context  INTEGER,
+    peak_context   INTEGER,
+    last_context   INTEGER,
+    input_tokens   INTEGER NOT NULL,
+    output_tokens  INTEGER NOT NULL,
+    cache_read_tokens  INTEGER NOT NULL,
+    cache_write_tokens INTEGER NOT NULL,
+    cost_usd       REAL,
+    ended_by       TEXT NOT NULL,
+    PRIMARY KEY (run_id, n)
+  );
+  CREATE INDEX run_sessions_by_project ON run_sessions(project_id, started_at);
+  `,
 ];
 
 /** Runs with foreign keys off: a table rebuild (drop + rename) must not cascade into its children. */

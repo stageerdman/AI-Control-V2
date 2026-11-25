@@ -6,7 +6,8 @@
 
    Collaboration (B8): the project's design (src/domain/collaboration.ts) decides who the orchestrator may
    brief (captains only, or everyone on a team) and which review gates a build item passes: build → review by
-   each gate's reviewer (approve, or send back with notes → the builder reworks, resuming its session) → done.
+   each gate's reviewer (approve, or send back with notes → the builder reworks: it resumes a small, warm session, else starts fresh from a handoff —
+   src/context/resume-rule.ts) → done.
    Send-backs are bounded (maxSendBacks); past the limit the item fails and waits for the user.
 
    Teams (F1c, src/crew/team.ts): an item for a team's captain is a small team task — the captain splits it into
@@ -19,6 +20,9 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
 import { projectState } from '../apps/run-command.ts';
+import { handoffBrief, lastWordsOf } from '../context/handoff.ts';
+import { resumeOrFresh } from '../context/resume-rule.ts';
+import { sessionsRepo } from '../context/sessions.ts';
 import type { Db } from '../db/connection.ts';
 import type { Feature } from '../db/features.ts';
 import type { Run } from '../db/runs.ts';
@@ -60,7 +64,7 @@ import type { Workspace, Worktrees } from '../git/worktrees.ts';
 import type { Features } from '../office/features.ts';
 import { seatForWork } from '../office/people.ts';
 import { projectMembers } from '../room/members.ts';
-import { gitHead } from '../runtime/git-head.ts';
+import { gitHead, gitWorkSince } from '../runtime/git-head.ts';
 import type { Caps } from '../runtime/runner.ts';
 import type { Runtime } from '../runtime/service.ts';
 import { taskFeatures } from '../whiteboard/feature-route.ts';
@@ -279,6 +283,7 @@ export function createDispatch(deps: {
   const { store, events, crew, runtime } = deps;
   const cap = deps.maxConcurrent ?? DEFAULT_MAX_CONCURRENT;
   const work = workRepo(deps.db);
+  const sessions = sessionsRepo(deps.db);
   /* checkouts, merges and alerts in flight: shutdown waits for them before the database closes */
   const background = createBackground();
   /** The studio is closing: nothing new starts; what was queued or half-launched resumes on the next boot. */
@@ -715,13 +720,27 @@ export function createDispatch(deps: {
     }
     const rework = it.stage === 'build' && it.sendBacks > 0 && it.notes;
     const lastReviewer = it.reviews.at(-1)?.reviewer ?? '';
+    const base = { agentId: it.agentId, ...(it.teamId ? { teamId: it.teamId } : {}), caps };
+    if (!it.buildRunId) return { ...base, task: taskFor(it, goal) };
+    const ask =
+      it.stage === 'merge'
+        ? mergeFixTask(it)
+        : rework
+          ? reworkTask(it, lastReviewer)
+          : `Carry on with your checklist item "${it.text}" and finish it, then reply with a short summary of what you did.`;
+    /* work back with its builder: a small, warm session resumes; anything else starts fresh from a handoff */
+    const choice = resumeOrFresh(sessions.lastOf(it.buildRunId), Date.now());
+    if (choice.resume) return { ...base, task: ask, resumeRunId: it.buildRunId };
     return {
-      agentId: it.agentId,
-      ...(it.teamId ? { teamId: it.teamId } : {}),
-      task:
-        it.stage === 'merge' ? mergeFixTask(it) : rework ? reworkTask(it, lastReviewer) : taskFor(it, goal),
-      caps,
-      ...(it.buildRunId ? { resumeRunId: it.buildRunId } : {}),
+      ...base,
+      task: handoffBrief({
+        ask,
+        original: taskFor(it, goal),
+        work: it.workspace ? gitWorkSince(it.workspace.cwd, it.workspace.base) : null,
+        ...lastWordsOf(deps.db, it.buildRunId),
+      }),
+      startedBy: 'rework' as const,
+      startWhy: `Fresh start instead of reopening the old session: ${choice.why}`,
     };
   }
 

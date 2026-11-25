@@ -11,6 +11,8 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import type { Ports } from '../apps/ports.ts';
+import { createMeter, type Meter, type StartedBy } from '../context/meter.ts';
+import { sessionsRepo } from '../context/sessions.ts';
 import { appendChatMessage, type ChatRole } from '../db/chats.ts';
 import type { Db } from '../db/connection.ts';
 import { type Ask, type Run, runsRepo } from '../db/runs.ts';
@@ -67,6 +69,10 @@ export type StartRun = {
   asked?: Asked;
   /** The checklist item this run serves, for time estimates (performance/rollup.ts). Absent → no task's work. */
   itemId?: string;
+  /** Why this session begins (context/meter.ts); absent → 'resume' with resumeRunId, else 'new'. */
+  startedBy?: StartedBy;
+  /** Why, in words (a rework that started fresh says why it didn't resume). */
+  startWhy?: string;
 };
 type Live = {
   run: Run;
@@ -103,20 +109,22 @@ type Live = {
   closing?: boolean;
   /** Turns, usage and cost of earlier sessions of this run (before a forget or a limit). */
   before: Spent;
-  /** The latest turn's context size (input + cache), for the forget nudge. */
-  context: number;
+  /** This session's context turn by turn (the forget nudge reads its last, the wrap-up nudge its turns). */
+  meter: Meter;
+  /** How this session began, for its run_sessions row. */
+  session: SessionStart;
   nudged: boolean;
   /** Notes from the user or a leader while it runs ("Uncle Bob is already running"): the nudge hook hands them
       over after its next tool step. */
   notes: WaitingNote[];
-  /** Turns in this session, for the wrap-up nudge before the cap. */
-  turns: number;
   wrapped: boolean;
   /** The agent's latest words in the chat (the final result is saved only when it says something new). */
   said?: string;
   /** Takes it off the running list (src/running) once it has ended. */
   untrack?: () => void;
 };
+/** A session's start: its place in the run, why it began, the gap a resume carries over, when. */
+type SessionStart = { n: number; by: StartedBy; why: string | null; gapMs: number | null; at: string };
 /** A note waiting on a live run until its next tool step: who left it, the words the run will get, when. */
 export type WaitingNote = { runId: string; agentId: string; from: string; text: string; at: string };
 /** How a run the user stopped is named: on its row (error), its chat's last line and its checklist item. */
@@ -142,8 +150,10 @@ const addSpent = (a: Spent, b: Spent): Spent => ({
 const NOTHING_SPENT: Spent = { turns: 0, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
 /** How the next session of a run begins: its brief, what the chat and the office are told. */
 type NextSession = { brief: string; kind: 'forget' | 'limit'; label: string; line?: string };
-/** Context (tokens) past which the studio nudges an agent to forget. AI_STUDIO_FORGET_AT overrides. */
-export const FORGET_AT = 120_000;
+/** Context (tokens) past which the studio nudges an agent to forget. AI_STUDIO_FORGET_AT overrides. Every turn
+    re-reads the whole context, so a session's cost grows with the square of its length: at 60 k a desk-note
+    restart (≈ 12 k cold) already pays for itself (Context Window Management findings). */
+export const FORGET_AT = 60_000;
 /** The reports seam (src/reports): who may file, and filing itself. */
 export type ReportDesk = {
   canFile(agent: { kind: string; roleId: string | null }, teamId?: string | null): boolean;
@@ -206,6 +216,7 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…`
 export function createRuntime(deps: RuntimeDeps) {
   const { db, store, events, runner, sandbox } = deps;
   const repo = runsRepo(db);
+  const sessions = sessionsRepo(db);
   const live = new Map<string, Live>();
   const waiters = new Map<string, Set<Waiter>>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -376,6 +387,41 @@ export function createRuntime(deps: RuntimeDeps) {
     }
   }
 
+  /** A session ended: its run_sessions row (how it began, its context, its own usage). A failed write is
+      reported, never fatal to the run. */
+  function endSession(l: Live, o: RunOutcome, endedBy: string) {
+    const { run, meter, session } = l;
+    try {
+      sessions.insert({
+        runId: run.id,
+        n: session.n,
+        projectId: run.projectId,
+        agentId: run.agentId,
+        kind: run.kind,
+        startedBy: session.by,
+        why: session.why,
+        resumedGapMs: session.gapMs,
+        startedAt: session.at,
+        endedAt: new Date().toISOString(),
+        turns: meter.turns,
+        firstContext: meter.first,
+        peakContext: meter.peak,
+        lastContext: meter.last,
+        usage: o.usage,
+        costUsd: o.costUsd ?? null,
+        endedBy,
+      });
+    } catch (e) {
+      console.error('[runtime] could not record a session', {
+        projectId: run.projectId,
+        runId: run.id,
+        agentId: run.agentId,
+        n: session.n,
+        error: (e as Error).message,
+      });
+    }
+  }
+
   /** The chat's last lines: the final answer (unless the agent already said it) and how the run ended. */
   function recordEnd(l: Live, o: RunOutcome) {
     if (o.result && o.result !== l.said) record(l.run, l.secrets, 'assistant', o.result, { kind: 'result' });
@@ -420,8 +466,7 @@ export function createRuntime(deps: RuntimeDeps) {
         l.secrets,
       );
     else if (e.kind === 'tokens') {
-      l.context = e.input;
-      l.turns++;
+      l.meter.see(e.input);
       emit(run.projectId, {
         type: 'tokens',
         payload: { agentId: run.agentId, runId: run.id, input: e.input, output: e.output },
@@ -545,10 +590,16 @@ export function createRuntime(deps: RuntimeDeps) {
       reports: 0,
       workSteps: 0,
       before: NOTHING_SPENT,
-      context: 0,
+      meter: createMeter(),
+      session: {
+        n: 1,
+        by: req.startedBy ?? (resumeSessionId ? 'resume' : 'new'),
+        why: req.startWhy ?? null,
+        gapMs: prev?.endedAt ? Math.max(0, Date.now() - Date.parse(prev.endedAt)) : null,
+        at: run.startedAt,
+      },
       nudged: false,
       notes: [],
-      turns: 0,
       wrapped: false,
     };
     live.set(runId, l);
@@ -717,11 +768,18 @@ export function createRuntime(deps: RuntimeDeps) {
         .catch((err: Error): RunOutcome => ({ ...NOTHING_SPENT, status: 'failed', error: err.message }))
         .then((ended) => {
           let { next, o } = nextSession(ended);
+          endSession(l, o, next?.kind ?? (l.closing ? 'closed' : o.status));
           if (next) {
             l.before = addSpent(l.before, o);
-            l.context = 0;
+            l.meter = createMeter();
+            l.session = {
+              n: l.session.n + 1,
+              by: next.kind,
+              why: next.label,
+              gapMs: null,
+              at: new Date().toISOString(),
+            };
             l.nudged = false;
-            l.turns = 0;
             l.wrapped = false;
             emit(projectId, {
               type: 'agent.status',
@@ -872,11 +930,11 @@ export function createRuntime(deps: RuntimeDeps) {
   /** The wrap-up or forget nudge due now (at most one), for runs that can leave a desk note. */
   function memoryNudge(l: Live): string[] {
     if (!deps.desk || l.forgetting) return [];
-    if (!l.wrapped && l.turns >= l.run.caps.maxTurns - WRAP_UP_STEPS) {
+    if (!l.wrapped && l.meter.turns >= l.run.caps.maxTurns - WRAP_UP_STEPS) {
       l.wrapped = true;
       return [wrapUpNudge(l.run.kind)];
     }
-    if (l.nudged || l.context < (deps.forgetAt ?? FORGET_AT)) return [];
+    if (l.nudged || l.meter.last < (deps.forgetAt ?? FORGET_AT)) return [];
     l.nudged = true;
     return [FORGET_NUDGE];
   }

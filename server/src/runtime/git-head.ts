@@ -15,3 +15,11 @@ export const gitHead = (cwd: string): string | null => git(cwd, ['rev-parse', 'H
 
 /** The checkout's uncommitted changes, untracked files included (null: not a git repo). */
 export const gitChanges = (cwd: string): string | null => git(cwd, ['status', '--porcelain', '-uall']);
+
+/** The commits and diff stat since `base` (a handoff's "work so far"); null: none, or not a repo. */
+export function gitWorkSince(cwd: string, base: string): string | null {
+  const log = git(cwd, ['log', '--oneline', '-20', `${base}..HEAD`]);
+  const stat = git(cwd, ['diff', '--stat=100', `${base}..HEAD`]);
+  const text = [log, stat].filter(Boolean).join('\n\n');
+  return text ? text.slice(0, 3000) : null;
+}
