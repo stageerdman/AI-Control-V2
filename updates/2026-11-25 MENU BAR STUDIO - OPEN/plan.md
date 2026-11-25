@@ -52,7 +52,7 @@ Quit AI Studio      ⌘Q
 - **If the window was hidden:** after the same 400 ms, the window comes to the front, showing only the line. That way every Quit looks the same, from the menu bar, ⌘Q or the Dock.
 - **How long it stays:** until the agents have stopped, and then the app closes at once. There's no minimum time on screen and no "Done" step.
 - **If stopping takes longer:** the server gives each agent 3 s and then stops it by force, so the line stays for about 3 s at most. It doesn't change, count down or turn into a warning. If the server still hasn't reported back after **5 s**, the app quits anyway. The watchdog finishes the cleanup, and the user never sees a second message.
-- **Pressing ⌘Q again, or Quit in the Dock, while stopping:** does nothing new. The same stop continues.
+- **Pressing ⌘Q again, or using Quit in the Dock or Open/Quit in the menu bar, while stopping:** does nothing new. The same stop continues, so the studio is never left half-quit.
 - **The icon** disappears only once the app has really exited, which is the visible sign that the studio is off.
 - **Next launch:** the existing "Paused: the studio closed during this run" note keeps it calm, with no red and no error styling, and the agent carries on.
 
@@ -78,6 +78,7 @@ Quit AI Studio      ⌘Q
 ### Assumptions (to check)
 
 - Showing the menu on a left click (not opening the window straight away) doesn't slow people down, because Open is the first item. Check: count how often people click the icon and then pick Open. If that's almost every time, try having a left click open the window.
-- People don't need a busy mark. Check: do people open the window just to see whether agents are still going?
+- People don't need a busy mark. Check: do people open the window just to see whether agents are still going? Also check whether anyone closes the window thinking it quits, then gets surprised that agents are still working. If that happens, the lightest fix is a quiet busy mark on the icon, not a dialog or a hint.
+- The spark and the head stay separate shapes at 16 px in both light and dark menu bars. Check on a 1x display in the first live pass.
 - 400 ms is long enough to avoid a flash and short enough that the line shows up before anyone wonders. Check this in the first live pass.
 - Bringing a hidden window forward to show the line feels right, not odd. Check: watch the first few quits from the menu bar with the window closed.
