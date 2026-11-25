@@ -14,6 +14,8 @@ export const RECAP_COPY = {
 };
 
 type Props = {
+  /** The office's project: the recap is of their work here, never elsewhere. */
+  pid: string;
   agentId: string | null;
   /** Their full name (the heading). */
   name: string;
@@ -29,8 +31,8 @@ export function RecapSheet({ open, onClose, ...p }: Props & { open: boolean; onC
   );
 }
 
-export function RecapBody({ agentId, name, onOpenChat }: Props & { agentId: string }) {
-  const q = useQuery(keys.recap(agentId), () => officeApi.recap(agentId));
+export function RecapBody({ pid, agentId, name, onOpenChat }: Props & { agentId: string }) {
+  const q = useQuery(keys.recap(pid, agentId), () => officeApi.recap(pid, agentId));
   const { refetch } = q;
   // biome-ignore lint/correctness/useExhaustiveDependencies: read fresh once, when the sheet opens
   useEffect(() => {

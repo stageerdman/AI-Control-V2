@@ -9,22 +9,19 @@ type Params = Record<string, string | undefined>;
 type ProjectOf = (params: Params) => string | null | undefined;
 
 export type UserActivityDeps = {
-  /** The project a run belongs to (chat routes carry only the run id). */
-  projectOfRun: (runId: string) => string | null;
   markUserActive: (projectId: string) => void;
 };
 
 /** `METHOD /route/pattern` → its project. Each one is something only the user does. */
-export function userActions(projectOfRun: UserActivityDeps['projectOfRun']): Map<string, ProjectOf> {
+export function userActions(): Map<string, ProjectOf> {
   const byProject: ProjectOf = (p) => p.id;
-  const byRun: ProjectOf = (p) => (p.runId ? projectOfRun(p.runId) : null);
   return new Map<string, ProjectOf>([
     ['POST /projects/:id/threads/:agentId/messages', byProject], // a message to the orchestrator or any agent
     ['POST /projects/:id/work', byProject], // a goal
     ['POST /projects/:id/runs', byProject], // a task started by hand
     ['POST /projects/:id/asks/:askId/answer', byProject], // an answer to an agent's question
-    ['POST /chats/:runId/messages', byRun], // a follow-up in a past chat
-    ['POST /chats/:runId/start', byRun], // "Start it" on work a chat offered
+    ['POST /projects/:id/chats/:runId/messages', byProject], // a follow-up in a past chat
+    ['POST /projects/:id/chats/:runId/start', byProject], // "Start it" on work a chat offered
   ]);
 }
 
@@ -33,7 +30,7 @@ const actionKey = (req: FastifyRequest) => `${req.method} ${req.routeOptions.url
 /** Stamps the project on every successful user action. onSend: done before the reply leaves, so a client that
     reads the projects right after its action already sees the stamp. */
 export function trackUserActivity(app: FastifyInstance, deps: UserActivityDeps): void {
-  const actions = userActions(deps.projectOfRun);
+  const actions = userActions();
   app.addHook('onSend', async (req, reply, payload) => {
     if (reply.statusCode >= 300) return payload;
     const projectOf = actions.get(actionKey(req));

@@ -1,7 +1,13 @@
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from 'vitest';
-import { appendChatMessage, getChatMessages, latestAgentChat, listAgentChats } from '../../src/db/chats.ts';
+import {
+  appendChatMessage,
+  getChat,
+  getChatMessages,
+  latestAgentChat,
+  listAgentChats,
+} from '../../src/db/chats.ts';
 import { type Db, openDb } from '../../src/db/connection.ts';
 import { MIGRATIONS, migrate } from '../../src/db/migrations.ts';
 import { runsRepo } from '../../src/db/runs.ts';
@@ -16,10 +22,11 @@ const addProject = (db: DatabaseSync, id = 'kite') => {
     "INSERT INTO projects (id, name, status, orchestrator_id, tile, position, created_at, updated_at) VALUES (?, 'Kite', 'live', 'o', '{}', 0, '', '')",
   ).run(id);
 };
-const addRun = (db: Db, id: string, agentId = 'a-pete', task = 'Make hello.txt') =>
+const PETE = { projectId: 'kite', agentId: 'a-pete' };
+const addRun = (db: Db, id: string, agentId = 'a-pete', task = 'Make hello.txt', projectId = 'kite') =>
   runsRepo(db).insert({
     id,
-    projectId: 'kite',
+    projectId,
     agentId,
     teamId: null,
     task,
@@ -70,7 +77,7 @@ describe('chat history (db)', () => {
     expect(msgs[1]?.meta).toEqual({ tool: 'Write', summary: 'Writing hello.txt' });
     expect(msgs[0]?.meta).toBeNull();
 
-    const chats = listAgentChats(db, 'a-pete');
+    const chats = listAgentChats(db, PETE);
     expect(chats.map((c) => c.runId)).toEqual(['r2', 'r1']);
     expect(chats[1]).toMatchObject({
       task: 'Make hello.txt',
@@ -80,10 +87,24 @@ describe('chat history (db)', () => {
       projectId: 'kite',
     });
     expect(chats[1]?.endedAt).not.toBeNull();
-    expect(latestAgentChat(db, 'a-pete')?.runId).toBe('r2');
-    expect(listAgentChats(db, 'a-pete', { limit: 1 })).toHaveLength(1);
-    expect(latestAgentChat(db, 'nobody')).toBeNull();
+    expect(latestAgentChat(db, PETE)?.runId).toBe('r2');
+    expect(listAgentChats(db, PETE, { limit: 1 })).toHaveLength(1);
+    expect(latestAgentChat(db, { projectId: 'kite', agentId: 'nobody' })).toBeNull();
     expect(getChatMessages(db, 'ghost')).toEqual([]);
+    db.close();
+  });
+
+  it("lists and finds only that project's chats: the same agent elsewhere is not there", () => {
+    const db = openDb(':memory:');
+    addProject(db);
+    addProject(db, 'reef');
+    addRun(db, 'here');
+    addRun(db, 'there', 'a-pete', 'Voice search', 'reef');
+    expect(listAgentChats(db, PETE).map((c) => c.runId)).toEqual(['here']);
+    expect(latestAgentChat(db, { projectId: 'reef', agentId: 'a-pete' })?.runId).toBe('there');
+    expect(getChat(db, 'there', 'kite')).toBeNull();
+    expect(getChat(db, 'there', 'reef')?.task).toBe('Voice search');
+    expect(getChat(db, 'there')?.projectId).toBe('reef');
     db.close();
   });
 
@@ -99,7 +120,7 @@ describe('chat history (db)', () => {
       turns: 1,
     });
     addRun(db, 'new');
-    expect(listAgentChats(db, 'a-pete', { before: '2026-06-01T00:00:00.000Z' }).map((c) => c.runId)).toEqual([
+    expect(listAgentChats(db, PETE, { before: '2026-06-01T00:00:00.000Z' }).map((c) => c.runId)).toEqual([
       'old',
     ]);
     db.close();
@@ -117,7 +138,7 @@ describe('chat history (db)', () => {
     const again = openDb(path);
     expect(runsRepo(again).failInterrupted()).toEqual(['r1']); // what boot does after a crash
     expect(getChatMessages(again, 'r1').map((m) => m.text)).toEqual(['Make hello.txt', 'Halfway there']);
-    expect(listAgentChats(again, 'a-pete')).toEqual([
+    expect(listAgentChats(again, PETE)).toEqual([
       expect.objectContaining({ runId: 'r1', status: 'failed', messageCount: 2, lastText: 'Halfway there' }),
     ]);
     again.close();
@@ -135,7 +156,7 @@ describe('chat history (db)', () => {
        VALUES ('legacy', 'kite', 'a-pete', 'Make hello.txt', 'succeeded', 'fake', '{}', 'Old answer', 1, ?, ?)`,
     ).run('2026-01-01T00:00:00.000Z', '2026-01-01T00:01:00.000Z');
     migrate(db);
-    expect(listAgentChats(db, 'a-pete')).toEqual([
+    expect(listAgentChats(db, PETE)).toEqual([
       expect.objectContaining({ runId: 'legacy', messageCount: 0, lastText: 'Old answer' }),
     ]);
     expect(say(db, 'legacy', 'user', 'a follow-up').seq).toBe(0);
@@ -153,9 +174,9 @@ describe('chat history (db)', () => {
       usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       turns: 1,
     });
-    const raw = JSON.stringify(listAgentChats(db, 'a-pete'));
+    const raw = JSON.stringify(listAgentChats(db, PETE));
     expect(raw).not.toContain(key);
-    expect(latestAgentChat(db, 'a-pete')).toMatchObject({ task: 'Deploy with ••••', lastText: 'Used ••••' });
+    expect(latestAgentChat(db, PETE)).toMatchObject({ task: 'Deploy with ••••', lastText: 'Used ••••' });
     db.close();
   });
 

@@ -100,30 +100,34 @@ const SUMMARY = `
     ) AS last_text
   FROM runs r`;
 
-/** The agent's chats, newest first; `before` = an ISO time (exclusive) to page back from. */
+/** Whose chats: an agent's work is always read inside one project (never across them). */
+export type AgentInProject = { projectId: string; agentId: string };
+
+/** The agent's chats in that project, newest first; `before` = an ISO time (exclusive) to page back from. */
 export function listAgentChats(
   db: Db,
-  agentId: string,
+  { projectId, agentId }: AgentInProject,
   { limit = 20, before }: { limit?: number; before?: string } = {},
 ): ChatSummary[] {
   return (
     db
       .prepare(
-        `${SUMMARY} WHERE r.agent_id = ?1 AND (?2 IS NULL OR r.started_at < ?2)
-         ORDER BY r.started_at DESC, r.rowid DESC LIMIT ?3`,
+        `${SUMMARY} WHERE r.project_id = ?1 AND r.agent_id = ?2 AND (?3 IS NULL OR r.started_at < ?3)
+         ORDER BY r.started_at DESC, r.rowid DESC LIMIT ?4`,
       )
-      .all(agentId, before ?? null, limit) as Row[]
+      .all(projectId, agentId, before ?? null, limit) as Row[]
   ).map(toSummary);
 }
 
-export function latestAgentChat(db: Db, agentId: string): ChatSummary | null {
-  return listAgentChats(db, agentId, { limit: 1 })[0] ?? null;
+export function latestAgentChat(db: Db, who: AgentInProject): ChatSummary | null {
+  return listAgentChats(db, who, { limit: 1 })[0] ?? null;
 }
 
-/** One run's chat summary (null for an unknown run). */
-export function getChat(db: Db, runId: string): ChatSummary | null {
+/** One run's chat summary (null for an unknown run, or one from another project when `projectId` is given). */
+export function getChat(db: Db, runId: string, projectId?: string): ChatSummary | null {
   const r = db.prepare(`${SUMMARY} WHERE r.id = ?`).get(runId) as Row | undefined;
-  return r ? toSummary(r) : null;
+  const chat = r ? toSummary(r) : null;
+  return chat && (projectId === undefined || chat.projectId === projectId) ? chat : null;
 }
 
 /** A run's messages in seq order ([] for an unknown run). */

@@ -663,7 +663,7 @@ export function buildApp({
   runtime.setStudioTools(({ projectId, agentId, runId }) => [
     /* the room finds the run's goal when a tool is used: a temporary lead there leads the crew */
     ...room.tools({ scope: 'project', ownerId: projectId, agentId, chain: [], runId }),
-    ...runningTools(running, { agentId, runId }, (id) => store.projects.get(id)?.name),
+    ...runningTools(running, { projectId, agentId, runId }),
     ...historyTools(db, { projectId, agentId, runId }),
     agentFeatureTool({ features, work: actions.work }, { projectId, runId }),
     proposeFeatureTool(features, { projectId, agentId }),
@@ -752,7 +752,6 @@ export function buildApp({
   );
 
   trackUserActivity(app, {
-    projectOfRun: (runId) => runsRepo(db).get(runId)?.projectId ?? null,
     markUserActive: (projectId) => store.projects.markUserActive(projectId),
   });
   app.register(healthRoutes({ config, db, build }));

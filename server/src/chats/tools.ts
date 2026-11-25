@@ -33,16 +33,14 @@ const messageLine = (m: ChatMessage) => `[${m.role}] ${clip(m.text, TEXT_MAX)}`;
 
 /** Your recent chats here, newest first (not the current one unless it is all there is). */
 export function recentChats(db: Db, me: HistoryCaller): string {
-  const mine = listAgentChats(db, me.agentId, { limit: 50 })
-    .filter((c) => c.projectId === me.projectId)
-    .slice(0, RECENT);
+  const mine = listAgentChats(db, me, { limit: RECENT });
   return mine.length ? mine.map((c) => summaryLine(c, me.runId)).join('\n') : 'No earlier chats here.';
 }
 
 /** One of your chats, message by message (the latest MESSAGES). */
 export function chatTranscript(db: Db, me: HistoryCaller, runId: string): string {
-  const chat = getChat(db, runId);
-  if (!chat || chat.agentId !== me.agentId || chat.projectId !== me.projectId)
+  const chat = getChat(db, runId, me.projectId);
+  if (!chat || chat.agentId !== me.agentId)
     throw new Error(
       `No chat of yours in this project with runId ${runId} — list them with my_history first.`,
     );

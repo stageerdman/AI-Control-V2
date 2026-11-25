@@ -97,17 +97,23 @@ export function createRoom(deps: {
     const goalId = goalOf(ctx);
     return goalId ? (deps.leadOf?.(goalId, agentId) ?? null) : null;
   };
-  /** One call at a time per callee: the next caller waits its turn (calleeId → the call in progress). */
+  /** One call at a time per callee in each room: the next caller waits its turn (scope:owner:callee → the call in
+      progress). The same agent in another project is another line. */
   const talking = new Map<string, Promise<unknown>>();
-  async function inTurn<T>(calleeId: string, fn: () => Promise<T>): Promise<T> {
-    const before = talking.get(calleeId) ?? Promise.resolve();
+  async function inTurn<T>(
+    ctx: Pick<RoomCtx, 'scope' | 'ownerId'>,
+    calleeId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const line = `${ctx.scope}:${ctx.ownerId}:${calleeId}`;
+    const before = talking.get(line) ?? Promise.resolve();
     const mine = before.catch(() => undefined).then(fn);
     const tail = mine.catch(() => undefined);
-    talking.set(calleeId, tail);
+    talking.set(line, tail);
     try {
       return await mine;
     } finally {
-      if (talking.get(calleeId) === tail) talking.delete(calleeId);
+      if (talking.get(line) === tail) talking.delete(line);
     }
   }
 
@@ -360,7 +366,7 @@ export function createRoom(deps: {
             ...(handsOver ? { handoverFrom: ctx.runId } : {}),
           })
         : null;
-    return inTurn(callee.id, () =>
+    return inTurn(ctx, callee.id, () =>
       help(ctx, { caller, callee, request, project, onBoard, toDirector, step, log }),
     );
   }

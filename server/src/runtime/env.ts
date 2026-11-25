@@ -40,5 +40,9 @@ export function runEnv(
   }
   env.PATH = [...new Set([dirname(process.execPath), ...BASE_PATH])].join(':');
   for (const [k, v] of Object.entries(granted)) if (!AUTH_OVERRIDES.includes(k)) env[k] = v;
-  return { ...env, ...extra };
+  return { ...env, ...extra, ...NO_HIDDEN_MEMORY };
 }
+
+/* Claude Code's auto memory is keyed by folder, not by (project, agent), and the studio neither scopes nor shows
+   it. The studio's own memory (desk notes, to-dos, my_history) is the only one; nothing may switch this back on. */
+const NO_HIDDEN_MEMORY = { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' };

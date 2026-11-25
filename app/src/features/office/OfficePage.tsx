@@ -1108,6 +1108,7 @@ function Office({
         onSeen={markSeen}
       />
       <RecapSheet
+        pid={pid}
         agentId={recapFor}
         name={recapFor ? nameOf(recapFor) : ''}
         open={!!recapFor}

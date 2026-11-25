@@ -405,6 +405,7 @@ export function Panel(p: PanelProps) {
               />
             ) : view === 'history' ? (
               <ChatList
+                pid={pid}
                 agentId={id}
                 name={short}
                 onOpen={(c) => go({ run: c }, null)}

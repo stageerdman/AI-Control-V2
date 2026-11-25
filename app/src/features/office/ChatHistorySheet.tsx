@@ -89,6 +89,8 @@ const STATUS_TAG: Record<ChatSummary['status'], string | null> = {
 };
 
 type Props = {
+  /** The project whose chats these are: an agent's chats elsewhere never show here. */
+  pid: string;
   agentId: string | null;
   /** Their full name (heading, labels). */
   name: string;
@@ -104,7 +106,7 @@ export function ChatHistorySheet({ open, onClose, ...p }: Props & { open: boolea
   );
 }
 
-export function ChatHistoryBody({ agentId, name, chat }: Props & { agentId: string }) {
+export function ChatHistoryBody({ pid, agentId, name, chat }: Props & { agentId: string }) {
   const [current, setCurrent] = useState<ChatSummary | null>(chat);
   return current ? (
     <ChatView
@@ -115,7 +117,7 @@ export function ChatHistoryBody({ agentId, name, chat }: Props & { agentId: stri
       onBack={() => setCurrent(null)}
     />
   ) : (
-    <ChatList agentId={agentId} name={name} onOpen={setCurrent} />
+    <ChatList pid={pid} agentId={agentId} name={name} onOpen={setCurrent} />
   );
 }
 
@@ -124,18 +126,20 @@ export function ChatHistoryBody({ agentId, name, chat }: Props & { agentId: stri
 export type CurrentRow = { preview: string | null; needsYou: boolean; onSelect: () => void };
 
 export function ChatList({
+  pid,
   agentId,
   name,
   onOpen,
   current,
 }: {
+  pid: string;
   agentId: string;
   name: string;
   onOpen: (c: ChatSummary) => void;
   /** In the chat panel: the live chat pinned on top; the list groups by day with previews. */
   current?: CurrentRow;
 }) {
-  const q = useQuery(keys.chats(agentId), () => officeApi.listAgentChats(agentId));
+  const q = useQuery(keys.chats(pid, agentId), () => officeApi.listAgentChats(pid, agentId));
   const { refetch } = q;
   // biome-ignore lint/correctness/useExhaustiveDependencies: read fresh once, when the list shows
   useEffect(() => {
@@ -342,15 +346,18 @@ export function openOffers(messages: readonly ChatMessage[]): Set<number> {
 }
 
 /** One tap: the offered work goes on the whiteboard for them; the chat gains their "On the whiteboard now" line. */
-function StartIt({ runId, seq }: { runId: string; seq: number }) {
+function StartIt({ chat, seq }: { chat: ChatSummary; seq: number }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const start = async () => {
     setBusy(true);
     setError(null);
     try {
-      const { message } = await officeApi.startChatWork(runId, seq);
-      setQueryData<ChatMessage[]>(keys.chat(runId), (prev) => [...(prev ?? []), message]);
+      const { message } = await officeApi.startChatWork(chat.projectId, chat.runId, seq);
+      setQueryData<ChatMessage[]>(keys.chat(chat.projectId, chat.runId), (prev) => [
+        ...(prev ?? []),
+        message,
+      ]);
     } catch (e) {
       setError(isApiError(e) && e.code !== 'network' ? e.message : CHAT_COPY.offline);
       setBusy(false);
@@ -386,7 +393,8 @@ export function ChatView({
   /** In the chat panel: its nav bar is the way back and its header says who. */
   inPanel?: boolean;
 }) {
-  const q = useQuery(keys.chat(chat.runId), () => officeApi.getChatMessages(chat.runId));
+  const pid = chat.projectId;
+  const q = useQuery(keys.chat(pid, chat.runId), () => officeApi.getChatMessages(pid, chat.runId));
   const { refetch } = q;
   const [status, setStatus] = useState(chat.status);
   const [text, setText] = useState('');
@@ -419,10 +427,10 @@ export function ChatView({
     setError(null);
     setMine(v);
     try {
-      const { sent, reply } = await officeApi.sendChatMessage(chat.runId, v);
-      setQueryData<ChatMessage[]>(keys.chat(chat.runId), (prev) => [...(prev ?? []), sent, reply]);
-      void invalidate(keys.chats(agentId));
-      void invalidate(keys.recap(agentId));
+      const { sent, reply } = await officeApi.sendChatMessage(pid, chat.runId, v);
+      setQueryData<ChatMessage[]>(keys.chat(pid, chat.runId), (prev) => [...(prev ?? []), sent, reply]);
+      void invalidate(keys.chats(pid, agentId));
+      void invalidate(keys.recap(pid, agentId));
     } catch (e) {
       setText((t) => t || v);
       setError(sendError(e));
@@ -507,7 +515,7 @@ export function ChatView({
                   <span className="sr-only">{name}: </span>
                   <Markdown source={l.m.text} />
                 </div>
-                {!running && offers.has(l.m.seq) && <StartIt runId={chat.runId} seq={l.m.seq} />}
+                {!running && offers.has(l.m.seq) && <StartIt chat={chat} seq={l.m.seq} />}
               </Fragment>
             ),
           )}

@@ -50,7 +50,7 @@ describe('deleted agents: hidden, listed, restored unchanged', () => {
     const before = {
       record: h.store.agents.record('a-semic'),
       seat: seatOf('a-semic'),
-      chats: listAgentChats(h.db, 'a-semic'),
+      chats: listAgentChats(h.db, { projectId: 'aurora', agentId: 'a-semic' }),
     };
     expect(before.seat).toEqual({ index: 0, captain: true });
 
@@ -76,7 +76,7 @@ describe('deleted agents: hidden, listed, restored unchanged', () => {
     expect(res.body).toEqual({ restored: { kind: 'agent', id: 'a-semic' } });
     expect(h.store.agents.record('a-semic')).toEqual(before.record);
     expect(seatOf('a-semic')).toEqual(before.seat);
-    expect(listAgentChats(h.db, 'a-semic')).toEqual(before.chats);
+    expect(listAgentChats(h.db, { projectId: 'aurora', agentId: 'a-semic' })).toEqual(before.chats);
     expect((await h.call('GET', '/trash/agents')).body.items).toEqual([]);
   });
 

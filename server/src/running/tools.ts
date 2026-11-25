@@ -1,22 +1,17 @@
-/* RUNNING: the studio tools that let an agent see and stop its own running work — sessions (in any
-   project) and the code runs under them. An agent only ever reaches its own; its current session is
-   not cancellable from inside (it just finishes). */
+/* RUNNING: the studio tools that let an agent see and stop its own running work in this project — sessions
+   and the code runs under them. An agent only ever reaches its own, here: the same agent's work in another
+   project is someone else's as far as these tools go. Its current session is not cancellable from inside. */
 import type { BridgeTool } from '../room/bridge.ts';
 import type { Running, RunningItem } from './registry.ts';
 
-export type Caller = { agentId: string; runId: string };
+export type Caller = { projectId: string; agentId: string; runId: string };
 
-export function runningTools(
-  running: Running,
-  caller: Caller,
-  projectName: (id: string) => string | undefined,
-): BridgeTool[] {
-  const mine = { agentId: caller.agentId };
+export function runningTools(running: Running, caller: Caller): BridgeTool[] {
+  const mine = { projectId: caller.projectId, agentId: caller.agentId };
   const isCurrent = (i: RunningItem) => i.kind === 'session' && i.runId === caller.runId;
   const view = (i: RunningItem) => ({
     id: i.id,
     kind: i.kind,
-    project: i.projectId ? (projectName(i.projectId) ?? i.projectId) : null,
     what: i.label,
     since: i.startedAt,
     ...(i.pid ? { pid: i.pid } : {}),
@@ -28,7 +23,7 @@ export function runningTools(
     {
       name: 'my_runs',
       description:
-        'List everything you have running right now: your sessions (in every project) and the code runs under them (servers, tests, builds you started). Your current session is marked current.',
+        'List everything you have running right now in this project: your sessions and the code runs under them (servers, tests, builds you started). Your current session is marked current.',
       inputSchema: { type: 'object', properties: {} },
       run: async () => {
         const list = running.list(mine);
@@ -38,7 +33,7 @@ export function runningTools(
     {
       name: 'cancel_run',
       description:
-        'Stop one of your own running sessions or code runs by its id (from my_runs). Not your current session — finish it instead.',
+        'Stop one of your own running sessions or code runs in this project by its id (from my_runs). Not your current session — finish it instead.',
       inputSchema: {
         type: 'object',
         properties: { id: { type: 'string', description: 'The id from my_runs.' } },

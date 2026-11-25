@@ -23,7 +23,8 @@ const chat = (p: Partial<ChatSummary> = {}): ChatSummary => ({
 
 const json = (v: unknown, status = 200) =>
   new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
-/** What the server answers for /agents/a-pixel/recap: a Recap, 'fail' or 'hang'. */
+const RECAP = '/projects/aurora/agents/a-pixel/recap';
+/** What the server answers for Pixel's recap in Aurora: a Recap, 'fail' or 'hang'. */
 let answer: Recap | 'fail' | 'hang';
 let calls: string[];
 
@@ -35,7 +36,8 @@ beforeEach(() => {
     vi.fn(async (input: string) => {
       const url = String(input).replace(/^https?:\/\/[^/]+/, '');
       calls.push(url);
-      if (url === '/agents/a-pixel/recap') {
+      if (url === '/projects/atlas/agents/a-pixel/recap') return json({ recap: null, chat: null, cached: false });
+      if (url === RECAP) {
         if (answer === 'hang') return new Promise<Response>(() => {});
         if (answer === 'fail') return json({ error: { code: 'agent_error', message: 'boom' } }, 500);
         return json(answer);
@@ -52,7 +54,7 @@ afterEach(() => {
 describe('RecapBody', () => {
   it('loading: thinking back, busy, no action yet', () => {
     answer = 'hang';
-    render(<RecapBody agentId="a-pixel" name="Pixel" onOpenChat={() => {}} />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" onOpenChat={() => {}} />);
     expect(screen.getByText(RECAP_COPY.loading)).toBeTruthy();
     expect(screen.getByText(RECAP_COPY.loading).closest('[aria-live]')?.getAttribute('aria-busy')).toBe(
       'true',
@@ -63,7 +65,7 @@ describe('RecapBody', () => {
   it('recap: name, task line, their words (announced politely), Open chat hands over the chat', async () => {
     answer = { recap: 'I added the toggle and tested both themes.', chat: chat(), cached: false };
     const onOpenChat = vi.fn();
-    render(<RecapBody agentId="a-pixel" name="Pixel" onOpenChat={onOpenChat} />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" onOpenChat={onOpenChat} />);
     const words = await screen.findByText('I added the toggle and tested both themes.');
     expect(words.closest('[aria-live="polite"]')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'Pixel' })).toBeTruthy();
@@ -76,7 +78,7 @@ describe('RecapBody', () => {
 
   it('no chat yet: says so in their voice', async () => {
     answer = { recap: null, chat: null, cached: false };
-    render(<RecapBody agentId="a-pixel" name="Pixel" />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" />);
     expect(await screen.findByText(RECAP_COPY.empty)).toBeTruthy();
   });
 
@@ -86,14 +88,14 @@ describe('RecapBody', () => {
       chat: chat({ status: 'running', endedAt: null }),
       cached: true,
     };
-    render(<RecapBody agentId="a-pixel" name="Pixel" />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" />);
     expect(await screen.findByText('Halfway: the toggle works, themes next.')).toBeTruthy();
     expect(screen.getByText(RECAP_COPY.working)).toBeTruthy();
   });
 
   it('error: couldn’t remember, Try again reads again', async () => {
     answer = 'fail';
-    render(<RecapBody agentId="a-pixel" name="Pixel" onOpenChat={() => {}} />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" onOpenChat={() => {}} />);
     expect((await screen.findByRole('alert')).textContent).toContain(RECAP_COPY.error);
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBeNull();
     answer = { recap: 'Back now.', chat: chat(), cached: false };
@@ -103,16 +105,27 @@ describe('RecapBody', () => {
 
   it('no Open chat when there is nowhere to open it', async () => {
     answer = { recap: 'Done.', chat: chat(), cached: false };
-    render(<RecapBody agentId="a-pixel" name="Pixel" />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" />);
     await screen.findByText('Done.');
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBeNull();
   });
 
   it('reads /recap only (no fallback)', async () => {
     answer = { recap: 'Done.', chat: chat(), cached: true };
-    render(<RecapBody agentId="a-pixel" name="Pixel" />);
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" />);
     await screen.findByText('Done.');
-    expect(calls).toEqual(['/agents/a-pixel/recap']);
+    expect(calls).toEqual([RECAP]);
+  });
+
+  it("in another project: asks about that project's work only, never shows this one's", async () => {
+    answer = { recap: 'I added the toggle.', chat: chat(), cached: false };
+    render(<RecapBody pid="aurora" agentId="a-pixel" name="Pixel" />);
+    await screen.findByText('I added the toggle.');
+    cleanup();
+    render(<RecapBody pid="atlas" agentId="a-pixel" name="Pixel" />);
+    expect(await screen.findByText(RECAP_COPY.empty)).toBeTruthy();
+    expect(screen.queryByText('I added the toggle.')).toBeNull();
+    expect(calls).toEqual([RECAP, '/projects/atlas/agents/a-pixel/recap']);
   });
 });
 
@@ -120,7 +133,7 @@ describe('RecapSheet', () => {
   it('is a labelled dialog; Escape closes it', async () => {
     answer = { recap: 'Done.', chat: chat(), cached: false };
     const onClose = vi.fn();
-    render(<RecapSheet agentId="a-pixel" name="Pixel" open onClose={onClose} />);
+    render(<RecapSheet pid="aurora" agentId="a-pixel" name="Pixel" open onClose={onClose} />);
     expect(screen.getByRole('dialog', { name: 'What Pixel did' })).toBeTruthy();
     await screen.findByText('Done.');
     fireEvent.keyDown(document, { key: 'Escape' });

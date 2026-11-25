@@ -38,9 +38,9 @@ export function createChatWork({ db, store, board }: { db: Db; store: Store; boa
       return !!p?.folder && p.orchestratorId !== agentId;
     },
 
-    /** Start the work offered by the reply at `seq` → the chat's new line and the goal. */
-    start(runId: string, seq: number): { message: ChatMessage; goalId: string } {
-      const chat = getChat(db, runId);
+    /** Start the work offered by the reply at `seq` of that project's chat → the chat's new line and the goal. */
+    start(projectId: string, runId: string, seq: number): { message: ChatMessage; goalId: string } {
+      const chat = getChat(db, runId, projectId);
       if (!chat) throw notFound('Chat', runId);
       const messages = getChatMessages(db, runId);
       const reply = messages.find((m) => m.seq === seq && m.role === 'assistant');

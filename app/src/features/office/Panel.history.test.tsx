@@ -105,8 +105,8 @@ beforeEach(() => {
     'a-bo': [],
   };
   vi.spyOn(officeApi, 'thread').mockImplementation((_pid, id) => Promise.resolve(thread(id)));
-  vi.spyOn(officeApi, 'listAgentChats').mockImplementation((id) => answer(chats[id] ?? []));
-  vi.spyOn(officeApi, 'getChatMessages').mockImplementation((id) => Promise.resolve(lines(id)));
+  vi.spyOn(officeApi, 'listAgentChats').mockImplementation((_pid, id) => answer(chats[id] ?? []));
+  vi.spyOn(officeApi, 'getChatMessages').mockImplementation((_pid, id) => Promise.resolve(lines(id)));
   /* the director's History lists its past chats (design/new-chat), not its runs */
   vi.spyOn(officeApi, 'threadChats').mockResolvedValue([]);
 });
@@ -188,6 +188,12 @@ describe('History list (a list of chats)', () => {
     await openHistory();
     expect(document.activeElement).toBe(screen.getByTestId('history-current'));
     expect(isLive()).toBe(false);
+  });
+
+  it("lists this project's chats only: it asks with the panel's project", async () => {
+    await mount();
+    await openHistory();
+    expect(officeApi.listAgentChats).toHaveBeenCalledWith('p1', 'a-mira');
   });
 
   it('rows are buttons in a <ul>; day groups are <h3>; newest first', async () => {

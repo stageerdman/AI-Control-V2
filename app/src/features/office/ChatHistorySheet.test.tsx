@@ -43,7 +43,7 @@ const fail = (status: number, code: string) => json({ error: { code, message: co
 type Answer<T> = T | 'fail' | 'hang';
 let chats: Answer<ChatSummary[]>;
 let messages: Record<string, Answer<ChatMessage[]>>;
-/** What POST /chats/:runId/messages answers. */
+/** What POST /projects/aurora/chats/:runId/messages answers. */
 let post: (text: string) => Response | Promise<Response>;
 let calls: { method: string; url: string; body?: unknown }[];
 
@@ -80,8 +80,8 @@ beforeEach(() => {
       const method = init?.method ?? 'GET';
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, url, body });
-      if (url.startsWith('/agents/a-pixel/chats?')) return answer(chats);
-      if (url === `/chats/${RUN}/start` && method === 'POST')
+      if (url.startsWith('/projects/aurora/agents/a-pixel/chats?')) return answer(chats);
+      if (url === `/projects/aurora/chats/${RUN}/start` && method === 'POST')
         return json(
           {
             goalId: 'g1',
@@ -92,7 +92,7 @@ beforeEach(() => {
           },
           201,
         );
-      const m = url.match(/^\/chats\/([^/]+)\/messages$/);
+      const m = url.match(/^\/projects\/aurora\/chats\/([^/]+)\/messages$/);
       if (m && method === 'POST') return post(body.text);
       if (m && messages[m[1]]) return answer(messages[m[1]]);
       return fail(404, 'not_found');
@@ -105,7 +105,7 @@ afterEach(() => {
 });
 
 const openChat = async (c: ChatSummary = chat()) => {
-  render(<ChatHistoryBody agentId="a-pixel" name="Pixel" chat={c} />);
+  render(<ChatHistoryBody pid="aurora" agentId="a-pixel" name="Pixel" chat={c} />);
   return screen.findByRole('log');
 };
 const box = () => screen.getByRole('textbox', { name: 'Message Pixel' }) as HTMLTextAreaElement;
@@ -136,7 +136,7 @@ describe('a chat', () => {
     expect(screen.getByText('5 min ago')).toBeTruthy();
     expect(box()).toBeTruthy();
     expect(screen.getAllByRole('button', { name: 'Send' })).toHaveLength(1);
-    expect(calls.map((c) => c.url)).toEqual([`/chats/${RUN}/messages`]);
+    expect(calls.map((c) => c.url)).toEqual([`/projects/aurora/chats/${RUN}/messages`]);
   });
 
   it('send: my line shows at once, then thinking, then the reply; the box clears', async () => {
@@ -163,7 +163,7 @@ describe('a chat', () => {
     expect(screen.getAllByText('Where is the toggle?')).toHaveLength(1);
     expect(calls.find((c) => c.method === 'POST')).toEqual({
       method: 'POST',
-      url: `/chats/${RUN}/messages`,
+      url: `/projects/aurora/chats/${RUN}/messages`,
       body: { text: 'Where is the toggle?' },
     });
   });
@@ -183,7 +183,7 @@ describe('a chat', () => {
     fireEvent.click(start);
     expect(await screen.findByText(/On the whiteboard now/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: CHAT_COPY.startIt })).toBeNull();
-    const call = calls.find((c) => c.url === `/chats/${RUN}/start`);
+    const call = calls.find((c) => c.url === `/projects/aurora/chats/${RUN}/start`);
     expect(call?.body).toEqual({ seq: expect.any(Number) });
   });
 
@@ -244,13 +244,13 @@ describe('a chat', () => {
 
   it('loading, then error with Try again', async () => {
     messages[RUN] = 'hang';
-    render(<ChatHistoryBody agentId="a-pixel" name="Pixel" chat={chat()} />);
+    render(<ChatHistoryBody pid="aurora" agentId="a-pixel" name="Pixel" chat={chat()} />);
     expect(screen.getByText(CHAT_COPY.loading)).toBeTruthy();
     expect(screen.queryByRole('textbox')).toBeNull();
     cleanup();
     clearQueryCache();
     messages[RUN] = 'fail';
-    render(<ChatHistoryBody agentId="a-pixel" name="Pixel" chat={chat()} />);
+    render(<ChatHistoryBody pid="aurora" agentId="a-pixel" name="Pixel" chat={chat()} />);
     expect((await screen.findByRole('alert')).textContent).toContain(CHAT_COPY.error);
     messages[RUN] = [msg('assistant', 'Back now.')];
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
@@ -278,13 +278,13 @@ describe('All chats', () => {
 
   it('no chat given: starts on the list; empty, loading and error states', async () => {
     chats = [];
-    render(<ChatHistoryBody agentId="a-pixel" name="Pixel" chat={null} />);
+    render(<ChatHistoryBody pid="aurora" agentId="a-pixel" name="Pixel" chat={null} />);
     expect(screen.getByText(CHAT_COPY.listLoading)).toBeTruthy();
     expect(await screen.findByText(CHAT_COPY.listEmpty)).toBeTruthy();
     cleanup();
     clearQueryCache();
     chats = 'fail';
-    render(<ChatHistoryBody agentId="a-pixel" name="Pixel" chat={null} />);
+    render(<ChatHistoryBody pid="aurora" agentId="a-pixel" name="Pixel" chat={null} />);
     expect((await screen.findByRole('alert')).textContent).toContain(CHAT_COPY.listError);
     chats = [chat()];
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
@@ -295,7 +295,7 @@ describe('All chats', () => {
 describe('ChatHistorySheet', () => {
   it('is a labelled dialog; Escape closes it', async () => {
     const onClose = vi.fn();
-    render(<ChatHistorySheet agentId="a-pixel" name="Pixel" chat={chat()} open onClose={onClose} />);
+    render(<ChatHistorySheet pid="aurora" agentId="a-pixel" name="Pixel" chat={chat()} open onClose={onClose} />);
     expect(screen.getByRole('dialog', { name: 'Pixel’s chats' })).toBeTruthy();
     await screen.findByText(/Toggle shipped/);
     fireEvent.keyDown(document, { key: 'Escape' });

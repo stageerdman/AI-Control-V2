@@ -222,7 +222,7 @@ export type ChatSummary = {
   messageCount: number;
   lastText: string | null;
 };
-/** GET /agents/:id/recap — the agent's own words about its last chat. */
+/** GET /projects/:pid/agents/:id/recap — the agent's own words about its last chat in this project. */
 export type Recap = { recap: string | null; chat: ChatSummary | null; cached: boolean };
 
 /** One saved line of a chat — server/src/db/chats.ts. */
@@ -237,10 +237,13 @@ export type ChatMessage = {
   meta: Record<string, unknown> | null;
   createdAt: string;
 };
-/** POST /chats/:runId/messages — my line and the agent's answer, both saved. */
+/** POST /projects/:pid/chats/:runId/messages — my line and the agent's answer, both saved. */
 export type ChatReply = { sent: ChatMessage; reply: ChatMessage };
 
-const recap = (agentId: string) => http.get<Recap>(`/agents/${e(agentId)}/recap`);
+/* An agent's work is only ever read inside one project: every chat route names it (server/src/routes/chats.ts). */
+const agentIn = (pid: string, agentId: string) => `/projects/${e(pid)}/agents/${e(agentId)}`;
+const chatIn = (pid: string, runId: string) => `/projects/${e(pid)}/chats/${e(runId)}`;
+const recap = (pid: string, agentId: string) => http.get<Recap>(`${agentIn(pid, agentId)}/recap`);
 /** The server's largest page (server/src/routes/chats.ts). */
 export const CHAT_PAGE = 100;
 type ChatPage = (before: string | undefined) => Promise<ChatSummary[]>;
@@ -253,19 +256,20 @@ export async function collectChats(page: ChatPage): Promise<ChatSummary[]> {
     if (next.length < CHAT_PAGE) return all;
   }
 }
-const chatPage = (agentId: string) => (before: string | undefined) =>
+const chatPage = (pid: string, agentId: string) => (before: string | undefined) =>
   http.get<ChatSummary[]>(
-    `/agents/${e(agentId)}/chats?limit=${CHAT_PAGE}${before ? `&before=${encodeURIComponent(before)}` : ''}`,
+    `${agentIn(pid, agentId)}/chats?limit=${CHAT_PAGE}${before ? `&before=${encodeURIComponent(before)}` : ''}`,
   );
-/** Newest first, all of them. */
-export const listAgentChats = (agentId: string) => collectChats(chatPage(agentId));
-export const getChatMessages = (runId: string) => http.get<ChatMessage[]>(`/chats/${e(runId)}/messages`);
+/** The agent's chats in this project, newest first, all of them. */
+export const listAgentChats = (pid: string, agentId: string) => collectChats(chatPage(pid, agentId));
+export const getChatMessages = (pid: string, runId: string) =>
+  http.get<ChatMessage[]>(`${chatIn(pid, runId)}/messages`);
 /** Keep writing in a finished chat. 409 `chat_running` (live run), 502 `agent_error` (model failed). */
-export const sendChatMessage = (runId: string, text: string) =>
-  http.post<ChatReply>(`/chats/${e(runId)}/messages`, { text });
+export const sendChatMessage = (pid: string, runId: string, text: string) =>
+  http.post<ChatReply>(`${chatIn(pid, runId)}/messages`, { text });
 /** "Start it" under a reply that offered work (meta.offer): a whiteboard goal for this agent + the chat's new line. */
-export const startChatWork = (runId: string, seq: number) =>
-  http.post<{ message: ChatMessage; goalId: string }>(`/chats/${e(runId)}/start`, { seq });
+export const startChatWork = (pid: string, runId: string, seq: number) =>
+  http.post<{ message: ChatMessage; goalId: string }>(`${chatIn(pid, runId)}/start`, { seq });
 
 export const officeApi = {
   recap,
@@ -363,9 +367,10 @@ export const keys = {
   deskNotes: (pid: string, agentId?: string) => `office:${pid}:desknotes${agentId ? `:${agentId}` : ''}`,
   todos: (pid: string, agentId: string) => `office:${pid}:todos:${agentId}`,
   principles: (pid: string) => `office:${pid}:principles`,
-  recap: (agentId: string) => `recap:${agentId}`,
-  chats: (agentId: string) => `chats:${agentId}`,
-  chat: (runId: string) => `chat:${runId}`,
+  /* per project, but outside `scope`: an office refresh must not spend a model call on the recap */
+  recap: (pid: string, agentId: string) => `recap:${pid}:${agentId}`,
+  chats: (pid: string, agentId: string) => `chats:${pid}:${agentId}`,
+  chat: (pid: string, runId: string) => `chat:${pid}:${runId}`,
   principle: (pid: string, teamId: string, file: string) => `office:${pid}:principles:${teamId}:${file}`,
   mail: (pid: string, box: 'in' | 'sent' = 'in') => `office:${pid}:mail:${box}`,
   pager: 'pager:asks',
