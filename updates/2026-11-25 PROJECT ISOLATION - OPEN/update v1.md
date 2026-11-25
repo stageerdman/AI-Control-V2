@@ -111,4 +111,15 @@ Each phase ends with tests. The repro case it fixes flips from `it.fails` to `it
 
 - [x] Trace: root causes 1–8 above, with file references.
 - [x] Repro: `server/test/isolation/cross-project.test.ts` (4 `it.fails`, each confirmed failing on the leak itself).
-- [ ] Phase 1 · [ ] Phase 2 · [ ] Phase 3 · [ ] Phase 4
+- [x] Phase 1: `GET /projects/:id/agents/:agentId/recap`, `GET /projects/:id/agents/:agentId/chats(/latest)`,
+  `GET|POST /projects/:id/chats/:runId/messages`, `POST /projects/:id/chats/:runId/start` (404 for another
+  project's chat, `routes/agent-in-project.ts`). Agent-only routes deleted. App passes `pid`; keys
+  `recap:${pid}:${id}`, `chats:${pid}:${id}`. Old chats need no migration: every run row already has its `project_id`.
+- [x] Phase 2: `runningTools(running, { projectId, agentId, runId })`; `my_history` filters by project in SQL
+  (test `test/chats/tools.test.ts`); room call queue keyed `scope:owner:callee` (no dedicated test yet).
+  `home/user-activity.ts` routes by the request's project.
+- [~] Phase 3: auto memory off for every run (`runtime/env.ts`). Not done: per-scope scratch cwd (with auto memory
+  off the shared scratch carries no memory, so it is no longer a leak) and the toolkit decision (captain).
+- [ ] Phase 4: guard test and decisions line, not started.
+- Repro: all four cases are plain `it`s and pass; the old "agent lists its runs across projects" test now asserts
+  the opposite.

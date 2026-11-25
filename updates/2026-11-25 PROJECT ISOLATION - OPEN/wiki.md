@@ -7,3 +7,6 @@
 - Claude Code has its own auto memory (`~/.claude/projects/<folder>/memory/`), on by default, keyed by folder.
   The studio already has its own memory (desk, to-dos, history), so turn the CLI's off (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`).
 - A repro that must stay green until fixed: vitest `it.fails`. Flip it to `it` in the phase that fixes it.
+- Put the project in the URL (`/projects/:id/...`) for anything about an agent's work, and 404 when the record
+  belongs to another project. A route without the project cannot be asked the right question.
+- Filter by project in SQL, before the LIMIT. Filtering after a limit hides this project's rows behind another's.
