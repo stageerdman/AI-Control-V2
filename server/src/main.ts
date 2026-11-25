@@ -1,6 +1,8 @@
-/* Entry point: config → dirs → db → app → listen. */
+/* Entry point: config → dirs → lock → sweep leftovers → db → app → listen. */
 import { join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { buildApp } from './app.ts';
+import { openWithMac } from './apps/start-project.ts';
 import { CAST_PACKS } from './cast-packs/index.ts';
 import { installPackIfNeeded } from './cast-packs/pack.ts';
 import { ensureDirs, loadConfig } from './config.ts';
@@ -12,6 +14,7 @@ import { createStore } from './db/store.ts';
 import { ghCli } from './github/github.ts';
 import { ghProbe, resolveGhBin } from './health/git-status.ts';
 import { listen } from './listen.ts';
+import { createReaper } from './reaper/reaper.ts';
 import { claudeCliRunner, shellAllowed, shellHookCommand } from './runtime/claude-cli.ts';
 import { loadRuntimeConfig, loadShell, macToolsFor } from './runtime/config.ts';
 import { fakeRunner } from './runtime/fake.ts';
@@ -31,6 +34,10 @@ import {
   spawnInstaller,
 } from './self-install/self-install.ts';
 
+const BOOT_GRACE_MS = 2000;
+const CLOSE_BUDGET_MS = 3000;
+const SWEEP_GRACE_MS = 1000;
+
 const config = loadConfig();
 ensureDirs(config);
 /* one backend per data dir: a second one's startup recovery would interrupt the first one's running work */
@@ -42,6 +49,12 @@ try {
   process.exit(1);
 }
 process.on('exit', () => lock.release());
+/* nothing we start outlives us: first stop what a crashed run left behind (before recovery resumes its work, so
+   no agent ever runs twice on one checkout), then tag everything this run starts */
+const reaper = createReaper({ home: config.home });
+const leftovers = await reaper.sweep(BOOT_GRACE_MS);
+if (leftovers.termed > 0) console.error(`[reaper] stopped ${leftovers.termed} processes left from the last run`);
+Object.assign(process.env, reaper.tag);
 const db = openDb(config.dbPath);
 const store = createStore(db, { sandbox: config.sandbox });
 const secrets = fileSecretStore(join(config.controlHome, '.env'));
@@ -110,6 +123,11 @@ const app = buildApp({
   selfInstall,
   pickFolder: macFolderPicker,
   credits,
+  /* written down before it opens, so even a crash right after can't lose it */
+  openApp: (bundle) => {
+    reaper.opened(bundle);
+    return openWithMac(bundle);
+  },
 });
 app.log.info(
   { runner: runner.name, claudeBin: rt.claudeBin, model: rt.model, shell, ghBin, error: rt.binError },
@@ -126,19 +144,25 @@ app.log.info(
   'Key Cabinet synced with the global .env',
 );
 
-const shutdown = async () => {
-  await app.close();
-  db.close();
-  process.exit(0);
+/* The app hard-kills us at 5 s (backend.rs QUIT_DEADLINE): the graceful close gets 3 s, the sweep the rest. */
+let stopping: Promise<never> | null = null;
+const shutdown = (code: number) => {
+  stopping ??= (async () => {
+    const closed = await Promise.race([app.close().then(() => true), sleep(CLOSE_BUDGET_MS).then(() => false)]);
+    if (!closed) console.error('[shutdown] graceful close ran out of time; stopping what is left');
+    const swept = await reaper.sweep(SWEEP_GRACE_MS);
+    if (swept.killed > 0) console.error(`[reaper] ${swept.killed} processes ignored SIGTERM and were killed`);
+    db.close();
+    process.exit(code);
+  })();
+  return stopping;
 };
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => shutdown(0));
+process.on('SIGTERM', () => shutdown(0));
 
 try {
   await listen(app, config.host, config.port);
 } catch (e) {
   console.error(`\nAI Studio backend did NOT start: ${(e as Error).message}\n`);
-  await app.close();
-  db.close();
-  process.exit(1);
+  await shutdown(1);
 }

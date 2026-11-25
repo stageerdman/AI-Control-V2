@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path';
 import type { Store } from '../db/store.ts';
 import type { EventBus } from '../events/bus.ts';
 import { resolveInSandbox } from '../fs/sandbox.ts';
+import { withoutOwnerTag } from '../reaper/owner.ts';
 
 /** Runs one install; resolves with its exit code. */
 export type Installer = () => Promise<number | null>;
@@ -175,7 +176,8 @@ export function spawnInstaller(repo: string, studioHome: string): Installer {
       const out = openSync(logFile, 'a');
       const child = spawn(process.execPath, [join(repo, 'app', 'scripts', 'install-mac', 'main.mjs')], {
         cwd: repo,
-        env: { ...process.env, AI_STUDIO_HOME: studioHome },
+        /* untagged on purpose (reaper/owner.ts): an install in flight finishes even when the studio quits */
+        env: { ...withoutOwnerTag(process.env), AI_STUDIO_HOME: studioHome },
         detached: true,
         stdio: ['ignore', out, out],
       });

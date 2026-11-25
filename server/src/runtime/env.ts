@@ -16,6 +16,8 @@ const PASS_THROUGH = [
   '__CF_USER_TEXT_ENCODING',
   /* AGENTS PUSH: a project whose origin is ssh (git@github.com:…) pushes through the user's ssh agent */
   'SSH_AUTH_SOCK',
+  /* the studio's tag (reaper/owner.ts): whatever a run starts is found and stopped when the studio quits */
+  'AI_STUDIO_OWNER',
 ];
 const BASE_PATH = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 /** Never handed to the CLI: they'd switch its auth/provider away from the user's login. */

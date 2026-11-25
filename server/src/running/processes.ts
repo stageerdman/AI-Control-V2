@@ -47,11 +47,12 @@ export function treeOf(root: number, procs: readonly Proc[]): Proc[] {
   return [...found.values()].sort((a, b) => a.pid - b.pid);
 }
 
-/** The live process table (empty if `ps` can't be read — then no code runs are shown, never invented ones). */
-export function readProcs(): Proc[] {
+/** The live process table (empty if `ps` can't be read — then no code runs are shown, never invented ones).
+    `withEnv`: each command carries its environment too (macOS `ps -E`; Apple's own binaries show none). */
+export function readProcs(withEnv = false): Proc[] {
   try {
     return parsePs(
-      execFileSync('ps', ['-A', '-o', 'pid=,ppid=,pgid=,etime=,command='], {
+      execFileSync('ps', [...(withEnv ? ['-E', '-ww'] : []), '-A', '-o', 'pid=,ppid=,pgid=,etime=,command='], {
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
       }),
