@@ -3,6 +3,7 @@
    processes are those in its process group (sessions start in their own group) plus every
    descendant by parent pid (a command that made its own group is still a child). */
 import { execFileSync } from 'node:child_process';
+import { withoutOwnerTag } from '../reaper/owner.ts';
 
 export type Proc = { pid: number; ppid: number; pgid: number; elapsedSec: number; command: string };
 
@@ -55,6 +56,8 @@ export function readProcs(withEnv = false): Proc[] {
       execFileSync('ps', [...(withEnv ? ['-E', '-ww'] : []), '-A', '-o', 'pid=,ppid=,pgid=,etime=,command='], {
         encoding: 'utf8',
         maxBuffer: 16 * 1024 * 1024,
+        /* untagged: `ps -E` lists itself, and a tagged reader would be picked by every sweep */
+        env: withoutOwnerTag(process.env),
       }),
     );
   } catch (e) {

@@ -54,4 +54,17 @@ describe.runIf(process.platform === 'darwin')('reaper on the live process table'
       for (const pid of [ours, notOurs]) if (alive(pid)) process.kill(pid, 'SIGKILL');
     }
   });
+
+  /* regression: the backend carries its own tag (main.ts), so the `ps` reading the table did too — every read
+     found a fresh tagged `ps`, the sweep waited out its whole grace and "killed" one each quit */
+  it('finds nothing when the sweeping process itself carries the tag and nothing else does', async () => {
+    const reaper = createReaper({ home: mkdtempSync(join(tmpdir(), 'reaper-')) });
+    const before = { ...process.env };
+    Object.assign(process.env, reaper.tag);
+    try {
+      expect(await reaper.sweep(300)).toEqual({ termed: 0, killed: 0 });
+    } finally {
+      process.env = before;
+    }
+  });
 });

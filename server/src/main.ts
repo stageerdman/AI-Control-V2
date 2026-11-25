@@ -149,9 +149,9 @@ let stopping: Promise<never> | null = null;
 const shutdown = (code: number) => {
   stopping ??= (async () => {
     const closed = await Promise.race([app.close().then(() => true), sleep(CLOSE_BUDGET_MS).then(() => false)]);
-    if (!closed) console.error('[shutdown] graceful close ran out of time; stopping what is left');
+    if (!closed) app.log.warn({ budgetMs: CLOSE_BUDGET_MS }, 'Graceful close ran out of time; stopping what is left');
     const swept = await reaper.sweep(SWEEP_GRACE_MS);
-    if (swept.killed > 0) console.error(`[reaper] ${swept.killed} processes ignored SIGTERM and were killed`);
+    if (swept.termed > 0) app.log.info(swept, 'Stopped what the studio had started');
     db.close();
     process.exit(code);
   })();
