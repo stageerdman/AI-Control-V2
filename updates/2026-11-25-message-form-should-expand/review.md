@@ -68,3 +68,10 @@ if (waiting && (await answer(waiting, said, true))) return;
 I check only the fix and its test, run the full suite, and sign below.
 
 Sign-off: _pending (waiting on task 2e4b7124)_
+
+## Integration (Columbo, captain)
+
+Jony's fix for task 2e4b7124 is on master. `answer()` now returns `'in' | 'closed' | 'failed'`, and on `'failed'` `send` puts the raw words back with `setText((now) => now || raw)`. It comes with the test "keep the words when a typed answer fails". Columbo rebased the team branch onto that fix and kept Jony's version. Columbo had written the same fix separately and dropped that copy, so the code has one way to do it.
+- Full suite: 871 passed, 2 skipped. `web:build` (typecheck plus build) passes. Lint: the same 7 old errors as before, none in the message-box files.
+
+The last open row ("A typed answer … fails") is now **0 steps, kept**. Every checklist row passes.
