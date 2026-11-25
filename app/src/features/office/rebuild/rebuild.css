@@ -5,11 +5,6 @@
 .rb-card{background:var(--panel);color:var(--ink);border-radius:var(--r-md);box-shadow:var(--shadow-sm);
   padding:16px 16px 14px;margin:6px 0 10px;max-width:520px;animation:rb-in .22s ease-out both}
 .rb-card h3{margin:0 0 10px;font-size:16px;font-weight:800}
-/* out of date: only the plan dims (once, ~400 ms, then still); the title, the why and Close stay full ink */
-.rb-groups,.rb-copy{transition:opacity .4s ease-out,filter .4s ease-out}
-.rb-card.stale .rb-groups,.rb-card.stale .rb-copy{opacity:.5;filter:grayscale(1)}
-.rb-card.stale .rb-change{display:none}
-.rb-card.folding{overflow:hidden;transform-origin:top;animation:rb-fold .22s ease-in both;pointer-events:none}
 .rb-groups{margin:0;display:grid;gap:10px}
 .rb-group{display:grid;grid-template-columns:minmax(110px,30%) 1fr;gap:4px 12px;align-items:start;
   padding:8px 0 8px 10px;border-left:4px solid var(--line);border-radius:4px}
@@ -46,6 +41,13 @@
 .rb-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
 .rb-foot .btn{min-height:44px}
 .rb-keep{background:transparent;border:2px solid rgba(36,26,68,.28)}
+
+/* ---------- out of date: only the plan dims (once, ~400 ms, then still); the title, the why and Close stay
+   full ink. Close folds the card shut (220 ms), then its one line fades in (160 ms). */
+.rb-card .rb-groups,.rb-card .rb-copy{transition:opacity .4s ease-out,filter .4s ease-out}
+.rb-card.stale .rb-groups,.rb-card.stale .rb-copy{opacity:.5;filter:grayscale(1)}
+.rb-card.stale .rb-change{display:none}
+.rb-card.folding{overflow:hidden;transform-origin:top;animation:rb-fold .22s ease-in both;pointer-events:none}
 
 /* ---------- after: one line + Undo */
 .rb-line{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin:4px 0 10px;font-size:14px;
@@ -107,7 +109,7 @@
 @media (prefers-reduced-motion:reduce){
   .rb-card,.rr{animation:rb-fade .2s ease-out both}
   /* out of date: no fold (the card goes straight to its line), just a 120 ms fade */
-  .rb-groups,.rb-copy{transition:opacity .12s linear,filter .12s linear}
+  .rb-card .rb-groups,.rb-card .rb-copy{transition:opacity .12s linear,filter .12s linear}
   .rb-card.folding{animation:none}
   .rb-quiet{animation:rb-fade .12s linear both}
   .o-body.rb-leaving,.o-body.rb-moved,.o-world.rb-split .o-table,.o-world.rb-split [class*="table"]{

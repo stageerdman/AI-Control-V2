@@ -222,7 +222,9 @@ describe('rebuild card — keyboard and screen readers', () => {
       .mockImplementation((q: string) => ({ matches: /reduce/.test(q) }) as MediaQueryList);
     render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" stale />);
     fireEvent.click(screen.getByRole('button', { name: 'Close out-of-date plan' }));
-    expect(screen.getByText('Out-of-date plan closed — nothing changed.', { selector: '.rb-line' })).toBeTruthy();
+    expect(
+      screen.getByText('Out-of-date plan closed — nothing changed.', { selector: '.rb-line' }),
+    ).toBeTruthy();
     mm.mockRestore();
     expect(rule('.rb-card.folding')).toMatch(/animation:rb-fold \.22s/);
     expect(rebuildCss).toMatch(/prefers-reduced-motion:reduce\)\{[^@]*\.rb-card\.folding\{animation:none\}/);
