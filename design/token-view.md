@@ -16,19 +16,20 @@ another card and it goes away. The credits line doesn't point here (Eraser's cal
 ## What it says (only what the sheet doesn't already)
 ```
 Where the tokens go
-Most of the studio's tokens went to Rivet (65%, about $3) and Blair (32%, under $1). About $4 in all, at API prices.
-When       ███████████████████████░  97% working · 3% getting ready
-Starts     11 fresh starts · 2 picked up old work (40% of the tokens)
-Over time  766k per hour of work · ↑ 2% vs last week
-Getting ready is reading the rules and the task when a session starts. Picking up old work brings the whole
-earlier session back, so it costs more than a fresh start.
+Most of the studio's tokens went to Rivet (about $3) and Blair (under $1). About $4 in all, if paid per use.
+Spent on          ███████████████████████░  97% working · 3% getting ready
+Starts            11 fresh starts · 2 picked up old work (40% of the tokens)
+Per hour of work  766k tokens · ↑ 2% vs last week
+Getting ready: the first step of each run, reading the rules and the task. Picked up old work: it brings the
+whole earlier chat back, so it costs more than a fresh start.
 ```
-1. **Who:** a sentence naming the few agents that cover ¾ of the tokens (3 at most), with % and cost. Cost is rounded to
-   whole dollars and labelled "at API prices", because the owner pays a flat plan.
-2. **When:** working vs getting ready. Getting ready is each session's first step. One thin bar, sun on line.
+1. **Who:** a sentence naming the few agents that cover ¾ of the tokens (3 at most), with cost only — their share is
+   already in "Worth a look" and "Who does the work" (Eraser). Cost is rounded to whole dollars and labelled "if paid
+   per use", because the owner pays a flat plan.
+2. **Spent on:** working vs getting ready. Getting ready is each run's first step. One thin bar, sun on line.
 3. **Starts:** one count each, in neutral colour. Fresh starts are cheap and fine. Picked-up old work is where the cost
    hides, so it carries its share of the tokens.
-4. **Over time:** tokens per hour of agent time against the window before. This compares like with like, so a busy week
+4. **Per hour of work:** tokens per hour of agent time against the window before. This compares like with like, so a busy week
    doesn't look like a failed fix. The raw per-day trend is already the chart above.
 
 ## Removed, and why

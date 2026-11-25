@@ -2,7 +2,7 @@
    design.md). One read per office and range (GET /projects/:id/performance); everything it says is worked out
    in model.ts. Top to bottom: range · three measures (also the chooser) · one chart · Worth a look · who does
    the work · kind of work · how long work takes (HowLong.tsx, its own read: GET /projects/:id/timesheet).
-   No money anywhere. */
+   Money appears only in the token view (tokens/, under the Tokens card), rounded and "if paid per use". */
 import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { type Agent, useQuery } from '../../../api';
 import { Hero } from '../../../characters';

@@ -36,3 +36,5 @@ What I'll check on the return: each item is fixed; the new hint wording still na
 
 ## Sign-off
 _Pending Jony's fixes._
+
+**Integration (Columbo, captain):** all four items were applied at integration. The lead has no %, only money ("Rivet (about $3)"). The cost now reads "if paid per use". The labels are "Spent on" and "Per hour of work" (the value is "766k tokens"). The hints name their subject ("Getting ready: …", "Picked up old work: …") and never say "session". The TeamSheet docs are updated. App tests (845) and server tests (1286) pass. `tauri build` succeeds.

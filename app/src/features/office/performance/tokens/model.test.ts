@@ -43,18 +43,17 @@ describe('tokenView', () => {
     });
   });
 
-  it('a sentence first: who used most, with share and cost', () => {
+  it('a sentence first: who used most, with cost (the share is already on the sheet)', () => {
     const v = normal(withUse());
-    expect(v.lead).toBe(
-      'Most of the studio’s tokens went to Rivet (65%, about $3) and Blair (32%, under $1).',
-    );
-    expect(v.cost).toBe('About $4 in all, at API prices.');
+    expect(v.lead).toBe('Most of the studio’s tokens went to Rivet (about $3) and Blair (under $1).');
+    expect(v.lead).not.toMatch(/%/);
+    expect(v.cost).toBe('About $4 in all, if paid per use.');
   });
 
   it('one agent with almost everything', () => {
     const p = withUse({ usd: {} });
     const v = normal({ ...p, totals: { ...p.totals, tokens: 2_500_000 } });
-    expect(v.lead).toBe('Almost all of the studio’s tokens went to Rivet (96%).');
+    expect(v.lead).toBe('Almost all of the studio’s tokens went to Rivet.');
     expect(v.cost).toBeNull();
   });
 
@@ -77,9 +76,9 @@ describe('tokenView', () => {
     );
   });
 
-  it('over time: tokens per hour of work, against the week before', () => {
+  it('per hour of work: tokens, against the week before', () => {
     const v = normal(withUse());
-    expect(v.perHour?.text).toBe('766k per hour of work');
+    expect(v.perHour?.text).toBe('766k tokens');
     expect(v.perHour?.trend?.text).toBe('↑ 2% vs last week');
     expect(normal({ ...withUse(), range: 'all', previous: null }).perHour?.trend).toBeNull();
   });
@@ -94,6 +93,6 @@ describe('tokenView', () => {
   it('plain words only', () => {
     const v = normal(withUse());
     const all = [v.lead, v.cost, v.ready.text, v.starts?.text, v.perHour?.text, v.hint].join(' ');
-    expect(all).not.toMatch(/cache|context|re-?read|prefix|input|output/i);
+    expect(all).not.toMatch(/cache|context|re-?read|prefix|input|output|session|API/i);
   });
 });

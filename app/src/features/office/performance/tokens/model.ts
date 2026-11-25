@@ -5,9 +5,9 @@ import type { Performance } from '../../api';
 import { type Trend, tokensText, trend } from '../model';
 
 export type TokenLines = {
-  /** Who used most: "Most of the studio's tokens went to Rivet (65%, about $3) and Blair (32%, under $1)." */
+  /** Who used most: "Most of the studio's tokens went to Rivet (about $3) and Blair (under $1)." */
   lead: string;
-  /** "About $5 in all, at API prices." null = no price known. */
+  /** "About $5 in all, if paid per use." null = no price known. */
   cost: string | null;
   /** Working vs getting ready; working = null while not measured. */
   ready: { working: number | null; text: string };
@@ -21,10 +21,10 @@ export type TokenLines = {
 export type TokenView = { state: 'empty'; text: string } | ({ state: 'normal' } & TokenLines);
 
 export const EMPTY = 'Nothing measured yet. This fills in after the next run.';
-export const READY_HINT = 'Getting ready is reading the rules and the task when a session starts.';
+export const READY_HINT = 'Getting ready: the first step of each run, reading the rules and the task.';
 export const NOT_MEASURED = 'Getting ready isn’t measured yet.';
 export const PICKED_UP_HINT =
-  'Picking up old work brings the whole earlier session back, so it costs more than a fresh start.';
+  'Picked up old work: it brings the whole earlier chat back, so it costs more than a fresh start.';
 
 const H = 3_600_000;
 const pct = (x: number) => Math.round(100 * x);
@@ -61,7 +61,8 @@ export function tokenView(p: Performance, nameOf: (id: string) => string): Token
   const top = topAgents(p);
   const part = (t: { agentId: string; share: number }) => {
     const usd = u?.usd[t.agentId];
-    return `${nameOf(t.agentId)} (${pct(t.share)}%${usd ? `, ${money(usd)}` : ''})`;
+    // No share %: "Worth a look" and "Who does the work" already show it (Eraser). Only the money is new.
+    return `${nameOf(t.agentId)}${usd ? ` (${money(usd)})` : ''}`;
   };
   const lead =
     top.length === 1 && (top[0]?.share ?? 0) >= 0.9
@@ -70,7 +71,7 @@ export function tokenView(p: Performance, nameOf: (id: string) => string): Token
 
   const usdAll = u ? Object.values(u.usd).reduce((s, x) => s + x, 0) : 0;
   const cost =
-    usdAll > 0 ? `${money(usdAll).replace(/^./, (c) => c.toUpperCase())} in all, at API prices.` : null;
+    usdAll > 0 ? `${money(usdAll).replace(/^./, (c) => c.toUpperCase())} in all, if paid per use.` : null;
 
   const working = u && u.ready != null && u.readyOf > 0 ? 100 - pct(u.ready / u.readyOf) : null;
   const ready = {
@@ -98,7 +99,7 @@ export function tokenView(p: Performance, nameOf: (id: string) => string): Token
     now == null
       ? null
       : {
-          text: `${tokensText(now)} per hour of work`,
+          text: `${tokensText(now)} tokens`,
           trend: before == null ? null : trend('tokens', Math.round(now), Math.round(before), p.range),
         };
 
