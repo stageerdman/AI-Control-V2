@@ -64,13 +64,19 @@ export type RebuildOffer = {
   /** Applied at once (nothing to decide): the Undo line instead of the card. */
   undoToken?: string;
   summary?: string;
+  /** How a confirm card ended (server/src/office/rebuild-cards.ts); absent while it waits for yes / no. */
+  closed?: CardEnd;
 };
+export type CardEnd = 'applied' | 'kept' | 'expired';
 
 /** Undo lasts 10 minutes (spec §3) — the server is the judge; this only hides a dead link. */
 export const UNDO_MS = 10 * 60_000;
 
 /* errors come back as {ok:false,error}, or as an HTTP error: both read as one plain line */
-const plain = async <T extends { ok: boolean }>(p: Promise<T>, fallback: string): Promise<T | { ok: false; error: string }> => {
+const plain = async <T extends { ok: boolean }>(
+  p: Promise<T>,
+  fallback: string,
+): Promise<T | { ok: false; error: string }> => {
   try {
     return await p;
   } catch (x) {
@@ -80,14 +86,24 @@ const plain = async <T extends { ok: boolean }>(p: Promise<T>, fallback: string)
 
 /** GET /projects/:id/lineup — who sits where on this project (server/src/office/rebuild.ts projectLineup). */
 export type LineupWire = {
-  teams: { id: string; name: string; captainId: string | null; members: { id: string; name: string; role: string }[] }[];
+  teams: {
+    id: string;
+    name: string;
+    captainId: string | null;
+    members: { id: string; name: string; role: string }[];
+  }[];
   specialists: { id: string; name: string; role: string }[];
   /** Who left this project (still in the Cast): they can be brought back as specialists. */
   left?: Leaver[];
 };
 export type Leaver = { id: string; name: string; role: string };
 export const lineupOf = (w: LineupWire): Lineup => ({
-  teams: w.teams.map((t) => ({ id: t.id, name: t.name, captain: t.captainId, members: t.members.map((m) => m.id) })),
+  teams: w.teams.map((t) => ({
+    id: t.id,
+    name: t.name,
+    captain: t.captainId,
+    members: t.members.map((m) => m.id),
+  })),
   solo: w.specialists.map((s) => s.id),
   left: w.left ?? [],
 });
@@ -99,11 +115,17 @@ export const rebuildApi = {
     plain(http.post<PlanResult>(`/projects/${e(pid)}/rebuild/plan`, body), 'Couldn’t plan that.'),
   apply: (planId: string, body: ApplyBody = {}) =>
     plain(http.post<ApplyResult>(`/rebuild/${e(planId)}/apply`, body), 'The rebuild didn’t go through.'),
+  /** Keep as is / Dismiss: the card is closed for good on the server too. */
+  dismiss: (planId: string) =>
+    plain(http.post<{ ok: true }>(`/rebuild/${e(planId)}/dismiss`, {}), 'Couldn’t close the card.'),
   undo: (token: string) =>
     plain(http.post<UndoResult>(`/rebuild/undo/${e(token)}`, {}), 'Couldn’t undo that.'),
   /** Runs at once — not part of a Rearrange draft. */
   bringBack: (pid: string, agentId: string) =>
-    plain(http.post<BringBackResult>(`/projects/${e(pid)}/specialists`, { agentId }), 'Couldn’t bring them back.'),
+    plain(
+      http.post<BringBackResult>(`/projects/${e(pid)}/specialists`, { agentId }),
+      'Couldn’t bring them back.',
+    ),
 };
 
 /** A plan that went stale on the server (a newer message, the lineup changed) — the card greys out. */

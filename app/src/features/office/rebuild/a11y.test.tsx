@@ -10,6 +10,7 @@ let wire: { teams: unknown[]; specialists: Row[]; left?: Row[] } = { teams: [], 
 const apply = vi.fn();
 const undo = vi.fn();
 const bringBack = vi.fn();
+const dismiss = vi.fn((..._: unknown[]) => Promise.resolve({ ok: true }));
 vi.mock('./api', async (orig) => {
   const real = await orig<typeof import('./api')>();
   return {
@@ -18,6 +19,7 @@ vi.mock('./api', async (orig) => {
       plan: vi.fn(),
       apply: (...a: unknown[]) => apply(...a),
       undo: (...a: unknown[]) => undo(...a),
+      dismiss: (...a: unknown[]) => dismiss(...a),
       lineup: () => Promise.resolve(structuredClone(wire)),
       bringBack: (...a: unknown[]) => bringBack(...a),
     },
@@ -28,8 +30,8 @@ vi.mock('../../../characters', () => ({ Hero: () => null }));
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RebuildCard as Card } from './api';
-import { answerByVoice, RebuildCard, resetRebuildCards } from './RebuildCard';
 import { Rearrange } from './Rearrange';
+import { answerByVoice, RebuildCard, resetRebuildCards } from './RebuildCard';
 
 const here = import.meta.dirname; // happy-dom swaps the global URL, so use paths
 const themeCss = readFileSync(join(here, '../../../design/theme.css'), 'utf8');
@@ -83,10 +85,7 @@ describe('rebuild card — keyboard and screen readers', () => {
     const parts: string[] = [];
     for (let n = walk.nextNode(); n; n = walk.nextNode())
       if (!n.parentElement?.closest('[aria-hidden="true"]')) parts.push(n.textContent ?? '');
-    const spoken = parts
-      .join('')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const spoken = parts.join('').replace(/\s+/g, ' ').trim();
     expect(spoken).toBe('Uncle Bob from The Founders to Build');
     expect(container.querySelector('ul[aria-label]')).toBeNull();
   });
@@ -158,6 +157,40 @@ describe('rebuild card — keyboard and screen readers', () => {
     rerender(<RebuildCard card={c} faceOf={faceOf} director="Ada" stale />);
     expect(document.activeElement).toBe(screen.getByText('Plan changed — ask again.'));
   });
+
+  /* the HQ bug: a card whose plan went out of date said "Plan changed" and could never be closed */
+  it('a stale card can always be dismissed: the server closes it and focus moves to the line', () => {
+    const c = card();
+    render(<RebuildCard card={c} faceOf={faceOf} director="Ada" stale />);
+    const b = screen.getByRole('button', { name: 'Dismiss' });
+    b.focus();
+    fireEvent.click(b);
+    expect(dismiss).toHaveBeenCalledWith(c.planId);
+    expect(document.activeElement).toBe(screen.getByText(/This plan ran out — nothing changed/));
+  });
+
+  it('a Rebuild the server finds out of date closes the card instead of leaving it stuck', async () => {
+    apply.mockResolvedValue({ ok: false, error: 'This plan is stale — the team already looks like that.' });
+    const ran = vi.fn();
+    render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" onExpired={ran} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Rebuild' }));
+    await flush();
+    expect(
+      screen.getByText('This plan ran out — nothing changed. Ask Ada again if you still want it.'),
+    ).toBeTruthy();
+    expect(ran).toHaveBeenCalled();
+  });
+
+  it('Keep as is closes the card on the server too; a saved closed card shows only its line', () => {
+    const c = card();
+    render(<RebuildCard card={c} faceOf={faceOf} director="Ada" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Keep as is' }));
+    expect(dismiss).toHaveBeenCalledWith(c.planId);
+    cleanup();
+    render(<RebuildCard card={card()} faceOf={faceOf} director="Ada" closed="expired" />);
+    expect(screen.queryByRole('button', { name: 'Rebuild' })).toBeNull();
+    expect(screen.getByText(/This plan ran out/)).toBeTruthy();
+  });
 });
 
 /* ---------- 'Left this project' + Bring back (Rearrange) ---------- */
@@ -175,15 +208,22 @@ const contrast = (a: string, b: string) => {
 /** a colour laid over white at an alpha (e.g. the .rr-bot pill tint) */
 const over = (hex: string, alpha: number) =>
   `#${[1, 3, 5]
-    .map((i) => Math.round(255 + (Number.parseInt(hex.slice(i, i + 2), 16) - 255) * alpha).toString(16).padStart(2, '0'))
+    .map((i) =>
+      Math.round(255 + (Number.parseInt(hex.slice(i, i + 2), 16) - 255) * alpha)
+        .toString(16)
+        .padStart(2, '0'),
+    )
     .join('')}`;
-const token = (name: string) => (themeCss.match(new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})`)) ?? [])[1] as string;
+const token = (name: string) =>
+  (themeCss.match(new RegExp(`--color-${name}:\\s*(#[0-9a-fA-F]{6})`)) ?? [])[1] as string;
 const rule = (sel: string) => {
   const at = rebuildCss.indexOf(`${sel}{`);
   return at < 0 ? '' : rebuildCss.slice(at, rebuildCss.indexOf('}', at));
 };
 
-const TEAMS = [{ id: 't1', name: 'Founders', captainId: 'jony', members: [{ id: 'jony', name: 'Jony', role: 'ui' }] }];
+const TEAMS = [
+  { id: 't1', name: 'Founders', captainId: 'jony', members: [{ id: 'jony', name: 'Jony', role: 'ui' }] },
+];
 const ELON = { id: 'elon', name: 'Elon Engineer', role: 'dev' };
 const CY = { id: 'cy', name: 'Cy Tester', role: 'qa' };
 const flushAll = () => act(async () => {});
@@ -294,7 +334,9 @@ describe('Bring back — keyboard and screen readers', () => {
     fireEvent.click(backBtn('Elon Engineer'));
     await flushAll();
     await flushAll();
-    expect(document.activeElement).toBe(within(leftZone()).getByRole('heading', { name: 'Left this project' }));
+    expect(document.activeElement).toBe(
+      within(leftZone()).getByRole('heading', { name: 'Left this project' }),
+    );
     expect(screen.getByRole('status').textContent).toBe('Elon Engineer is back as a specialist');
   });
 

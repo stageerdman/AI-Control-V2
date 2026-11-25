@@ -472,6 +472,8 @@ export function Panel(p: PanelProps) {
                   ) : (
                     <RebuildCard
                       card={m.rebuild.card}
+                      closed={m.rebuild.closed}
+                      summary={m.rebuild.summary}
                       faceOf={(aid) => p.agents[aid] ?? null}
                       director={dirShort}
                       /* a newer message to the director: this card is out of date (spec §3) */
@@ -481,6 +483,7 @@ export function Panel(p: PanelProps) {
                       /* an answered card no longer holds New chat back */
                       onApplied={() => bump((n) => n + 1)}
                       onKept={() => bump((n) => n + 1)}
+                      onExpired={() => bump((n) => n + 1)}
                     />
                   )}
                 </div>

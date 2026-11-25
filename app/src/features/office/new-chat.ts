@@ -36,6 +36,7 @@ export function cardPending(messages: readonly ThreadMessage[], settled: (planId
       m.rebuild?.needsConfirm &&
       !m.rebuild.undoToken &&
       !m.rebuild.card.stale &&
+      !m.rebuild.closed &&
       !settled(m.rebuild.planId) &&
       !messages.slice(i + 1).some((x) => x.from === 'user'),
   );

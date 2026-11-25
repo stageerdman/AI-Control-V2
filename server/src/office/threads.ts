@@ -143,8 +143,9 @@ export function createThreads(deps: {
   secretValues: () => string[];
   /** Caps for the orchestrator's chat turns (default CREW_CAPS). */
   orchestratorCaps?: Caps;
-  /** Open rebuild cards go stale when a newer message reaches the director (office/rebuild-service.ts). */
-  rebuilds?: Pick<Rebuilds, 'staleAll'>;
+  /** Open rebuild cards close when a newer message reaches the director, who hears which ran out
+      (office/rebuild-service.ts). */
+  rebuilds?: Pick<Rebuilds, 'newMessage'>;
   /** Who is working on what right now (the summary's `runningNow`, for the director's `stop_work`). */
   runningNow?: DirectorStopper['runningNow'];
   /** Live sessions in a project (running registry, kind 'session'): "New chat" waits until there are none. */
@@ -794,10 +795,10 @@ export function createThreads(deps: {
         return { message, runId: told.id };
       }
       if (busy.has(k)) throw conflict(`${s.agent.name} is still answering your last message`);
-      /* a newer message to the director: any open rebuild card goes stale (spec §3) */
-      if (s.orchestrator) deps.rebuilds?.staleAll(projectId);
+      /* a newer message to the director: any open rebuild card closes (spec §3), and it hears which ran out */
+      const ranOut = s.orchestrator ? (deps.rebuilds?.newMessage(projectId) ?? null) : null;
       /* start first: if the runtime says no (agent busy with work, no folder…), nothing is stored */
-      const run = startTurn(p, s, t, task, resumeRunId);
+      const run = startTurn(p, s, t, ranOut ? `${task}\n\n${ranOut}` : task, resumeRunId);
       if (fresh) setSession(projectId, s.agent.id, { startedAt: now(), rotate: false });
       const message = insert(projectId, s.agent.id, {
         sender: 'user',

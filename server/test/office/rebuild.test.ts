@@ -10,6 +10,7 @@ import { getChatMessages } from '../../src/db/chats.ts';
 import { runsRepo } from '../../src/db/runs.ts';
 import { workRepo } from '../../src/db/work.ts';
 import { planRebuild } from '../../src/office/rebuild.ts';
+import { createRebuilds } from '../../src/office/rebuild-service.ts';
 import { type FakeStep, fakeRunner } from '../../src/runtime/fake.ts';
 import { testApp } from '../helpers.ts';
 
@@ -243,11 +244,16 @@ describe('rebuild apply and undo', () => {
 
 describe('the director rebuilds from chat', () => {
   /** The director's chat turn calls rebuild_teams with `args`, then replies `reply`. */
+  /** Every task the director's turns got, oldest first. */
+  const tasks: string[] = [];
   const setup = (args: object, reply = 'Done.') => {
+    tasks.length = 0;
     boot({
       runner: fakeRunner((spec): FakeStep[] => {
-        if (spec.task.startsWith('Studio summary right now: '))
+        if (spec.task.startsWith('Studio summary right now: ')) {
+          tasks.push(spec.task);
           return [{ tool: 'rebuild_teams', args: args as Record<string, unknown> }, { result: reply }];
+        }
         return fakeBrain(spec);
       }),
     });
@@ -261,8 +267,24 @@ describe('the director rebuilds from chat', () => {
       from: string;
       kind: string;
       text: string;
-      rebuild?: { planId: string; needsConfirm: boolean; undoToken?: string };
+      rebuild?: {
+        planId: string;
+        needsConfirm: boolean;
+        undoToken?: string;
+        closed?: string;
+        reason?: string;
+        told?: boolean;
+      };
     }[];
+  /** The director makes a confirm card (taking Pete off, with open work): its saved offer. */
+  const cardFromChat = async () => {
+    const orch = setup({ remove: ['Pixel Pete'] }, 'Confirm below.');
+    items([{ id: 'i1', agentId: 'a-pete', teamId: 'ship-it' }]);
+    const r = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Take Pete off' });
+    await h.runtime.settled(r.body.runId);
+    const card = async () => (await thread(orch)).find((m) => m.rebuild)?.rebuild;
+    return { orch, card, planId: (await card())?.planId as string };
+  };
 
   const turnSaid = (runId: string) =>
     getChatMessages(h.db, runId).find((m) => m.role === 'assistant')?.text ?? '';
@@ -298,6 +320,49 @@ describe('the director rebuilds from chat', () => {
     const reply = (await thread(orch)).find((m) => m.from !== 'user');
     expect(reply?.rebuild?.undoToken).toBeTruthy();
     expect(h.store.teams.require('ship-it').members.map((m) => m.agentId)).toContain('a-baron');
+  });
+
+  /* the HQ bug: the team changed under a waiting card, its answer said "Plan changed", and the card came back
+     after every restart and blocked New chat */
+  it('a card whose plan went out of date closes itself, stays closed after a restart, and the director hears', async () => {
+    const { orch, card, planId } = await cardFromChat();
+    h.store.teams.addMember('ship-it', 'a-baron', 'Help'); // the team changed under the card
+    const r = await h.call('POST', `/rebuild/${planId}/apply`, {});
+    expect(r.status).toBe(422);
+    expect(await card()).toMatchObject({
+      closed: 'expired',
+      reason: expect.stringMatching(/lineup changed/),
+    });
+    createRebuilds({ store: h.store, events: h.events }); // a fresh start
+    expect((await card())?.closed).toBe('expired');
+    const next = await h.call('POST', `/projects/aurora/threads/${orch}/messages`, { text: 'Hi' });
+    await h.runtime.settled(next.body.runId);
+    expect(tasks[1]).toMatch(/rebuild card\(s\) ran out without being applied/);
+    expect(tasks[1]).toContain('Pixel Pete left');
+    expect((await card())?.told).toBe(true);
+  });
+
+  it('a card whose change already holds closes itself as out of date', async () => {
+    const { card, planId } = await cardFromChat();
+    h.store.teams.saveRoster('ship-it', {
+      captainId: 'a-semic',
+      members: h.store.teams.require('ship-it').members.filter((m) => m.agentId !== 'a-pete'),
+    });
+    const r = await h.call('POST', `/rebuild/${planId}/apply`, {});
+    expect(r.status).toBe(422);
+    expect(JSON.stringify(r.body)).toMatch(/already looks like that/);
+    expect(await card()).toMatchObject({ closed: 'expired', reason: 'the team already looks like that' });
+  });
+
+  it('a card still waiting at a restart closes itself; a dismissed one never comes back', async () => {
+    const first = await cardFromChat();
+    createRebuilds({ store: h.store, events: h.events });
+    expect((await first.card())?.closed).toBe('expired');
+    const again = await cardFromChat();
+    expect((await h.call('POST', `/rebuild/${again.planId}/dismiss`)).status).toBe(200);
+    expect((await again.card())?.closed).toBe('kept');
+    // dismissing a card whose plan is long gone works too
+    expect((await h.call('POST', `/rebuild/${first.planId}/dismiss`)).status).toBe(200);
   });
 
   it('a rebuild the planner refuses comes back to the director in the turn; no card, nothing changes', async () => {

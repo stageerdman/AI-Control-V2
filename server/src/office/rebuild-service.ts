@@ -1,21 +1,23 @@
 /* Team rebuilds, applying and undoing (spec-ux-team-rebuild §2, §3): a plan (rebuild.ts) is kept here until it is
    confirmed, applied all-or-nothing in one store.tx with a snapshot, and can be undone from that snapshot for 10
-   minutes while nobody has started new work under the new lineup. Plans and snapshots live in memory: after a
-   restart a card is simply stale ("ask again"). */
+   minutes while nobody has started new work under the new lineup. Plans and snapshots live in memory; how each
+   saved card ended lives with the chat (rebuild-cards.ts): a card whose plan is gone, out of date or already
+   holds closes itself, and the director hears it ran out — it never blocks the chat or comes back. */
 import { randomUUID } from 'node:crypto';
 import { runsRepo } from '../db/runs.ts';
 import type { Store } from '../db/store.ts';
 import { now } from '../db/util.ts';
 import { workRepo } from '../db/work.ts';
 import type { Member } from '../domain/teams.ts';
-import { invalid, notFound } from '../errors.ts';
+import { invalid } from '../errors.ts';
 import type { EventLog } from '../events/log.ts';
 import { type Overrides, planRebuild, type RebuildCard, type RebuildInput, summaryOf } from './rebuild.ts';
+import { type CardEnd, rebuildCards } from './rebuild-cards.ts';
 
 export const UNDO_MS = 10 * 60_000;
 const PLAN_MS = 60 * 60_000;
 
-type Plan = { projectId: string; input: RebuildInput; stamp: string; stale: boolean; at: number };
+type Plan = { projectId: string; input: RebuildInput; stamp: string; at: number };
 type Snapshot = {
   projectId: string;
   at: number;
@@ -42,7 +44,22 @@ export type Offer = {
   card: RebuildCard;
   undoToken?: string;
   summary?: string;
+  /** How a confirm card ended (saved on its chat line); absent while it waits. */
+  closed?: CardEnd;
+  /** Why it expired, in plain words (for the director). */
+  reason?: string;
+  /** An expired card: has the director heard? */
+  told?: boolean;
 };
+
+/* why a card ran out, as the director hears it */
+const GONE = 'the studio restarted before it was answered';
+const TIMED_OUT = 'it waited over an hour';
+const CHANGED = 'the lineup changed since it was planned';
+const HOLDS = 'the team already looks like that';
+const NEWER = 'a newer message came in before it was answered';
+const STALE = 'This plan is stale — the lineup changed since. Ask again.';
+const ALREADY = 'This plan is stale — the team already looks like that. Nothing to do.';
 
 export function createRebuilds(deps: {
   store: Store;
@@ -60,6 +77,9 @@ export function createRebuilds(deps: {
     it.status === 'running' && !!it.runId && runs.get(it.runId)?.status === 'succeeded';
   const plans = new Map<string, Plan>();
   const undos = new Map<string, Snapshot>();
+  const cards = rebuildCards(store.db);
+  /* a fresh start holds no plans: every saved card still waiting is out of date */
+  cards.expireWaiting(GONE, () => false);
 
   /** The lineup as it is: a plan made against another lineup is stale. */
   const stampOf = (projectId: string) => {
@@ -72,22 +92,56 @@ export function createRebuilds(deps: {
   };
   const sweep = () => {
     const t = clock();
-    for (const [k, v] of plans) if (t - v.at > PLAN_MS) plans.delete(k);
+    for (const [k, v] of plans)
+      if (t - v.at > PLAN_MS) {
+        plans.delete(k);
+        cards.close(k, 'expired', { reason: TIMED_OUT });
+      }
     for (const [k, v] of undos) if (t - v.at > UNDO_MS) undos.delete(k);
   };
+
+  /** Would the plan change anything against the lineup as it is now? (A refused plan changes nothing.) */
+  const stillChanges = (p: Plan) => {
+    const r = planRebuild(store, p.projectId, p.input);
+    if (!r.ok) return false;
+    const c = r.card;
+    return [c.leaves, c.specialists, c.moves, c.newTeams, c.captains, c.lone].some((xs) => xs.length > 0);
+  };
+
+  /** The plan can't run: its card closes itself (the director hears it on its next turn) and the user is told why. */
+  function expire(planId: string, saved: Plan | undefined): never {
+    plans.delete(planId);
+    const holds = !!saved && !stillChanges(saved);
+    cards.close(planId, 'expired', { reason: !saved ? GONE : holds ? HOLDS : CHANGED });
+    throw invalid(holds ? ALREADY : STALE);
+  }
 
   /** A plan for the confirm card (nothing written). */
   function plan(projectId: string, input: RebuildInput): Offer {
     sweep();
     const r = planRebuild(store, projectId, input);
     if (!r.ok) throw invalid(r.error);
-    plans.set(r.planId, { projectId, input, stamp: stampOf(projectId), stale: false, at: clock() });
+    plans.set(r.planId, { projectId, input, stamp: stampOf(projectId), at: clock() });
     return { planId: r.planId, needsConfirm: r.needsConfirm, card: r.card };
   }
 
-  /** A newer message to the director: every open card of the project goes stale. */
-  function staleAll(projectId: string) {
-    for (const p of plans.values()) if (p.projectId === projectId) p.stale = true;
+  /** A newer message to the director: every open card of the project closes as expired. Returns what the
+      director should hear about cards that ran out since its last turn (null: nothing). */
+  function newMessage(projectId: string): string | null {
+    for (const [k, p] of plans)
+      if (p.projectId === projectId) {
+        plans.delete(k);
+        cards.close(k, 'expired', { reason: NEWER });
+      }
+    cards.expireWaiting(GONE, (id) => plans.has(id), projectId);
+    return cards.untoldNote(projectId);
+  }
+
+  /** The user dismissed the card (Keep as is, or closing one that ran out): it never comes back. */
+  function dismiss(planId: string): { ok: true } {
+    plans.delete(planId);
+    cards.close(planId, 'kept');
+    return { ok: true };
   }
 
   /** The card's picks fold in after the plan's own (later picks win in the planner). */
@@ -104,10 +158,9 @@ export function createRebuilds(deps: {
     picks: Overrides = {},
     by?: string,
   ): { undoToken: string; summary: string; card: RebuildCard } {
+    sweep();
     const saved = plans.get(planId);
-    if (!saved) throw notFound('Plan', planId);
-    if (saved.stale || saved.stamp !== stampOf(saved.projectId))
-      throw invalid('This plan is stale — the lineup changed since. Ask again.');
+    if (!saved || saved.stamp !== stampOf(saved.projectId)) expire(planId, saved);
     const { projectId } = saved;
     const r = planRebuild(store, projectId, withPicks(saved.input, picks), planId);
     if (!r.ok) throw invalid(r.error);
@@ -175,11 +228,13 @@ export function createRebuilds(deps: {
       return snap;
     });
     plans.delete(planId);
+    const summary = summaryOf(r.card);
+    cards.close(planId, 'applied', { summary });
     for (const run of stops) deps.stopRun?.(projectId, run);
     announce(snap.before, snap.after, projectId, by);
     const undoToken = randomUUID();
     undos.set(undoToken, snap);
-    return { undoToken, summary: summaryOf(r.card), card: r.card };
+    return { undoToken, summary, card: r.card };
   }
 
   function announce(before: string[], after: string[], projectId: string, by?: string) {
@@ -243,6 +298,6 @@ export function createRebuilds(deps: {
     return { summary: 'Undone — the team is back as it was.' };
   }
 
-  return { plan, apply, undo, staleAll };
+  return { plan, apply, undo, dismiss, newMessage };
 }
 export type Rebuilds = ReturnType<typeof createRebuilds>;

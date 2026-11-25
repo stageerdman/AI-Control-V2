@@ -8,6 +8,7 @@ import { Button } from '../../../ui';
 import {
   type ApplyBody,
   type RebuildCard as Card,
+  type CardEnd,
   type HandoverTo,
   isStaleError,
   type LonePick,
@@ -23,8 +24,21 @@ export type FaceOf = (id: string) => { name: string; look?: unknown } | null;
 type Outcome =
   | { kind: 'kept' }
   | { kind: 'done'; token: string; summary: string; at: number }
-  | { kind: 'undone' };
+  | { kind: 'undone' }
+  /* its plan ran out (out of date, already holds, lost to a restart): it closed itself */
+  | { kind: 'expired' }
+  /* applied earlier (saved on the chat line): no Undo from here */
+  | { kind: 'applied'; summary?: string };
 const outcomes = new Map<string, Outcome>();
+/** How the server says the card ended (saved on its chat line) → what it shows. */
+const savedOutcome = (closed?: CardEnd, summary?: string): Outcome | undefined =>
+  closed === 'kept'
+    ? { kind: 'kept' }
+    : closed === 'expired'
+      ? { kind: 'expired' }
+      : closed === 'applied'
+        ? { kind: 'applied', summary }
+        : undefined;
 /** The user already answered this card here (Rebuild or Keep as is). */
 export const isRebuildSettled = (planId: string) => outcomes.has(planId);
 /** For tests. */
@@ -81,18 +95,26 @@ export type RebuildCardProps = {
   director: string;
   /** Greyed from outside: a newer message came in. */
   stale?: boolean;
+  /** How the server says it ended (a saved chat line): it shows its one line, never the live card. */
+  closed?: CardEnd;
+  /** An applied card's one-line summary. */
+  summary?: string;
   /** Take focus on Keep as is when it appears (default true). */
   focus?: boolean;
   /** The undo window starts here (a chat reply's time; default now). */
   onApplied?: (r: { undoToken: string; summary: string }) => void;
   onKept?: () => void;
   onUndone?: () => void;
+  /** It ran out (or the user dismissed one that had): it no longer holds New chat back. */
+  onExpired?: () => void;
 };
 
 /* ---------- a11y: when the card turns into its one line, focus follows (keyboard) or the line is announced
    (voice / typed answer, focus elsewhere) — never both, never silence, never focus dropped to the page. */
 const KEPT = 'Kept as is.';
 const UNDONE = 'Undone — the team is back as it was.';
+const expiredText = (director: string) =>
+  `This plan ran out — nothing changed. Ask ${director} again if you still want it.`;
 const doneText = (summary?: string) =>
   summary ? `Done — ${summary.replace(/^Done\s*[—-]\s*/i, '')}` : 'Done.';
 /** Focus is inside `el`, or was until the focused control was removed (focus fell back to the page). */
@@ -132,20 +154,41 @@ function QuietLine({ text, grab }: { text: string; grab: boolean }) {
 
 export function RebuildCard(p: RebuildCardProps) {
   const { card } = p;
-  const [outcome, setOutcome] = useState<Outcome | undefined>(() => outcomes.get(card.planId));
+  const [outcome, setOutcome] = useState<Outcome | undefined>(
+    () => outcomes.get(card.planId) ?? savedOutcome(p.closed, p.summary),
+  );
   const [said, setSaid] = useState('');
   const [grab, setGrab] = useState(false);
+  const expired = expiredText(p.director);
   const settle = (o: Outcome, hadFocus: boolean) => {
     outcomes.set(card.planId, o);
     setOutcome(o);
     setGrab(hadFocus);
-    setSaid(hadFocus ? '' : o.kind === 'kept' ? KEPT : o.kind === 'undone' ? UNDONE : doneText(o.summary));
+    setSaid(
+      hadFocus
+        ? ''
+        : o.kind === 'kept'
+          ? KEPT
+          : o.kind === 'undone'
+            ? UNDONE
+            : o.kind === 'expired'
+              ? expired
+              : doneText(o.summary),
+    );
+  };
+  const ranOut = (hadFocus: boolean) => {
+    settle({ kind: 'expired' }, hadFocus);
+    p.onExpired?.();
   };
   const body =
     outcome?.kind === 'kept' ? (
       <QuietLine key="kept" text={KEPT} grab={grab} />
     ) : outcome?.kind === 'undone' ? (
       <QuietLine key="undone" text={UNDONE} grab={grab} />
+    ) : outcome?.kind === 'expired' ? (
+      <QuietLine key="expired" text={expired} grab={grab} />
+    ) : outcome?.kind === 'applied' ? (
+      <QuietLine key="applied" text={doneText(outcome.summary)} grab={grab} />
     ) : outcome?.kind === 'done' ? (
       <UndoLine
         key="done"
@@ -170,6 +213,7 @@ export function RebuildCard(p: RebuildCardProps) {
           settle({ kind: 'kept' }, hadFocus);
           p.onKept?.();
         }}
+        onRanOut={ranOut}
       />
     );
   return (
@@ -218,6 +262,7 @@ function LiveCard(
   p: Omit<RebuildCardProps, 'onApplied' | 'onKept'> & {
     onApplied: (r: { undoToken: string; summary: string }, hadFocus: boolean) => void;
     onKept: (hadFocus: boolean) => void;
+    onRanOut: (hadFocus: boolean) => void;
   },
 ) {
   const { card, faceOf, director } = p;
@@ -229,9 +274,10 @@ function LiveCard(
   const [picks, setPicks] = useState<Picks>(() => firstPicks(card));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [staleNow, setStaleNow] = useState(false);
-  const stale = card.stale || !!p.stale || staleNow;
+  const stale = card.stale || !!p.stale;
   const had = () => holdsFocus(root.current, within.was.current);
+  /* the server closes the card for good (it never comes back after a restart); the line shows at once */
+  const close = () => void rebuildApi.dismiss(card.planId);
 
   const rebuild = async () => {
     if (busy || stale) return;
@@ -240,11 +286,20 @@ function LiveCard(
     const r = await rebuildApi.apply(card.planId, applyBodyOf(card, picks));
     setBusy(false);
     if (r.ok) p.onApplied({ undoToken: r.undoToken, summary: r.summary }, had());
-    else if (isStaleError(r.error)) setStaleNow(true);
+    /* out of date or already true: the server closed it — it closes here too, never blocking the chat */ else if (
+      isStaleError(r.error)
+    )
+      p.onRanOut(had());
     else setErr(r.error);
   };
   const kept = () => {
-    if (!busy) p.onKept(had());
+    if (busy) return;
+    close();
+    p.onKept(had());
+  };
+  const dismiss = () => {
+    close();
+    p.onRanOut(had());
   };
   const ref = useRef({ rebuild, keep: kept });
   ref.current = { rebuild, keep: kept };
@@ -422,9 +477,17 @@ function LiveCard(
         </p>
       ))}
       {stale ? (
-        <p ref={staleLine} tabIndex={-1} className="rb-stale" id={`${id}-stale`} role="status">
-          Plan changed — ask again.
-        </p>
+        <>
+          <p ref={staleLine} tabIndex={-1} className="rb-stale" id={`${id}-stale`} role="status">
+            Plan changed — ask again.
+          </p>
+          {/* the user can always close a card */}
+          <footer className="rb-foot">
+            <Button variant="ghost" className="rb-keep" onClick={dismiss}>
+              Dismiss
+            </Button>
+          </footer>
+        </>
       ) : (
         <>
           {err && (

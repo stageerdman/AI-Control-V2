@@ -88,6 +88,11 @@ describe('newChatState', () => {
     expect(newChatState(facts({ messages: applied })).state).toBe('shining');
     const stale = [msg('pixel', { rebuild: card({ card: { stale: true } } as Partial<RebuildOffer>) })];
     expect(newChatState(facts({ messages: stale })).state).toBe('shining');
+    /* closed on the server (ran out, kept, applied): never blocks, even after a reload forgot the tab's answer */
+    for (const closed of ['expired', 'kept', 'applied'] as const)
+      expect(newChatState(facts({ messages: [msg('pixel', { rebuild: card({ closed }) })] })).state).toBe(
+        'shining',
+      );
   });
   it('work wins over the card (first true row)', () => {
     const messages = [msg('pixel', { rebuild: card() })];

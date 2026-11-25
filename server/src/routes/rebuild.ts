@@ -36,6 +36,10 @@ export const rebuildRoutes =
       ok: true,
       ...rebuilds.apply(parse(PlanParams, req.params).planId, parse(OverridesSchema, req.body ?? {})),
     }));
+    /* the user closes the card (Keep as is, or one that ran out): it never comes back */
+    app.post('/rebuild/:planId/dismiss', async (req) =>
+      rebuilds.dismiss(parse(PlanParams, req.params).planId),
+    );
     app.post('/rebuild/undo/:token', async (req) => ({
       ok: true,
       ...rebuilds.undo(parse(TokenParams, req.params).token),
