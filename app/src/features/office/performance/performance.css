@@ -246,6 +246,54 @@
   transform: none;
 }
 
+/* where the tokens go (tokens/TokensView.tsx): a sentence, three label · value lines, one soft hint */
+.pf-tk-lead {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.pf-tk-soft,
+.pf-tk-hint {
+  color: var(--ink-soft);
+}
+.pf-tk-lines {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pf-tk-lines div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  font-weight: 700;
+}
+.pf-tk-lines dt {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.pf-tk-lines dd {
+  margin: 0;
+}
+.pf-tk-split {
+  display: block;
+  height: 8px;
+  margin: 2px 0 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.pf-tk-split span {
+  display: block;
+  height: 100%;
+  background: var(--sun);
+}
+.pf-tk-hint {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
 /* worth a look */
 .pf-flags {
   list-style: none;
