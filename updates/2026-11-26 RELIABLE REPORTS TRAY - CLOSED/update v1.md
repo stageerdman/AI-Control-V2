@@ -21,7 +21,9 @@ matches what the studio counts as unread.
 1. **Refresh the tray on entry** — the office marks its reports list stale on entry, like every
    other office read. Test: a list cached before leaving is re-read on return and shows the new
    report. ✅
-2. **Ship** — app tests + server tests green, pushed, Mac app rebuilt so the user sees the report. ✅
+2. **Ship** — app tests (873) + server tests (1314) green, pushed. The Mac app rebuilds itself when
+   this lands on master (the backend runs `install:mac` after every merge); reopening the app picks
+   up the new build. ✅
 
 ## Status
-Done.
+Done. Folder closed.
