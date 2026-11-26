@@ -222,6 +222,23 @@ describe('ReportView', () => {
     );
   });
 
+  it('Copy puts the whole report on the clipboard as Markdown and says "Copied"', async () => {
+    db.active = [rep('1', { readAt: new Date().toISOString() })];
+    const writeText = vi.fn(async (_: string) => {});
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    render(
+      <>
+        <ReportView projectId="aurora" reportId="1" onBack={() => {}} onFollowUp={() => {}} />
+        <Toaster />
+      </>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy report as Markdown' }));
+    expect(await screen.findByText('Copied')).toBeTruthy();
+    const md = writeText.mock.calls[0][0];
+    expect(md).toMatch(/^# Title 1\n\n> Which provider\?\n\nSummary 1\n\n## What we compared\n\nFees\./);
+    expect(md).toContain('1. [Stripe pricing](https://stripe.com/pricing)\n2. Code `src/pay.ts`');
+  });
+
   it('author gone → asks the orchestrator; 404 → gone state', async () => {
     db.active = [rep('1', { readAt: 'x', author: { ...author, agentId: 'a-ghost', name: 'Ghost' } })];
     const onFollowUp = vi.fn();

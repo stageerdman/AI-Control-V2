@@ -1,5 +1,5 @@
 /* Pure helpers for the Reports space: times, unread, live-event updates, row labels. */
-import type { ReportKind, ReportRow } from './api';
+import type { Report, ReportKind, ReportRow, ReportSource } from './api';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -74,6 +74,22 @@ export function applyReportEvent<T extends ReportRow>(
 export function rowLabel(r: ReportRow, now: Date = new Date()): string {
   const who = [r.author.name, r.author.teamName].filter(Boolean).join(', ');
   return `${isUnread(r) ? 'Unread. ' : ''}${r.title}, by ${who}, ${relWhen(r.createdAt, now, true).toLowerCase()}. ${r.summary}`;
+}
+
+const quote = (text: string) => text.replace(/^/gm, '> ');
+const sourceLine =(s: ReportSource, i: number) => {
+  const name = s.url ? `[${s.title}](${s.url})` : s.title;
+  return `${i + 1}. ${name}${s.path ? ` \`${s.path}\`` : ''}`;
+};
+
+/** The whole report as one Markdown document, in reading order — what "Copy" puts on the clipboard. */
+export function reportMarkdown(r: Pick<Report, 'title' | 'question' | 'summary' | 'body' | 'sources'>): string {
+  const parts = [`# ${r.title}`];
+  if (r.question) parts.push(quote(r.question));
+  if (r.summary) parts.push(r.summary);
+  if (r.body.trim()) parts.push(r.body.trim());
+  if (r.sources.length) parts.push(`## Sources\n\n${r.sources.map(sourceLine).join('\n')}`);
+  return `${parts.join('\n\n')}\n`;
 }
 
 /** "Scout" from an agent: its nick, else the first word of the name. */

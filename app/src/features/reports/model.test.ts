@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ReportRow } from './api';
-import { applyReportEvent, fullWhen, relWhen, rowLabel, shortName, unreadCount } from './model';
+import {
+  applyReportEvent,
+  fullWhen,
+  relWhen,
+  reportMarkdown,
+  rowLabel,
+  shortName,
+  unreadCount,
+} from './model';
 
 const NOW = new Date(2026, 10, 13, 15, 0, 0); // 13 Nov 2026 15:00 local
 const at = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m).toISOString();
@@ -93,5 +101,30 @@ describe('labels + names', () => {
   it('shortName: nick, else first word', () => {
     expect(shortName({ name: 'Scout Ranger', nick: null })).toBe('Scout');
     expect(shortName({ name: 'Professor Prompt', nick: 'Prof' })).toBe('Prof');
+  });
+});
+
+describe('reportMarkdown', () => {
+  it('title, question, summary, whole body, sources — in reading order', () => {
+    const md = reportMarkdown({
+      title: 'Payments',
+      question: 'Which provider?\nAnd why?',
+      summary: 'Stripe.',
+      body: '## Fees\n\nLow.\n\n## Risks\n\nNone.\n',
+      sources: [
+        { title: 'Stripe pricing', url: 'https://stripe.com/pricing' },
+        { title: 'Code', path: 'src/pay.ts' },
+      ],
+    });
+    expect(md).toBe(
+      '# Payments\n\n> Which provider?\n> And why?\n\nStripe.\n\n## Fees\n\nLow.\n\n## Risks\n\nNone.\n\n' +
+        '## Sources\n\n1. [Stripe pricing](https://stripe.com/pricing)\n2. Code `src/pay.ts`\n',
+    );
+  });
+
+  it('skips the parts a report does not have', () => {
+    expect(reportMarkdown({ title: 'T', question: null, summary: 'S', body: 'B', sources: [] })).toBe(
+      '# T\n\nS\n\nB\n',
+    );
   });
 });

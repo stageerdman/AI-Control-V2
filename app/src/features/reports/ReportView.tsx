@@ -2,10 +2,10 @@
    body → sources → Archive · Ask <author> a follow-up. Opening it marks it read (once). */
 import { useEffect, useRef } from 'react';
 import { isApiError, studio, useQuery } from '../../api';
-import { Button, toast } from '../../ui';
+import { Button, copyText, toast } from '../../ui';
 import { invalidateReports, type Report, reportKey, reportsApi } from './api';
 import { Markdown, safeUrl } from './markdown';
-import { fullWhen, KIND_LABEL, shortName } from './model';
+import { fullWhen, KIND_LABEL, reportMarkdown, shortName } from './model';
 import { AuthorLine, useCast } from './parts';
 import './reports.css';
 
@@ -103,6 +103,12 @@ export function ReportView({
     } else toast('Back in Reports');
   };
 
+  const copy = () =>
+    copyText(reportMarkdown(r)).then(
+      () => toast('Copied'),
+      (e) => toast(`Couldn't copy: ${(e as Error).message}`),
+    );
+
   return (
     <article className="rp-page" aria-labelledby="rpTitle">
       {back}
@@ -167,6 +173,9 @@ export function ReportView({
         </section>
       )}
       <footer className="rp-actions">
+        <Button small aria-label="Copy report as Markdown" onClick={() => void copy()}>
+          Copy
+        </Button>
         <Button small onClick={() => void setArchived(!archived)}>
           {archived ? 'Unarchive' : 'Archive'}
         </Button>

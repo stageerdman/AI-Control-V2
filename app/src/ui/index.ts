@@ -2,6 +2,7 @@
 export { Button, type ButtonProps } from './Button';
 export { useBackdropDismiss } from './backdrop';
 export { Chip, Pill, type PillTone } from './Chip';
+export { copyText } from './clipboard';
 export { clearDraft, draftKey, flushDrafts, loadDraft, saveDraft, useDraft } from './drafts';
 export { Field, TextArea } from './Field';
 export { Panel, SceneHead } from './Layout';
