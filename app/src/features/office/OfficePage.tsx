@@ -31,7 +31,14 @@ import type { Person, Resolve } from '../collab';
 import { invalidateReports, type ReportList, reportsApi, reportsKey } from '../reports';
 import { RunningPill, RunningSheet, runningKey, useRunning } from '../running';
 import { AccessSheet } from './AccessSheet';
-import { keys, type OfficeProgress, type OfficeView, officeApi, type Thread } from './api';
+import {
+  keys,
+  type OfficeProgress,
+  type OfficeView,
+  officeApi,
+  refreshOfficeReads,
+  type Thread,
+} from './api';
 import { Board, LAYER_BACK, OBJ_OF, useFeatures, useHealth, useProgress, useWork } from './Board';
 import { BringInSheet } from './BringInSheet';
 import { DeskNoteSheet } from './DeskNoteSheet';
@@ -74,13 +81,13 @@ export function OfficePage({ route }: PageProps<'office'>) {
   const [attempt, setAttempt] = useState(0);
   /* always fresh on entry: the scene starts from now, the stream continues from lastEventId — so what changed
      while the user was away (a reply, a task closed) never arrives as an event: every cached office read
-     (threads, board, …) is marked stale and reads the server again as it mounts */
+     (threads, board, the reports tray, …) is marked stale and reads the server again as it mounts */
   // biome-ignore lint/correctness/useExhaustiveDependencies: reload on project / retry
   useEffect(() => {
     let off = false;
     setBoot(null);
     setError(null);
-    void invalidate(keys.scope(pid));
+    void refreshOfficeReads(pid);
     Promise.all([
       officeApi.office(pid),
       studio.projects.asks(pid, true),

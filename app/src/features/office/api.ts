@@ -4,11 +4,13 @@ import {
   type Collaboration,
   type CollaborationView,
   http,
+  invalidate,
   type ProjectApp,
   type ProjectStatus,
   type Workflow,
   type WorkflowsView,
 } from '../../api';
+import { invalidateReports } from '../reports/api';
 import type { RebuildOffer } from './rebuild/api';
 
 const e = encodeURIComponent;
@@ -390,3 +392,9 @@ export const keys = {
   mail: (pid: string, box: 'in' | 'sent' = 'in') => `office:${pid}:mail:${box}`,
   pager: 'pager:asks',
 };
+
+/** On entering an office: its stream resumes from now, so nothing that changed while the user was away
+    arrives as an event. Every cached read the office shows must read the server again — the reports tray
+    too, which lives under its own `reports:` keys (missing it left new reports out of the tray). */
+export const refreshOfficeReads = (pid: string): Promise<void> =>
+  Promise.all([invalidate(keys.scope(pid)), invalidateReports(pid)]).then(() => undefined);
