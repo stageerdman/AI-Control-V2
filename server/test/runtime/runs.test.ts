@@ -258,6 +258,7 @@ describe('agent runs (FakeRunner end-to-end)', () => {
           '__CF_USER_TEXT_ENCODING',
           'SSH_AUTH_SOCK', // AGENTS PUSH: ssh origins push through the user's ssh agent
           'GIT_TERMINAL_PROMPT', // AGENTS PUSH: a push never waits on a prompt
+          'AI_STUDIO_OWNER', // reaper tag: set when the studio itself runs these tests
           'PATH',
           'STRIPE_KEY',
           'PORT', // G1: the run's port block
